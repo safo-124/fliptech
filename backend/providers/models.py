@@ -1,0 +1,358 @@
+"""Provider and everything attached to it.
+
+Two rules from DATA_MODEL.md shape this module and should survive refactoring:
+
+1. Verification and GovernmentStatus are separate tables and are never joined
+   into one displayed field. There is deliberately no `is_verified` boolean on
+   Provider. A provider can be visited by Fliiptech with no CTVET record, or
+   hold a CTVET registration and never have been visited, and both states must
+   render honestly. Collapsing them is the change most likely to create a legal
+   problem later.
+
+2. Public photographs and private evidence never share a bucket. They are two
+   models bound to two storages rather than one model with a visibility flag —
+   see the note on ProviderEvidence.
+"""
+
+from django.conf import settings
+from django.contrib.gis.db import models as gis_models
+from django.contrib.postgres.indexes import GinIndex
+from django.core.files.storage import storages
+from django.db import models
+from phonenumber_field.modelfields import PhoneNumberField
+from simple_history.models import HistoricalRecords
+
+from core.images import strip_exif, stripped_name
+from core.models import TimeStampedModel
+
+
+def private_storage():
+    """Second R2 bucket, signed URLs only. Configured in settings.STORAGES."""
+    return storages["private"]
+
+
+class ProviderQuerySet(models.QuerySet):
+    def published(self):
+        return self.filter(status=Provider.Status.PUBLISHED)
+
+    def for_card(self):
+        """Annotate the three numbers Screen 1 puts on the card.
+
+        Computed in one query rather than per row: at forty providers the
+        difference is invisible, but the page-weight and first-paint budgets in
+        Section 10 leave no room for an N+1 once the list grows.
+        """
+        from django.utils import timezone
+
+        active = models.Q(programmes__is_active=True)
+        upcoming = models.Q(
+            programmes__intakes__is_open=True,
+            programmes__intakes__start_date__gte=timezone.now().date(),
+        )
+        return self.annotate(
+            lowest_fee=models.Min("programmes__fee", filter=active),
+            shortest_duration_weeks=models.Min("programmes__duration_weeks", filter=active),
+            next_intake=models.Min("programmes__intakes__start_date", filter=upcoming),
+        )
+
+    def with_related(self):
+        """Everything the card and profile serializers touch."""
+        from django.db.models import Prefetch
+
+        from catalog.models import Programme
+
+        return self.select_related("area", "area__region", "government_status").prefetch_related(
+            "photos",
+            "verifications",
+            Prefetch(
+                "programmes",
+                queryset=Programme.objects.select_related("trade").prefetch_related("intakes"),
+            ),
+        )
+
+
+class Provider(TimeStampedModel):
+    """A workshop or training centre."""
+
+    objects = ProviderQuerySet.as_manager()
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PENDING_APPROVAL = "pending_approval", "Pending approval"
+        PUBLISHED = "published", "Published"
+        SUSPENDED = "suspended", "Suspended"
+
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
+
+    owner_name = models.CharField(max_length=200, blank=True)
+    owner_phone = PhoneNumberField(blank=True)
+    contact_phone = PhoneNumberField(
+        help_text="The number a trainee is handed over to on WhatsApp."
+    )
+
+    area = models.ForeignKey("geography.Area", on_delete=models.PROTECT, related_name="providers")
+    address = models.CharField(max_length=300, blank=True)
+
+    # geography=True so distance comes back in metres over the spheroid, which
+    # is what "within 10 kilometres of a point" in Section 05 means.
+    location = gis_models.PointField(geography=True, srid=4326)
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    # Section 09: prompted every 90 days, marked unconfirmed after 30 days
+    # without a reply, and the date last checked is shown on the listing.
+    last_confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["area", "slug"], name="unique_provider_slug_per_area")
+        ]
+        indexes = [
+            GinIndex(name="provider_name_trgm", fields=["name"], opclasses=["gin_trgm_ops"]),
+            models.Index(fields=["status", "area"]),
+        ]
+        # Section 09 requires a second pair of eyes before a listing goes live.
+        # Publishing is therefore its own permission, not implied by change:
+        # a field officer can draft and edit, only an operations lead can
+        # publish. See the setup_groups management command.
+        permissions = [("publish_provider", "Can publish a provider listing")]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_listing_stale(self):
+        """True once the 90-day confirmation has lapsed by a further 30 days."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        if self.last_confirmed_at is None:
+            return self.published_at is not None
+        return timezone.now() - self.last_confirmed_at > timedelta(days=120)
+
+
+class ProviderPhoto(TimeStampedModel):
+    """A public photograph of the workshop, served from the public bucket."""
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="photos")
+    image = models.ImageField(upload_to="providers/%Y/%m/")
+    caption = models.CharField(max_length=200, blank=True)
+    display_order = models.PositiveSmallIntegerField(default=0)
+
+    # Phone photographs carry GPS coordinates. Section 10 commits to minimal
+    # collection, and an un-stripped photo can expose an owner's home address.
+    exif_stripped = models.BooleanField(default=False)
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        ordering = ["display_order", "created_at"]
+
+    def __str__(self):
+        return f"Photo of {self.provider.name}"
+
+    def save(self, *args, **kwargs):
+        # `_committed` is False only for a freshly assigned upload, so editing a
+        # caption does not re-encode the photograph on every save.
+        if self.image and not self.image._committed and not self.exif_stripped:
+            cleaned = strip_exif(self.image)
+            if cleaned is not None:
+                self.image.save(stripped_name(self.image.name), cleaned, save=False)
+                self.exif_stripped = True
+        super().save(*args, **kwargs)
+
+
+class ProviderEvidence(TimeStampedModel):
+    """Verification evidence and owner identification. Never publicly served.
+
+    This is a separate model from ProviderPhoto rather than one media table with
+    a visibility flag, because Django binds storage at the field, not the
+    instance: a single FileField cannot route to two buckets per row. Splitting
+    the models makes the separation structural — a mis-set boolean cannot leak
+    an identity document, because private files physically cannot be written to
+    the public bucket.
+    """
+
+    class Kind(models.TextChoices):
+        VERIFICATION_EVIDENCE = "verification_evidence", "Verification evidence"
+        ID_DOCUMENT = "id_document", "Owner identification"
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="evidence")
+    verification = models.ForeignKey(
+        "providers.Verification",
+        on_delete=models.CASCADE,
+        related_name="evidence",
+        null=True,
+        blank=True,
+    )
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    file = models.FileField(upload_to="evidence/%Y/%m/", storage=private_storage)
+    note = models.CharField(max_length=200, blank=True)
+    exif_stripped = models.BooleanField(default=False)
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name_plural = "provider evidence"
+
+    def __str__(self):
+        return f"{self.get_kind_display()} for {self.provider.name}"
+
+    def save(self, *args, **kwargs):
+        # Evidence is often a photograph of a certificate taken on a phone, so
+        # it carries GPS too. Scanned PDFs pass through untouched: strip_exif
+        # returns None for anything Pillow cannot read, and exif_stripped stays
+        # False rather than claiming a strip that never happened.
+        if self.file and not self.file._committed and not self.exif_stripped:
+            cleaned = strip_exif(self.file)
+            if cleaned is not None:
+                self.file.save(stripped_name(self.file.name), cleaned, save=False)
+                self.exif_stripped = True
+        super().save(*args, **kwargs)
+
+
+class Verification(TimeStampedModel):
+    """One completed Fliiptech site visit. History is retained, never overwritten."""
+
+    class Outcome(models.TextChoices):
+        PASSED = "passed", "Passed"
+        PASSED_WITH_NOTES = "passed_with_notes", "Passed with notes"
+        FAILED = "failed", "Failed"
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="verifications")
+    visited_on = models.DateField()
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="verifications"
+    )
+
+    # Stated in plain words on the profile screen, because Screen 3 says outright
+    # what was checked and that it is not a government accreditation.
+    checks_performed = models.TextField(
+        help_text="What was actually checked, in plain words. Shown to trainees verbatim."
+    )
+    outcome = models.CharField(max_length=20, choices=Outcome.choices)
+    notes = models.TextField(blank=True)
+
+    # Section 09 flags a verification older than 12 months for a repeat visit.
+    expires_on = models.DateField(null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-visited_on"]
+        get_latest_by = "visited_on"
+
+    def __str__(self):
+        return f"{self.provider.name} verified {self.visited_on:%d %b %Y}"
+
+
+class GovernmentStatus(TimeStampedModel):
+    """CTVET registration as documented. Kept apart from Verification by design.
+
+    Every status field can say no. A field that can say no is what makes the
+    field mean anything when it says yes.
+    """
+
+    class Status(models.TextChoices):
+        REGISTERED = "registered", "Registered"
+        NOT_REGISTERED = "not_registered", "Not registered"
+        NOT_CLAIMED = "not_claimed", "Not claimed"
+        CLAIMED_NOT_VERIFIED = "claimed_not_verified", "Claimed, not independently verified"
+
+    provider = models.OneToOneField(
+        Provider, on_delete=models.CASCADE, related_name="government_status"
+    )
+    registration_status = models.CharField(
+        max_length=30, choices=Status.choices, default=Status.NOT_CLAIMED
+    )
+    registration_number = models.CharField(max_length=100, blank=True)
+    accreditation_status = models.CharField(
+        max_length=30, choices=Status.choices, default=Status.NOT_CLAIMED
+    )
+    documented_on = models.DateField(null=True, blank=True)
+    source_note = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="Where this came from. Displayed exactly as documented, never inferred.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name_plural = "government statuses"
+
+    def __str__(self):
+        return f"{self.provider.name}: {self.get_registration_status_display()}"
+
+
+# Module-level alias so drf-spectacular can import it for ENUM_NAME_OVERRIDES.
+# registration_status and accreditation_status draw on the same choice set, and
+# without a name for it the generated schema invents two.
+GOVERNMENT_RECORD_STATUS_CHOICES = GovernmentStatus.Status.choices
+
+
+class ListingConfirmation(TimeStampedModel):
+    """One prompt-and-response in the Section 09 freshness cycle.
+
+    A log rather than a timestamp, so "confirmed last week" can be told apart
+    from "never prompted".
+    """
+
+    class Channel(models.TextChoices):
+        WHATSAPP = "whatsapp", "WhatsApp"
+        SMS = "sms", "SMS"
+        PHONE = "phone", "Phone call"
+        VISIT = "visit", "Site visit"
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="confirmations")
+    prompted_at = models.DateTimeField(null=True, blank=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    channel = models.CharField(max_length=20, choices=Channel.choices, default=Channel.WHATSAPP)
+    fees_confirmed = models.BooleanField(default=False)
+    intakes_confirmed = models.BooleanField(default=False)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-prompted_at"]
+
+    def __str__(self):
+        return f"Confirmation for {self.provider.name}"
+
+
+class Suspension(TimeStampedModel):
+    """A listing suspended by staff, with the reason logged.
+
+    Section 09 requires the reason. Suspension follows a complaint about a real
+    business, so this is the record to produce if the decision is challenged.
+    """
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="suspensions")
+    reason = models.CharField(max_length=200)
+    detail = models.TextField(blank=True)
+    raised_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="suspensions_raised"
+    )
+    started_at = models.DateTimeField()
+    lifted_at = models.DateTimeField(null=True, blank=True)
+    lifted_reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        state = "active" if self.lifted_at is None else "lifted"
+        return f"{self.provider.name} suspension ({state})"

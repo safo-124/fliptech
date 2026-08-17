@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      # postgis/postgis rather than plain postgres: the extensions migration
+      # and every geometry field depend on it.
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: skillshub
+          POSTGRES_PASSWORD: skillshub
+          POSTGRES_DB: skillshub
+        options: >-
+          --health-cmd "pg_isready -U skillshub"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-a-real-secret
+      DJANGO_DEBUG: "True"
+      DATABASE_URL: postgis://skillshub:skillshub@localhost:5432/skillshub
+      SMS_PROVIDER: console
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      # GeoDjango needs the native libraries; pip cannot supply them.
+      - name: Install GDAL, GEOS and PROJ
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gdal-bin libgdal-dev libgeos-dev libproj-dev binutils
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        working-directory: backend
+        run: |
+          ruff check .
+          ruff format --check .
+
+      # A migration that exists only on someone's laptop breaks the next
+      # deploy, so drift fails the build here instead.
+      - name: Check for missing migrations
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Test
+        working-directory: backend
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm exec eslint src
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          NEXT_PUBLIC_BRAND_NAME: Fliptech
+
+  images:
+    # Only proves the images build. Pushing and deploying is deliberately a
+    # separate, manual step until there is a staging environment to prove a
+    # release against.
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://example.com
+            NEXT_PUBLIC_SITE_URL=https://example.com
+            NEXT_PUBLIC_BRAND_NAME=Fliptech

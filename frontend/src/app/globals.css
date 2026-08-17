@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind v4 is CSS-first: the theme lives here, not in tailwind.config.js.
+ *
+ * The palette is deliberately high-contrast. Section 10 asks for legible
+ * contrast and 44px tap targets, and notes the reason is not only
+ * accessibility guidance — the target user is often outdoors in strong
+ * sunlight, on a cracked screen.
+ */
+@theme {
+  --color-ink: #14181f;
+  --color-ink-soft: #4a5361;
+  --color-line: #e2e6ec;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #f6f8fa;
+
+  /* Site visit: Fliiptech's own check. */
+  --color-visit: #0f6d43;
+  --color-visit-bg: #e6f4ed;
+  /* Government record: a different claim, so a different colour family. */
+  --color-gov: #2d4a8a;
+  --color-gov-bg: #eaeff8;
+  /* Absent or unconfirmed, which must read as neutral rather than alarming. */
+  --color-muted-bg: #f0f2f5;
+  --color-warn: #8a5a00;
+  --color-warn-bg: #fdf3e0;
+
+  --color-accent: #b03a1a;
+  --color-accent-ink: #ffffff;
+
+  --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Section 10: tap targets of at least 44 pixels. Applied to the controls that
+   actually get tapped on a phone rather than left to each component. */
+@layer components {
+  .tap {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Keyboard focus must stay visible. Never remove this without a replacement. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

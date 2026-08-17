@@ -1,0 +1,339 @@
+"""Django settings for Fliiptech Skills Hub.
+
+One settings module, driven by environment variables through django-environ.
+Production differences are gated on DEBUG rather than split across a settings
+package, because Section 05 of the product documentation flags that this
+codebase may be handed to a contractor: one file that can be read top to bottom
+is worth more here than a clever inheritance chain.
+"""
+
+from pathlib import Path
+
+import environ
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env(
+    DJANGO_DEBUG=(bool, False),
+    DJANGO_ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
+    CORS_ALLOWED_ORIGINS=(list, ["http://localhost:3000"]),
+    REDIS_URL=(str, "redis://localhost:6379/0"),
+    SENTRY_DSN=(str, ""),
+    R2_ENDPOINT_URL=(str, ""),
+    CSRF_TRUSTED_ORIGINS=(list, []),
+)
+environ.Env.read_env(BASE_DIR / ".env")
+
+# The brand name appears in the back office, in every SMS and in the WhatsApp
+# handover text. It is a setting rather than a literal because the ORC name
+# search was still pending when this was built: correcting the spelling is one
+# environment variable, not a search across the codebase.
+BRAND_NAME = env("BRAND_NAME", default="Fliptech")
+
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+DEBUG = env("DJANGO_DEBUG")
+ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+
+
+# --------------------------------------------------------------------------
+# Applications
+# --------------------------------------------------------------------------
+
+DJANGO_APPS = [
+    # Not "django.contrib.admin": this AppConfig substitutes the oversight
+    # dashboard for the default admin index. See core/admin_site.py.
+    "core.admin_apps.SkillsHubAdminConfig",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.gis",
+    "django.contrib.postgres",
+]
+
+THIRD_PARTY_APPS = [
+    "rest_framework",
+    "django_filters",
+    "drf_spectacular",
+    "corsheaders",
+    "simple_history",
+    "axes",
+    "import_export",
+    "phonenumber_field",
+]
+
+# Apps map onto the tables in DATA_MODEL.md:
+#   core       extensions migration, shared base models and utilities
+#   geography  Region, Area
+#   catalog    Trade, Programme, Intake
+#   providers  Provider, ProviderMedia, Verification, GovernmentStatus,
+#              ListingConfirmation, Suspension
+#   enquiries  Enquiry, EnquiryOutcome, Enrolment
+#   billing    Subscription
+LOCAL_APPS = [
+    "core",
+    "geography",
+    "catalog",
+    "providers",
+    "enquiries",
+    "billing",
+]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+
+# --------------------------------------------------------------------------
+# Middleware
+# --------------------------------------------------------------------------
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Records the author of every change. Structural rule 2 in DATA_MODEL.md.
+    "simple_history.middleware.HistoryRequestMiddleware",
+    # AxesMiddleware must come last.
+    "axes.middleware.AxesMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+
+# --------------------------------------------------------------------------
+# Database
+# --------------------------------------------------------------------------
+# DATABASE_URL uses the postgis:// scheme, which django-environ maps to
+# django.contrib.gis.db.backends.postgis. PointField needs that backend.
+
+DATABASES = {"default": env.db("DATABASE_URL")}
+DATABASES["default"]["CONN_MAX_AGE"] = 60
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# --------------------------------------------------------------------------
+# Cache
+# --------------------------------------------------------------------------
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL"),
+        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+    }
+}
+
+
+# --------------------------------------------------------------------------
+# Authentication
+# --------------------------------------------------------------------------
+# AxesStandaloneBackend must be first. It throttles staff login only — the
+# trainee OTP endpoint needs its own django-ratelimit decorator and a hard
+# daily cap per phone number and per IP. See SETUP.md.
+
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1  # hours
+AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]
+AXES_RESET_ON_SUCCESS = True
+
+
+# --------------------------------------------------------------------------
+# Internationalisation
+# --------------------------------------------------------------------------
+# English at version 1, strings externalised so Twi and Ga become possible
+# later without a rewrite (Section 10).
+
+LANGUAGE_CODE = "en-gb"
+TIME_ZONE = "Africa/Accra"
+USE_I18N = True
+USE_TZ = True
+
+PHONENUMBER_DEFAULT_REGION = "GH"
+PHONENUMBER_DEFAULT_FORMAT = "E164"
+
+
+# --------------------------------------------------------------------------
+# Static and media
+# --------------------------------------------------------------------------
+# Two buckets by design: workshop photographs are public CDN content, while
+# verification evidence and owner identification are private and served only
+# through short-lived signed URLs. See DATA_MODEL.md, ProviderMedia.
+
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+if DEBUG:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "private": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        # Plain storage in development and under test. The manifest variant
+        # below refuses to serve any file that is not in staticfiles.json, so
+        # using it here breaks every admin page until collectstatic has run.
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+else:
+    _r2 = {
+        "endpoint_url": env("R2_ENDPOINT_URL"),
+        "access_key": env("R2_ACCESS_KEY_ID"),
+        "secret_key": env("R2_SECRET_ACCESS_KEY"),
+        "region_name": "auto",
+        "signature_version": "s3v4",
+    }
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {**_r2, "bucket_name": env("R2_BUCKET_PUBLIC"), "querystring_auth": False},
+        },
+        "private": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                **_r2,
+                "bucket_name": env("R2_BUCKET_PRIVATE"),
+                "querystring_auth": True,
+                "querystring_expire": 300,
+                "default_acl": "private",
+            },
+        },
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
+
+
+# --------------------------------------------------------------------------
+# API
+# --------------------------------------------------------------------------
+
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "120/min"},
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": f"{BRAND_NAME} Skills Hub API",
+    "DESCRIPTION": "Provider search, enquiries and provider dashboard.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # registration_status and accreditation_status draw on the same choice set,
+    # which spectacular cannot name on its own.
+    "ENUM_NAME_OVERRIDES": {
+        "GovernmentRecordStatusEnum": "providers.models.GOVERNMENT_RECORD_STATUS_CHOICES",
+    },
+}
+
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_CREDENTIALS = True
+
+
+# --------------------------------------------------------------------------
+# Enquiry flow
+# --------------------------------------------------------------------------
+# Every one-time code costs money, so the caps here are a spend control as much
+# as an abuse control. SMS pumping fraud — an attacker cycling numbers on a
+# premium range to farm carrier revenue — is a direct cash loss, and django-axes
+# does not cover it because it only guards login.
+
+SMS_PROVIDER = env("SMS_PROVIDER", default="console")
+SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
+
+OTP_CODE_LENGTH = 6
+OTP_TTL_SECONDS = 600  # 10 minutes
+OTP_MAX_ATTEMPTS = 5  # wrong guesses before the code is burned
+OTP_MAX_PER_PHONE_PER_DAY = 5
+OTP_MAX_PER_IP_PER_DAY = 20
+
+# Screen 4 encourages enquiring with three providers. Verifying once per session
+# rather than once per enquiry keeps that from costing three SMS and three
+# rounds of friction on the free side of the marketplace.
+OTP_SESSION_TRUST_SECONDS = 3600
+
+# The provider dashboard is reached by a tokenised link sent over WhatsApp. No
+# password, no username, no account creation — Section 03 names being asked to
+# log in as what makes a workshop owner give up.
+DASHBOARD_TOKEN_TTL_SECONDS = 7 * 24 * 3600
+
+
+# --------------------------------------------------------------------------
+# Security (production only)
+# --------------------------------------------------------------------------
+
+if not DEBUG:
+    # Behind Caddy, Django sees plain HTTP. Without these the admin login form
+    # fails CSRF validation with "Origin checking failed", which is the single
+    # most common first-deploy failure for a Django app behind a proxy.
+    CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS", default=[])
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+
+
+# --------------------------------------------------------------------------
+# Monitoring
+# --------------------------------------------------------------------------
+
+if env("SENTRY_DSN"):
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=env("SENTRY_DSN"),
+        traces_sample_rate=0.1,
+        # Phone numbers are personal data under Act 843. Do not ship PII to a
+        # third-party error tracker by default.
+        send_default_pii=False,
+    )
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "{levelname} {asctime} {name} {message}", "style": "{"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "simple"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+}

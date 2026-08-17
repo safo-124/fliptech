@@ -1,0 +1,89 @@
+# Production stack for a single VPS.
+#
+# There is deliberately no postgres service: the database lives on your VPS
+# already. See DEPLOY.md for how to point DATABASE_URL at it, and run
+# `docker compose run --rm django python manage.py check_database` before the
+# first migrate.
+
+name: fliptech-skillshub
+
+services:
+  django:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file: .env.production
+    # The database lives on the host, not in a container. Compose puts these
+    # services on their own bridge network with its own subnet, so the default
+    # docker0 gateway (172.17.0.1) is the wrong address here. `host-gateway`
+    # resolves to whatever the host actually is, on any Docker 20.10+, so
+    # DATABASE_URL can name a stable hostname instead of a hardcoded IP.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Uploaded media until Cloudflare R2 is configured. Once R2 credentials
+      # are in .env.production this volume stops being written to.
+      - media:/app/media
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+
+  next:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_* is inlined at build time, so these are build args
+        # rather than runtime environment. Rebuild the image to change them.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_ORIGIN}
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_ORIGIN}
+        NEXT_PUBLIC_BRAND_NAME: ${BRAND_NAME}
+        NEXT_PUBLIC_MEDIA_HOST: ${MEDIA_HOST}
+    restart: unless-stopped
+    environment:
+      # Server-side rendering talks to Django directly over the container
+      # network, so SSR never leaves the machine or crosses TLS.
+      API_URL_INTERNAL: http://django:8000
+      NEXT_PUBLIC_API_URL: ${PUBLIC_ORIGIN}
+      NEXT_PUBLIC_SITE_URL: ${PUBLIC_ORIGIN}
+      NEXT_PUBLIC_BRAND_NAME: ${BRAND_NAME}
+    depends_on:
+      - django
+    expose:
+      - "3000"
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    expose:
+      - "6379"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - django
+      - next
+
+volumes:
+  media:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

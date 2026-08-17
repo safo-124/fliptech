@@ -1,0 +1,87 @@
+# Fliiptech Skills Hub - backend runtime dependencies
+# Pinned against PyPI on 2026-08-17. All versions verified compatible with Django 5.2 LTS.
+#
+# Python: 3.12 or 3.13
+# Django 5.2 LTS is supported until April 2028. Django 6.1 is current, but LTS is
+# the right call here: this project will be handed over, and the doc's own Section 05
+# argument (continuity risk) cuts toward the long-support line.
+
+# --- Framework ---
+Django==5.2.17
+
+# --- Database ---
+# [binary] ships prebuilt wheels and is fine for dev and a single Hetzner box.
+# If you later move to a build pipeline, switch to psycopg[c] and add libpq-dev.
+psycopg[binary]==3.3.4
+# GeoDjango (django.contrib.gis) is bundled with Django - no package needed.
+# It DOES need system libs on the server: gdal-bin libgdal-dev binutils libproj-dev.
+
+# --- API ---
+djangorestframework==3.18.0
+django-filter==26.1
+drf-spectacular==0.30.0
+django-cors-headers==4.9.0
+
+# --- Configuration ---
+django-environ==0.14.0
+
+# --- Images ---
+# Pillow only. django-imagekit was REMOVED from the PDF's list on purpose:
+# next/image already does resize + WebP on the frontend, and running two image
+# pipelines means two caches, two bugs and two sets of derived files to store.
+# Django's job is: accept the upload, strip EXIF, store the original in R2.
+Pillow==12.3.0
+
+# --- Media storage (Cloudflare R2, S3-compatible) ---
+# Use TWO buckets: one public (workshop photos), one private with signed URLs
+# (verification evidence, ID documents). See DATA_MODEL.md, ProviderMedia.
+django-storages==1.14.6
+boto3==1.43.72
+
+# --- Phone numbers (Ghana, +233) ---
+django-phonenumber-field==8.5.0
+phonenumbers==9.0.37
+
+# --- Audit trail (Section 07, structural rule 2) ---
+django-simple-history==3.13.0
+
+# --- Abuse control ---
+# django-axes covers staff LOGIN only. The OTP send endpoint needs its own
+# django-ratelimit decorator plus a hard daily cap per phone number and per IP:
+# SMS pumping fraud is a direct cash loss, not a nuisance.
+django-axes==8.3.1
+django-ratelimit==4.1.0
+
+# --- Background jobs ---
+# NOTE: the doc's Section 09 freshness rules are the only thing that needs these,
+# and those land in build Stage 6. On a 10-20 EUR Hetzner box already running
+# Postgres + PostGIS + Django + Gunicorn, adding a Celery worker, a beat process
+# and Redis is real memory pressure. Recommended: start with cron + management
+# commands through Stage 5, install this block at Stage 6, and size up to CX32.
+# Left in the file, commented, so the decision is explicit rather than forgotten.
+# celery==5.6.3
+# django-celery-beat==2.9.0
+redis==8.1.0
+django-redis==7.0.0
+
+# --- Serving ---
+gunicorn==26.0.0
+whitenoise==6.12.0
+
+# --- Monitoring ---
+sentry-sdk==2.68.0
+
+# --- NGO / institutional export ---
+# ADDED. Section 03 names "no way to export a list" as the NGO give-up condition,
+# and Section 11's budget-cut plan is to sell the provider database to an NGO -
+# but export appears nowhere in the Section 02 capability table. This closes it
+# with an admin action instead of a feature build.
+django-import-export==4.4.1
+
+# --- Deliberately NOT included ---
+# django-otp: it does TOTP/HOTP/static/email. It does NOT send SMS. The Arkesel
+#   or Hubtel integration is code you write either way, and for one
+#   phone-verification flow django-otp adds device models and middleware you do
+#   not need. Store a hashed 6-digit code with a 10-minute expiry, an attempt
+#   counter and a per-number daily cap. Roughly 60 lines.
+# black: ruff format replaces it and the two fight over config. See requirements-dev.

@@ -1,0 +1,32 @@
+# Native postinstall builds, approved deliberately. All three are transitive
+# deps of the toolchain chosen in package.json, and each needs a platform
+# binary that the build script fetches or compiles:
+#   @swc/core      - via next-intl's SWC message extractor
+#   unrs-resolver  - via eslint-import-resolver-typescript, from eslint-config-next
+#   @parcel/watcher- file watching for the dev server
+# Without these the packages fall back to slow paths or fail at runtime rather
+# than at install, which is the harder failure to diagnose.
+allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@hookform/resolvers@5.9.1'
+  - icu-minify@4.13.7
+  - next-intl-swc-plugin-extractor@4.13.7
+  - next-intl@4.13.7
+  - use-intl@4.13.7
+# D: is an exFAT volume, which does not support symbolic links. pnpm's default
+# nodeLinker ("isolated") builds node_modules out of symlinks into a content-
+# addressed store, so installing here fails with ERR_PNPM_EISDIR.
+#
+# "hoisted" makes pnpm write a flat, npm-style node_modules of real directories
+# instead. Installs are slower and use more disk, but they work on exFAT.
+#
+# Note: pnpm 11 reads this setting here, NOT from .npmrc. Setting
+# `node-linker=hoisted` in .npmrc is silently ignored.
+#
+# If this project moves to an NTFS volume or a Linux server, delete this file
+# and re-run `pnpm install` for the faster isolated layout. CI on Linux should
+# not carry it.
+nodeLinker: hoisted

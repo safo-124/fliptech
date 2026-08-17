@@ -1,0 +1,144 @@
+/**
+ * Django API client.
+ *
+ * Fetches run on the server by default, so the browser never pays for them and
+ * the API host is not exposed on the critical path. Section 10 asks that failed
+ * requests retry — a mid-range Android on 3G drops connections routinely — so
+ * every read goes through `fetchJson`, which retries twice with a short backoff.
+ */
+
+import type {
+  AreaSummary,
+  DashboardData,
+  Paginated,
+  ProviderCard,
+  ProviderDetail,
+  Region,
+  Trade,
+} from "./types";
+
+/**
+ * Server-rendered requests go straight to Django over the container network;
+ * the browser must use the public HTTPS origin.
+ *
+ * Using NEXT_PUBLIC_API_URL for both works in development, where they are the
+ * same host, and breaks in production in two ways: every SSR request would
+ * leave the machine, cross TLS and come back, and a container that cannot
+ * resolve the public hostname would fail to render at all.
+ */
+const API_URL =
+  typeof window === "undefined"
+    ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000");
+
+/** Search results change when staff edit a listing, not by the second. */
+const LIST_REVALIDATE_SECONDS = 300;
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+async function fetchJson<T>(
+  path: string,
+  { revalidate = LIST_REVALIDATE_SECONDS, retries = 2 }: { revalidate?: number; retries?: number } = {},
+): Promise<T> {
+  const url = `${API_URL}${path}`;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, { next: { revalidate } });
+      if (response.status === 404) throw new ApiError("Not found", 404);
+      if (!response.ok) throw new ApiError(`API ${response.status}`, response.status);
+      return (await response.json()) as T;
+    } catch (error) {
+      // A 404 is an answer, not a failure. Retrying it wastes the user's data.
+      if (error instanceof ApiError && error.status === 404) throw error;
+      lastError = error;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+export type SearchParams = {
+  trade?: string;
+  area?: string;
+  region?: string;
+  max_fee?: string;
+  verified_only?: string;
+  q?: string;
+  lat?: string;
+  lng?: string;
+  radius_km?: string;
+  bbox?: string;
+  page?: string;
+};
+
+export function buildQuery(params: SearchParams): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, value);
+  }
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
+export function searchProviders(params: SearchParams = {}) {
+  return fetchJson<Paginated<ProviderCard>>(`/api/providers/${buildQuery(params)}`);
+}
+
+export function getProvider(area: string, slug: string) {
+  return fetchJson<ProviderDetail>(`/api/providers/${area}/${slug}/`);
+}
+
+export function getTrades() {
+  return fetchJson<Paginated<Trade>>("/api/trades/");
+}
+
+export function getTrade(slug: string) {
+  return fetchJson<Trade>(`/api/trades/${slug}/`);
+}
+
+export function getRegions() {
+  return fetchJson<Paginated<Region>>("/api/regions/");
+}
+
+export function getAreas() {
+  return fetchJson<Paginated<{ slug: string; name: string; region_slug: string; provider_count: number }>>(
+    "/api/areas/",
+  );
+}
+
+export function getAreaSummary(params: { trade: string; area?: string; region?: string }) {
+  return fetchJson<AreaSummary>(`/api/pages/summary/${buildQuery(params)}`);
+}
+
+/** The dashboard is per-owner and must never be cached or shared. */
+export function getDashboard(token: string) {
+  return fetchJson<DashboardData>(`/api/dashboard/${token}/`, { revalidate: 0 });
+}
+
+/** Client-side, from the enquiry form. */
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new ApiError(
+      (data as { detail?: string }).detail ?? "Something went wrong. Try again.",
+      response.status,
+    );
+  }
+  return data as T;
+}

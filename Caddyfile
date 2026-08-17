@@ -1,0 +1,46 @@
+# TLS, and the split between Next.js and Django.
+#
+# Caddy obtains and renews certificates automatically, which removes the
+# certbot cron job and the renewal failure that follows it a year later.
+#
+# Everything is served from one origin so the browser never makes a
+# cross-origin request: no CORS preflight on the enquiry POST, and session
+# cookies for the back office stay first-party.
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	# Django owns the API, the back office, the health probe and uploaded media.
+	handle /api/* {
+		reverse_proxy django:8000
+	}
+	handle /back-office/* {
+		reverse_proxy django:8000
+	}
+	handle /healthz* {
+		reverse_proxy django:8000
+	}
+	handle /static/* {
+		reverse_proxy django:8000
+	}
+	handle /media/* {
+		reverse_proxy django:8000
+	}
+
+	# Everything else is the public site.
+	handle {
+		reverse_proxy next:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
