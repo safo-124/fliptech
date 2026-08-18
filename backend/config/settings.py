@@ -8,6 +8,7 @@ is worth more here than a clever inheritance chain.
 """
 
 import os
+import sys
 from pathlib import Path
 
 import environ
@@ -23,16 +24,31 @@ env = environ.Env(
     R2_ENDPOINT_URL=(str, ""),
     CSRF_TRUSTED_ORIGINS=(list, []),
 )
-# Which env file to load. Defaults to .env, so nothing changes for normal work.
+# Which env file to load.
 #
-# Set ENV_FILE to point at a different one for a single command, which is how
-# you talk to the server's database without editing .env and without any risk
-# of forgetting to switch back:
+# Day-to-day development reads .env, which points at the server's database
+# through the SSH tunnel (see tunnel.sh). Override it for a single command:
 #
-#     ENV_FILE=.env.remote python manage.py dbshell
+#     ENV_FILE=.env.local python manage.py dbshell
 #
-# Tests always read .env, so they cannot accidentally run against production.
-ENV_FILE = os.environ.get("ENV_FILE", ".env")
+# Under pytest this is forced to .env.local, ignoring any override. A test run
+# creates a database, migrates it and drops it again; against the server that
+# would be slow, would litter a shared instance, and is destructive if the drop
+# ever resolved to the wrong name. The server role has createdb=False, so it
+# fails outright anyway — loudly, but only after wasting a round trip.
+#
+# This check lives here rather than in conftest.py because pytest-django calls
+# django.setup() from pytest_load_initial_conftests, which runs BEFORE conftest
+# files are imported. Anything set there is already too late.
+_UNDER_PYTEST = "pytest" in sys.modules
+
+if _UNDER_PYTEST and (BASE_DIR / ".env.local").exists():
+    ENV_FILE = ".env.local"
+else:
+    ENV_FILE = os.environ.get("ENV_FILE", ".env")
+
+# CI has no env file at all and supplies real environment variables instead;
+# read_env simply does nothing when the file is absent.
 environ.Env.read_env(BASE_DIR / ENV_FILE)
 
 # The brand name appears in the back office, in every SMS and in the WhatsApp

@@ -1,4 +1,16 @@
 # Secrets
+# SSH keys must never land here. ssh-keygen writes to the current directory
+# if you give it a bare filename instead of a path, which is easy to do and
+# would otherwise leave a private key one `git add -A` away from GitHub.
+id_rsa
+id_ecdsa
+id_ed25519
+*.pem
+*.key
+*_rsa
+*_ed25519
+!*.pub.example
+
 .env
 .env.*
 # Match every *.example template, not just .env.example — .env.*
