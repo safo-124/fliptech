@@ -1,151 +1,362 @@
 {% extends "admin/index.html" %}
-{% load i18n %}
+{% load i18n log %}
 
 {#
-  The oversight panel, rendered above the standard app list.
+  The oversight dashboard.
+
+  Django's index reserves a right-hand column for "Recent actions" by putting
+  #content in .colMS, which squeezed this panel into roughly half the window on
+  a wide screen. The sidebar block is emptied below and the recent-actions list
+  is rendered as a card in the grid instead, so nothing is lost and the panel
+  gets the full width.
 
   Numbers link to a filtered changelist wherever there is something to act on,
   because a count with no route to the work is just decoration.
 #}
 
+{% block sidebar %}{% endblock %}
+
 {% block content %}
 <style>
-  .sh-panel { margin-bottom: 24px; }
-  .sh-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
-  .sh-card { border: 1px solid var(--hairline-color, #e0e0e0); border-radius: 6px; padding: 12px 14px; background: var(--body-bg, #fff); }
-  .sh-card h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--body-quiet-color, #666); }
-  .sh-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; }
-  .sh-row + .sh-row { border-top: 1px solid var(--hairline-color, #f0f0f0); }
-  .sh-n { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .sh-n.sh-warn { color: #b03a1a; }
-  .sh-n.sh-ok { color: #0f6d43; }
-  .sh-note { margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--body-quiet-color, #666); }
-  .sh-panel h2 { font-size: 14px; margin: 20px 0 8px; }
+  /*
+   * Django hardcodes a 600px width on the admin index content, and .colMS adds
+   * a right margin to reserve room for the Recent-actions sidebar. Both have to
+   * go, or this panel sits in a 600px column on an 1800px screen. The sidebar
+   * block is emptied above and its content rendered as a card in the grid, so
+   * nothing is lost.
+   */
+  body.dashboard #content { width: auto; }
+  body.dashboard #content.colMS { margin-right: 0; }
+
+  .sh {
+    --sh-ink: var(--body-fg, #14181f);
+    --sh-muted: var(--body-quiet-color, #7a8394);
+    --sh-line: var(--hairline-color, #e3e6ea);
+    --sh-card: var(--body-bg, #fff);
+    --sh-good: #2f9e68;
+    --sh-warn: #d08700;
+    --sh-bad: #d0422a;
+    margin-bottom: 28px;
+  }
+
+  .sh h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--sh-muted); margin: 26px 0 10px; font-weight: 700;
+  }
+  .sh h2:first-of-type { margin-top: 8px; }
+
+  .sh-grid { display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
+  .sh-card {
+    grid-column: span 3;
+    border: 1px solid var(--sh-line); border-radius: 10px;
+    padding: 14px 16px; background: var(--sh-card);
+    display: flex; flex-direction: column; min-width: 0;
+  }
+  .sh-card.w4 { grid-column: span 4; }
+  .sh-card.w6 { grid-column: span 6; }
+  .sh-card.w8 { grid-column: span 8; }
+  .sh-card.w12 { grid-column: span 12; }
+
+  @media (max-width: 1500px) {
+    .sh-card, .sh-card.w4 { grid-column: span 4; }
+    .sh-card.w6, .sh-card.w8 { grid-column: span 8; }
+  }
+  @media (max-width: 1100px) {
+    .sh-card, .sh-card.w4, .sh-card.w6, .sh-card.w8 { grid-column: span 6; }
+  }
+  @media (max-width: 800px) {
+    .sh-grid { grid-template-columns: 1fr; }
+    .sh-card, .sh-card.w4, .sh-card.w6, .sh-card.w8, .sh-card.w12 { grid-column: 1 / -1; }
+  }
+
+  .sh-card h3 {
+    margin: 0 0 10px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--sh-muted); font-weight: 700;
+  }
+  .sh-big { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .sh-big.good { color: var(--sh-good); }
+  .sh-big.warn { color: var(--sh-warn); }
+  .sh-big.bad  { color: var(--sh-bad); }
+  .sh-sub { font-size: 11px; color: var(--sh-muted); margin-top: 5px; }
+
+  .sh-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; }
+  .sh-row + .sh-row { border-top: 1px solid var(--sh-line); }
+  .sh-n { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sh-n.warn { color: var(--sh-warn); }
+  .sh-n.good { color: var(--sh-good); }
+  .sh-n.bad  { color: var(--sh-bad); }
+
+  .sh-note {
+    margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: var(--sh-muted);
+    padding-top: 9px; border-top: 1px solid var(--sh-line);
+  }
+  .sh-spacer { flex: 1; }
+  .sh-empty { color: var(--sh-muted); font-size: 12px; margin: 6px 0; }
+
+  .sh-delta { font-size: 11px; font-weight: 700; }
+  .sh-delta.up { color: var(--sh-good); }
+  .sh-delta.down { color: var(--sh-bad); }
+
+  .sh-ring { display: flex; align-items: center; gap: 14px; }
+
+  /* Ranked bars */
+  .sh-bar-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: center; padding: 3px 0; }
+  .sh-bar-label { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-bar-track { background: var(--sh-line); border-radius: 3px; height: 8px; overflow: hidden; }
+  .sh-bar-fill { display: block; height: 100%; border-radius: 3px; }
+  .sh-bar-value { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* Trade x area grid */
+  .sh-scroll { overflow-x: auto; }
+  .sh-heatmap { border-collapse: separate; border-spacing: 3px; font-size: 11px; }
+  .sh-heatmap th {
+    font-weight: 600; color: var(--sh-muted); text-align: left;
+    padding: 2px 6px; white-space: nowrap; font-size: 10px;
+  }
+  .sh-heatmap thead th span { display: inline-block; }
+  .sh-heatmap td {
+    width: 40px; height: 30px; text-align: center; border-radius: 5px;
+    font-weight: 700; font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--sh-good) calc(var(--i) * 78%), transparent);
+    color: var(--sh-ink);
+  }
+  .sh-heatmap td.sh-hm-ok { outline: 2px solid var(--sh-good); outline-offset: -2px; }
+
+  .sh-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--sh-muted); margin-top: 10px; }
+  .sh-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 </style>
 
-<div class="sh-panel">
+<div class="sh">
   <h1>{% translate "Overview" %}</h1>
 
-  {# ---------- Work waiting ---------- #}
+  {# ================= Work waiting ================= #}
   <h2>Work waiting</h2>
   <div class="sh-grid">
-    <div class="sh-card">
+
+    <div class="sh-card w4">
       <h3>Onboarding pipeline</h3>
-      <div class="sh-row"><span>Draft</span><span class="sh-n">{{ panel.pipeline.draft }}</span></div>
-      <div class="sh-row">
-        <span><a href="{% url 'admin:providers_provider_changelist' %}?status__exact=pending_approval">Awaiting approval</a></span>
-        <span class="sh-n {% if panel.pipeline.pending %}sh-warn{% endif %}">{{ panel.pipeline.pending }}</span>
+      {{ panel.pipeline_bar }}
+      <div style="margin-top:10px">
+        <div class="sh-row"><span>Draft</span><span class="sh-n">{{ panel.pipeline.draft }}</span></div>
+        <div class="sh-row">
+          <span><a href="{% url 'admin:providers_provider_changelist' %}?status__exact=pending_approval">Awaiting approval</a></span>
+          <span class="sh-n {% if panel.pipeline.pending %}warn{% endif %}">{{ panel.pipeline.pending }}</span>
+        </div>
+        <div class="sh-row"><span>Published</span><span class="sh-n good">{{ panel.pipeline.published }}</span></div>
+        <div class="sh-row"><span>Suspended</span><span class="sh-n {% if panel.pipeline.suspended %}bad{% endif %}">{{ panel.pipeline.suspended }}</span></div>
       </div>
-      <div class="sh-row"><span>Published</span><span class="sh-n sh-ok">{{ panel.pipeline.published }}</span></div>
-      <div class="sh-row"><span>Suspended</span><span class="sh-n">{{ panel.pipeline.suspended }}</span></div>
+      <div class="sh-spacer"></div>
       <p class="sh-note">Approval is a separate permission. A field officer drafts; an operations lead publishes.</p>
     </div>
 
-    <div class="sh-card">
-      <h3>Verification queue</h3>
-      <div class="sh-row">
-        <span>Published, never visited</span>
-        <span class="sh-n {% if panel.verification.never_visited %}sh-warn{% endif %}">{{ panel.verification.never_visited }}</span>
+    <div class="sh-card w4">
+      <h3>Verification coverage</h3>
+      <div class="sh-ring">
+        {{ panel.verification.ring }}
+        <div style="min-width:0">
+          <div class="sh-row"><span>Never visited</span><span class="sh-n {% if panel.verification.never_visited %}warn{% endif %}">{{ panel.verification.never_visited }}</span></div>
+          <div class="sh-row"><span><a href="{% url 'admin:providers_verification_changelist' %}">Over 12 months old</a></span><span class="sh-n">{{ panel.verification.due_revisit }}</span></div>
+          <div class="sh-row"><span>Expiring in 30 days</span><span class="sh-n">{{ panel.verification.expiring_soon }}</span></div>
+        </div>
       </div>
-      <div class="sh-row">
-        <span><a href="{% url 'admin:providers_verification_changelist' %}">Visit over 12 months old</a></span>
-        <span class="sh-n">{{ panel.verification.due_revisit }}</span>
-      </div>
-      <div class="sh-row"><span>Expiring within 30 days</span><span class="sh-n">{{ panel.verification.expiring_soon }}</span></div>
-      <p class="sh-note">Site visits are the whole trust proposition and cannot be automated. This queue is the cap on how fast the provider base can grow honestly.</p>
+      <div class="sh-spacer"></div>
+      <p class="sh-note">Site visits are the whole trust proposition and cannot be automated. This is the cap on how fast the provider base can grow honestly.</p>
     </div>
 
-    <div class="sh-card">
+    <div class="sh-card w4">
       <h3>Listing freshness</h3>
-      <div class="sh-row">
-        <span>Due a 90-day confirmation</span>
-        <span class="sh-n {% if panel.freshness.due_confirmation %}sh-warn{% endif %}">{{ panel.freshness.due_confirmation }}</span>
+      <div class="sh-ring">
+        {{ panel.freshness.ring }}
+        <div style="min-width:0">
+          <div class="sh-row"><span>Due a 90-day check</span><span class="sh-n {% if panel.freshness.due_confirmation %}warn{% endif %}">{{ panel.freshness.due_confirmation }}</span></div>
+          <div class="sh-row"><span>Shown as unconfirmed</span><span class="sh-n {% if panel.freshness.shown_as_stale %}warn{% endif %}">{{ panel.freshness.shown_as_stale }}</span></div>
+        </div>
       </div>
-      <div class="sh-row">
-        <span>Shown to trainees as unconfirmed</span>
-        <span class="sh-n {% if panel.freshness.shown_as_stale %}sh-warn{% endif %}">{{ panel.freshness.shown_as_stale }}</span>
-      </div>
+      <div class="sh-spacer"></div>
       <p class="sh-note">A directory dies from staleness rather than from lack of features. This is the largest ongoing operating cost and it does not go away.</p>
     </div>
 
-    <div class="sh-card">
+    <div class="sh-card w4">
       <h3>Listing quality</h3>
-      <div class="sh-row"><span>No photograph</span><span class="sh-n">{{ panel.quality.no_photo }}</span></div>
-      <div class="sh-row"><span>No programme</span><span class="sh-n">{{ panel.quality.no_programme }}</span></div>
-      <div class="sh-row"><span>No upcoming intake</span><span class="sh-n">{{ panel.quality.no_upcoming_intake }}</span></div>
-      <div class="sh-row"><span>No government record</span><span class="sh-n">{{ panel.quality.no_government_record }}</span></div>
-      <p class="sh-note">Published listings missing what the search card needs. A listing with no fee or intake is one a trainee rules out without contacting anyone.</p>
-    </div>
-  </div>
-
-  {# ---------- Is it working ---------- #}
-  <h2>Is it working</h2>
-  <div class="sh-grid">
-    <div class="sh-card">
-      <h3>Enquiries, last 30 days</h3>
-      <div class="sh-row">
-        <span>Sent</span>
-        <span class="sh-n">{{ panel.demand.enquiries_30 }}</span>
+      {{ panel.quality_bar }}
+      <div style="margin-top:10px">
+        <div class="sh-row"><span>No photograph</span><span class="sh-n {% if panel.quality.no_photo %}warn{% endif %}">{{ panel.quality.no_photo }}</span></div>
+        <div class="sh-row"><span>No programme</span><span class="sh-n {% if panel.quality.no_programme %}warn{% endif %}">{{ panel.quality.no_programme }}</span></div>
+        <div class="sh-row"><span>No upcoming intake</span><span class="sh-n {% if panel.quality.no_upcoming_intake %}warn{% endif %}">{{ panel.quality.no_upcoming_intake }}</span></div>
+        <div class="sh-row"><span>No government record</span><span class="sh-n">{{ panel.quality.no_government_record }}</span></div>
       </div>
-      <div class="sh-row"><span>Previous 30 days</span><span class="sh-n">{{ panel.demand.enquiries_prior_30 }}</span></div>
-      <div class="sh-row">
-        <span>Replied within 48h</span>
-        <span class="sh-n">{% if panel.demand.response_rate is not None %}{{ panel.demand.response_rate }}%{% else %}—{% endif %}</span>
+      <div class="sh-spacer"></div>
+      <p class="sh-note">A listing with no fee or intake date is one a trainee rules out without contacting anyone.</p>
+    </div>
+
+    <div class="sh-card w8">
+      <h3>Enquiries, last 12 weeks</h3>
+      {{ panel.demand.enquiry_chart }}
+      <div style="margin-top:8px">
+        <div class="sh-row">
+          <span>Last 30 days</span>
+          <span>
+            <span class="sh-n">{{ panel.demand.enquiries_30 }}</span>
+            {% if panel.demand.change_pct is not None %}
+              <span class="sh-delta {% if panel.demand.change_pct >= 0 %}up{% else %}down{% endif %}">
+                {% if panel.demand.change_pct >= 0 %}+{% endif %}{{ panel.demand.change_pct }}%
+              </span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="sh-row"><span>Previous 30 days</span><span class="sh-n">{{ panel.demand.enquiries_prior_30 }}</span></div>
+        <div class="sh-row">
+          <span>Replied within 48h</span>
+          <span class="sh-n">{% if panel.demand.response_rate is not None %}{{ panel.demand.response_rate }}%{% else %}—{% endif %}</span>
+        </div>
       </div>
       <p class="sh-note">Replies are recorded by a human. The conversation happens on WhatsApp, so the platform cannot observe them.</p>
     </div>
 
-    <div class="sh-card">
-      <h3>Enrolments, last 30 days</h3>
-      <div class="sh-row"><span>Recorded</span><span class="sh-n">{{ panel.demand.enrolments_30 }}</span></div>
-      <div class="sh-row"><span>Course fees</span><span class="sh-n">{% if panel.demand.enrolment_fees_30 %}GH₵{{ panel.demand.enrolment_fees_30|floatformat:0 }}{% else %}—{% endif %}</span></div>
-      <p class="sh-note">Collected by asking each provider once a month. If this number cannot be produced honestly, the subscription model is in trouble — and it is better to know in month four than month fourteen.</p>
+  </div>
+
+  {# ================= Is it working ================= #}
+  <h2>Is it working</h2>
+  <div class="sh-grid">
+
+    <div class="sh-card w4">
+      <h3>Enrolments by month</h3>
+      {{ panel.demand.enrolment_chart }}
+      <div style="margin-top:8px">
+        <div class="sh-row"><span>Last 30 days</span><span class="sh-n">{{ panel.demand.enrolments_30 }}</span></div>
+        <div class="sh-row">
+          <span>Course fees</span>
+          <span class="sh-n">{% if panel.demand.enrolment_fees_30 %}GH₵{{ panel.demand.enrolment_fees_30|floatformat:0 }}{% else %}—{% endif %}</span>
+        </div>
+      </div>
+      <div class="sh-spacer"></div>
+      <p class="sh-note">Collected by asking each provider once a month. If this number cannot be produced honestly, the subscription model is in trouble — better to know in month four than month fourteen.</p>
     </div>
 
-    <div class="sh-card">
+    <div class="sh-card w4">
       <h3>Leakage</h3>
-      <div class="sh-row"><span>Enrolments recorded</span><span class="sh-n">{{ panel.leakage.total }}</span></div>
-      <div class="sh-row"><span>Came through an enquiry</span><span class="sh-n">{{ panel.leakage.attributed }}</span></div>
-      <div class="sh-row">
-        <span>Attributed</span>
-        <span class="sh-n">{% if panel.leakage.attributed_pct is not None %}{{ panel.leakage.attributed_pct }}%{% else %}—{% endif %}</span>
+      <div class="sh-big">{% if panel.leakage.attributed_pct is not None %}{{ panel.leakage.attributed_pct }}%{% else %}—{% endif %}</div>
+      <div class="sh-sub">of enrolments came through the platform</div>
+      <div style="margin-top:12px">{{ panel.leakage.bar }}</div>
+      <div style="margin-top:10px">
+        <div class="sh-row"><span>Enrolments recorded</span><span class="sh-n">{{ panel.leakage.total }}</span></div>
+        <div class="sh-row"><span>Through an enquiry</span><span class="sh-n">{{ panel.leakage.attributed }}</span></div>
       </div>
+      <div class="sh-spacer"></div>
       <p class="sh-note">Most enrolments will never pass through the platform, and that is expected. Measuring it gives an honest answer at renewal instead of a guess.</p>
     </div>
 
-    <div class="sh-card">
-      <h3>Search coverage</h3>
-      <div class="sh-row">
-        <span>Pages worth indexing</span>
-        <span class="sh-n">{{ panel.coverage.indexable }} / {{ panel.coverage.total }}</span>
+    <div class="sh-card w4">
+      <h3>Graduate record</h3>
+      <div class="sh-big {% if panel.year_two.inflated %}warn{% endif %}">
+        {% if panel.year_two.attestation_rate is not None %}{{ panel.year_two.attestation_rate }}%{% else %}—{% endif %}
       </div>
-      <p class="sh-note">Trade-and-area combinations with at least {{ panel.coverage.threshold }} published providers. The rest are generated with noindex, because thin pages teach a crawler the site is mostly empty.</p>
+      <div class="sh-sub">of graduates recommended for paid work</div>
+      <div style="margin-top:12px">
+        <div class="sh-row"><span>Completions recorded</span><span class="sh-n">{{ panel.year_two.completions }}</span></div>
+        <div class="sh-row"><span>Attestations asked</span><span class="sh-n">{{ panel.year_two.attested }}</span></div>
+      </div>
+      {% if panel.year_two.inflated %}
+        <p class="sh-note" style="color:var(--sh-warn)"><strong>Attestation inflation.</strong> A workshop that recommends every graduate makes the signal worthless within one cohort, and worth nothing to an employer.</p>
+      {% else %}
+        <div class="sh-spacer"></div>
+        <p class="sh-note">Nothing in version 1 reads these, and they cannot be collected retrospectively. They are the whole foundation of employer matching in year two.</p>
+      {% endif %}
     </div>
+
+    <div class="sh-card w4">
+      <h3>Providers by trade</h3>
+      {{ panel.rankings.trades }}
+      <div class="sh-spacer"></div>
+      <p class="sh-note">Where inventory actually is.</p>
+    </div>
+
+    <div class="sh-card w4">
+      <h3>Providers by area</h3>
+      {{ panel.rankings.areas }}
+      <div class="sh-spacer"></div>
+      <p class="sh-note">Greater Accra holds most of the inventory in year one.</p>
+    </div>
+
+    <div class="sh-card w4">
+      <h3>Enquiries by trade</h3>
+      {{ panel.rankings.enquiry_trades }}
+      <div class="sh-spacer"></div>
+      <p class="sh-note">Demand against supply. A trade high here and low in the chart to the left is where the next site visits should go.</p>
+    </div>
+
   </div>
 
-  {# ---------- Year two ---------- #}
-  <h2>Year two, being captured now</h2>
+  {# ================= Coverage ================= #}
+  <h2>Coverage — where to go next</h2>
   <div class="sh-grid">
-    <div class="sh-card">
-      <h3>Graduate record</h3>
-      <div class="sh-row"><span>Completions recorded</span><span class="sh-n">{{ panel.year_two.completions }}</span></div>
-      <div class="sh-row"><span>Attestations asked</span><span class="sh-n">{{ panel.year_two.attested }}</span></div>
-      <div class="sh-row">
-        <span>Recommended</span>
-        <span class="sh-n {% if panel.year_two.attestation_rate >= 95 %}sh-warn{% endif %}">{% if panel.year_two.attestation_rate is not None %}{{ panel.year_two.attestation_rate }}%{% else %}—{% endif %}</span>
+
+    <div class="sh-card w8">
+      <h3>Providers by trade and area</h3>
+      <div class="sh-scroll">{{ panel.coverage.heatmap }}</div>
+      <div class="sh-legend">
+        <span><span class="sh-swatch" style="background:var(--sh-good);outline:2px solid var(--sh-good);outline-offset:-2px"></span>{{ panel.coverage.threshold }}+ providers — page worth indexing</span>
+        <span><span class="sh-swatch" style="background:color-mix(in srgb, var(--sh-good) 30%, transparent)"></span>some inventory, below the threshold</span>
+        <span><span class="sh-swatch" style="background:transparent;border:1px solid var(--sh-line)"></span>empty</span>
       </div>
-      <p class="sh-note">Nothing in version 1 reads these, and they cannot be collected retrospectively. A recommendation rate near 100% means the signal is being inflated and is worth nothing to an employer.</p>
+      <p class="sh-note">Each cell is one trade in one area. Empty cells are the field team's target list; outlined cells have enough inventory that the generated page is worth indexing.</p>
     </div>
 
+    <div class="sh-card w4">
+      <h3>Search coverage</h3>
+      <div class="sh-big">{{ panel.coverage.indexable }} <span style="font-size:16px;color:var(--sh-muted)">/ {{ panel.coverage.total }}</span></div>
+      <div class="sh-sub">trade-and-area pages worth indexing</div>
+      <div class="sh-spacer"></div>
+      <p class="sh-note">The rest are generated with noindex. Thin pages teach a crawler the site is mostly empty, which is worse than not publishing them.</p>
+    </div>
+
+  </div>
+
+  {# ================= Money and activity ================= #}
+  <h2>{% if panel.is_super %}Money and activity{% else %}Activity{% endif %}</h2>
+  <div class="sh-grid">
+
     {% if panel.is_super %}
-    <div class="sh-card">
+    <div class="sh-card w4">
       <h3>Subscriptions</h3>
-      <div class="sh-row"><span>Active</span><span class="sh-n">{{ panel.revenue.active }}</span></div>
-      <div class="sh-row"><span>Paying</span><span class="sh-n">{{ panel.revenue.paying }}</span></div>
-      <div class="sh-row"><span>Period value</span><span class="sh-n">{% if panel.revenue.monthly_value %}GH₵{{ panel.revenue.monthly_value|floatformat:0 }}{% else %}—{% endif %}</span></div>
+      <div class="sh-big">{% if panel.revenue.monthly_value %}GH₵{{ panel.revenue.monthly_value|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div class="sh-sub">current period value</div>
+      <div style="margin-top:12px">{{ panel.revenue.bar }}</div>
+      <div style="margin-top:10px">
+        <div class="sh-row"><span>Paying</span><span class="sh-n good">{{ panel.revenue.paying }}</span></div>
+        <div class="sh-row"><span>Free listing</span><span class="sh-n">{{ panel.revenue.free }}</span></div>
+      </div>
+      <div class="sh-spacer"></div>
       <p class="sh-note">Willingness to pay is untested and the tiers are hypotheses. Visible to superusers only.</p>
     </div>
     {% endif %}
+
+    <div class="sh-card {% if panel.is_super %}w8{% else %}w12{% endif %}">
+      <h3>{% translate 'Recent actions' %}</h3>
+      {% get_admin_log 12 as admin_log for_user user %}
+      {% if not admin_log %}
+        <p class="sh-empty">{% translate 'None available' %}</p>
+      {% else %}
+        <ul class="actionlist" style="margin:0;padding:0">
+          {% for entry in admin_log %}
+            <li class="{% if entry.is_addition %}addlink{% elif entry.is_change %}changelink{% elif entry.is_deletion %}deletelink{% endif %}">
+              {% if entry.is_deletion or not entry.get_admin_url %}
+                {{ entry.object_repr }}
+              {% else %}
+                <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+              {% endif %}
+              <br>
+              <span class="mini quiet">
+                {% filter capfirst %}{{ entry.content_type.name|default:_('Unknown content') }}{% endfilter %}
+                — {{ entry.user }}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <p class="sh-note">Every change to a provider or a verification is recorded with a timestamp and an author. When a trainee disputes what a listing said, the answer has to be retrievable.</p>
+    </div>
+
   </div>
 </div>
 
