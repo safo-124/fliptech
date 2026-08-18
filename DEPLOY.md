@@ -52,17 +52,31 @@ present and does nothing.
 
 Docker containers do not share the host's `localhost`. Two situations:
 
-**Database on the same VPS as Docker.** Point at the docker bridge address,
-usually `172.17.0.1`, and allow it in PostgreSQL:
+**Database on the same VPS as Docker.** Do *not* use `172.17.0.1`. That is the
+default `docker0` bridge, but Compose puts these services on their own network
+with a different subnet, so the address is wrong for this stack. `docker-compose.yml`
+maps `host.docker.internal` to `host-gateway` instead, which resolves to the
+host on any Docker 20.10+ regardless of subnet.
+
+Allow the whole private Docker range, which covers whichever subnet Compose
+picks (replace `17` with your PostgreSQL major version in both paths):
 
 ```conf
 # /etc/postgresql/17/main/postgresql.conf
-listen_addresses = 'localhost,172.17.0.1'
+listen_addresses = '*'
 ```
 
 ```conf
 # /etc/postgresql/17/main/pg_hba.conf
-host    skillshub    skillshub    172.17.0.0/16    scram-sha-256
+host    skillshub    skillshub    172.16.0.0/12    scram-sha-256
+```
+
+`listen_addresses = '*'` binds the public interface too, so pair it with a
+firewall rule that admits only Docker:
+
+```bash
+sudo ufw allow from 172.16.0.0/12 to any port 5432 proto tcp
+sudo ufw deny 5432/tcp
 ```
 
 ```bash
@@ -87,7 +101,7 @@ are personal data under the Data Protection Act, 2012.
 In `.env.production`:
 
 ```
-DATABASE_URL=postgis://skillshub:your-password@172.17.0.1:5432/skillshub
+DATABASE_URL=postgis://skillshub:your-password@host.docker.internal:5432/skillshub
 ```
 
 **The scheme is `postgis://`, not `postgres://`.** django-environ picks the

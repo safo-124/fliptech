@@ -1,7 +1,10 @@
 # Secrets
 .env
 .env.*
-!.env.example
+# Match every *.example template, not just .env.example — .env.*
+# swallowed .env.production.example, so DEPLOY.md told people to copy a file
+# that was never in the repo.
+!.env*.example
 
 # Python
 .venv/

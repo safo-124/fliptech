@@ -7,6 +7,7 @@ codebase may be handed to a contractor: one file that can be read top to bottom
 is worth more here than a clever inheritance chain.
 """
 
+import os
 from pathlib import Path
 
 import environ
@@ -22,7 +23,17 @@ env = environ.Env(
     R2_ENDPOINT_URL=(str, ""),
     CSRF_TRUSTED_ORIGINS=(list, []),
 )
-environ.Env.read_env(BASE_DIR / ".env")
+# Which env file to load. Defaults to .env, so nothing changes for normal work.
+#
+# Set ENV_FILE to point at a different one for a single command, which is how
+# you talk to the server's database without editing .env and without any risk
+# of forgetting to switch back:
+#
+#     ENV_FILE=.env.remote python manage.py dbshell
+#
+# Tests always read .env, so they cannot accidentally run against production.
+ENV_FILE = os.environ.get("ENV_FILE", ".env")
+environ.Env.read_env(BASE_DIR / ENV_FILE)
 
 # The brand name appears in the back office, in every SMS and in the WhatsApp
 # handover text. It is a setting rather than a literal because the ORC name
