@@ -19,38 +19,59 @@
 {% block content %}
 <style>
   /*
-   * Django hardcodes a 600px width on the admin index content, and .colMS adds
-   * a right margin to reserve room for the Recent-actions sidebar. Both have to
-   * go, or this panel sits in a 600px column on an 1800px screen. The sidebar
-   * block is emptied above and its content rendered as a card in the grid, so
-   * nothing is lost.
+   * Cards follow shadcn's dashboard-01 anatomy: a muted description, a large
+   * tabular number, an outline badge in the top-right corner, and a footer of
+   * one emphasised line plus one muted line. Colour is reserved for charts and
+   * for the two states that must read as good or bad; everything else is the
+   * neutral scale.
    */
-  body.dashboard #content { width: auto; }
+
+  /* Django hardcodes a 600px width on the admin index content, and .colMS adds
+     a right margin to reserve room for the Recent-actions sidebar. Both have to
+     go, or this panel sits in a 600px column on an 1800px screen. The sidebar
+     block is emptied above and its content rendered as a card in the grid. */
+  body.dashboard #content { width: auto; padding: 24px; }
   body.dashboard #content.colMS { margin-right: 0; }
 
-  .sh {
-    --sh-ink: var(--body-fg, #14181f);
-    --sh-muted: var(--body-quiet-color, #7a8394);
-    --sh-line: var(--hairline-color, #e3e6ea);
-    --sh-card: var(--body-bg, #fff);
-    --sh-good: #2f9e68;
-    --sh-warn: #d08700;
-    --sh-bad: #d0422a;
-    margin-bottom: 28px;
+  .sh { margin-bottom: 8px; }
+
+  .sh > h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+  .sh-lede {
+    color: var(--muted-foreground);
+    font-size: 14px;
+    margin: 0 0 24px;
   }
 
   .sh h2 {
-    font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
-    color: var(--sh-muted); margin: 26px 0 10px; font-weight: 700;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--foreground);
+    margin: 28px 0 12px;
   }
-  .sh h2:first-of-type { margin-top: 8px; }
+  .sh h2:first-of-type { margin-top: 0; }
 
-  .sh-grid { display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
+  .sh-grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+
+  /* shadcn Card: rounded-xl border bg-card shadow-xs, gap-6, py-6. */
   .sh-card {
     grid-column: span 3;
-    border: 1px solid var(--sh-line); border-radius: 10px;
-    padding: 14px 16px; background: var(--sh-card);
-    display: flex; flex-direction: column; min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xs);
+    padding: 20px;
+    min-width: 0;
   }
   .sh-card.w4 { grid-column: span 4; }
   .sh-card.w6 { grid-column: span 6; }
@@ -67,76 +88,236 @@
   @media (max-width: 800px) {
     .sh-grid { grid-template-columns: 1fr; }
     .sh-card, .sh-card.w4, .sh-card.w6, .sh-card.w8, .sh-card.w12 { grid-column: 1 / -1; }
+    body.dashboard #content { padding: 16px; }
   }
 
-  .sh-card h3 {
-    margin: 0 0 10px; font-size: 11px; text-transform: uppercase;
-    letter-spacing: .06em; color: var(--sh-muted); font-weight: 700;
+  /* CardHeader: description + title, with the action badge pinned top-right. */
+  .sh-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 6px 12px;
   }
-  .sh-big { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-  .sh-big.good { color: var(--sh-good); }
-  .sh-big.warn { color: var(--sh-warn); }
-  .sh-big.bad  { color: var(--sh-bad); }
-  .sh-sub { font-size: 11px; color: var(--sh-muted); margin-top: 5px; }
-
-  .sh-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; }
-  .sh-row + .sh-row { border-top: 1px solid var(--sh-line); }
-  .sh-n { font-weight: 700; font-variant-numeric: tabular-nums; }
-  .sh-n.warn { color: var(--sh-warn); }
-  .sh-n.good { color: var(--sh-good); }
-  .sh-n.bad  { color: var(--sh-bad); }
-
-  .sh-note {
-    margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: var(--sh-muted);
-    padding-top: 9px; border-top: 1px solid var(--sh-line);
+  .sh-desc {
+    grid-column: 1;
+    font-size: 14px;
+    color: var(--muted-foreground);
+    line-height: 1.3;
   }
-  .sh-spacer { flex: 1; }
-  .sh-empty { color: var(--sh-muted); font-size: 12px; margin: 6px 0; }
+  .sh-title {
+    grid-column: 1;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .sh-title .sh-of {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--muted-foreground);
+    letter-spacing: 0;
+  }
+  .sh-action { grid-column: 2; grid-row: 1 / span 2; justify-self: end; align-self: start; }
 
-  .sh-delta { font-size: 11px; font-weight: 700; }
-  .sh-delta.up { color: var(--sh-good); }
-  .sh-delta.down { color: var(--sh-bad); }
+  /* Badge, variant="outline". */
+  .sh-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: var(--foreground);
+    background: transparent;
+  }
+  .sh-badge.good { color: var(--sh-positive); border-color: color-mix(in oklch, var(--sh-positive) 35%, var(--border)); }
+  .sh-badge.warn { color: var(--sh-caution); border-color: color-mix(in oklch, var(--sh-caution) 35%, var(--border)); }
+  .sh-badge.bad  { color: var(--destructive); border-color: color-mix(in oklch, var(--destructive) 35%, var(--border)); }
 
-  .sh-ring { display: flex; align-items: center; gap: 14px; }
+  /* CardFooter: one emphasised line, one muted line. */
+  .sh-foot { display: flex; flex-direction: column; gap: 6px; font-size: 14px; margin-top: auto; }
+  .sh-foot-strong { font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .sh-foot-muted { color: var(--muted-foreground); font-size: 13px; line-height: 1.45; }
+
+  /* Rows inside the denser cards. */
+  .sh-rows { display: flex; flex-direction: column; }
+  .sh-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; padding: 8px 0; font-size: 14px;
+  }
+  .sh-row + .sh-row { border-top: 1px solid var(--border); }
+  .sh-row > span:first-child { color: var(--muted-foreground); }
+  .sh-n { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--foreground); }
+  .sh-n.good { color: var(--sh-positive); }
+  .sh-n.warn { color: var(--sh-caution); }
+  .sh-n.bad  { color: var(--destructive); }
+
+  .sh-empty { color: var(--muted-foreground); font-size: 14px; margin: 4px 0; }
+  .sh-ring { display: flex; align-items: center; gap: 20px; }
 
   /* Ranked bars */
-  .sh-bar-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: center; padding: 3px 0; }
-  .sh-bar-label { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sh-bar-track { background: var(--sh-line); border-radius: 3px; height: 8px; overflow: hidden; }
-  .sh-bar-fill { display: block; height: 100%; border-radius: 3px; }
-  .sh-bar-value { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sh-bar-row { display: grid; grid-template-columns: 1fr 2.2fr auto; gap: 10px; align-items: center; padding: 5px 0; }
+  .sh-bar-label { font-size: 13px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-bar-track { background: var(--muted); border-radius: 999px; height: 8px; overflow: hidden; }
+  .sh-bar-fill { display: block; height: 100%; border-radius: 999px; }
+  .sh-bar-value { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
   /* Trade x area grid */
-  .sh-scroll { overflow-x: auto; }
-  .sh-heatmap { border-collapse: separate; border-spacing: 3px; font-size: 11px; }
+  .sh-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+  .sh-heatmap { border-collapse: separate; border-spacing: 4px; font-size: 12px; }
   .sh-heatmap th {
-    font-weight: 600; color: var(--sh-muted); text-align: left;
-    padding: 2px 6px; white-space: nowrap; font-size: 10px;
+    font-weight: 400; color: var(--muted-foreground); text-align: left;
+    padding: 2px 6px; white-space: nowrap; font-size: 12px;
   }
-  .sh-heatmap thead th span { display: inline-block; }
   .sh-heatmap td {
-    width: 40px; height: 30px; text-align: center; border-radius: 5px;
-    font-weight: 700; font-variant-numeric: tabular-nums;
-    background: color-mix(in srgb, var(--sh-good) calc(var(--i) * 78%), transparent);
-    color: var(--sh-ink);
+    width: 44px; height: 34px; text-align: center; border-radius: var(--radius-sm);
+    font-weight: 500; font-variant-numeric: tabular-nums;
+    background: color-mix(in oklch, var(--chart-1) calc(var(--i) * 70%), var(--muted));
+    color: var(--foreground);
+    border: 1px solid transparent;
   }
-  .sh-heatmap td.sh-hm-ok { outline: 2px solid var(--sh-good); outline-offset: -2px; }
+  .sh-heatmap td.sh-hm-ok { border-color: var(--chart-1); }
 
-  .sh-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--sh-muted); margin-top: 10px; }
-  .sh-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .sh-legend {
+    display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;
+    color: var(--muted-foreground); margin-top: 4px;
+  }
+  .sh-swatch {
+    display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+    margin-right: 6px; vertical-align: -1px;
+  }
+
+  /* Recent actions */
+  .sh .actionlist { margin: 0; padding: 0; list-style: none; }
+  .sh .actionlist li {
+    padding: 8px 0; font-size: 13.5px; list-style: none;
+    border-bottom: 1px solid var(--border); background-image: none;
+  }
+  .sh .actionlist li:last-child { border-bottom: none; }
+  .sh .actionlist .mini { color: var(--muted-foreground); font-size: 12px; }
 </style>
 
 <div class="sh">
-  <h1>{% translate "Overview" %}</h1>
+  <h1>Overview</h1>
+  <p class="sh-lede">Onboarding, verification and moderation for {{ panel.pipeline.published }} published provider{{ panel.pipeline.published|pluralize }}.</p>
 
-  {# ================= Work waiting ================= #}
+  {# ---- Section cards: the four numbers the business is judged on ---- #}
+  <div class="sh-grid">
+
+    <div class="sh-card">
+      <div class="sh-head">
+        <div class="sh-desc">Published providers</div>
+        <div class="sh-title">{{ panel.pipeline.published }}</div>
+        <div class="sh-action">
+          <span class="sh-badge {% if panel.pipeline.pending %}warn{% endif %}">
+            {{ panel.pipeline.pending }} awaiting
+          </span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">{{ panel.pipeline.draft }} in draft</div>
+        <div class="sh-foot-muted">A field officer drafts; an operations lead publishes.</div>
+      </div>
+    </div>
+
+    <div class="sh-card">
+      <div class="sh-head">
+        <div class="sh-desc">Enquiries, last 30 days</div>
+        <div class="sh-title">{{ panel.demand.enquiries_30 }}</div>
+        <div class="sh-action">
+          {% if panel.demand.change_pct is not None %}
+            <span class="sh-badge {% if panel.demand.change_pct >= 0 %}good{% else %}bad{% endif %}">
+              {% if panel.demand.change_pct >= 0 %}↑{% else %}↓{% endif %} {{ panel.demand.change_pct }}%
+            </span>
+          {% else %}
+            <span class="sh-badge">new</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">
+          {% if panel.demand.response_rate is not None %}{{ panel.demand.response_rate }}% replied within 48h{% else %}No replies recorded{% endif %}
+        </div>
+        <div class="sh-foot-muted">Replies are recorded by a human; the conversation is on WhatsApp.</div>
+      </div>
+    </div>
+
+    <div class="sh-card">
+      <div class="sh-head">
+        <div class="sh-desc">Verification coverage</div>
+        <div class="sh-title">{{ panel.verification.visited }} <span class="sh-of">/ {{ panel.verification.published }}</span></div>
+        <div class="sh-action">
+          <span class="sh-badge {% if panel.verification.never_visited %}warn{% else %}good{% endif %}">
+            {{ panel.verification.never_visited }} unvisited
+          </span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">{{ panel.verification.due_revisit }} due a revisit</div>
+        <div class="sh-foot-muted">Site visits cannot be automated. This caps how fast the base grows honestly.</div>
+      </div>
+    </div>
+
+    <div class="sh-card">
+      <div class="sh-head">
+        <div class="sh-desc">Enrolments, last 30 days</div>
+        <div class="sh-title">{{ panel.demand.enrolments_30 }}</div>
+        <div class="sh-action">
+          <span class="sh-badge">{% if panel.leakage.attributed_pct is not None %}{{ panel.leakage.attributed_pct }}% via platform{% else %}—{% endif %}</span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">
+          {% if panel.demand.enrolment_fees_30 %}GH₵{{ panel.demand.enrolment_fees_30|floatformat:0 }} in course fees{% else %}No fees recorded{% endif %}
+        </div>
+        <div class="sh-foot-muted">Collected by asking each provider monthly. It cannot be measured automatically.</div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ---- Trend ---- #}
+  <h2>Demand over time</h2>
+  <div class="sh-grid">
+
+    <div class="sh-card w8">
+      <div class="sh-head">
+        <div class="sh-desc">Enquiries per week</div>
+        <div class="sh-title">{{ panel.demand.enquiries_30 }} <span class="sh-of">last 30 days</span></div>
+      </div>
+      {{ panel.demand.enquiry_area }}
+      {{ panel.demand.enquiry_chart }}
+      <div class="sh-foot">
+        <div class="sh-foot-muted">Previous 30 days: {{ panel.demand.enquiries_prior_30 }}. A week with no enquiries is kept as a zero rather than dropped.</div>
+      </div>
+    </div>
+
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Enrolments per month</div>
+        <div class="sh-title">{{ panel.leakage.total }} <span class="sh-of">all time</span></div>
+      </div>
+      {{ panel.demand.enrolment_chart }}
+      <div class="sh-foot">
+        <div class="sh-foot-muted">If this number cannot be produced honestly, the subscription model is in trouble.</div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ---- Work waiting ---- #}
   <h2>Work waiting</h2>
   <div class="sh-grid">
 
     <div class="sh-card w4">
-      <h3>Onboarding pipeline</h3>
+      <div class="sh-head"><div class="sh-desc">Onboarding pipeline</div></div>
       {{ panel.pipeline_bar }}
-      <div style="margin-top:10px">
+      <div class="sh-rows">
         <div class="sh-row"><span>Draft</span><span class="sh-n">{{ panel.pipeline.draft }}</span></div>
         <div class="sh-row">
           <span><a href="{% url 'admin:providers_provider_changelist' %}?status__exact=pending_approval">Awaiting approval</a></span>
@@ -145,199 +326,132 @@
         <div class="sh-row"><span>Published</span><span class="sh-n good">{{ panel.pipeline.published }}</span></div>
         <div class="sh-row"><span>Suspended</span><span class="sh-n {% if panel.pipeline.suspended %}bad{% endif %}">{{ panel.pipeline.suspended }}</span></div>
       </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Approval is a separate permission. A field officer drafts; an operations lead publishes.</p>
     </div>
 
     <div class="sh-card w4">
-      <h3>Verification coverage</h3>
-      <div class="sh-ring">
-        {{ panel.verification.ring }}
-        <div style="min-width:0">
-          <div class="sh-row"><span>Never visited</span><span class="sh-n {% if panel.verification.never_visited %}warn{% endif %}">{{ panel.verification.never_visited }}</span></div>
-          <div class="sh-row"><span><a href="{% url 'admin:providers_verification_changelist' %}">Over 12 months old</a></span><span class="sh-n">{{ panel.verification.due_revisit }}</span></div>
-          <div class="sh-row"><span>Expiring in 30 days</span><span class="sh-n">{{ panel.verification.expiring_soon }}</span></div>
-        </div>
-      </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Site visits are the whole trust proposition and cannot be automated. This is the cap on how fast the provider base can grow honestly.</p>
-    </div>
-
-    <div class="sh-card w4">
-      <h3>Listing freshness</h3>
+      <div class="sh-head"><div class="sh-desc">Listing freshness</div></div>
       <div class="sh-ring">
         {{ panel.freshness.ring }}
-        <div style="min-width:0">
+        <div class="sh-rows" style="flex:1;min-width:0">
           <div class="sh-row"><span>Due a 90-day check</span><span class="sh-n {% if panel.freshness.due_confirmation %}warn{% endif %}">{{ panel.freshness.due_confirmation }}</span></div>
           <div class="sh-row"><span>Shown as unconfirmed</span><span class="sh-n {% if panel.freshness.shown_as_stale %}warn{% endif %}">{{ panel.freshness.shown_as_stale }}</span></div>
         </div>
       </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">A directory dies from staleness rather than from lack of features. This is the largest ongoing operating cost and it does not go away.</p>
+      <div class="sh-foot">
+        <div class="sh-foot-muted">A directory dies from staleness rather than from lack of features.</div>
+      </div>
     </div>
 
     <div class="sh-card w4">
-      <h3>Listing quality</h3>
+      <div class="sh-head"><div class="sh-desc">Listing quality</div></div>
       {{ panel.quality_bar }}
-      <div style="margin-top:10px">
+      <div class="sh-rows">
         <div class="sh-row"><span>No photograph</span><span class="sh-n {% if panel.quality.no_photo %}warn{% endif %}">{{ panel.quality.no_photo }}</span></div>
         <div class="sh-row"><span>No programme</span><span class="sh-n {% if panel.quality.no_programme %}warn{% endif %}">{{ panel.quality.no_programme }}</span></div>
         <div class="sh-row"><span>No upcoming intake</span><span class="sh-n {% if panel.quality.no_upcoming_intake %}warn{% endif %}">{{ panel.quality.no_upcoming_intake }}</span></div>
         <div class="sh-row"><span>No government record</span><span class="sh-n">{{ panel.quality.no_government_record }}</span></div>
       </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">A listing with no fee or intake date is one a trainee rules out without contacting anyone.</p>
-    </div>
-
-    <div class="sh-card w8">
-      <h3>Enquiries, last 12 weeks</h3>
-      {{ panel.demand.enquiry_chart }}
-      <div style="margin-top:8px">
-        <div class="sh-row">
-          <span>Last 30 days</span>
-          <span>
-            <span class="sh-n">{{ panel.demand.enquiries_30 }}</span>
-            {% if panel.demand.change_pct is not None %}
-              <span class="sh-delta {% if panel.demand.change_pct >= 0 %}up{% else %}down{% endif %}">
-                {% if panel.demand.change_pct >= 0 %}+{% endif %}{{ panel.demand.change_pct }}%
-              </span>
-            {% endif %}
-          </span>
-        </div>
-        <div class="sh-row"><span>Previous 30 days</span><span class="sh-n">{{ panel.demand.enquiries_prior_30 }}</span></div>
-        <div class="sh-row">
-          <span>Replied within 48h</span>
-          <span class="sh-n">{% if panel.demand.response_rate is not None %}{{ panel.demand.response_rate }}%{% else %}—{% endif %}</span>
-        </div>
-      </div>
-      <p class="sh-note">Replies are recorded by a human. The conversation happens on WhatsApp, so the platform cannot observe them.</p>
     </div>
 
   </div>
 
-  {# ================= Is it working ================= #}
-  <h2>Is it working</h2>
-  <div class="sh-grid">
-
-    <div class="sh-card w4">
-      <h3>Enrolments by month</h3>
-      {{ panel.demand.enrolment_chart }}
-      <div style="margin-top:8px">
-        <div class="sh-row"><span>Last 30 days</span><span class="sh-n">{{ panel.demand.enrolments_30 }}</span></div>
-        <div class="sh-row">
-          <span>Course fees</span>
-          <span class="sh-n">{% if panel.demand.enrolment_fees_30 %}GH₵{{ panel.demand.enrolment_fees_30|floatformat:0 }}{% else %}—{% endif %}</span>
-        </div>
-      </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Collected by asking each provider once a month. If this number cannot be produced honestly, the subscription model is in trouble — better to know in month four than month fourteen.</p>
-    </div>
-
-    <div class="sh-card w4">
-      <h3>Leakage</h3>
-      <div class="sh-big">{% if panel.leakage.attributed_pct is not None %}{{ panel.leakage.attributed_pct }}%{% else %}—{% endif %}</div>
-      <div class="sh-sub">of enrolments came through the platform</div>
-      <div style="margin-top:12px">{{ panel.leakage.bar }}</div>
-      <div style="margin-top:10px">
-        <div class="sh-row"><span>Enrolments recorded</span><span class="sh-n">{{ panel.leakage.total }}</span></div>
-        <div class="sh-row"><span>Through an enquiry</span><span class="sh-n">{{ panel.leakage.attributed }}</span></div>
-      </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Most enrolments will never pass through the platform, and that is expected. Measuring it gives an honest answer at renewal instead of a guess.</p>
-    </div>
-
-    <div class="sh-card w4">
-      <h3>Graduate record</h3>
-      <div class="sh-big {% if panel.year_two.inflated %}warn{% endif %}">
-        {% if panel.year_two.attestation_rate is not None %}{{ panel.year_two.attestation_rate }}%{% else %}—{% endif %}
-      </div>
-      <div class="sh-sub">of graduates recommended for paid work</div>
-      <div style="margin-top:12px">
-        <div class="sh-row"><span>Completions recorded</span><span class="sh-n">{{ panel.year_two.completions }}</span></div>
-        <div class="sh-row"><span>Attestations asked</span><span class="sh-n">{{ panel.year_two.attested }}</span></div>
-      </div>
-      {% if panel.year_two.inflated %}
-        <p class="sh-note" style="color:var(--sh-warn)"><strong>Attestation inflation.</strong> A workshop that recommends every graduate makes the signal worthless within one cohort, and worth nothing to an employer.</p>
-      {% else %}
-        <div class="sh-spacer"></div>
-        <p class="sh-note">Nothing in version 1 reads these, and they cannot be collected retrospectively. They are the whole foundation of employer matching in year two.</p>
-      {% endif %}
-    </div>
-
-    <div class="sh-card w4">
-      <h3>Providers by trade</h3>
-      {{ panel.rankings.trades }}
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Where inventory actually is.</p>
-    </div>
-
-    <div class="sh-card w4">
-      <h3>Providers by area</h3>
-      {{ panel.rankings.areas }}
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Greater Accra holds most of the inventory in year one.</p>
-    </div>
-
-    <div class="sh-card w4">
-      <h3>Enquiries by trade</h3>
-      {{ panel.rankings.enquiry_trades }}
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Demand against supply. A trade high here and low in the chart to the left is where the next site visits should go.</p>
-    </div>
-
-  </div>
-
-  {# ================= Coverage ================= #}
+  {# ---- Coverage ---- #}
   <h2>Coverage — where to go next</h2>
   <div class="sh-grid">
 
     <div class="sh-card w8">
-      <h3>Providers by trade and area</h3>
+      <div class="sh-head">
+        <div class="sh-desc">Providers by trade and area</div>
+        <div class="sh-action"><span class="sh-badge">{{ panel.coverage.threshold }}+ to index</span></div>
+      </div>
       <div class="sh-scroll">{{ panel.coverage.heatmap }}</div>
       <div class="sh-legend">
-        <span><span class="sh-swatch" style="background:var(--sh-good);outline:2px solid var(--sh-good);outline-offset:-2px"></span>{{ panel.coverage.threshold }}+ providers — page worth indexing</span>
-        <span><span class="sh-swatch" style="background:color-mix(in srgb, var(--sh-good) 30%, transparent)"></span>some inventory, below the threshold</span>
-        <span><span class="sh-swatch" style="background:transparent;border:1px solid var(--sh-line)"></span>empty</span>
+        <span><span class="sh-swatch" style="background:var(--chart-1)"></span>enough inventory to index</span>
+        <span><span class="sh-swatch" style="background:color-mix(in oklch, var(--chart-1) 30%, var(--muted))"></span>some, below the threshold</span>
+        <span><span class="sh-swatch" style="background:var(--muted)"></span>empty</span>
       </div>
-      <p class="sh-note">Each cell is one trade in one area. Empty cells are the field team's target list; outlined cells have enough inventory that the generated page is worth indexing.</p>
+      <div class="sh-foot">
+        <div class="sh-foot-muted">Each cell is one trade in one area. Empty cells are the field team's target list.</div>
+      </div>
     </div>
 
     <div class="sh-card w4">
-      <h3>Search coverage</h3>
-      <div class="sh-big">{{ panel.coverage.indexable }} <span style="font-size:16px;color:var(--sh-muted)">/ {{ panel.coverage.total }}</span></div>
-      <div class="sh-sub">trade-and-area pages worth indexing</div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">The rest are generated with noindex. Thin pages teach a crawler the site is mostly empty, which is worse than not publishing them.</p>
+      <div class="sh-head">
+        <div class="sh-desc">Pages worth indexing</div>
+        <div class="sh-title">{{ panel.coverage.indexable }} <span class="sh-of">/ {{ panel.coverage.total }}</span></div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">Graduate record</div>
+        <div class="sh-foot-muted">The rest are generated with noindex. Thin pages teach a crawler the site is mostly empty.</div>
+      </div>
+      <div class="sh-rows">
+        <div class="sh-row"><span>Completions recorded</span><span class="sh-n">{{ panel.year_two.completions }}</span></div>
+        <div class="sh-row"><span>Attestations asked</span><span class="sh-n">{{ panel.year_two.attested }}</span></div>
+        <div class="sh-row">
+          <span>Recommended</span>
+          <span class="sh-n {% if panel.year_two.inflated %}warn{% endif %}">{% if panel.year_two.attestation_rate is not None %}{{ panel.year_two.attestation_rate }}%{% else %}—{% endif %}</span>
+        </div>
+      </div>
+      {% if panel.year_two.inflated %}
+        <div class="sh-foot"><div class="sh-foot-muted" style="color:var(--sh-caution)">Attestation inflation: a workshop recommending every graduate makes the signal worthless.</div></div>
+      {% endif %}
     </div>
 
   </div>
 
-  {# ================= Money and activity ================= #}
+  {# ---- Rankings ---- #}
+  <h2>Supply against demand</h2>
+  <div class="sh-grid">
+
+    <div class="sh-card w4">
+      <div class="sh-head"><div class="sh-desc">Providers by trade</div></div>
+      {{ panel.rankings.trades }}
+    </div>
+
+    <div class="sh-card w4">
+      <div class="sh-head"><div class="sh-desc">Providers by area</div></div>
+      {{ panel.rankings.areas }}
+    </div>
+
+    <div class="sh-card w4">
+      <div class="sh-head"><div class="sh-desc">Enquiries by trade</div></div>
+      {{ panel.rankings.enquiry_trades }}
+      <div class="sh-foot">
+        <div class="sh-foot-muted">A trade high here and low to the left is where the next site visits should go.</div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ---- Money and activity ---- #}
   <h2>{% if panel.is_super %}Money and activity{% else %}Activity{% endif %}</h2>
   <div class="sh-grid">
 
     {% if panel.is_super %}
     <div class="sh-card w4">
-      <h3>Subscriptions</h3>
-      <div class="sh-big">{% if panel.revenue.monthly_value %}GH₵{{ panel.revenue.monthly_value|floatformat:0 }}{% else %}—{% endif %}</div>
-      <div class="sh-sub">current period value</div>
-      <div style="margin-top:12px">{{ panel.revenue.bar }}</div>
-      <div style="margin-top:10px">
+      <div class="sh-head">
+        <div class="sh-desc">Subscriptions, current period</div>
+        <div class="sh-title">{% if panel.revenue.monthly_value %}GH₵{{ panel.revenue.monthly_value|floatformat:0 }}{% else %}—{% endif %}</div>
+        <div class="sh-action"><span class="sh-badge">{{ panel.revenue.paying }} paying</span></div>
+      </div>
+      {{ panel.revenue.bar }}
+      <div class="sh-rows">
         <div class="sh-row"><span>Paying</span><span class="sh-n good">{{ panel.revenue.paying }}</span></div>
         <div class="sh-row"><span>Free listing</span><span class="sh-n">{{ panel.revenue.free }}</span></div>
       </div>
-      <div class="sh-spacer"></div>
-      <p class="sh-note">Willingness to pay is untested and the tiers are hypotheses. Visible to superusers only.</p>
+      <div class="sh-foot">
+        <div class="sh-foot-muted">Willingness to pay is untested and the tiers are hypotheses. Superusers only.</div>
+      </div>
     </div>
     {% endif %}
 
     <div class="sh-card {% if panel.is_super %}w8{% else %}w12{% endif %}">
-      <h3>{% translate 'Recent actions' %}</h3>
-      {% get_admin_log 12 as admin_log for_user user %}
+      <div class="sh-head"><div class="sh-desc">{% translate 'Recent actions' %}</div></div>
+      {% get_admin_log 10 as admin_log for_user user %}
       {% if not admin_log %}
         <p class="sh-empty">{% translate 'None available' %}</p>
       {% else %}
-        <ul class="actionlist" style="margin:0;padding:0">
+        <ul class="actionlist">
           {% for entry in admin_log %}
             <li class="{% if entry.is_addition %}addlink{% elif entry.is_change %}changelink{% elif entry.is_deletion %}deletelink{% endif %}">
               {% if entry.is_deletion or not entry.get_admin_url %}
@@ -346,15 +460,14 @@
                 <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
               {% endif %}
               <br>
-              <span class="mini quiet">
-                {% filter capfirst %}{{ entry.content_type.name|default:_('Unknown content') }}{% endfilter %}
-                — {{ entry.user }}
-              </span>
+              <span class="mini">{% filter capfirst %}{{ entry.content_type.name|default:_('Unknown content') }}{% endfilter %} — {{ entry.user }}</span>
             </li>
           {% endfor %}
         </ul>
       {% endif %}
-      <p class="sh-note">Every change to a provider or a verification is recorded with a timestamp and an author. When a trainee disputes what a listing said, the answer has to be retrievable.</p>
+      <div class="sh-foot">
+        <div class="sh-foot-muted">Every change to a provider or verification is recorded with a timestamp and an author.</div>
+      </div>
     </div>
 
   </div>

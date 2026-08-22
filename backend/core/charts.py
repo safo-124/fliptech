@@ -20,11 +20,14 @@ from django.utils.safestring import mark_safe
 # Deliberately not the admin's accent colours. These carry meaning that has to
 # survive the theme: a site visit and a government record are different claims
 # and must never read as the same thing.
-INK = "var(--sh-ink, currentColor)"
-GOOD = "var(--sh-good, #2f9e68)"
-WARN = "var(--sh-warn, #d08700)"
-BAD = "var(--sh-bad, #d0422a)"
-MUTED = "var(--sh-muted, #8a94a6)"
+# shadcn charts draw from --chart-1..5 and never from the text colour, so a
+# chart never competes with the type around it.
+INK = "var(--chart-1, oklch(0.646 0.222 41.116))"
+GOOD = "var(--sh-positive, oklch(0.62 0.14 155))"
+WARN = "var(--sh-caution, oklch(0.72 0.15 75))"
+BAD = "var(--destructive, oklch(0.577 0.245 27.325))"
+MUTED = "var(--muted-foreground, oklch(0.556 0 0))"
+SURFACE = "var(--muted, oklch(0.97 0 0))"
 
 
 def _points(values, width, height, pad):
@@ -56,7 +59,18 @@ def sparkline(values, labels=None, height=64, colour=None, fill=True):
         # readers, without any script.
         title = f"<title>{escape(', '.join(f'{lb}: {v}' for lb, v in zip(labels, values, strict=True)))}</title>"
 
-    fill_svg = f'<polygon points="{area}" fill="{colour}" opacity="0.13"/>' if fill else ""
+    # shadcn's area charts fade the fill from 0.8 to 0.1 down the y-axis
+    # rather than using one flat tint.
+    gradient_id = f"shg{abs(hash(line)) % 100000}"
+    fill_svg = (
+        f'<defs><linearGradient id="{gradient_id}" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="5%" stop-color="{colour}" stop-opacity="0.8"/>'
+        f'<stop offset="95%" stop-color="{colour}" stop-opacity="0.1"/>'
+        f"</linearGradient></defs>"
+        f'<polygon points="{area}" fill="url(#{gradient_id})"/>'
+        if fill
+        else ""
+    )
     return mark_safe(
         f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none" '
         f'style="width:100%;height:{height}px;display:block" role="img">{title}'
@@ -88,12 +102,14 @@ def column_chart(values, labels, height=110, colour=None):
         # A zero-height bar is invisible and reads as missing data rather than
         # as a real zero, so give it a 2px stub.
         h = max(h, 2)
+        # Flat fill with rounded top corners, as shadcn's bar charts do. An
+        # opacity ramp would imply a second variable that is not there.
         bars.append(
-            f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="2" '
-            f'fill="{colour}" opacity="{0.35 + 0.65 * (v / top):.2f}">'
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="4" '
+            f'fill="{colour}">'
             f"<title>{escape(str(label))}: {v}</title></rect>"
-            f'<text x="{x + bar_w / 2:.1f}" y="{height - 5}" text-anchor="middle" '
-            f'font-size="9" fill="{MUTED}">{escape(str(label))}</text>'
+            f'<text x="{x + bar_w / 2:.1f}" y="{height - 4}" text-anchor="middle" '
+            f'font-size="10" fill="{MUTED}">{escape(str(label))}</text>'
         )
     return mark_safe(
         f'<svg viewBox="0 0 {width} {height}" style="width:100%;height:{height}px;display:block" '
@@ -113,14 +129,14 @@ def ring(done, total, height=104, colour=None):
     return mark_safe(
         f'<svg viewBox="0 0 {size} {size}" style="width:{height}px;height:{height}px;display:block" '
         f'role="img"><title>{done} of {total}</title>'
-        f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{MUTED}" '
-        f'stroke-width="{stroke}" opacity="0.22"/>'
+        f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{SURFACE}" '
+        f'stroke-width="{stroke}"/>'
         f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{colour}" '
         f'stroke-width="{stroke}" stroke-linecap="round" '
         f'stroke-dasharray="{filled:.2f} {circumference:.2f}" '
         f'transform="rotate(-90 {size / 2} {size / 2})"/>'
         f'<text x="50%" y="47%" text-anchor="middle" font-size="20" font-weight="700" '
-        f'fill="{INK}">{round(pct * 100)}%</text>'
+        f'fill="var(--foreground, #111)">{round(pct * 100)}%</text>'
         f'<text x="50%" y="63%" text-anchor="middle" font-size="9" fill="{MUTED}">'
         f"{done}/{total}</text></svg>"
     )

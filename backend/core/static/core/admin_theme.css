@@ -1,404 +1,438 @@
 /*
- * Back-office theme.
+ * Back-office theme, in the shadcn/ui visual language.
  *
- * Django 5.x drives its admin from CSS custom properties and already handles
- * dark mode, so most of this file is a palette rather than a fight with
- * selectors. That keeps it small — which matters, because this interface is
- * used on a phone over a mobile connection, on prepaid data.
+ * The tokens below are shadcn's own default (neutral) palette, verbatim, in
+ * OKLCH — see ui.shadcn.com/docs/theming. They are then mapped onto the
+ * variables Django's admin already uses, which is why this stays a palette
+ * file rather than a fight with selectors. Nothing here changes admin markup.
  *
- * Colours are taken from the public site so the two halves of the product look
- * related: the same terracotta for actions, the same green for a completed
- * check. No web font is loaded; the system stack renders instantly and costs
- * nothing.
+ * The look it produces: near-white surfaces, hairline borders, almost no
+ * shadow, a near-black primary, muted grey for every label, and colour
+ * reserved for charts. Weight comes from type and spacing, not from fill.
  *
- * Nothing here changes admin markup, so the super admin panel and the
- * photograph uploader keep working untouched. Deleting this file returns the
- * admin to stock Django.
+ * No web font. shadcn ships Geist; this loads nothing, because the back office
+ * is used in the field on prepaid data and the system stack renders instantly.
  */
 
-/* ---------------------------------------------------------------- palette */
+/* ------------------------------------------------------------ shadcn tokens */
 
-/* :root, not html: Django declares its palette on :root, which outranks a
-   bare element selector. Matching it makes source order the tiebreak, and
-   this file is linked after Django's. */
 :root {
-  --sh-terracotta: #b03a1a;
-  --sh-terracotta-dark: #8f2f15;
-  --sh-green: #0f6d43;
-  --sh-amber: #b07000;
+  --radius: 0.625rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 
-  --primary: #1f2937;
-  --primary-fg: #ffffff;
-  --secondary: #1f2937;
-  --accent: var(--sh-terracotta);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --sh-primary: oklch(0.205 0 0);
+  --sh-primary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
 
-  --body-fg: #1a1f29;
-  --body-bg: #ffffff;
-  --body-quiet-color: #6b7484;
-  --body-loud-color: #0d1117;
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
 
-  --header-color: #e8eaee;
-  --header-branding-color: #ffffff;
-  --header-bg: #161b22;
-  --header-link-color: #ffffff;
+  /* This dashboard is about verification and staleness, so good and bad still
+     have to read as such. They sit alongside the neutral scale, used sparingly. */
+  --sh-positive: oklch(0.62 0.14 155);
+  --sh-caution: oklch(0.72 0.15 75);
 
-  --breadcrumbs-fg: #6b7484;
-  --breadcrumbs-link-fg: var(--body-quiet-color);
-  --breadcrumbs-bg: #f6f7f9;
-
-  --link-fg: var(--sh-terracotta);
-  --link-hover-color: var(--sh-terracotta-dark);
-  --link-selected-fg: var(--sh-terracotta-dark);
-
-  --hairline-color: #e6e8ec;
-  --border-color: #dfe2e7;
-
-  --error-fg: #c0392b;
-  --message-success-bg: #e7f5ee;
-  --message-warning-bg: #fdf4e3;
-  --message-error-bg: #fdecea;
-
-  --darkened-bg: #f6f7f9;
-  --selected-bg: #eef1f5;
-  --selected-row: #fff8e6;
-
-  --button-bg: #eef0f3;
-  --button-fg: #1a1f29;
-  --button-hover-bg: #e2e5ea;
-  --default-button-bg: var(--sh-terracotta);
-  --default-button-hover-bg: var(--sh-terracotta-dark);
-  --close-button-bg: #6b7484;
-  --close-button-hover-bg: #545c69;
-  --delete-button-bg: #c0392b;
-  --delete-button-hover-bg: #a33025;
-
-  --object-tools-bg: #2b3440;
-  --object-tools-fg: #ffffff;
-  --object-tools-hover-bg: #1a1f29;
-
-  --font-family-primary: system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-
-  --sh-radius: 10px;
-  --sh-radius-sm: 7px;
-  --sh-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.06);
 }
 
-/* Explicit dark choice. The prefers-color-scheme block further down repeats
-   these for viewers who never set one — a @media rule cannot be combined into
-   a selector list, so the two have to be written separately. */
+/* Django exposes an explicit choice via [data-theme]; the media query below
+   covers viewers who never set one. A @media cannot join a selector list, so
+   the two have to be written separately. */
 :root[data-theme="dark"] {
-  --primary: #e6e8ec;
-  --primary-fg: #12151a;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --sh-primary: oklch(0.922 0 0);
+  --sh-primary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
 
-  --body-fg: #dfe3e9;
-  --body-bg: #12151a;
-  --body-quiet-color: #98a1b0;
-  --body-loud-color: #ffffff;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
 
-  --header-bg: #0c0f13;
-  --header-color: #dfe3e9;
+  --sh-positive: oklch(0.7 0.14 158);
+  --sh-caution: oklch(0.78 0.15 78);
 
-  --breadcrumbs-bg: #171b21;
-  --breadcrumbs-fg: #98a1b0;
-
-  --link-fg: #e5714f;
-  --link-hover-color: #f08a6a;
-  --link-selected-fg: #f08a6a;
-
-  --hairline-color: #262c35;
-  --border-color: #2d343e;
-
-  --darkened-bg: #171b21;
-  --selected-bg: #1c222a;
-  --selected-row: #2a2418;
-
-  --button-bg: #232932;
-  --button-fg: #dfe3e9;
-  --button-hover-bg: #2c333d;
-
-  --object-tools-bg: #2c333d;
-  --object-tools-hover-bg: #384049;
-
-  --message-success-bg: #14291f;
-  --message-warning-bg: #2b2314;
-  --message-error-bg: #2c1a18;
-
-  --accent: #e5714f;
-  --default-button-bg: #b84526;
-  --default-button-hover-bg: #cf5330;
-  --close-button-bg: #3a424d;
-  --close-button-hover-bg: #47505c;
-  --delete-button-bg: #b23a2c;
-  --delete-button-hover-bg: #c94335;
-  --sh-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --primary: #e6e8ec;
-    --primary-fg: #12151a;
-    --body-fg: #dfe3e9;
-    --body-bg: #12151a;
-    --body-quiet-color: #98a1b0;
-    --body-loud-color: #ffffff;
-    --header-bg: #0c0f13;
-    --breadcrumbs-bg: #171b21;
-    --link-fg: #e5714f;
-    --link-hover-color: #f08a6a;
-    --hairline-color: #262c35;
-    --border-color: #2d343e;
-    --darkened-bg: #171b21;
-    --selected-bg: #1c222a;
-    --selected-row: #2a2418;
-    --button-bg: #232932;
-    --button-fg: #dfe3e9;
-    --button-hover-bg: #2c333d;
-    --object-tools-bg: #2c333d;
-    --accent: #e5714f;
-    --default-button-bg: #b84526;
-    --default-button-hover-bg: #cf5330;
-    --close-button-bg: #3a424d;
-    --close-button-hover-bg: #47505c;
-    --delete-button-bg: #b23a2c;
-    --delete-button-hover-bg: #c94335;
-    --sh-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --sh-primary: oklch(0.922 0 0);
+    --sh-primary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    --sh-positive: oklch(0.7 0.14 158);
+    --sh-caution: oklch(0.78 0.15 78);
+    --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+    --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4);
   }
 }
 
-/* ------------------------------------------------------------- typography */
+/* -------------------------------------------- mapped onto Django's variables */
+
+:root {
+  --primary: var(--sh-primary);
+  --primary-fg: var(--sh-primary-foreground);
+  --secondary: var(--sh-primary);
+  --accent: var(--chart-1);
+
+  --body-fg: var(--foreground);
+  --body-bg: var(--background);
+  --body-quiet-color: var(--muted-foreground);
+  --body-loud-color: var(--foreground);
+
+  /* shadcn dashboards have a light header with a hairline rule, not a dark
+     bar. This is the single biggest change to how the admin reads. */
+  --header-bg: var(--background);
+  --header-color: var(--foreground);
+  --header-branding-color: var(--foreground);
+  --header-link-color: var(--muted-foreground);
+
+  --breadcrumbs-bg: var(--background);
+  --breadcrumbs-fg: var(--muted-foreground);
+  --breadcrumbs-link-fg: var(--muted-foreground);
+
+  --link-fg: var(--foreground);
+  --link-hover-color: var(--muted-foreground);
+  --link-selected-fg: var(--foreground);
+
+  --hairline-color: var(--border);
+  --border-color: var(--border);
+
+  --error-fg: var(--destructive);
+  --message-success-bg: var(--muted);
+  --message-warning-bg: var(--muted);
+  --message-error-bg: var(--muted);
+
+  --darkened-bg: var(--muted);
+  --selected-bg: var(--muted);
+  --selected-row: var(--muted);
+
+  --button-bg: var(--background);
+  --button-fg: var(--foreground);
+  --button-hover-bg: var(--muted);
+  --default-button-bg: var(--sh-primary);
+  --default-button-hover-bg: var(--sh-primary);
+  --close-button-bg: var(--muted);
+  --close-button-hover-bg: var(--border);
+  --delete-button-bg: var(--destructive);
+  --delete-button-hover-bg: var(--destructive);
+
+  --object-tools-bg: var(--sh-primary);
+  --object-tools-fg: var(--sh-primary-foreground);
+  --object-tools-hover-bg: var(--sh-primary);
+
+  --font-family-primary: system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --------------------------------------------------------------- typography */
 
 body {
   font-family: var(--font-family-primary);
   font-size: 14px;
   line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
   -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-h2 { font-size: 15px; font-weight: 650; }
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+h2 { font-size: 14px; font-weight: 600; }
 
-/* ----------------------------------------------------------------- header */
+a:link, a:visited { text-decoration: none; }
+
+/* ------------------------------------------------------------------- header */
 
 #header {
-  padding: 14px 32px;
-  border-bottom: 1px solid transparent;
-  box-shadow: none;
+  padding: 0 24px;
+  min-height: 56px;
+  display: flex;
   align-items: center;
+  background: var(--background);
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
 }
 
-#branding h1 { font-weight: 700; letter-spacing: -0.01em; font-size: 17px; }
-#branding h1 a:link,
-#branding h1 a:visited { color: var(--header-branding-color); }
+#branding h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+#branding h1 a:link, #branding h1 a:visited { color: var(--foreground); }
 
 #user-tools {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
-  font-weight: 500;
+  color: var(--muted-foreground);
 }
 #user-tools a {
+  color: var(--muted-foreground);
   border-bottom: none;
   padding: 6px 10px;
-  border-radius: var(--sh-radius-sm);
-  transition: background 0.12s ease;
+  border-radius: var(--radius-md);
 }
-#user-tools a:hover { background: rgba(255, 255, 255, 0.12); }
+#user-tools a:hover { background: var(--muted); color: var(--foreground); }
 
 div.breadcrumbs {
-  padding: 11px 32px;
-  font-size: 12.5px;
-  border-bottom: 1px solid var(--hairline-color);
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  font-size: 13px;
 }
+div.breadcrumbs a { color: var(--muted-foreground); }
+div.breadcrumbs a:focus, div.breadcrumbs a:hover { color: var(--foreground); }
 
-/* ---------------------------------------------------------------- surface */
+/* ------------------------------------------------------------------ surface */
 
 .module {
-  border: 1px solid var(--hairline-color);
-  border-radius: var(--sh-radius);
-  box-shadow: var(--sh-shadow);
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
   overflow: hidden;
-  background: var(--body-bg);
 }
 
+/* shadcn card headers are quiet: sentence case, no heavy fill, hairline rule. */
 .module h2,
 .module caption,
 .inline-group h2 {
-  background: var(--darkened-bg);
-  color: var(--body-fg);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 11px 16px;
-  border-bottom: 1px solid var(--hairline-color);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 16px 24px 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 fieldset.module { padding: 0; }
-.form-row { padding: 12px 16px; border-bottom: 1px solid var(--hairline-color); }
+.form-row { padding: 14px 24px; border-bottom: 1px solid var(--border); }
 .form-row:last-child { border-bottom: none; }
 
-.aligned label { font-weight: 600; color: var(--body-fg); padding-top: 8px; }
-.help, .helptext, div.help { color: var(--body-quiet-color); font-size: 12px; }
+.aligned label { font-weight: 500; font-size: 13.5px; color: var(--foreground); padding-top: 9px; }
+.help, .helptext, div.help { color: var(--muted-foreground); font-size: 13px; }
 
-/* ------------------------------------------------------------------ forms */
+/* -------------------------------------------------------------------- forms */
 
 input[type="text"], input[type="password"], input[type="email"],
 input[type="url"], input[type="number"], input[type="tel"],
 input[type="search"], input[type="date"], input[type="time"],
 textarea, select, .vTextField {
-  border: 1px solid var(--border-color);
-  border-radius: var(--sh-radius-sm);
-  padding: 9px 11px;
-  background: var(--body-bg);
-  color: var(--body-fg);
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  min-height: 36px;
   font-family: inherit;
   font-size: 14px;
-  /* Section 10 asks for 44px tap targets. This is used one-handed, outdoors,
-     on a cracked screen. */
-  min-height: 40px;
   box-sizing: border-box;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* shadcn focus: a 3px ring at 50% opacity plus a border shift. */
 input:focus, textarea:focus, select:focus, .vTextField:focus {
   outline: none;
-  border-color: var(--sh-terracotta);
-  box-shadow: 0 0 0 3px rgba(176, 58, 26, 0.14);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
 }
 
-/* Never remove this without a replacement — keyboard focus must stay visible. */
 :where(a, button, [tabindex]):focus-visible {
-  outline: 2px solid var(--sh-terracotta);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
-/* ---------------------------------------------------------------- buttons */
+/* ------------------------------------------------------------------ buttons */
 
 .button, input[type="submit"], input[type="button"],
 .submit-row input, a.button {
-  border-radius: var(--sh-radius-sm);
-  padding: 10px 16px;
-  min-height: 40px;
-  font-weight: 600;
-  font-size: 13.5px;
-  border: 1px solid transparent;
-  box-shadow: none;
-  transition: background 0.12s ease, transform 0.06s ease;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  min-height: 36px;
+  font-weight: 500;
+  font-size: 14px;
+  box-shadow: var(--shadow-xs);
+  transition: background 0.15s ease;
 }
-.button:active, input[type="submit"]:active { transform: translateY(1px); }
+.button:hover, input[type="submit"]:hover, .submit-row input:hover {
+  background: var(--muted);
+}
 
-.button.default, input[type="submit"].default, .submit-row input.default {
-  font-weight: 650;
+.button.default, input[type="submit"].default, .submit-row input.default,
+.submit-row input[name="_save"] {
+  background: var(--sh-primary);
+  color: var(--sh-primary-foreground);
+  border-color: transparent;
+}
+.button.default:hover, .submit-row input[name="_save"]:hover {
+  background: var(--sh-primary);
+  opacity: 0.9;
 }
 
 .object-tools a {
-  border-radius: 999px;
-  padding: 8px 15px;
-  font-size: 11.5px;
-  letter-spacing: 0.03em;
+  background: var(--sh-primary);
+  color: var(--sh-primary-foreground);
+  border-radius: var(--radius-md);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
   text-transform: none;
-  font-weight: 600;
+  box-shadow: var(--shadow-xs);
 }
 
 .submit-row {
-  border-radius: var(--sh-radius);
-  border: 1px solid var(--hairline-color);
-  background: var(--darkened-bg);
-  padding: 14px 16px;
-  box-shadow: var(--sh-shadow);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 16px 24px;
 }
 
-/* ----------------------------------------------------------------- tables */
+.deletelink, .submit-row a.deletelink {
+  background: var(--destructive);
+  color: oklch(0.985 0 0);
+  border-color: transparent;
+}
+
+/* ------------------------------------------------------------------- tables */
 
 #changelist table thead th {
-  background: var(--darkened-bg);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 11px 12px;
-  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
 }
-#changelist table tbody td, #changelist table tbody th { padding: 11px 12px; }
-#changelist table tbody tr:hover { background: var(--selected-bg); }
+#changelist table tbody td, #changelist table tbody th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+#changelist table tbody tr:hover { background: var(--muted); }
 
 #changelist-filter {
-  border-radius: var(--sh-radius);
-  border: 1px solid var(--hairline-color);
-  background: var(--darkened-bg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
 }
-#changelist-search input[type="text"] { min-width: 220px; }
+#changelist-filter h2 { border-bottom: 1px solid var(--border); }
 
-.paginator {
-  border-top: 1px solid var(--hairline-color);
-  padding: 12px 16px;
-  font-size: 13px;
-}
+.paginator { border-top: 1px solid var(--border); padding: 14px 16px; font-size: 13px; }
 
-/* ---------------------------------------------------------------- sidebar */
+/* ------------------------------------------------------------------ sidebar */
 
-#nav-sidebar { border-right: 1px solid var(--hairline-color); }
+#nav-sidebar { border-right: 1px solid var(--border); background: var(--background); }
+#nav-sidebar .module { border: none; border-radius: 0; box-shadow: none; }
 #nav-sidebar .module th { padding: 0; }
 .main > #nav-sidebar + .content { max-width: none; }
 
 #nav-filter {
-  border-radius: var(--sh-radius-sm);
-  border: 1px solid var(--border-color);
-  margin: 10px;
-  width: calc(100% - 20px);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  margin: 12px;
+  width: calc(100% - 24px);
   box-sizing: border-box;
+  background: var(--background);
 }
 
-#nav-sidebar .current-app .section:link,
-#nav-sidebar .current-app .section:visited { color: var(--body-loud-color); }
+#nav-sidebar a:hover { background: var(--muted); }
 
-/* --------------------------------------------------------------- messages */
+/* ----------------------------------------------------------------- messages */
 
 ul.messagelist li {
-  border-radius: var(--sh-radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 12px 16px;
-  font-size: 13.5px;
-  border: 1px solid var(--hairline-color);
+  font-size: 14px;
   background-image: none;
-  padding-left: 16px;
 }
+ul.messagelist li.error { border-color: var(--destructive); color: var(--destructive); }
 
 .errornote, .errorlist li {
-  border-radius: var(--sh-radius-sm);
-  border: 1px solid var(--error-fg);
-  background: var(--message-error-bg);
-  color: var(--error-fg);
-  padding: 11px 14px;
-  font-size: 13px;
+  background: var(--card);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-lg);
+  color: var(--destructive);
+  padding: 12px 16px;
+  font-size: 13.5px;
 }
 
-/* ------------------------------------------------------------- login page */
+/* --------------------------------------------------------------- login page */
 
 .login #container {
-  border-radius: var(--sh-radius);
-  border: 1px solid var(--hairline-color);
-  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.10);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
-.login #header { border-radius: 0; padding: 18px 20px; }
+.login #header { border-radius: 0; min-height: 0; padding: 20px 24px; }
 .login .submit-row { border: none; background: transparent; box-shadow: none; padding: 0; }
 .login .submit-row input[type="submit"] { width: 100%; }
 
-/* ------------------------------------------------------------- responsive */
+/* --------------------------------------------------------------- responsive */
 
 @media (max-width: 1024px) {
   #header, div.breadcrumbs { padding-left: 16px; padding-right: 16px; }
 }
 
 @media (max-width: 767px) {
-  /* Thumb-sized targets: this is the screen a field officer uses standing up
-     in a workshop.
-
-     These selectors are prefixed with .form-row to match the specificity of
-     Django's own mobile rule (`.form-row input[type=text]`, 0-2-1). A bare
-     `input[type=text]` is 0-1-1 and loses to it no matter which stylesheet
-     loads last, so the fields kept Django's 2.25rem sizing. */
+  /* Thumb-sized targets: this screen gets used standing up in a workshop.
+     These selectors carry the .form-row prefix to match the specificity of
+     Django's own mobile rule (`.form-row input[type=text]`, 0-2-1); a bare
+     `input[type=text]` is 0-1-1 and loses to it whatever the load order. */
   .button, input[type="submit"], .submit-row input, a.button { min-height: 44px; }
 
   .form-row input:not([type]),
@@ -414,15 +448,13 @@ ul.messagelist li {
   .form-row .vTextField {
     min-height: 44px;
     padding: 11px 12px;
-    /* 16px specifically: anything smaller makes iOS Safari zoom the page on
-       focus, which throws the officer out of position mid-form. */
+    /* 16px exactly: smaller makes iOS Safari zoom the page on focus, which
+       throws the officer out of position mid-form. */
     font-size: 16px;
   }
   .form-row select { height: 44px; }
 
-  /* Search and filter boxes sit outside .form-row. */
-  #changelist-search input[type="text"],
-  #nav-filter { min-height: 44px; font-size: 16px; }
-
-  .form-row { padding: 12px; }
+  #changelist-search input[type="text"], #nav-filter { min-height: 44px; font-size: 16px; }
+  .form-row { padding: 14px 16px; }
+  .module h2, .module caption { padding: 14px 16px 10px; }
 }

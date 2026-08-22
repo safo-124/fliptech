@@ -293,6 +293,10 @@ class SkillsHubAdminSite(AdminSite):
                 "average_fee": enrolment_stats["avg"],
                 "enquiry_chart": charts.column_chart(enquiry_series, enquiry_labels),
                 "enquiry_spark": charts.sparkline(enquiry_series, enquiry_labels),
+                # The large gradient area chart shadcn's dashboard leads
+                # with. The column chart below it stays for reading exact
+                # weekly counts, which an area chart is bad at.
+                "enquiry_area": charts.sparkline(enquiry_series, enquiry_labels, height=200),
                 "enrolment_chart": charts.column_chart(
                     enrolment_series, enrolment_labels, colour=charts.GOOD
                 ),
