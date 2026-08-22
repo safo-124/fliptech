@@ -1,0 +1,428 @@
+/*
+ * Back-office theme.
+ *
+ * Django 5.x drives its admin from CSS custom properties and already handles
+ * dark mode, so most of this file is a palette rather than a fight with
+ * selectors. That keeps it small — which matters, because this interface is
+ * used on a phone over a mobile connection, on prepaid data.
+ *
+ * Colours are taken from the public site so the two halves of the product look
+ * related: the same terracotta for actions, the same green for a completed
+ * check. No web font is loaded; the system stack renders instantly and costs
+ * nothing.
+ *
+ * Nothing here changes admin markup, so the super admin panel and the
+ * photograph uploader keep working untouched. Deleting this file returns the
+ * admin to stock Django.
+ */
+
+/* ---------------------------------------------------------------- palette */
+
+/* :root, not html: Django declares its palette on :root, which outranks a
+   bare element selector. Matching it makes source order the tiebreak, and
+   this file is linked after Django's. */
+:root {
+  --sh-terracotta: #b03a1a;
+  --sh-terracotta-dark: #8f2f15;
+  --sh-green: #0f6d43;
+  --sh-amber: #b07000;
+
+  --primary: #1f2937;
+  --primary-fg: #ffffff;
+  --secondary: #1f2937;
+  --accent: var(--sh-terracotta);
+
+  --body-fg: #1a1f29;
+  --body-bg: #ffffff;
+  --body-quiet-color: #6b7484;
+  --body-loud-color: #0d1117;
+
+  --header-color: #e8eaee;
+  --header-branding-color: #ffffff;
+  --header-bg: #161b22;
+  --header-link-color: #ffffff;
+
+  --breadcrumbs-fg: #6b7484;
+  --breadcrumbs-link-fg: var(--body-quiet-color);
+  --breadcrumbs-bg: #f6f7f9;
+
+  --link-fg: var(--sh-terracotta);
+  --link-hover-color: var(--sh-terracotta-dark);
+  --link-selected-fg: var(--sh-terracotta-dark);
+
+  --hairline-color: #e6e8ec;
+  --border-color: #dfe2e7;
+
+  --error-fg: #c0392b;
+  --message-success-bg: #e7f5ee;
+  --message-warning-bg: #fdf4e3;
+  --message-error-bg: #fdecea;
+
+  --darkened-bg: #f6f7f9;
+  --selected-bg: #eef1f5;
+  --selected-row: #fff8e6;
+
+  --button-bg: #eef0f3;
+  --button-fg: #1a1f29;
+  --button-hover-bg: #e2e5ea;
+  --default-button-bg: var(--sh-terracotta);
+  --default-button-hover-bg: var(--sh-terracotta-dark);
+  --close-button-bg: #6b7484;
+  --close-button-hover-bg: #545c69;
+  --delete-button-bg: #c0392b;
+  --delete-button-hover-bg: #a33025;
+
+  --object-tools-bg: #2b3440;
+  --object-tools-fg: #ffffff;
+  --object-tools-hover-bg: #1a1f29;
+
+  --font-family-primary: system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --sh-radius: 10px;
+  --sh-radius-sm: 7px;
+  --sh-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+/* Explicit dark choice. The prefers-color-scheme block further down repeats
+   these for viewers who never set one — a @media rule cannot be combined into
+   a selector list, so the two have to be written separately. */
+:root[data-theme="dark"] {
+  --primary: #e6e8ec;
+  --primary-fg: #12151a;
+
+  --body-fg: #dfe3e9;
+  --body-bg: #12151a;
+  --body-quiet-color: #98a1b0;
+  --body-loud-color: #ffffff;
+
+  --header-bg: #0c0f13;
+  --header-color: #dfe3e9;
+
+  --breadcrumbs-bg: #171b21;
+  --breadcrumbs-fg: #98a1b0;
+
+  --link-fg: #e5714f;
+  --link-hover-color: #f08a6a;
+  --link-selected-fg: #f08a6a;
+
+  --hairline-color: #262c35;
+  --border-color: #2d343e;
+
+  --darkened-bg: #171b21;
+  --selected-bg: #1c222a;
+  --selected-row: #2a2418;
+
+  --button-bg: #232932;
+  --button-fg: #dfe3e9;
+  --button-hover-bg: #2c333d;
+
+  --object-tools-bg: #2c333d;
+  --object-tools-hover-bg: #384049;
+
+  --message-success-bg: #14291f;
+  --message-warning-bg: #2b2314;
+  --message-error-bg: #2c1a18;
+
+  --accent: #e5714f;
+  --default-button-bg: #b84526;
+  --default-button-hover-bg: #cf5330;
+  --close-button-bg: #3a424d;
+  --close-button-hover-bg: #47505c;
+  --delete-button-bg: #b23a2c;
+  --delete-button-hover-bg: #c94335;
+  --sh-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: #e6e8ec;
+    --primary-fg: #12151a;
+    --body-fg: #dfe3e9;
+    --body-bg: #12151a;
+    --body-quiet-color: #98a1b0;
+    --body-loud-color: #ffffff;
+    --header-bg: #0c0f13;
+    --breadcrumbs-bg: #171b21;
+    --link-fg: #e5714f;
+    --link-hover-color: #f08a6a;
+    --hairline-color: #262c35;
+    --border-color: #2d343e;
+    --darkened-bg: #171b21;
+    --selected-bg: #1c222a;
+    --selected-row: #2a2418;
+    --button-bg: #232932;
+    --button-fg: #dfe3e9;
+    --button-hover-bg: #2c333d;
+    --object-tools-bg: #2c333d;
+    --accent: #e5714f;
+    --default-button-bg: #b84526;
+    --default-button-hover-bg: #cf5330;
+    --close-button-bg: #3a424d;
+    --close-button-hover-bg: #47505c;
+    --delete-button-bg: #b23a2c;
+    --delete-button-hover-bg: #c94335;
+    --sh-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ------------------------------------------------------------- typography */
+
+body {
+  font-family: var(--font-family-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 15px; font-weight: 650; }
+
+/* ----------------------------------------------------------------- header */
+
+#header {
+  padding: 14px 32px;
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
+  align-items: center;
+}
+
+#branding h1 { font-weight: 700; letter-spacing: -0.01em; font-size: 17px; }
+#branding h1 a:link,
+#branding h1 a:visited { color: var(--header-branding-color); }
+
+#user-tools {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+#user-tools a {
+  border-bottom: none;
+  padding: 6px 10px;
+  border-radius: var(--sh-radius-sm);
+  transition: background 0.12s ease;
+}
+#user-tools a:hover { background: rgba(255, 255, 255, 0.12); }
+
+div.breadcrumbs {
+  padding: 11px 32px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--hairline-color);
+}
+
+/* ---------------------------------------------------------------- surface */
+
+.module {
+  border: 1px solid var(--hairline-color);
+  border-radius: var(--sh-radius);
+  box-shadow: var(--sh-shadow);
+  overflow: hidden;
+  background: var(--body-bg);
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+  background: var(--darkened-bg);
+  color: var(--body-fg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--hairline-color);
+}
+
+fieldset.module { padding: 0; }
+.form-row { padding: 12px 16px; border-bottom: 1px solid var(--hairline-color); }
+.form-row:last-child { border-bottom: none; }
+
+.aligned label { font-weight: 600; color: var(--body-fg); padding-top: 8px; }
+.help, .helptext, div.help { color: var(--body-quiet-color); font-size: 12px; }
+
+/* ------------------------------------------------------------------ forms */
+
+input[type="text"], input[type="password"], input[type="email"],
+input[type="url"], input[type="number"], input[type="tel"],
+input[type="search"], input[type="date"], input[type="time"],
+textarea, select, .vTextField {
+  border: 1px solid var(--border-color);
+  border-radius: var(--sh-radius-sm);
+  padding: 9px 11px;
+  background: var(--body-bg);
+  color: var(--body-fg);
+  font-family: inherit;
+  font-size: 14px;
+  /* Section 10 asks for 44px tap targets. This is used one-handed, outdoors,
+     on a cracked screen. */
+  min-height: 40px;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+input:focus, textarea:focus, select:focus, .vTextField:focus {
+  outline: none;
+  border-color: var(--sh-terracotta);
+  box-shadow: 0 0 0 3px rgba(176, 58, 26, 0.14);
+}
+
+/* Never remove this without a replacement — keyboard focus must stay visible. */
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--sh-terracotta);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.button, input[type="submit"], input[type="button"],
+.submit-row input, a.button {
+  border-radius: var(--sh-radius-sm);
+  padding: 10px 16px;
+  min-height: 40px;
+  font-weight: 600;
+  font-size: 13.5px;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: background 0.12s ease, transform 0.06s ease;
+}
+.button:active, input[type="submit"]:active { transform: translateY(1px); }
+
+.button.default, input[type="submit"].default, .submit-row input.default {
+  font-weight: 650;
+}
+
+.object-tools a {
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.submit-row {
+  border-radius: var(--sh-radius);
+  border: 1px solid var(--hairline-color);
+  background: var(--darkened-bg);
+  padding: 14px 16px;
+  box-shadow: var(--sh-shadow);
+}
+
+/* ----------------------------------------------------------------- tables */
+
+#changelist table thead th {
+  background: var(--darkened-bg);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+#changelist table tbody td, #changelist table tbody th { padding: 11px 12px; }
+#changelist table tbody tr:hover { background: var(--selected-bg); }
+
+#changelist-filter {
+  border-radius: var(--sh-radius);
+  border: 1px solid var(--hairline-color);
+  background: var(--darkened-bg);
+}
+#changelist-search input[type="text"] { min-width: 220px; }
+
+.paginator {
+  border-top: 1px solid var(--hairline-color);
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------- sidebar */
+
+#nav-sidebar { border-right: 1px solid var(--hairline-color); }
+#nav-sidebar .module th { padding: 0; }
+.main > #nav-sidebar + .content { max-width: none; }
+
+#nav-filter {
+  border-radius: var(--sh-radius-sm);
+  border: 1px solid var(--border-color);
+  margin: 10px;
+  width: calc(100% - 20px);
+  box-sizing: border-box;
+}
+
+#nav-sidebar .current-app .section:link,
+#nav-sidebar .current-app .section:visited { color: var(--body-loud-color); }
+
+/* --------------------------------------------------------------- messages */
+
+ul.messagelist li {
+  border-radius: var(--sh-radius-sm);
+  padding: 12px 16px;
+  font-size: 13.5px;
+  border: 1px solid var(--hairline-color);
+  background-image: none;
+  padding-left: 16px;
+}
+
+.errornote, .errorlist li {
+  border-radius: var(--sh-radius-sm);
+  border: 1px solid var(--error-fg);
+  background: var(--message-error-bg);
+  color: var(--error-fg);
+  padding: 11px 14px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------- login page */
+
+.login #container {
+  border-radius: var(--sh-radius);
+  border: 1px solid var(--hairline-color);
+  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.10);
+  overflow: hidden;
+}
+.login #header { border-radius: 0; padding: 18px 20px; }
+.login .submit-row { border: none; background: transparent; box-shadow: none; padding: 0; }
+.login .submit-row input[type="submit"] { width: 100%; }
+
+/* ------------------------------------------------------------- responsive */
+
+@media (max-width: 1024px) {
+  #header, div.breadcrumbs { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (max-width: 767px) {
+  /* Thumb-sized targets: this is the screen a field officer uses standing up
+     in a workshop.
+
+     These selectors are prefixed with .form-row to match the specificity of
+     Django's own mobile rule (`.form-row input[type=text]`, 0-2-1). A bare
+     `input[type=text]` is 0-1-1 and loses to it no matter which stylesheet
+     loads last, so the fields kept Django's 2.25rem sizing. */
+  .button, input[type="submit"], .submit-row input, a.button { min-height: 44px; }
+
+  .form-row input:not([type]),
+  .form-row input[type="text"],
+  .form-row input[type="password"],
+  .form-row input[type="email"],
+  .form-row input[type="url"],
+  .form-row input[type="tel"],
+  .form-row input[type="number"],
+  .form-row input[type="search"],
+  .form-row textarea,
+  .form-row select,
+  .form-row .vTextField {
+    min-height: 44px;
+    padding: 11px 12px;
+    /* 16px specifically: anything smaller makes iOS Safari zoom the page on
+       focus, which throws the officer out of position mid-form. */
+    font-size: 16px;
+  }
+  .form-row select { height: 44px; }
+
+  /* Search and filter boxes sit outside .form-row. */
+  #changelist-search input[type="text"],
+  #nav-filter { min-height: 44px; font-size: 16px; }
+
+  .form-row { padding: 12px; }
+}
