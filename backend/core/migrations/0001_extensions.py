@@ -3,11 +3,8 @@
 This must be the first migration that runs against a fresh database, before any
 model migration that declares a geometry field or a trigram index.
 
-Enforce that by having the catalog app's 0001 depend on this one:
-
-    class Migration(migrations.Migration):
-        initial = True
-        dependencies = [("core", "0001_extensions")]
+That ordering is enforced by the run_before list below, which the planner
+honours without every other app having to name this migration.
 
 Permissions: CREATE EXTENSION requires superuser (or rds_superuser / the
 cloudsqlsuperuser equivalent). On a self-managed Hetzner Postgres this is fine
@@ -32,6 +29,22 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = []
+
+    # Without this the planner is free to run providers.0001_initial and
+    # catalog.0001_initial first, and both create GIN indexes with
+    # gin_trgm_ops — which fails with "operator class does not exist" because
+    # pg_trgm is created here.
+    #
+    # It passed locally for a long time only because the four extensions had
+    # been installed into template1, so every new database inherited them and
+    # the ordering never mattered. On a clean server, and in CI, it does.
+    run_before = [
+        ("geography", "0001_initial"),
+        ("providers", "0001_initial"),
+        ("catalog", "0001_initial"),
+        ("enquiries", "0001_initial"),
+        ("billing", "0001_initial"),
+    ]
 
     operations = [
         # Section 05: radius search ("providers within 10km of a point") as an
