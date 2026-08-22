@@ -1,40 +1,179 @@
-# Deploying, and connecting your VPS PostgreSQL
+# Deploying
 
-Single VPS, four containers: Django, Next.js, Redis and Caddy. **The database
-is not one of them** — it stays where it already is, on your VPS.
+One VPS, no Docker. Django under gunicorn, Next.js under `next start`, Caddy in
+front for TLS, PostgreSQL and Redis on the same box.
+
+> A Docker Compose setup also exists (`docker-compose.yml`, the two
+> `Dockerfile`s). It is not the path in use — everything below is the native
+> one. Keep or delete the Docker files as you prefer; nothing here depends on
+> them.
 
 ---
 
-## Answering the database question first
+## Before you start
 
-### 1. Your PostgreSQL almost certainly needs PostGIS added
+**A domain pointed at the server.** Caddy obtains and renews certificates
+automatically, but it cannot issue one for a bare IP address. Add an `A` record
+now — DNS propagation is the only step here with waiting built into it.
 
-This is the part that catches people. The project does not need "a PostgreSQL
-database", it needs **PostgreSQL with PostGIS**. Provider search is a geographic
-query — "which workshops are within ten kilometres of this point" — and
-`Provider.location` is a geometry column that a plain PostgreSQL cannot store.
+**PostgreSQL with PostGIS**, which you already have. If you are starting from
+scratch, see [Database](#database) below.
 
-On the VPS, as a user with sudo:
+---
+
+## First deploy
+
+### 1. Bootstrap the server, once
 
 ```bash
-psql -V
+sudo bash deploy/bootstrap.sh
 ```
 
-Then install the matching PostGIS package — the version number must match your
-PostgreSQL major version:
+Installs the GDAL/GEOS/PROJ system libraries pip cannot supply, Node 24, Caddy
+and Redis; creates the `fliptech` service user and the data directories;
+registers both systemd units; and adds 2 GB of swap if the box is small.
+
+That swap matters: the Next.js production build is the memory peak of the whole
+deploy, and on a 4 GB box also running PostgreSQL the OOM reaper kills it with
+no useful error.
+
+### 2. Get the code onto the server
 
 ```bash
-sudo apt install postgresql-17-postgis-3
+sudo -u fliptech git clone https://github.com/safo-124/fliptech.git /opt/fliptech
 ```
 
-### 2. Create the database and role
+Or from your machine, if you would rather not push first:
 
 ```bash
+rsync -az --exclude node_modules --exclude .venv --exclude .next --exclude .git \
+  /d/fliptech/ safo@YOUR_SERVER:/tmp/fliptech/
+ssh safo@YOUR_SERVER 'sudo rsync -a /tmp/fliptech/ /opt/fliptech/ && sudo chown -R fliptech:fliptech /opt/fliptech'
+```
+
+### 3. Configuration
+
+`/opt/fliptech/backend/.env`:
+
+```
+BRAND_NAME=Fliptech
+DJANGO_SECRET_KEY=            # python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=your-domain.com
+CSRF_TRUSTED_ORIGINS=https://your-domain.com
+CORS_ALLOWED_ORIGINS=https://your-domain.com
+
+DATABASE_URL=postgis://skillshub:PASSWORD@127.0.0.1:5432/skillshub
+REDIS_URL=redis://127.0.0.1:6379/0
+
+DJANGO_STATIC_ROOT=/var/lib/fliptech/static
+DJANGO_MEDIA_ROOT=/var/lib/fliptech/media
+DJANGO_PRIVATE_MEDIA_ROOT=/var/lib/fliptech/private-media
+
+SMS_PROVIDER=console
+```
+
+`/opt/fliptech/frontend/.env.production`:
+
+```
+NEXT_PUBLIC_API_URL=https://your-domain.com
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+NEXT_PUBLIC_BRAND_NAME=Fliptech
+```
+
+```bash
+sudo chmod 600 /opt/fliptech/backend/.env
+sudo chown fliptech:fliptech /opt/fliptech/backend/.env /opt/fliptech/frontend/.env.production
+```
+
+### 4. Caddy
+
+```bash
+sudo cp /opt/fliptech/deploy/Caddyfile /etc/caddy/Caddyfile
+sudo sed -i 's/skillshub.example.com/your-domain.com/' /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+### 5. Deploy
+
+```bash
+cd /opt/fliptech && ./deploy.sh
+```
+
+Then create your account — it sets a password, so it is yours to run:
+
+```bash
+cd /opt/fliptech/backend && sudo -u fliptech .venv/bin/python manage.py createsuperuser
+```
+
+Sign in at `https://your-domain.com/back-office/`.
+
+---
+
+## How it fits together
+
+| Piece | Where |
+|---|---|
+| Caddy | ports 80/443, TLS, routing |
+| Django (gunicorn) | `127.0.0.1:8000`, 2 workers × 4 threads |
+| Next.js | `127.0.0.1:3000` |
+| PostgreSQL, Redis | local sockets |
+
+Only Caddy listens publicly. Django and Next.js bind to loopback, so neither can
+be reached except through it.
+
+**One origin for everything.** Caddy sends `/api`, `/back-office` and `/healthz`
+to Django, serves `/static` and `/media` from disk, and everything else to
+Next.js. The browser therefore never makes a cross-origin request: no CORS
+preflight on the enquiry POST, and back-office session cookies stay first-party.
+
+**Server-side rendering never leaves the machine.** Next.js talks to gunicorn
+over loopback via `API_URL_INTERNAL`, while the browser uses the public HTTPS
+origin. Using one value for both is the classic deploy bug — SSR requests would
+leave the box, cross TLS and come back for no reason.
+
+**`NEXT_PUBLIC_*` is baked in at build time**, not read at run time. Changing the
+domain or brand name means re-running `deploy.sh`, which rebuilds.
+
+**deploy.sh restarts nothing until every fallible step has passed.** Dependencies,
+the database check, migrations, `collectstatic` and the frontend build all run
+first, so a broken release leaves the previous one serving.
+
+### Where files live, and why it matters
+
+| Path | Contents |
+|---|---|
+| `/opt/fliptech` | code, owned by the `fliptech` service user |
+| `/var/lib/fliptech/static` | collected static files, served by Caddy |
+| `/var/lib/fliptech/media` | **public** workshop photographs, served by Caddy |
+| `/var/lib/fliptech/private-media` | **private** verification evidence and owner ID — mode 700, never served |
+
+Private evidence is deliberately outside the directory Caddy is pointed at.
+Section 10 requires it is never publicly served, and widening that `root` or
+moving these directories together would leak identity documents. Once Cloudflare
+R2 credentials are set the app switches to two buckets automatically and stops
+writing here.
+
+The services run as `fliptech`, a system account with no login shell, under
+systemd hardening (`ProtectSystem=strict`, `ProtectHome`, `NoNewPrivileges`).
+A compromised web process cannot read your home directory or use your SSH keys.
+
+---
+
+## Database
+
+Already done on this server, kept for reference.
+
+**PostGIS is required, not optional.** Provider search is a geographic query and
+`Provider.location` is a geometry column that plain PostgreSQL cannot store.
+
+```bash
+sudo apt install postgresql-18-postgis-3     # match your PostgreSQL major version
 sudo -u postgres psql
 ```
 
 ```sql
-CREATE ROLE skillshub LOGIN PASSWORD 'use-a-long-random-one';
+CREATE ROLE skillshub LOGIN PASSWORD 'a-long-random-one';
 CREATE DATABASE skillshub OWNER skillshub;
 \c skillshub
 CREATE EXTENSION IF NOT EXISTS postgis;
@@ -44,176 +183,47 @@ CREATE EXTENSION IF NOT EXISTS btree_gin;
 GRANT ALL ON SCHEMA public TO skillshub;
 ```
 
-Creating the extensions as `postgres` here means the application role never
-needs superuser. `core/migrations/0001_extensions.py` then finds them already
-present and does nothing.
-
-### 3. Let the container reach it
-
-Docker containers do not share the host's `localhost`. Two situations:
-
-**Database on the same VPS as Docker.** Do *not* use `172.17.0.1`. That is the
-default `docker0` bridge, but Compose puts these services on their own network
-with a different subnet, so the address is wrong for this stack. `docker-compose.yml`
-maps `host.docker.internal` to `host-gateway` instead, which resolves to the
-host on any Docker 20.10+ regardless of subnet.
-
-Allow the whole private Docker range, which covers whichever subnet Compose
-picks (replace `17` with your PostgreSQL major version in both paths):
-
-```conf
-# /etc/postgresql/17/main/postgresql.conf
-listen_addresses = '*'
-```
-
-```conf
-# /etc/postgresql/17/main/pg_hba.conf
-host    skillshub    skillshub    172.16.0.0/12    scram-sha-256
-```
-
-`listen_addresses = '*'` binds the public interface too, so pair it with a
-firewall rule that admits only Docker:
-
-```bash
-sudo ufw allow from 172.16.0.0/12 to any port 5432 proto tcp
-sudo ufw deny 5432/tcp
-```
-
-```bash
-sudo systemctl restart postgresql
-```
-
-Do **not** open 5432 in the firewall for this case. The bridge is internal.
-
-**Database on a different host.** Use the private network address, require TLS,
-and firewall 5432 to the app server only:
-
-```bash
-sudo ufw allow from <APP_SERVER_IP> to any port 5432 proto tcp
-```
-
-Then append `?sslmode=require` to the URL. Without it the password and every
-trainee phone number cross the network in clear text — and those phone numbers
-are personal data under the Data Protection Act, 2012.
-
-### 4. Write the URL
-
-In `.env.production`:
-
-```
-DATABASE_URL=postgis://skillshub:your-password@host.docker.internal:5432/skillshub
-```
+Creating the extensions as `postgres` means the app role never needs superuser.
 
 **The scheme is `postgis://`, not `postgres://`.** django-environ picks the
-database backend from the scheme, and `postgres://` selects the plain backend,
-which cannot handle `PointField`. This is the single most likely thing to get
-wrong.
-
-### 5. Check before migrating
+backend from it, and `postgres://` selects one that cannot handle `PointField`.
+Verify before migrating:
 
 ```bash
-docker compose run --rm django python manage.py check_database
+cd /opt/fliptech/backend && sudo -u fliptech .venv/bin/python manage.py check_database
 ```
-
-It reports the server version, whether TLS is on for a remote host, which of the
-four extensions are present, and whether the role can create the missing ones —
-then tells you exactly what to fix. Run it before `migrate`, so a problem
-surfaces before a half-built schema exists.
-
----
-
-## First deploy
-
-Prerequisites: a VPS with Docker and the compose plugin, a domain pointed at its
-IP, and ports 80 and 443 open.
-
-```bash
-git clone <your-repo> /opt/fliptech && cd /opt/fliptech
-cp .env.production.example .env.production
-chmod 600 .env.production
-```
-
-Fill in `.env.production`. Generate the secret key with:
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(64))"
-```
-
-Then:
-
-```bash
-./deploy.sh
-```
-
-The script builds the images, checks the database, migrates, creates the two
-back-office roles, and starts the stack. Migrations run **before** the new
-containers take traffic, so a failed migration leaves the previous release
-serving rather than putting a new one in front of a half-migrated database.
-
-Finally, create your account — this sets a password, so it is yours to do:
-
-```bash
-docker compose exec django python manage.py createsuperuser
-```
-
-Then sign in at `https://your-domain/back-office/`.
-
----
-
-## What the stack does
-
-| Container | Role |
-|---|---|
-| `caddy` | TLS and routing. Obtains and renews certificates automatically |
-| `next` | The public site |
-| `django` | API, back office, media |
-| `redis` | Cache |
-
-**Everything is served from one origin.** Caddy sends `/api`, `/back-office`,
-`/healthz`, `/static` and `/media` to Django and everything else to Next.js. So
-the browser never makes a cross-origin request: no CORS preflight on the enquiry
-POST, and back-office session cookies stay first-party.
-
-**Server-side rendering never leaves the machine.** Next.js talks to Django over
-the container network via `API_URL_INTERNAL`, while the browser uses the public
-HTTPS origin. Using one value for both is the classic container-deploy bug: SSR
-requests would leave the box, cross TLS and come back for no reason.
-
-**`NEXT_PUBLIC_*` values are baked in at build time**, not read at run time. To
-change the domain or brand name you rebuild the frontend image — `deploy.sh`
-does this every run, so it is only worth knowing when debugging a stale value.
 
 ---
 
 ## Routine operations
 
 ```bash
-./deploy.sh                                    # deploy a new release
-docker compose logs -f django                  # follow logs
-docker compose exec django python manage.py shell
-docker compose restart next                    # restart one service
+./deploy.sh                              # release
+sudo journalctl -u fliptech-api -f       # Django logs
+sudo journalctl -u fliptech-web -f       # Next.js logs
+sudo systemctl restart fliptech-api
+sudo systemctl status fliptech-api fliptech-web caddy
 ```
 
-Nightly database backup, held off the server — Section 10 asks for this, and
-notes that an untested backup is not a backup:
+Nightly backup, held off the server. Section 10 asks for this and notes that an
+untested backup is not a backup, so restore-test it once on a scratch database:
 
 ```bash
 0 2 * * * pg_dump -Fc skillshub > /var/backups/skillshub-$(date +\%F).dump
 ```
 
-Restore-test it once, on a scratch database, before you rely on it.
+Back up `/var/lib/fliptech/private-media` alongside it — verification evidence
+is not reproducible.
 
 ---
 
 ## Not wired up yet
 
-- **No push-on-merge.** CI lints, tests and proves both images build, but
-  deployment is a manual `./deploy.sh`. That is deliberate: automatic deploys
-  need a staging environment to prove a release against, and there is not one
-  yet.
-- **No image registry.** Images are built on the VPS. Fine for one server;
-  revisit if a second appears.
-- **Media is on a Docker volume** until Cloudflare R2 credentials are set. Back
-  it up with the database, or move to R2 first.
+- **No push-on-merge.** CI lints, tests and builds, but deploying is a manual
+  `./deploy.sh`. Deliberate: automatic deploys want a staging environment to
+  prove a release against, and there is not one.
+- **Media is on local disk** until R2 credentials are set. Storage switches
+  automatically when they appear.
 - **SMS and WhatsApp are inert.** `SMS_PROVIDER=console` logs codes instead of
   sending them, pending sender-ID registration and Meta verification.
+- **No staging.** Every deploy goes straight to the machine trainees will use.

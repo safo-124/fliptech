@@ -222,20 +222,27 @@ PHONENUMBER_DEFAULT_FORMAT = "E164"
 # through short-lived signed URLs. See DATA_MODEL.md, ProviderMedia.
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = env("DJANGO_STATIC_ROOT", default=str(BASE_DIR / "staticfiles"))
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
 
-if DEBUG:
-    STORAGES = {
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "private": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        # Plain storage in development and under test. The manifest variant
-        # below refuses to serve any file that is not in staticfiles.json, so
-        # using it here breaks every admin page until collectstatic has run.
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    }
-else:
+# Public media: workshop photographs. The web server is pointed at this
+# directory, so anything in it is world-readable by design.
+MEDIA_ROOT = env("DJANGO_MEDIA_ROOT", default=str(BASE_DIR / "media"))
+
+# Private media: verification evidence and owner identification. Section 10
+# requires these are "never publicly served", so this MUST stay outside
+# MEDIA_ROOT — the web server is never pointed at it, and Django only hands
+# these files out through a view that checks permissions.
+PRIVATE_MEDIA_ROOT = env("DJANGO_PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "private-media"))
+
+# Cloudflare R2 is the eventual home for both, but the sender-ID and bucket
+# setup runs on its own timetable. Rather than block the first deploy on it,
+# storage falls back to the local filesystem and switches over the moment
+# credentials appear. Without this, a production deploy with blank R2 settings
+# raises ImproperlyConfigured at startup.
+_R2_CONFIGURED = bool(env("R2_ACCESS_KEY_ID", default=""))
+
+if _R2_CONFIGURED:
     _r2 = {
         "endpoint_url": env("R2_ENDPOINT_URL"),
         "access_key": env("R2_ACCESS_KEY_ID"),
@@ -243,7 +250,7 @@ else:
         "region_name": "auto",
         "signature_version": "s3v4",
     }
-    STORAGES = {
+    _media_storages = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {**_r2, "bucket_name": env("R2_BUCKET_PUBLIC"), "querystring_auth": False},
@@ -258,8 +265,29 @@ else:
                 "default_acl": "private",
             },
         },
-        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
+else:
+    _media_storages = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "private": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": PRIVATE_MEDIA_ROOT, "base_url": None},
+        },
+    }
+
+STORAGES = {
+    **_media_storages,
+    # Plain storage in development and under test. The manifest variant refuses
+    # to serve any file missing from staticfiles.json, which breaks every admin
+    # page until collectstatic has run.
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        )
+    },
+}
 
 
 # --------------------------------------------------------------------------

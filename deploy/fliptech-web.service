@@ -1,0 +1,40 @@
+# Next.js. Install to /etc/systemd/system/fliptech-web.service
+#
+#   sudo systemctl enable --now fliptech-web
+#
+[Unit]
+Description=Fliptech Skills Hub public site (Next.js)
+After=network-online.target fliptech-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fliptech
+Group=fliptech
+WorkingDirectory=/opt/fliptech/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+
+# Server-rendered requests go straight to gunicorn over loopback. Sending them
+# to the public origin instead would leave the machine, cross TLS and come back
+# for no reason — and would fail entirely if DNS were briefly unavailable.
+Environment=API_URL_INTERNAL=http://127.0.0.1:8000
+EnvironmentFile=/opt/fliptech/frontend/.env.production
+
+ExecStart=/usr/bin/node node_modules/.bin/next start --port 3000 --hostname 127.0.0.1
+Restart=always
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/fliptech/frontend/.next
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fliptech-web
+
+[Install]
+WantedBy=multi-user.target
