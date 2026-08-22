@@ -165,13 +165,26 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Cache
 # --------------------------------------------------------------------------
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL"),
-        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+# Tests use an in-process cache rather than Redis. DRF throttling and
+# django-ratelimit both read the cache on ordinary API requests, so with Redis
+# configured a test run needs a live Redis — which meant CI failed with
+# "Connection refused" on 23 tests, and a developer without Redis running could
+# not run the suite at all. Nothing under test depends on Redis specifically.
+if _UNDER_PYTEST:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "skillshub-tests",
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": env("REDIS_URL"),
+            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+        }
+    }
 
 
 # --------------------------------------------------------------------------
