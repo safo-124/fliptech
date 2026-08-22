@@ -13,11 +13,13 @@ shape this module:
 
 from django.contrib import admin, messages
 from django.contrib.gis.admin import GISModelAdmin
+from django.urls import path
 from django.utils import timezone
 from django.utils.html import format_html
 from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
+from . import admin_upload
 from .models import (
     GovernmentStatus,
     ListingConfirmation,
@@ -27,13 +29,6 @@ from .models import (
     Suspension,
     Verification,
 )
-
-
-class ProviderPhotoInline(admin.TabularInline):
-    model = ProviderPhoto
-    extra = 1
-    fields = ("image", "caption", "display_order", "exif_stripped")
-    readonly_fields = ("exif_stripped",)
 
 
 class ProviderEvidenceInline(admin.TabularInline):
@@ -94,8 +89,10 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
     date_hierarchy = "created_at"
     list_select_related = ("area", "area__region")
 
+    # No photo inline: photographs are handled by the background uploader on
+    # the change form, which uploads each one separately so a dropped
+    # connection cannot lose the whole visit. See admin_upload.py.
     inlines = [
-        ProviderPhotoInline,
         VerificationInline,
         GovernmentStatusInline,
         ProviderEvidenceInline,
@@ -118,6 +115,41 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
     )
     readonly_fields = ("published_at",)
     actions = ["submit_for_approval", "publish_listings"]
+    change_form_template = "admin/providers/provider/change_form.html"
+
+    def get_urls(self):
+        """Endpoints the background uploader posts to.
+
+        Registered on the ModelAdmin rather than in config/urls.py so they sit
+        behind the admin's own staff-only wrapper and inherit its URL
+        namespace.
+        """
+        custom = [
+            path(
+                "<int:provider_id>/photos/upload/",
+                self.admin_site.admin_view(admin_upload.upload_photo),
+                name="providers_provider_upload_photo",
+            ),
+            path(
+                "<int:provider_id>/photos/<int:photo_id>/delete/",
+                self.admin_site.admin_view(admin_upload.delete_photo),
+                name="providers_provider_delete_photo",
+            ),
+            path(
+                "<int:provider_id>/photos/<int:photo_id>/caption/",
+                self.admin_site.admin_view(admin_upload.caption_photo),
+                name="providers_provider_caption_photo",
+            ),
+            # The uploader builds "<base><photo_id>/delete/" client-side, so it
+            # needs the prefix as a resolvable URL rather than a string it
+            # assembles from parts.
+            path(
+                "<int:provider_id>/photos/",
+                self.admin_site.admin_view(admin_upload.photos_base),
+                name="providers_provider_photos_base",
+            ),
+        ]
+        return custom + super().get_urls()
 
     @admin.display(description="Trust", ordering="status")
     def trust_summary(self, obj):

@@ -1,0 +1,111 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{#
+  Adds the background photograph uploader above the normal change form.
+
+  It only appears once the provider has been saved, because each photograph is
+  uploaded against a provider id. That ordering is deliberate rather than a
+  limitation: saving the text fields first is a small, fast request that
+  survives a poor connection, and the photographs — which are the large,
+  fragile part — then go up one at a time behind the officer while they carry
+  on typing.
+#}
+
+{% block after_related_objects %}
+{{ block.super }}
+
+{% if original %}
+<style>
+  .shp {
+    border: 1px solid var(--hairline-color, #e0e0e0); border-radius: 8px;
+    padding: 14px 16px; margin: 18px 0; background: var(--body-bg, #fff);
+  }
+  .shp h2 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  .shp-help { margin: 0 0 12px; font-size: 12px; color: var(--body-quiet-color, #666); }
+  .shp.shp-dragging { outline: 2px dashed var(--primary, #79aec8); outline-offset: -6px; }
+
+  .shp-drop {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px; border: 1px dashed var(--hairline-color, #ccc); border-radius: 6px;
+  }
+  /* Section 10 asks for 44px tap targets. This one is used one-handed,
+     outdoors, on a cracked screen. */
+  .shp-choose {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 0 18px; border-radius: 6px; cursor: pointer;
+    background: var(--primary, #79aec8); color: var(--primary-fg, #fff);
+    font-weight: 600; border: none;
+  }
+  .shp-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+  .shp-status { font-size: 12px; margin-top: 10px; min-height: 16px; }
+  .shp-ok { color: #2f9e68; }
+  .shp-warn { color: #d08700; }
+  .shp-busy { color: var(--body-quiet-color, #666); }
+
+  .shp-list { display: grid; gap: 10px; margin-top: 14px;
+              grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .shp-item {
+    border: 1px solid var(--hairline-color, #e0e0e0); border-radius: 6px;
+    padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  }
+  .shp-thumb { aspect-ratio: 4/3; background: var(--darkened-bg, #f4f4f4);
+               border-radius: 4px; overflow: hidden; }
+  .shp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shp-name { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shp-bar { height: 4px; background: var(--hairline-color, #eee); border-radius: 2px; overflow: hidden; }
+  .shp-fill { display: block; height: 100%; width: 0; background: var(--primary, #79aec8); transition: width .2s; }
+  .shp-note { font-size: 11px; color: #d08700; }
+  .shp-meta { font-size: 10px; color: var(--body-quiet-color, #777); }
+  .shp-failed { border-color: #d0422a; }
+  .shp-caption { width: 100%; min-height: 34px; font-size: 12px; box-sizing: border-box; }
+  .shp-btn { min-height: 34px; cursor: pointer; }
+  .shp-uploading { opacity: .85; }
+</style>
+
+<div class="shp"
+     data-photo-uploader
+     data-upload-url="{% url 'admin:providers_provider_upload_photo' original.pk %}"
+     data-base-url="{% url 'admin:providers_provider_photos_base' original.pk %}">
+
+  <h2>Workshop photographs</h2>
+  <p class="shp-help">
+    Each photograph uploads on its own as soon as you choose it, so a dropped
+    connection costs one image rather than the whole visit. Keep filling in the
+    form while they upload. Location data is removed from every image.
+  </p>
+
+  <div class="shp-drop">
+    <label class="shp-choose">
+      Add photographs
+      <input class="shp-input" type="file" accept="image/*" multiple capture="environment">
+    </label>
+    <span class="shp-help" style="margin:0">or drag them here</span>
+  </div>
+
+  <div class="shp-status"></div>
+
+  <div class="shp-list">
+    {% for photo in original.photos.all %}
+      <div class="shp-existing"
+           data-photo-id="{{ photo.pk }}"
+           data-url="{{ photo.image.url }}"
+           data-caption="{{ photo.caption }}"
+           data-exif-stripped="{{ photo.exif_stripped|yesno:'true,false' }}"></div>
+    {% endfor %}
+  </div>
+</div>
+
+<script src="{% static 'providers/photo_uploader.js' %}"></script>
+{% else %}
+<div class="shp">
+  <h2>Workshop photographs</h2>
+  <p class="shp-help">
+    Save the provider first, then photographs can be added. Saving the text
+    fields on their own is a small request that survives a weak connection;
+    photographs then upload one at a time in the background.
+  </p>
+</div>
+{% endif %}
+{% endblock %}
