@@ -1,7 +1,7 @@
 {% extends "admin/base.html" %}
 {% load i18n static %}
 
-{#
+{% comment %}
   Loads the back-office theme.
 
   The link lives in the `responsive` block rather than `extrastyle`, because
@@ -12,17 +12,17 @@
   Overriding base_site.html rather than each page template means the theme
   reaches the login screen and popups too, and stays a single file to delete
   if it is ever unwanted.
-#}
+{% endcomment %}
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
 
 {% block responsive %}
-  {#
+  {% comment %}
     Django's own viewport tag sets user-scalable=no and maximum-scale=1.0,
     which blocks pinch-zoom. This interface is used outdoors in sunlight on
     cracked screens, so being able to zoom matters more than a tidy layout —
     and blocking it is a WCAG failure besides.
-  #}
+  {% endcomment %}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="{% static 'admin/css/responsive.css' %}">
   {% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% static 'admin/css/responsive_rtl.css' %}">{% endif %}

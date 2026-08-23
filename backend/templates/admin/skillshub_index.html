@@ -1,7 +1,7 @@
 {% extends "admin/index.html" %}
 {% load i18n log %}
 
-{#
+{% comment %}
   The oversight dashboard.
 
   Django's index reserves a right-hand column for "Recent actions" by putting
@@ -12,7 +12,7 @@
 
   Numbers link to a filtered changelist wherever there is something to act on,
   because a count with no route to the work is just decoration.
-#}
+{% endcomment %}
 
 {% block sidebar %}{% endblock %}
 

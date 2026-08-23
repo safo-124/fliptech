@@ -1,7 +1,7 @@
 {% extends "admin/change_form.html" %}
 {% load static %}
 
-{#
+{% comment %}
   Adds the background photograph uploader above the normal change form.
 
   It only appears once the provider has been saved, because each photograph is
@@ -10,7 +10,7 @@
   survives a poor connection, and the photographs — which are the large,
   fragile part — then go up one at a time behind the officer while they carry
   on typing.
-#}
+{% endcomment %}
 
 {% block after_related_objects %}
 {{ block.super }}
