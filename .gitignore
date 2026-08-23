@@ -32,6 +32,7 @@ htmlcov/
 # Node
 node_modules/
 .next/
+*.tsbuildinfo
 out/
 .turbo/
 

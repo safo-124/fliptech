@@ -34,7 +34,7 @@ const DESKTOP_QUERY = "(min-width: 1024px)";
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
   loading: () => (
-    <div className="grid h-full place-items-center text-sm text-[var(--color-ink-soft)]">
+    <div className="grid h-full place-items-center text-sm text-[var(--color-muted-foreground)]">
       Loading map…
     </div>
   ),
@@ -60,7 +60,7 @@ export function SearchMapPanel({ providers }: { providers: ProviderCard[] }) {
   if (!isDesktop) return null;
 
   return (
-    <div className="h-[calc(100dvh-8rem)] overflow-hidden rounded-lg border border-[var(--color-line)]">
+    <div className="h-[calc(100dvh-8rem)] overflow-hidden rounded-lg border border-[var(--color-border)]">
       <MapView providers={providers} fillParent />
     </div>
   );

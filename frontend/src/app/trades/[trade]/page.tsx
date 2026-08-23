@@ -42,7 +42,7 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
       {found.description && (
         <p className="mt-2 max-w-prose text-sm leading-relaxed lg:text-base">{found.description}</p>
       )}
-      <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
+      <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
         {found.provider_count} listed {found.provider_count === 1 ? "provider" : "providers"}.
       </p>
 

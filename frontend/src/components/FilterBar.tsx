@@ -34,17 +34,17 @@ export function FilterBar({
   params: SearchParams;
 }) {
   return (
-    <div className="border-b border-[var(--color-line)] bg-[var(--color-canvas)]">
+    <div className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
       <nav aria-label="Filter by trade" className="overflow-x-auto">
         <ul className="flex gap-2 px-3 py-2 lg:flex-wrap lg:px-6 lg:py-3">
           <li>
             <Link
               href={withParam(params, "trade", undefined)}
               aria-current={!params.trade ? "page" : undefined}
-              className={`tap whitespace-nowrap rounded-full border px-4 text-sm ${
+              className={`tap whitespace-nowrap rounded-full border px-4 text-sm font-medium ${
                 !params.trade
-                  ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-white"
-                  : "border-[var(--color-line)]"
+                  ? "border-transparent bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
+                  : "border-[var(--color-border)]"
               }`}
             >
               All trades
@@ -57,10 +57,10 @@ export function FilterBar({
                 <Link
                   href={withParam(params, "trade", trade.slug)}
                   aria-current={active ? "page" : undefined}
-                  className={`tap whitespace-nowrap rounded-full border px-4 text-sm ${
+                  className={`tap whitespace-nowrap rounded-full border px-4 text-sm font-medium ${
                     active
-                      ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-white"
-                      : "border-[var(--color-line)]"
+                      ? "border-transparent bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
+                      : "border-[var(--color-border)]"
                   }`}
                 >
                   {trade.name}
@@ -78,23 +78,23 @@ export function FilterBar({
       >
         {params.trade && <input type="hidden" name="trade" value={params.trade} />}
 
-        <label className="flex-1 text-xs text-[var(--color-ink-soft)] lg:max-w-sm">
+        <label className="flex-1 text-xs text-[var(--color-muted-foreground)] lg:max-w-sm">
           Search
           <input
             type="search"
             name="q"
             defaultValue={params.q ?? ""}
             placeholder="welder, sewing, plumbing"
-            className="tap mt-1 w-full rounded border border-[var(--color-line)] px-3 text-base text-[var(--color-ink)]"
+            className="tap mt-1 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] px-3 text-base shadow-xs"
           />
         </label>
 
-        <label className="text-xs text-[var(--color-ink-soft)]">
+        <label className="text-xs text-[var(--color-muted-foreground)]">
           Fee up to
           <select
             name="max_fee"
             defaultValue={params.max_fee ?? ""}
-            className="tap mt-1 w-full rounded border border-[var(--color-line)] px-2 text-base"
+            className="tap mt-1 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] px-2 text-base shadow-xs"
           >
             <option value="">Any</option>
             <option value="500">GH₵500</option>
@@ -117,7 +117,7 @@ export function FilterBar({
 
         <button
           type="submit"
-          className="tap rounded bg-[var(--color-accent)] px-4 text-sm font-semibold text-[var(--color-accent-ink)]"
+          className="tap rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-[var(--color-primary-foreground)] shadow-xs"
         >
           Apply
         </button>

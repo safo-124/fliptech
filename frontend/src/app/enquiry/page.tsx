@@ -42,17 +42,17 @@ function EnquiryFlow() {
           {sent.expect_reply_within_hours} hours.
         </p>
 
-        <p className="mt-4 rounded border border-[var(--color-line)] p-3 text-sm">
+        <p className="mt-4 card p-3 text-sm">
           Your reference is{" "}
           <strong className="text-base tracking-wide">{sent.reference_code}</strong>
-          <span className="mt-1 block text-xs text-[var(--color-ink-soft)]">
+          <span className="mt-1 block text-xs text-[var(--color-muted-foreground)]">
             Quote this if you call the workshop.
           </span>
         </p>
 
         <a
           href={sent.whatsapp_url}
-          className="tap mt-4 w-full rounded bg-[var(--color-accent)] px-4 font-semibold text-[var(--color-accent-ink)]"
+          className="tap mt-4 w-full rounded-md bg-[var(--color-primary)] px-4 font-medium text-[var(--color-primary-foreground)]"
         >
           Continue on WhatsApp
         </a>
@@ -61,7 +61,7 @@ function EnquiryFlow() {
           Honest advice that also multiplies the leads flowing to the paying
           side — a rare case of the two interests pointing the same way.
         */}
-        <p className="mt-6 rounded bg-[var(--color-canvas-soft)] p-3 text-sm">
+        <p className="mt-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-3 text-sm">
           Enquire with two more providers before you decide. Fees and start dates vary a lot,
           and comparing costs you nothing.
         </p>

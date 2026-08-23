@@ -19,15 +19,17 @@ function Badge({
   label: string;
   tone: "visit" | "gov" | "muted";
 }) {
+  // Outline badges, as shadcn's are: the border carries the shape and the
+  // text carries the meaning, so a row of them stays quiet until you read it.
   const tones = {
-    visit: "bg-[var(--color-visit-bg)] text-[var(--color-visit)]",
-    gov: "bg-[var(--color-gov-bg)] text-[var(--color-gov)]",
-    muted: "bg-[var(--color-muted-bg)] text-[var(--color-ink-soft)]",
+    visit: "border-[var(--color-visit)]/30 bg-[var(--color-visit-bg)] text-[var(--color-visit)]",
+    gov: "border-[var(--color-gov)]/30 bg-[var(--color-gov-bg)] text-[var(--color-gov)]",
+    muted: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]",
   } as const;
 
   return (
     <span
-      className={`inline-block rounded px-2 py-1 text-xs font-medium leading-tight ${tones[tone]}`}
+      className={`badge ${tones[tone]}`}
     >
       {label}
     </span>

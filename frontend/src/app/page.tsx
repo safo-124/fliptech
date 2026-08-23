@@ -43,7 +43,7 @@ export default async function SearchPage({
     // and keep the filters usable.
     return (
       <div className="p-4">
-        <p className="rounded border border-[var(--color-line)] bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
+        <p className="card bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
           We could not load providers just now. Check your connection and try again.
         </p>
         <Link href="/" className="tap mt-3 inline-flex underline">
@@ -58,7 +58,7 @@ export default async function SearchPage({
       <FilterBar trades={trades.results} params={params} />
 
       <div className="flex items-baseline justify-between px-3 pt-3 lg:px-6 lg:pt-5">
-        <h1 className="text-sm text-[var(--color-ink-soft)] lg:text-base">
+        <h1 className="text-sm text-[var(--color-muted-foreground)] lg:text-base">
           {results.count} {results.count === 1 ? "provider" : "providers"}
           {params.trade ? ` for ${titleCase(params.trade).toLowerCase()}` : ""}
         </h1>
@@ -66,7 +66,7 @@ export default async function SearchPage({
 
       {results.count === 0 ? (
         <div className="p-3 lg:px-6">
-          <p className="rounded border border-[var(--color-line)] p-4 text-sm">
+          <p className="card p-4 text-sm">
             No providers match those filters yet. Try removing the fee limit, or choosing
             &ldquo;All trades&rdquo;.
           </p>
@@ -97,7 +97,7 @@ export default async function SearchPage({
         </div>
       )}
 
-      <p className="max-w-prose px-3 pb-2 pt-3 text-xs text-[var(--color-ink-soft)] lg:px-6">
+      <p className="max-w-prose px-3 pb-2 pt-3 text-xs text-[var(--color-muted-foreground)] lg:px-6">
         Enquire with three providers before you decide. Comparing is free and it is the only way
         to know what a fair fee looks like.
       </p>

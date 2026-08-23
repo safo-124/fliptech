@@ -136,14 +136,14 @@ export function EnquiryForm({
               inputMode="tel"
               autoComplete="tel"
               {...register("phone")}
-              className="tap mt-1 w-full rounded border border-[var(--color-line)] px-3 text-base"
+              className="tap mt-1 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] px-3 text-base shadow-xs"
               aria-describedby="phone-help"
             />
-            <p id="phone-help" className="mt-1 text-xs text-[var(--color-ink-soft)]">
+            <p id="phone-help" className="mt-1 text-xs text-[var(--color-muted-foreground)]">
               We send one code to check the number is yours. The provider replies on WhatsApp.
             </p>
             {formState.errors.phone && (
-              <p role="alert" className="mt-1 text-sm text-[var(--color-accent)]">
+              <p role="alert" className="mt-1 text-sm text-[var(--color-primary)]">
                 {formState.errors.phone.message}
               </p>
             )}
@@ -151,25 +151,25 @@ export function EnquiryForm({
 
           <div>
             <label htmlFor="trainee_name" className="block text-sm font-medium">
-              Your name <span className="font-normal text-[var(--color-ink-soft)]">(optional)</span>
+              Your name <span className="font-normal text-[var(--color-muted-foreground)]">(optional)</span>
             </label>
             <input
               id="trainee_name"
               {...register("trainee_name")}
-              className="tap mt-1 w-full rounded border border-[var(--color-line)] px-3 text-base"
+              className="tap mt-1 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] px-3 text-base shadow-xs"
             />
           </div>
 
           <div>
             <label htmlFor="message" className="block text-sm font-medium">
-              Your question <span className="font-normal text-[var(--color-ink-soft)]">(optional)</span>
+              Your question <span className="font-normal text-[var(--color-muted-foreground)]">(optional)</span>
             </label>
             <textarea
               id="message"
               rows={3}
               {...register("message")}
               placeholder="Do you take complete beginners?"
-              className="mt-1 w-full rounded border border-[var(--color-line)] p-3 text-base"
+              className="mt-1 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] p-3 text-base shadow-xs"
             />
           </div>
         </>
@@ -185,7 +185,7 @@ export function EnquiryForm({
             maxLength={6}
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-            className="tap mt-1 w-full rounded border border-[var(--color-line)] px-3 text-center text-xl tracking-[0.4em]"
+            className="tap mt-1 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] px-3 text-center text-xl tabular-nums tracking-[0.4em] shadow-xs"
           />
           <button
             type="button"
@@ -198,7 +198,7 @@ export function EnquiryForm({
       )}
 
       {error && (
-        <p role="alert" className="rounded bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
+        <p role="alert" className="rounded-lg border border-[var(--color-warn)]/20 bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
           {error}
         </p>
       )}
@@ -206,7 +206,7 @@ export function EnquiryForm({
       <button
         type="submit"
         disabled={busy}
-        className="tap w-full rounded bg-[var(--color-accent)] px-4 font-semibold text-[var(--color-accent-ink)] disabled:opacity-60"
+        className="tap w-full rounded-md bg-[var(--color-primary)] px-4 font-medium text-[var(--color-primary-foreground)] disabled:opacity-60"
       >
         {busy ? "Sending…" : step === "details" ? "Continue" : "Send enquiry"}
       </button>

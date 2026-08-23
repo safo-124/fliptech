@@ -54,12 +54,12 @@ export default async function MapPage() {
           ))}
         </ul>
 
-        <div className="lg:overflow-hidden lg:rounded-lg lg:border lg:border-[var(--color-line)]">
+        <div className="lg:overflow-hidden lg:rounded-lg lg:border lg:border-[var(--color-border)]">
           <MapLoader providers={results.results} />
         </div>
       </div>
 
-      <p className="max-w-prose px-3 py-3 text-xs text-[var(--color-ink-soft)] lg:px-6">
+      <p className="max-w-prose px-3 py-3 text-xs text-[var(--color-muted-foreground)] lg:px-6">
         The list view shows fee, duration and next intake on each card, which makes comparing
         easier than the map does.
       </p>

@@ -35,10 +35,10 @@ function Stat({
   note?: string;
 }) {
   return (
-    <div className="rounded-lg border border-[var(--color-line)] p-3">
-      <p className="text-xs uppercase tracking-wide text-[var(--color-ink-soft)]">{label}</p>
+    <div className="card p-3">
+      <p className="text-xs uppercase tracking-wide text-[var(--color-muted-foreground)]">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
-      {note && <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{note}</p>}
+      {note && <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{note}</p>}
     </div>
   );
 }
@@ -65,7 +65,7 @@ export default async function DashboardPage({
   return (
     <div className="px-3 py-4 lg:px-6 lg:py-8">
       <h1 className="text-xl font-bold lg:text-3xl">{data.provider.name}</h1>
-      <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+      <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
         Last {data.period_days} days
       </p>
 
@@ -98,24 +98,24 @@ export default async function DashboardPage({
         />
       </div>
 
-      <p className="mt-3 max-w-prose rounded bg-[var(--color-canvas-soft)] p-3 text-xs text-[var(--color-ink-soft)]">
+      <p className="mt-3 max-w-prose rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-3 text-xs text-[var(--color-muted-foreground)]">
         {data.enrolments_basis}
       </p>
 
       <section className="mt-6 lg:max-w-lg">
         <h2 className="text-base font-semibold">Your listing</h2>
-        <dl className="mt-2 rounded-lg border border-[var(--color-line)] p-3 text-sm">
+        <dl className="mt-2 card p-3 text-sm">
           <div className="flex justify-between py-1">
-            <dt className="text-[var(--color-ink-soft)]">Status</dt>
+            <dt className="text-[var(--color-muted-foreground)]">Status</dt>
             <dd className="font-medium capitalize">{data.listing.status.replace(/_/g, " ")}</dd>
           </div>
           <div className="flex justify-between py-1">
-            <dt className="text-[var(--color-ink-soft)]">Details last confirmed</dt>
+            <dt className="text-[var(--color-muted-foreground)]">Details last confirmed</dt>
             <dd className="font-medium">{formatDate(data.listing.last_confirmed_at)}</dd>
           </div>
         </dl>
         {data.listing.is_stale && (
-          <p className="mt-2 rounded bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
+          <p className="mt-2 rounded-lg border border-[var(--color-warn)]/20 bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
             Trainees are told these details may be out of date. Confirm your fees and intake
             dates with {BRAND} to remove that notice.
           </p>
@@ -125,7 +125,7 @@ export default async function DashboardPage({
       {data.subscription && (
         <section className="mt-6 lg:max-w-lg">
           <h2 className="text-base font-semibold">Subscription</h2>
-          <p className="mt-2 rounded-lg border border-[var(--color-line)] p-3 text-sm">
+          <p className="mt-2 card p-3 text-sm">
             {data.subscription.tier} · GH₵{data.subscription.price} · renews{" "}
             {formatDate(data.subscription.period_end)}
           </p>

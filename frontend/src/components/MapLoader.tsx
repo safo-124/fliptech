@@ -16,7 +16,7 @@ import type { ProviderCard } from "@/lib/types";
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
   loading: () => (
-    <div className="grid h-[70dvh] place-items-center text-sm text-[var(--color-ink-soft)]">
+    <div className="grid h-[70dvh] place-items-center text-sm text-[var(--color-muted-foreground)]">
       Loading map…
     </div>
   ),

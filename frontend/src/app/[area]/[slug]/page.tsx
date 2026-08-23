@@ -159,7 +159,7 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
           </ul>
         </>
       ) : (
-        <p className="mt-3 max-w-prose rounded border border-[var(--color-line)] p-4 text-sm">
+        <p className="mt-3 max-w-prose card p-4 text-sm">
           No {tradeName.toLowerCase()} providers are listed in {place} yet.{" "}
           <Link href={`/?trade=${trade}`} className="underline">
             See {tradeName.toLowerCase()} providers elsewhere

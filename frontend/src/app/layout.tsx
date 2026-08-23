@@ -48,12 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:block focus:bg-[var(--color-ink)] focus:p-3 focus:text-white"
+          className="sr-only focus:not-sr-only focus:block focus:bg-[var(--color-foreground)] focus:p-3 focus:text-white"
         >
           Skip to results
         </a>
 
-        <header className="border-b border-[var(--color-line)]">
+        <header className="border-b border-[var(--color-border)]">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-2 lg:px-6 lg:py-3 xl:max-w-7xl 2xl:max-w-[100rem]">
             <Link href="/" className="tap font-semibold lg:text-lg">
               Skills Hub
@@ -73,8 +73,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
 
-        <footer className="mt-8 border-t border-[var(--color-line)]">
-          <div className="mx-auto max-w-6xl px-3 py-6 text-xs text-[var(--color-ink-soft)] lg:px-6 xl:max-w-7xl 2xl:max-w-[100rem]">
+        <footer className="mt-8 border-t border-[var(--color-border)]">
+          <div className="mx-auto max-w-6xl px-3 py-6 text-xs text-[var(--color-muted-foreground)] lg:px-6 xl:max-w-7xl 2xl:max-w-[100rem]">
             <p className="max-w-prose">
               {BRAND} Skills Hub lists training providers in Greater Accra. A {BRAND} site
               visit is not a government accreditation.
