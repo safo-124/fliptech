@@ -41,6 +41,7 @@
     this.input = root.querySelector(".shp-input");
     this.status = root.querySelector(".shp-status");
     this.queue = 0;
+    this.root.setAttribute("aria-busy", "false");
     this.bind();
   }
 
@@ -91,11 +92,22 @@
   };
 
   Uploader.prototype.enqueue = function (file) {
+    var empty = this.list.querySelector(".shp-empty");
+    if (empty) empty.remove();
+
     var card = el("div", "shp-item shp-uploading");
+    card.dataset.fileName = file.name;
+    card.setAttribute("aria-busy", "true");
+    card.setAttribute("aria-label", "Uploading " + file.name);
     var thumb = el("div", "shp-thumb");
     var name = el("div", "shp-name", file.name);
     var bar = el("div", "shp-bar");
     var fill = el("span", "shp-fill");
+    bar.setAttribute("role", "progressbar");
+    bar.setAttribute("aria-label", "Upload progress for " + file.name);
+    bar.setAttribute("aria-valuemin", "0");
+    bar.setAttribute("aria-valuemax", "100");
+    bar.setAttribute("aria-valuenow", "0");
     bar.appendChild(fill);
 
     // Show the local file immediately. On a slow link the officer sees the
@@ -103,6 +115,14 @@
     if (window.URL && window.URL.createObjectURL) {
       var preview = el("img");
       preview.src = window.URL.createObjectURL(file);
+      preview.alt = "Preview of " + file.name;
+      preview.addEventListener(
+        "load",
+        function () {
+          window.URL.revokeObjectURL(preview.src);
+        },
+        { once: true }
+      );
       thumb.appendChild(preview);
     }
 
@@ -117,6 +137,7 @@
   };
 
   Uploader.prototype.updateQueue = function () {
+    this.root.setAttribute("aria-busy", String(this.queue > 0));
     if (this.queue > 0) {
       this.setStatus(this.queue + " uploading…", "busy");
     } else {
@@ -136,7 +157,9 @@
 
     request.upload.addEventListener("progress", function (event) {
       if (event.lengthComputable) {
-        fill.style.width = Math.round((event.loaded / event.total) * 100) + "%";
+        var percent = Math.round((event.loaded / event.total) * 100);
+        fill.style.width = percent + "%";
+        fill.parentNode.setAttribute("aria-valuenow", String(percent));
       }
     });
 
@@ -198,6 +221,7 @@
     setTimeout(function () {
       card.classList.remove("shp-retrying");
       fill.style.width = "0%";
+      fill.parentNode.setAttribute("aria-valuenow", "0");
       self.send(file, card, fill, next);
     }, wait);
   };
@@ -206,9 +230,15 @@
     var self = this;
     card.classList.remove("shp-uploading", "shp-retrying");
     card.classList.add("shp-failed");
+    card.setAttribute("aria-busy", "false");
+    card.setAttribute(
+      "aria-label",
+      "Upload failed for " + (card.dataset.fileName || "photograph")
+    );
 
     var note = card.querySelector(".shp-note") || el("div", "shp-note");
     note.textContent = message;
+    note.setAttribute("role", "alert");
     if (!note.parentNode) card.appendChild(note);
 
     if (allowManualRetry && file) {
@@ -238,11 +268,15 @@
     var self = this;
     var card = el("div", "shp-item shp-saved");
     card.dataset.photoId = photo.id;
+    card.setAttribute(
+      "aria-label",
+      photo.caption ? "Saved photograph: " + photo.caption : "Saved workshop photograph"
+    );
 
     var thumb = el("div", "shp-thumb");
     var image = el("img");
     image.src = photo.url;
-    image.alt = photo.caption || "";
+    image.alt = photo.caption || "Workshop photograph";
     image.loading = "lazy";
     thumb.appendChild(image);
     card.appendChild(thumb);
@@ -251,6 +285,7 @@
     caption.type = "text";
     caption.placeholder = "Caption (optional)";
     caption.value = photo.caption || "";
+    caption.setAttribute("aria-label", "Photograph caption");
     caption.addEventListener("blur", function () {
       self.saveCaption(photo.id, caption.value, card);
     });
@@ -258,6 +293,7 @@
 
     var remove = el("button", "shp-btn shp-remove", "Delete");
     remove.type = "button";
+    remove.setAttribute("aria-label", "Delete photograph");
     remove.addEventListener("click", function () {
       if (!window.confirm("Delete this photograph?")) return;
       self.deletePhoto(photo.id, card);
@@ -294,6 +330,7 @@
       body,
       function () {
         self.setStatus("Caption saved.", "ok");
+        card.classList.remove("shp-failed");
       },
       function () {
         self.setStatus("Caption not saved — check the connection.", "warn");

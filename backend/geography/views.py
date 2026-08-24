@@ -1,10 +1,20 @@
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from rest_framework import viewsets
 
 from providers.models import Provider
 
 from .models import Area, Region
 from .serializers import AreaSerializer, RegionSerializer
+
+
+def areas_with_published_provider_counts():
+    """Return the canonical public Area queryset used by both endpoints."""
+    published = Q(providers__status=Provider.Status.PUBLISHED)
+    return (
+        Area.objects.select_related("region")
+        .annotate(provider_count=Count("providers", filter=published))
+        .order_by("region__name", "name")
+    )
 
 
 class AreaViewSet(viewsets.ReadOnlyModelViewSet):
@@ -15,15 +25,21 @@ class AreaViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "slug"
 
     def get_queryset(self):
-        published = Q(providers__status=Provider.Status.PUBLISHED)
-        return (
-            Area.objects.select_related("region")
-            .annotate(provider_count=Count("providers", filter=published))
-            .order_by("region__name", "name")
-        )
+        return areas_with_published_provider_counts()
 
 
 class RegionViewSet(viewsets.ReadOnlyModelViewSet):
+    """Expose launched region pages with their public area inventory."""
+
     serializer_class = RegionSerializer
     lookup_field = "slug"
-    queryset = Region.objects.prefetch_related("areas__region").order_by("name")
+
+    def get_queryset(self):
+        # The frontend sitemap treats every returned region as public; it does
+        # not filter on is_launched itself. Keep unlaunched regions out here,
+        # while /api/areas/ remains complete for the location picker.
+        return (
+            Region.objects.filter(is_launched=True)
+            .prefetch_related(Prefetch("areas", queryset=areas_with_published_provider_counts()))
+            .order_by("name")
+        )

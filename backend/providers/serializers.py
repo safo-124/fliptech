@@ -111,11 +111,16 @@ class ProgrammeSerializer(serializers.ModelSerializer):
     def get_intakes(self, obj):
         from django.utils import timezone
 
-        upcoming = [
-            intake
-            for intake in obj.intakes.all()
-            if intake.is_open and intake.start_date >= timezone.now().date()
-        ]
+        upcoming = sorted(
+            (
+                intake
+                for intake in obj.intakes.all()
+                if intake.is_open
+                and intake.start_date >= timezone.localdate()
+                and (intake.places_remaining is None or intake.places_remaining > 0)
+            ),
+            key=lambda intake: (intake.start_date, intake.pk),
+        )
         return IntakeSerializer(upcoming, many=True).data
 
 
@@ -230,7 +235,7 @@ class ProviderDetailSerializer(ProviderListSerializer):
 
     @extend_schema_field(ProgrammeSerializer(many=True))
     def get_programmes(self, obj):
-        active = [p for p in obj.programmes.all() if p.is_active]
+        active = [p for p in obj.programmes.all() if p.is_active and p.trade.is_active]
         return ProgrammeSerializer(active, many=True).data
 
     @extend_schema_field(GovernmentStatusSerializer(allow_null=True))

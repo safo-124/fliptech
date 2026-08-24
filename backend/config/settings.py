@@ -144,6 +144,9 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # The back-office sidebar's work queues. Costs nothing outside
+                # an admin view — see the module for the guards.
+                "core.context_processors.back_office",
             ],
         },
     },

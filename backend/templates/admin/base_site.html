@@ -16,6 +16,28 @@
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
 
+{% block extrahead %}
+  {% comment %}
+    Not deferred, and therefore ahead of every deferred script including
+    Django's nav_sidebar.js, which is what makes it work: below 768px the
+    sidebar is an overlay drawer, and Django's remembered open state defaults
+    to open. Without this, a field officer's first sight of the back office is
+    a drawer covering it. An explicit choice, once made, is left alone.
+  {% endcomment %}
+  <script>
+    try {
+      if (window.innerWidth < 768 &&
+          localStorage.getItem('django.admin.navSidebarIsOpen') === null) {
+        localStorage.setItem('django.admin.navSidebarIsOpen', 'false');
+      }
+    } catch (e) {
+      // Storage is unavailable in some privacy modes. The drawer still works,
+      // it just starts open.
+    }
+  </script>
+  <script src="{% static 'core/admin_sidebar.js' %}" defer></script>
+{% endblock %}
+
 {% block responsive %}
   {% comment %}
     Django's own viewport tag sets user-scalable=no and maximum-scale=1.0,

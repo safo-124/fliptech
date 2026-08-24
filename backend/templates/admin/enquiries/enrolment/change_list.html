@@ -1,0 +1,174 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% comment %}
+  Monthly enrolment reporting, built on Django's native ChangeList. The table,
+  action form, filters, search, date hierarchy and pagination stay intact so
+  bulk actions, export and permission checks keep their stock behaviour.
+{% endcomment %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_enrolment.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_enrolment.js' %}" defer></script>
+{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+  {% with report=enrolment_summary|default:enrollment_summary %}
+    <div id="content-main" class="er-list-page" data-enrolment-changelist>
+      <header class="er-page-header">
+        <div class="er-page-heading">
+          <p class="er-eyebrow">{% translate "Monthly provider reporting" %}</p>
+          <h1>{% translate "Enrolment outcomes" %}</h1>
+          <p class="er-page-description">
+            {% translate "Record starts, fees, completions and employer-readiness signals from each provider’s monthly conversation." %}
+          </p>
+        </div>
+
+        <div class="er-page-tools">
+          {% block object-tools %}
+            <ul class="object-tools">
+              {% block object-tools-items %}
+                {% change_list_object_tools %}
+              {% endblock %}
+            </ul>
+          {% endblock %}
+        </div>
+      </header>
+
+      <dl class="er-summary" aria-label="{% translate 'Enrolment reporting summary' %}">
+        <div class="er-summary-card">
+          <dt>{% translate "Matching records" %}</dt>
+          <dd>{% firstof report.matching cl.result_count "0" %}</dd>
+          <span>{% translate "in this view" %}</span>
+        </div>
+        <div class="er-summary-card">
+          <dt>{% translate "All enrolments" %}</dt>
+          <dd>{% firstof report.total cl.full_result_count "0" %}</dd>
+          <span>{% translate "recorded starts" %}</span>
+        </div>
+        <div class="er-summary-card er-summary-card--positive">
+          <dt>{% translate "Completed" %}</dt>
+          <dd>{% firstof report.completed "0" %}</dd>
+          <span>{% translate "graduate records" %}</span>
+        </div>
+        <div class="er-summary-card er-summary-card--attestation">
+          <dt>{% translate "Attestation asked" %}</dt>
+          <dd>{% firstof report.attested "0" %}</dd>
+          <span>{% translate "work-readiness signals" %}</span>
+        </div>
+        <div class="er-summary-card">
+          <dt>{% translate "Via platform" %}</dt>
+          <dd>{% firstof report.platform "0" %}</dd>
+          <span>{% translate "linked enquiries" %}</span>
+        </div>
+        <div class="er-summary-card er-summary-card--money">
+          <dt>{% translate "Fees recorded" %}</dt>
+          <dd>{% if report %}GH₵{{ report.fee_total|default_if_none:0|floatformat:0 }}{% else %}—{% endif %}</dd>
+          <span>{% translate "reported course fees" %}</span>
+        </div>
+      </dl>
+
+      <section class="er-monthly-note" aria-labelledby="er-monthly-note-heading">
+        <span class="er-monthly-note__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8 2v3M16 2v3M3 9h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z"></path><path d="m8 15 2 2 5-5"></path></svg>
+        </span>
+        <div>
+          <h2 id="er-monthly-note-heading">{% translate "One honest monthly conversation" %}</h2>
+          <p>{% translate "Most enrolments happen outside the platform. Record every trainee the provider reports, then link an enquiry only when one genuinely exists." %}</p>
+        </div>
+        {% if cl.has_active_filters or cl.query %}
+          <a class="er-reset-link" href="{{ enrolment_reset_url|default:'?' }}">{% translate "Reset this view" %}</a>
+        {% endif %}
+      </section>
+
+      {% if cl.formset and cl.formset.errors %}
+        <p class="errornote">
+          {% blocktranslate count counter=cl.formset.total_error_count %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+        </p>
+        {{ cl.formset.non_form_errors }}
+      {% endif %}
+
+      {% if cl.has_filters %}
+        <button class="er-filter-toggle" type="button" aria-controls="changelist-filter"
+                aria-expanded="false" data-enrolment-filter-toggle hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+          <span>{% translate "Filters" %}</span>
+          {% if cl.has_active_filters %}<span class="er-filter-toggle__state">{% translate "Applied" %}</span>{% endif %}
+        </button>
+      {% endif %}
+
+      <div class="module{% if cl.has_filters %} filtered{% endif %}" id="changelist">
+        <div class="changelist-form-container">
+          {% block search %}{% search_form cl %}{% endblock %}
+          {% block date_hierarchy %}{% if cl.date_hierarchy %}{% date_hierarchy cl %}{% endif %}{% endblock %}
+
+          <form id="changelist-form" method="post"{% if cl.formset and cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %} novalidate>
+            {% csrf_token %}
+            {% if cl.formset %}<div>{{ cl.formset.management_form }}</div>{% endif %}
+
+            {% block result_list %}
+              {% if action_form and actions_on_top and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+              {% if cl.result_count %}
+                {% result_list cl %}
+              {% else %}
+                <div class="er-empty-state">
+                  <span class="er-empty-state__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M8 2v3M16 2v3M3 9h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z"></path></svg>
+                  </span>
+                  <h2>{% translate "No enrolments found" %}</h2>
+                  <p>{% translate "Try another search, change the reporting filters, or record a new enrolment." %}</p>
+                  <a class="button" href="{{ enrolment_reset_url|default:'?' }}">{% translate "Clear search and filters" %}</a>
+                </div>
+              {% endif %}
+              {% if action_form and actions_on_bottom and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+            {% endblock %}
+            {% block pagination %}{% pagination cl %}{% endblock %}
+          </form>
+        </div>
+
+        {% block filters %}
+          {% if cl.has_filters %}
+            <nav id="changelist-filter" aria-labelledby="changelist-filter-header"
+                 data-enrolment-filter-panel>
+              <div class="er-filter-heading">
+                <div>
+                  <span class="er-filter-heading__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+                  </span>
+                  <h2 id="changelist-filter-header">{% translate "Reporting filters" %}</h2>
+                </div>
+                <button class="er-filter-close" type="button" aria-label="{% translate 'Close filters' %}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+                </button>
+              </div>
+              {% if cl.is_facets_optional or cl.has_active_filters %}
+                <div id="changelist-filter-extra-actions">
+                  {% if cl.is_facets_optional %}
+                    <h3>
+                      {% if cl.add_facets %}
+                        <a href="{{ cl.remove_facet_link }}" class="hidelink">{% translate "Hide counts" %}</a>
+                      {% else %}
+                        <a href="{{ cl.add_facet_link }}" class="viewlink">{% translate "Show counts" %}</a>
+                      {% endif %}
+                    </h3>
+                  {% endif %}
+                  {% if cl.has_active_filters %}
+                    <h3><a href="{{ cl.clear_all_filters_qs }}">{% translate "Clear all" %}</a></h3>
+                  {% endif %}
+                </div>
+              {% endif %}
+              {% for spec in cl.filter_specs %}{% admin_list_filter cl spec %}{% endfor %}
+            </nav>
+          {% endif %}
+        {% endblock %}
+      </div>
+    </div>
+  {% endwith %}
+{% endblock %}

@@ -41,21 +41,35 @@ class ProviderFilter(django_filters.FilterSet):
             | Q(programmes__trade__name__iexact=value)
             | Q(programmes__trade__synonyms__contains=[value.lower()]),
             programmes__is_active=True,
+            programmes__trade__is_active=True,
         ).distinct()
 
     def filter_max_fee(self, queryset, name, value):
-        return queryset.filter(programmes__fee__lte=value, programmes__is_active=True).distinct()
+        return queryset.filter(
+            programmes__fee__lte=value,
+            programmes__is_active=True,
+            programmes__trade__is_active=True,
+        ).distinct()
 
     def filter_starts_before(self, queryset, name, value):
         return queryset.filter(
+            Q(programmes__intakes__places_remaining__isnull=True)
+            | Q(programmes__intakes__places_remaining__gt=0),
+            programmes__is_active=True,
+            programmes__trade__is_active=True,
             programmes__intakes__start_date__lte=value,
-            programmes__intakes__start_date__gte=timezone.now().date(),
+            programmes__intakes__start_date__gte=timezone.localdate(),
             programmes__intakes__is_open=True,
         ).distinct()
 
     def filter_starts_after(self, queryset, name, value):
         return queryset.filter(
-            programmes__intakes__start_date__gte=value, programmes__intakes__is_open=True
+            Q(programmes__intakes__places_remaining__isnull=True)
+            | Q(programmes__intakes__places_remaining__gt=0),
+            programmes__is_active=True,
+            programmes__trade__is_active=True,
+            programmes__intakes__start_date__gte=max(value, timezone.localdate()),
+            programmes__intakes__is_open=True,
         ).distinct()
 
     def filter_verified_only(self, queryset, name, value):
@@ -80,8 +94,16 @@ class ProviderFilter(django_filters.FilterSet):
             .filter(
                 Q(similarity__gt=0.15)
                 | Q(name__icontains=value)
-                | Q(programmes__trade__name__icontains=value)
-                | Q(programmes__trade__synonyms__contains=[value.lower()])
+                | Q(
+                    programmes__is_active=True,
+                    programmes__trade__is_active=True,
+                    programmes__trade__name__icontains=value,
+                )
+                | Q(
+                    programmes__is_active=True,
+                    programmes__trade__is_active=True,
+                    programmes__trade__synonyms__contains=[value.lower()],
+                )
             )
             .distinct()
         )

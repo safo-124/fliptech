@@ -1,0 +1,108 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static admin_modify %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_geography.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_geography.js' %}" defer></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} geography-form-page geography-{{ opts.model_name }}-form-page{% endblock %}
+{% block content_subtitle %}{% endblock %}
+
+{% block content_title %}
+  <header class="geo-record-header" data-geography-form-header>
+    <div class="geo-record-header__main">
+      <span class="geo-record-header__icon" aria-hidden="true">
+        {% if opts.model_name == "region" %}
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path></svg>
+        {% else %}
+          <svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+        {% endif %}
+      </span>
+      <div class="geo-record-header__copy">
+        <p class="geo-eyebrow">{% if opts.model_name == "region" %}{% translate "Region operations" %}{% else %}{% translate "Search geography" %}{% endif %}</p>
+        <div class="geo-record-header__title-row">
+          <h1>{% if original %}{{ original.name }}{% elif opts.model_name == "region" %}{% translate "Add region" %}{% else %}{% translate "Add area" %}{% endif %}</h1>
+          {% if original and opts.model_name == "region" %}
+            <span class="geo-record-state{% if original.is_launched %} geo-record-state--positive{% endif %}">
+              <span aria-hidden="true"></span>{% if original.is_launched %}{% translate "Launched" %}{% else %}{% translate "Not launched" %}{% endif %}
+            </span>
+          {% elif original %}
+            <span class="geo-record-state{% if original.centroid %} geo-record-state--positive{% else %} geo-record-state--attention{% endif %}">
+              <span aria-hidden="true"></span>{% if original.centroid %}{% translate "Centroid ready" %}{% else %}{% translate "Centroid missing" %}{% endif %}
+            </span>
+          {% endif %}
+        </div>
+        <p class="geo-record-header__description">
+          {% if opts.model_name == "region" %}
+            {% translate "Manage the public region URL and decide when its real training inventory is ready to launch." %}
+          {% else %}
+            {% translate "Manage the public area URL and the map origin used when a trainee chooses this place." %}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if original and opts.model_name == "region" %}
+      <dl class="geo-record-facts" aria-label="{% translate 'Region inventory summary' %}">
+        <div><dt>{% translate "Areas" %}</dt><dd>{{ original.admin_area_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Providers" %}</dt><dd>{{ original.admin_provider_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Published" %}</dt><dd>{{ original.admin_published_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Centroids" %}</dt><dd>{{ original.admin_centroid_count|default:0 }}/{{ original.admin_area_count|default:0 }}</dd></div>
+      </dl>
+    {% elif original %}
+      <dl class="geo-record-facts" aria-label="{% translate 'Area inventory summary' %}">
+        <div><dt>{% translate "Region" %}</dt><dd>{{ original.region }}</dd></div>
+        <div><dt>{% translate "Providers" %}</dt><dd>{{ original.admin_provider_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Published" %}</dt><dd>{{ original.admin_published_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Programmes" %}</dt><dd>{{ original.admin_programme_count|default:0 }}</dd></div>
+      </dl>
+    {% endif %}
+  </header>
+
+  {% if opts.model_name == "area" %}
+    <aside class="geo-map-note{% if original and original.centroid %} geo-map-note--ready{% endif %}" aria-labelledby="geo-map-note-heading">
+      <span class="geo-map-note__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+      </span>
+      <div>
+        <h2 id="geo-map-note-heading">{% if original and original.centroid %}{% translate "Fallback search origin is ready" %}{% else %}{% translate "Set the fallback search origin" %}{% endif %}</h2>
+        <p>
+          {% if original and original.centroid %}
+            {% blocktranslate with latitude=original.centroid.y|stringformat:".5f" longitude=original.centroid.x|stringformat:".5f" %}Current point: {{ latitude }}, {{ longitude }}. Drag the marker or search the map to correct it.{% endblocktranslate %}
+          {% else %}
+            {% translate "Place the marker near the centre of the area. Without it, radius search cannot start when browser location is unavailable." %}
+          {% endif %}
+        </p>
+      </div>
+    </aside>
+  {% endif %}
+{% endblock %}
+
+{% block field_sets %}
+  <section class="geo-form-section" aria-labelledby="geo-details-heading">
+    <header class="geo-section-heading">
+      <div><p>{% translate "Configuration" %}</p><h2 id="geo-details-heading">{% if opts.model_name == "region" %}{% translate "Region details" %}{% else %}{% translate "Area details and map origin" %}{% endif %}</h2></div>
+      <span>{% translate "Fields marked in bold are required." %}</span>
+    </header>
+    <div class="geo-fieldset-stack">{{ block.super }}</div>
+  </section>
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+  {% if add and has_add_permission or change and has_change_permission %}
+    <div class="geo-save-dock" data-geography-save-dock
+         data-dirty-title="{% translate 'Unsaved changes' %}"
+         aria-label="{% translate 'Save geography record' %}">
+      <div class="geo-save-dock__context"><span aria-hidden="true"></span><div aria-live="polite"><strong>{% translate "Record ready" %}</strong><small>{% translate "Save before leaving this page." %}</small></div></div>
+      {% submit_row %}
+    </div>
+  {% else %}
+    <div class="geo-readonly-bar" role="note"><strong>{% translate "Read-only record" %}</strong><span>{% translate "Your account can review this geography record but cannot change it." %}</span>{% submit_row %}</div>
+  {% endif %}
+{% endblock %}

@@ -33,6 +33,7 @@ const API_URL =
 
 /** Search results change when staff edit a listing, not by the second. */
 const LIST_REVALIDATE_SECONDS = 300;
+const MAX_COMPLETE_PAGES = 100;
 
 export class ApiError extends Error {
   constructor(
@@ -95,12 +96,69 @@ export function searchProviders(params: SearchParams = {}) {
   return fetchJson<Paginated<ProviderCard>>(`/api/providers/${buildQuery(params)}`);
 }
 
+/**
+ * Follow a DRF paginated collection to completion.
+ *
+ * Dedicated map and sitemap routes cannot honestly use only page one: DRF's
+ * global page size is deliberately small for the comparison list. Every
+ * subsequent URL is reduced back to its path/query so server-side requests
+ * keep using API_URL_INTERNAL instead of following Django's public hostname.
+ */
+async function fetchCompleteCollection<T>(path: string): Promise<T[]> {
+  const items: T[] = [];
+  const visited = new Set<string>();
+  let next: string | null = path;
+  let expectedCount: number | null = null;
+
+  while (next) {
+    if (visited.has(next) || visited.size >= MAX_COMPLETE_PAGES) {
+      throw new ApiError("API pagination did not complete safely", 502);
+    }
+    visited.add(next);
+
+    const page: Paginated<T> = await fetchJson<Paginated<T>>(next);
+    expectedCount ??= page.count;
+    if (page.count !== expectedCount) {
+      throw new ApiError("API collection changed while it was loading", 502);
+    }
+    items.push(...page.results);
+
+    if (page.next) {
+      const nextUrl = new URL(page.next, API_URL);
+      next = `${nextUrl.pathname}${nextUrl.search}`;
+    } else {
+      next = null;
+    }
+  }
+
+  if (items.length !== expectedCount) {
+    throw new ApiError("API returned an incomplete collection", 502);
+  }
+  return items;
+}
+
+/** Every published provider, or an error—never a misleading partial map. */
+export async function searchAllProviders(params: SearchParams = {}) {
+  const providers = await fetchCompleteCollection<ProviderCard>(
+    `/api/providers/${buildQuery(params)}`,
+  );
+  const unique = new Map(providers.map((provider) => [provider.id, provider]));
+  if (unique.size !== providers.length) {
+    throw new ApiError("API returned duplicate providers across pages", 502);
+  }
+  return [...unique.values()];
+}
+
 export function getProvider(area: string, slug: string) {
   return fetchJson<ProviderDetail>(`/api/providers/${area}/${slug}/`);
 }
 
 export function getTrades() {
   return fetchJson<Paginated<Trade>>("/api/trades/");
+}
+
+export function getAllTrades() {
+  return fetchCompleteCollection<Trade>("/api/trades/");
 }
 
 export function getTrade(slug: string) {
@@ -111,10 +169,18 @@ export function getRegions() {
   return fetchJson<Paginated<Region>>("/api/regions/");
 }
 
+export function getAllRegions() {
+  return fetchCompleteCollection<Region>("/api/regions/");
+}
+
 export function getAreas() {
   return fetchJson<Paginated<{ slug: string; name: string; region_slug: string; provider_count: number }>>(
     "/api/areas/",
   );
+}
+
+export function getAllAreas() {
+  return fetchCompleteCollection<Region["areas"][number]>("/api/areas/");
 }
 
 export function getAreaSummary(params: { trade: string; area?: string; region?: string }) {

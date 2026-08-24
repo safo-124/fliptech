@@ -28,14 +28,14 @@ from collections import OrderedDict
 from datetime import datetime, time, timedelta
 
 from django.contrib.admin import AdminSite
-from django.db.models import Avg, Count, F, Q, Sum
+from django.db.models import Avg, Count, F, Sum
 from django.utils import timezone
 
 from . import charts
 
-VERIFICATION_MAX_AGE_DAYS = 365
-CONFIRMATION_DUE_DAYS = 90
-CONFIRMATION_STALE_DAYS = 120
+# The queue definitions are shared with the sidebar badges and the changelist
+# filter, so the dashboard cannot quietly disagree with either about how many
+# listings are stale. See providers/queues.py.
 MIN_LISTINGS_FOR_GENERATED_PAGE = 3
 REPLY_WINDOW_HOURS = 48
 TREND_WEEKS = 12
@@ -116,6 +116,7 @@ class SkillsHubAdminSite(AdminSite):
         from catalog.models import Trade
         from enquiries.models import Enquiry, Enrolment
         from geography.models import Area
+        from providers import queues as work
         from providers.models import Provider, Verification
 
         now = timezone.now()
@@ -141,21 +142,20 @@ class SkillsHubAdminSite(AdminSite):
                 ("Awaiting approval", pipeline["pending"], charts.WARN),
                 ("Published", pipeline["published"], charts.GOOD),
                 ("Suspended", pipeline["suspended"], charts.BAD),
-            ]
+            ],
+            # Slim, because it sits under the headline number on a section card
+            # rather than being a chart in its own right. The segment titles
+            # carry the detail on hover.
+            height=10,
         )
 
-        published = Provider.objects.filter(status=Provider.Status.PUBLISHED)
+        all_providers = Provider.objects.all()
+        published = work.published(all_providers)
         published_count = pipeline["published"]
 
         # --- Verification ---------------------------------------------------
-        never_visited = published.filter(verifications__isnull=True).count()
-        stale_cutoff = today - timedelta(days=VERIFICATION_MAX_AGE_DAYS)
-        due_revisit = (
-            published.filter(verifications__isnull=False)
-            .exclude(verifications__visited_on__gte=stale_cutoff)
-            .distinct()
-            .count()
-        )
+        never_visited = work.never_visited(all_providers).count()
+        due_revisit = work.due_revisit(all_providers).count()
         expiring_soon = (
             Verification.objects.filter(
                 expires_on__gte=today, expires_on__lte=today + timedelta(days=30)
@@ -167,14 +167,8 @@ class SkillsHubAdminSite(AdminSite):
         visited = published_count - never_visited
 
         # --- Freshness -------------------------------------------------------
-        due_confirmation = published.filter(
-            Q(last_confirmed_at__lt=now - timedelta(days=CONFIRMATION_DUE_DAYS))
-            | Q(last_confirmed_at__isnull=True)
-        ).count()
-        shown_as_stale = published.filter(
-            Q(last_confirmed_at__lt=now - timedelta(days=CONFIRMATION_STALE_DAYS))
-            | Q(last_confirmed_at__isnull=True)
-        ).count()
+        due_confirmation = work.due_confirmation(all_providers).count()
+        shown_as_stale = work.shown_as_stale(all_providers).count()
 
         # --- Demand -----------------------------------------------------------
         enquiries_30 = Enquiry.objects.filter(created_at__gte=last_30)
@@ -207,17 +201,11 @@ class SkillsHubAdminSite(AdminSite):
 
         # --- Quality --------------------------------------------------------------
         quality = {
-            "no_photo": published.filter(photos__isnull=True).count(),
-            "no_programme": published.filter(programmes__isnull=True).count(),
+            "no_photo": work.no_photo(all_providers).count(),
+            "no_programme": work.no_programme(all_providers).count(),
             "no_government_record": published.filter(government_status__isnull=True).count(),
-            "no_upcoming_intake": published.exclude(
-                programmes__intakes__start_date__gte=today,
-                programmes__intakes__is_open=True,
-            )
-            .distinct()
-            .count(),
+            "no_upcoming_intake": work.no_upcoming_intake(all_providers).count(),
         }
-        complete = published_count - sum(quality.values())
 
         # --- Coverage grid ----------------------------------------------------------
         trades = list(Trade.objects.filter(is_active=True).order_by("display_order", "name"))
@@ -265,18 +253,12 @@ class SkillsHubAdminSite(AdminSite):
                 "expiring_soon": expiring_soon,
                 "visited": visited,
                 "published": published_count,
-                "ring": charts.ring(visited, published_count),
             },
             "freshness": {
                 "due_confirmation": due_confirmation,
                 "shown_as_stale": shown_as_stale,
                 "fresh": published_count - shown_as_stale,
                 "published": published_count,
-                "ring": charts.ring(
-                    published_count - shown_as_stale,
-                    published_count,
-                    colour=charts.GOOD if not shown_as_stale else charts.WARN,
-                ),
             },
             "demand": {
                 "enquiries_30": enquiry_count,
@@ -292,7 +274,6 @@ class SkillsHubAdminSite(AdminSite):
                 "enrolment_fees_30": enrolment_stats["fees"],
                 "average_fee": enrolment_stats["avg"],
                 "enquiry_chart": charts.column_chart(enquiry_series, enquiry_labels),
-                "enquiry_spark": charts.sparkline(enquiry_series, enquiry_labels),
                 # The large gradient area chart shadcn's dashboard leads
                 # with. The column chart below it stays for reading exact
                 # weekly counts, which an area chart is bad at.
@@ -307,16 +288,6 @@ class SkillsHubAdminSite(AdminSite):
                 "attributed_pct": (
                     round(attributed / total_enrolments * 100) if total_enrolments else None
                 ),
-                "bar": charts.stacked_bar(
-                    [
-                        ("Through the platform", attributed, charts.GOOD),
-                        (
-                            "Found the workshop directly",
-                            total_enrolments - attributed,
-                            charts.MUTED,
-                        ),
-                    ]
-                ),
             },
             "year_two": {
                 "completions": completions,
@@ -326,16 +297,11 @@ class SkillsHubAdminSite(AdminSite):
                 "inflated": attestation_rate is not None and attestation_rate >= 95,
             },
             "quality": quality,
-            "quality_bar": charts.stacked_bar(
-                [
-                    ("Complete", max(complete, 0), charts.GOOD),
-                    ("Missing something", sum(quality.values()), charts.WARN),
-                ]
-            ),
             "coverage": {
                 "indexable": pairs_indexable,
                 "total": pairs_total,
                 "threshold": MIN_LISTINGS_FOR_GENERATED_PAGE,
+                "ring": charts.ring(pairs_indexable, pairs_total),
                 "heatmap": charts.heatmap(
                     [t.name for t in trades],
                     [a.name for a in areas],

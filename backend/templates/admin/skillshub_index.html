@@ -10,9 +10,36 @@
   is rendered as a card in the grid instead, so nothing is lost and the panel
   gets the full width.
 
-  Numbers link to a filtered changelist wherever there is something to act on,
-  because a count with no route to the work is just decoration.
+  Two things that used to be here now live in the navigation sidebar, which is
+  on every screen rather than only this one:
+
+  * the work queues — awaiting approval, never visited, unconfirmed, and the
+    rest — which were a "Work waiting" row of cards. They are errands, and
+    errands belong in the chrome next to the link that does them. See
+    templates/admin/nav_sidebar.html and providers/queues.py;
+  * the app list, which Django's index renders at the bottom of the page and
+    the sidebar renders again on the left. `{{ block.super }}` is deliberately
+    not called at the end of the content block any more, so there is one copy.
+
+  What is left is the reading matter: what is happening, whether it is going up
+  or down, and where the field team should go next. Numbers still link to a
+  filtered changelist wherever there is something to act on, because a count
+  with no route to the work is just decoration.
 {% endcomment %}
+
+{% comment %}
+  Django's admin/index.html empties the nav-sidebar block, because on the stock
+  index the page *is* the app list and a second copy beside it would be absurd.
+  That reasoning stops applying the moment the app list moves into the sidebar,
+  so the block is put back. Without this the dashboard is the one screen in the
+  back office with no navigation at all — and it renders without complaint,
+  which is how it would have shipped.
+
+  The `sidebar` block below is Django's right-hand recent-actions column, and is
+  a different thing entirely despite the name. It stays empty: that list is a
+  card in the grid.
+{% endcomment %}
+{% block nav-sidebar %}{% include "admin/nav_sidebar.html" %}{% endblock %}
 
 {% block sidebar %}{% endblock %}
 
@@ -219,8 +246,9 @@
           </span>
         </div>
       </div>
+      {{ panel.pipeline_bar }}
       <div class="sh-foot">
-        <div class="sh-foot-strong">{{ panel.pipeline.draft }} in draft</div>
+        <div class="sh-foot-strong">{{ panel.pipeline.draft }} in draft, {{ panel.pipeline.suspended }} suspended</div>
         <div class="sh-foot-muted">A field officer drafts; an operations lead publishes.</div>
       </div>
     </div>
@@ -310,51 +338,6 @@
 
   </div>
 
-  {# ---- Work waiting ---- #}
-  <h2>Work waiting</h2>
-  <div class="sh-grid">
-
-    <div class="sh-card w4">
-      <div class="sh-head"><div class="sh-desc">Onboarding pipeline</div></div>
-      {{ panel.pipeline_bar }}
-      <div class="sh-rows">
-        <div class="sh-row"><span>Draft</span><span class="sh-n">{{ panel.pipeline.draft }}</span></div>
-        <div class="sh-row">
-          <span><a href="{% url 'admin:providers_provider_changelist' %}?status__exact=pending_approval">Awaiting approval</a></span>
-          <span class="sh-n {% if panel.pipeline.pending %}warn{% endif %}">{{ panel.pipeline.pending }}</span>
-        </div>
-        <div class="sh-row"><span>Published</span><span class="sh-n good">{{ panel.pipeline.published }}</span></div>
-        <div class="sh-row"><span>Suspended</span><span class="sh-n {% if panel.pipeline.suspended %}bad{% endif %}">{{ panel.pipeline.suspended }}</span></div>
-      </div>
-    </div>
-
-    <div class="sh-card w4">
-      <div class="sh-head"><div class="sh-desc">Listing freshness</div></div>
-      <div class="sh-ring">
-        {{ panel.freshness.ring }}
-        <div class="sh-rows" style="flex:1;min-width:0">
-          <div class="sh-row"><span>Due a 90-day check</span><span class="sh-n {% if panel.freshness.due_confirmation %}warn{% endif %}">{{ panel.freshness.due_confirmation }}</span></div>
-          <div class="sh-row"><span>Shown as unconfirmed</span><span class="sh-n {% if panel.freshness.shown_as_stale %}warn{% endif %}">{{ panel.freshness.shown_as_stale }}</span></div>
-        </div>
-      </div>
-      <div class="sh-foot">
-        <div class="sh-foot-muted">A directory dies from staleness rather than from lack of features.</div>
-      </div>
-    </div>
-
-    <div class="sh-card w4">
-      <div class="sh-head"><div class="sh-desc">Listing quality</div></div>
-      {{ panel.quality_bar }}
-      <div class="sh-rows">
-        <div class="sh-row"><span>No photograph</span><span class="sh-n {% if panel.quality.no_photo %}warn{% endif %}">{{ panel.quality.no_photo }}</span></div>
-        <div class="sh-row"><span>No programme</span><span class="sh-n {% if panel.quality.no_programme %}warn{% endif %}">{{ panel.quality.no_programme }}</span></div>
-        <div class="sh-row"><span>No upcoming intake</span><span class="sh-n {% if panel.quality.no_upcoming_intake %}warn{% endif %}">{{ panel.quality.no_upcoming_intake }}</span></div>
-        <div class="sh-row"><span>No government record</span><span class="sh-n">{{ panel.quality.no_government_record }}</span></div>
-      </div>
-    </div>
-
-  </div>
-
   {# ---- Coverage ---- #}
   <h2>Coverage — where to go next</h2>
   <div class="sh-grid">
@@ -376,25 +359,14 @@
     </div>
 
     <div class="sh-card w4">
-      <div class="sh-head">
-        <div class="sh-desc">Pages worth indexing</div>
-        <div class="sh-title">{{ panel.coverage.indexable }} <span class="sh-of">/ {{ panel.coverage.total }}</span></div>
-      </div>
-      <div class="sh-foot">
-        <div class="sh-foot-strong">Graduate record</div>
-        <div class="sh-foot-muted">The rest are generated with noindex. Thin pages teach a crawler the site is mostly empty.</div>
-      </div>
-      <div class="sh-rows">
-        <div class="sh-row"><span>Completions recorded</span><span class="sh-n">{{ panel.year_two.completions }}</span></div>
-        <div class="sh-row"><span>Attestations asked</span><span class="sh-n">{{ panel.year_two.attested }}</span></div>
-        <div class="sh-row">
-          <span>Recommended</span>
-          <span class="sh-n {% if panel.year_two.inflated %}warn{% endif %}">{% if panel.year_two.attestation_rate is not None %}{{ panel.year_two.attestation_rate }}%{% else %}—{% endif %}</span>
+      <div class="sh-head"><div class="sh-desc">Pages worth indexing</div></div>
+      <div class="sh-ring">
+        {{ panel.coverage.ring }}
+        <div class="sh-foot" style="margin-top: 0">
+          <div class="sh-foot-strong">{{ panel.coverage.indexable }} of {{ panel.coverage.total }} pages</div>
+          <div class="sh-foot-muted">The rest are generated with noindex. Thin pages teach a crawler the site is mostly empty.</div>
         </div>
       </div>
-      {% if panel.year_two.inflated %}
-        <div class="sh-foot"><div class="sh-foot-muted" style="color:var(--sh-caution)">Attestation inflation: a workshop recommending every graduate makes the signal worthless.</div></div>
-      {% endif %}
     </div>
 
   </div>
@@ -423,9 +395,30 @@
 
   </div>
 
-  {# ---- Money and activity ---- #}
-  <h2>{% if panel.is_super %}Money and activity{% else %}Activity{% endif %}</h2>
+  {# ---- Outcomes, money and the log ---- #}
+  <h2>Outcomes and activity</h2>
   <div class="sh-grid">
+
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Graduate record</div>
+        <div class="sh-title">{{ panel.year_two.completions }} <span class="sh-of">completions</span></div>
+      </div>
+      <div class="sh-rows">
+        <div class="sh-row"><span>Attestations asked</span><span class="sh-n">{{ panel.year_two.attested }}</span></div>
+        <div class="sh-row">
+          <span>Recommended</span>
+          <span class="sh-n {% if panel.year_two.inflated %}warn{% endif %}">{% if panel.year_two.attestation_rate is not None %}{{ panel.year_two.attestation_rate }}%{% else %}—{% endif %}</span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        {% if panel.year_two.inflated %}
+          <div class="sh-foot-muted" style="color: var(--sh-caution)">Attestation inflation: a workshop recommending every graduate makes the signal worthless.</div>
+        {% else %}
+          <div class="sh-foot-muted">Section 08: this cannot be reconstructed later, so it is captured as it happens.</div>
+        {% endif %}
+      </div>
+    </div>
 
     {% if panel.is_super %}
     <div class="sh-card w4">
@@ -445,7 +438,7 @@
     </div>
     {% endif %}
 
-    <div class="sh-card {% if panel.is_super %}w8{% else %}w12{% endif %}">
+    <div class="sh-card {% if panel.is_super %}w4{% else %}w8{% endif %}">
       <div class="sh-head"><div class="sh-desc">{% translate 'Recent actions' %}</div></div>
       {% get_admin_log 10 as admin_log for_user user %}
       {% if not admin_log %}
@@ -472,6 +465,4 @@
 
   </div>
 </div>
-
-{{ block.super }}
 {% endblock %}

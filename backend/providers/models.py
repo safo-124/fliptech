@@ -44,10 +44,21 @@ class ProviderQuerySet(models.QuerySet):
         """
         from django.utils import timezone
 
-        active = models.Q(programmes__is_active=True)
-        upcoming = models.Q(
-            programmes__intakes__is_open=True,
-            programmes__intakes__start_date__gte=timezone.now().date(),
+        active = models.Q(
+            programmes__is_active=True,
+            programmes__trade__is_active=True,
+        )
+        available_places = models.Q(programmes__intakes__places_remaining__isnull=True) | models.Q(
+            programmes__intakes__places_remaining__gt=0
+        )
+        upcoming = (
+            models.Q(
+                programmes__is_active=True,
+                programmes__trade__is_active=True,
+                programmes__intakes__is_open=True,
+                programmes__intakes__start_date__gte=timezone.localdate(),
+            )
+            & available_places
         )
         return self.annotate(
             lowest_fee=models.Min("programmes__fee", filter=active),
@@ -58,15 +69,27 @@ class ProviderQuerySet(models.QuerySet):
     def with_related(self):
         """Everything the card and profile serializers touch."""
         from django.db.models import Prefetch
+        from django.utils import timezone
 
-        from catalog.models import Programme
+        from catalog.models import Intake, Programme
+
+        public_intakes = (
+            Intake.objects.filter(
+                is_open=True,
+                start_date__gte=timezone.localdate(),
+            )
+            .filter(models.Q(places_remaining__isnull=True) | models.Q(places_remaining__gt=0))
+            .order_by("start_date", "pk")
+        )
 
         return self.select_related("area", "area__region", "government_status").prefetch_related(
             "photos",
             "verifications",
             Prefetch(
                 "programmes",
-                queryset=Programme.objects.select_related("trade").prefetch_related("intakes"),
+                queryset=Programme.objects.filter(is_active=True, trade__is_active=True)
+                .select_related("trade")
+                .prefetch_related(Prefetch("intakes", queryset=public_intakes)),
             ),
         )
 

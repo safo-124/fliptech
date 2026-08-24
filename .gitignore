@@ -35,6 +35,8 @@ node_modules/
 *.tsbuildinfo
 out/
 .turbo/
+.playwright-results/
+playwright-report/
 
 # Media and static
 /backend/media/

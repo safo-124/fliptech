@@ -1,0 +1,157 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static admin_modify %}
+
+{% comment %}
+  An enrolment is the record of a monthly provider conversation. Django still
+  owns fields, permissions, errors, autocomplete widgets and submit controls;
+  this template gives that native form a clear reporting workflow.
+{% endcomment %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_enrolment.js' %}" defer></script>
+{% endblock %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_enrolment.css' %}">
+{% endblock %}
+
+{% block bodyclass %}
+  {{ block.super }} enrolment-reporting-page{% if original %} enrolment-reporting-page--change{% else %} enrolment-reporting-page--add{% endif %}
+{% endblock %}
+
+{% block content_title %}
+  <header class="er-record-header" data-enrolment-form-header>
+    <div class="er-record-header__identity">
+      <span class="er-record-header__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M8 2v3M16 2v3M3 9h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z"></path><path d="m8 15 2 2 5-5"></path></svg>
+      </span>
+      <div class="er-record-header__copy">
+        <p class="er-eyebrow">{% translate "Monthly provider reporting" %}</p>
+        <div class="er-record-header__title-row">
+          <h1>
+            {% if original %}
+              {{ original.trainee_name|default:original.trainee_phone }}
+            {% else %}
+              {% translate "Record enrolment" %}
+            {% endif %}
+          </h1>
+          {% if original %}
+            <span class="er-record-badge{% if original.completed_on %} er-record-badge--positive{% endif %}">
+              <span aria-hidden="true"></span>
+              {% if original.completed_on %}{% translate "Completed" %}{% else %}{% translate "In training" %}{% endif %}
+            </span>
+          {% endif %}
+        </div>
+        <p class="er-record-header__description">
+          {% if original %}
+            {% translate "Update completion and attestation when the provider reports them. Keep historical answers honest rather than inferred." %}
+          {% else %}
+            {% translate "Record every trainee the provider reports, including people who never sent an enquiry through the platform." %}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if original %}
+      <div class="er-record-signals" aria-label="{% translate 'Enrolment status' %}">
+        <span class="er-record-signal">
+          <small>{% translate "Attestation" %}</small>
+          <strong>{{ original.get_provider_attestation_display }}</strong>
+        </span>
+        <span class="er-record-signal">
+          <small>{% translate "Source" %}</small>
+          <strong>{% if original.enquiry_id %}{% translate "Platform enquiry" %}{% else %}{% translate "Provider reported" %}{% endif %}</strong>
+        </span>
+      </div>
+    {% endif %}
+
+    {% if original %}
+      <dl class="er-record-summary" aria-label="{% translate 'Enrolment summary' %}">
+        <div><dt>{% translate "Provider" %}</dt><dd>{{ original.provider }}</dd></div>
+        <div><dt>{% translate "Programme" %}</dt><dd>{{ original.programme }}</dd></div>
+        <div><dt>{% translate "Started" %}</dt><dd><time datetime="{{ original.started_on|date:'Y-m-d' }}">{{ original.started_on|date:"j M Y" }}</time></dd></div>
+        <div><dt>{% translate "Fee reported" %}</dt><dd>{% if original.fee_paid is not None %}GH₵{{ original.fee_paid|floatformat:2 }}{% else %}{% translate "Not recorded" %}{% endif %}</dd></div>
+      </dl>
+    {% else %}
+      <ol class="er-onboarding-steps" aria-label="{% translate 'Monthly reporting steps' %}">
+        <li class="er-onboarding-steps__item er-onboarding-steps__item--active">
+          <span aria-hidden="true">1</span><div><strong>{% translate "Record the start" %}</strong><small>{% translate "Provider, trainee and fee" %}</small></div>
+        </li>
+        <li class="er-onboarding-steps__item">
+          <span aria-hidden="true">2</span><div><strong>{% translate "Update completion" %}</strong><small>{% translate "When the provider confirms it" %}</small></div>
+        </li>
+        <li class="er-onboarding-steps__item">
+          <span aria-hidden="true">3</span><div><strong>{% translate "Capture attestation" %}</strong><small>{% translate "Preserve the year-two signal" %}</small></div>
+        </li>
+      </ol>
+    {% endif %}
+  </header>
+{% endblock %}
+
+{% block content_subtitle %}{% endblock %}
+
+{% block field_sets %}
+  <section class="er-workflow-section" aria-labelledby="er-record-fields-heading">
+    <header class="er-workflow-section__header">
+      <span class="er-workflow-section__number" aria-hidden="true">01</span>
+      <div>
+        <h2 id="er-record-fields-heading">{% translate "Enrolment record" %}</h2>
+        <p>{% translate "Keep attribution optional: a direct provider report is a valid enrolment, not incomplete data." %}</p>
+      </div>
+    </header>
+    <div class="er-fieldset-stack">
+      {% for fieldset in adminform %}
+        {% include "admin/includes/fieldset.html" with heading_level=3 prefix="fieldset" id_prefix=0 id_suffix=forloop.counter0 %}
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+  <aside class="er-reporting-guide" aria-labelledby="er-reporting-guide-heading"
+         data-enrolment-form-signals>
+    <header class="er-reporting-guide__header">
+      <span class="er-reporting-guide__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+      </span>
+      <div>
+        <p class="er-eyebrow">02 · {% translate "Outcome check" %}</p>
+        <h2 id="er-reporting-guide-heading">{% translate "Signals worth preserving" %}</h2>
+        <p>{% translate "These answers are reported by a human. Record what was said and leave unknowns unknown." %}</p>
+      </div>
+    </header>
+
+    <div class="er-reporting-guide__grid">
+      <div class="er-guide-card" data-enrolment-signal="completion">
+        <span class="er-guide-card__dot" aria-hidden="true"></span>
+        <div><small>{% translate "Completion" %}</small><strong id="er-completion-live" role="status" aria-live="polite">{% if original.completed_on %}{% translate "Completion recorded" %}{% else %}{% translate "Still in training or unknown" %}{% endif %}</strong></div>
+      </div>
+      <div class="er-guide-card" data-enrolment-signal="attestation">
+        <span class="er-guide-card__dot" aria-hidden="true"></span>
+        <div><small>{% translate "Work-readiness" %}</small><strong id="er-attestation-live" role="status" aria-live="polite">{% if original %}{{ original.get_provider_attestation_display }}{% else %}{% translate "Not asked yet" %}{% endif %}</strong></div>
+      </div>
+      <div class="er-guide-card" data-enrolment-signal="source">
+        <span class="er-guide-card__dot" aria-hidden="true"></span>
+        <div><small>{% translate "Attribution" %}</small><strong id="er-source-live" role="status" aria-live="polite">{% if original.enquiry_id %}{% translate "Linked to a platform enquiry" %}{% else %}{% translate "Provider-reported enrolment" %}{% endif %}</strong></div>
+      </div>
+    </div>
+  </aside>
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+  {% if has_change_permission or has_add_permission %}
+    <div class="er-save-dock" aria-label="{% translate 'Save enrolment' %}">
+      <div class="er-save-dock__context">
+        <span class="er-save-dock__indicator" aria-hidden="true"></span>
+        <div>
+          <strong>{% if original %}{% translate "Save this monthly update" %}{% else %}{% translate "Record this enrolment" %}{% endif %}</strong>
+          <span>{% translate "Only record outcomes the provider actually confirmed." %}</span>
+        </div>
+      </div>
+      {% submit_row %}
+    </div>
+  {% endif %}
+{% endblock %}

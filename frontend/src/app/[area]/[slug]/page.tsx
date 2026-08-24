@@ -17,8 +17,9 @@ import { notFound } from "next/navigation";
 
 import { ProviderCard } from "@/components/ProviderCard";
 import { ProviderProfile } from "@/components/ProviderProfile";
-import { ApiError, getAreaSummary, getProvider, searchProviders } from "@/lib/api";
+import { ApiError, getProvider, searchProviders } from "@/lib/api";
 import { formatFeeRange, titleCase } from "@/lib/format";
+import { loadGeneratedTradePage } from "@/lib/generated-page";
 
 const TRADE_PAGE_SUFFIX = "-training";
 
@@ -26,18 +27,6 @@ type Params = { area: string; slug: string };
 
 function tradeFromSlug(slug: string): string | null {
   return slug.endsWith(TRADE_PAGE_SUFFIX) ? slug.slice(0, -TRADE_PAGE_SUFFIX.length) : null;
-}
-
-async function loadTradePage(area: string, trade: string) {
-  // The leading segment may be a region or an area; ask for both and keep
-  // whichever returns inventory.
-  const [byArea, byRegion] = await Promise.all([
-    getAreaSummary({ trade, area }).catch(() => null),
-    getAreaSummary({ trade, region: area }).catch(() => null),
-  ]);
-  if (byArea && byArea.provider_count > 0) return { summary: byArea, scope: "area" as const };
-  if (byRegion && byRegion.provider_count > 0) return { summary: byRegion, scope: "region" as const };
-  return byArea ? { summary: byArea, scope: "area" as const } : null;
 }
 
 export async function generateMetadata({
@@ -50,7 +39,7 @@ export async function generateMetadata({
   const place = titleCase(area);
 
   if (trade) {
-    const loaded = await loadTradePage(area, trade);
+    const loaded = await loadGeneratedTradePage(area, trade);
     const tradeName = titleCase(trade);
     return {
       title: `${tradeName} training in ${place}`,
@@ -115,7 +104,7 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
 }
 
 async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
-  const loaded = await loadTradePage(area, trade);
+  const loaded = await loadGeneratedTradePage(area, trade);
   if (!loaded) notFound();
 
   const { summary, scope } = loaded;

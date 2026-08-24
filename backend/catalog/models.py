@@ -8,6 +8,7 @@ cheap to query together.
 
 from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -94,8 +95,28 @@ class Intake(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["programme", "start_date"], name="unique_intake_per_programme_date"
-            )
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(places_offered__isnull=True)
+                    | models.Q(places_remaining__isnull=True)
+                    | models.Q(places_remaining__lte=models.F("places_offered"))
+                ),
+                name="intake_remaining_lte_offered",
+            ),
         ]
 
     def __str__(self):
         return f"{self.programme.title} starting {self.start_date:%d %b %Y}"
+
+    def clean(self):
+        """Keep the availability numbers internally possible."""
+        super().clean()
+        if (
+            self.places_offered is not None
+            and self.places_remaining is not None
+            and self.places_remaining > self.places_offered
+        ):
+            raise ValidationError(
+                {"places_remaining": "Places remaining cannot exceed places offered."}
+            )

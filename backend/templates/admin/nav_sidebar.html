@@ -1,0 +1,258 @@
+{% load i18n %}
+{% url 'admin:index' as admin_index_url %}
+
+{% comment %}
+  The back-office sidebar follows shadcn's Sidebar composition:
+
+      header / search / primary item / work queues / collapsible groups / footer
+
+  App groups use native <details> elements, so they remain useful without
+  JavaScript and expose their expanded state to assistive technology. The model
+  list deliberately keeps Django's <table> / <th scope="row"> shape inside
+  those groups. Django 5.2's nav_sidebar.js discovers exactly those links when
+  it builds the quick filter; changing them to a plain list would make the
+  stock script silently stop filtering.
+
+  available_apps has already been permission-filtered by AdminSite, so this
+  template never invents links a member of staff is not allowed to use.
+{% endcomment %}
+
+<button class="sticky toggle-nav-sidebar" id="toggle-nav-sidebar" type="button"
+        aria-label="{% translate 'Toggle navigation' %}"
+        aria-controls="nav-sidebar" aria-expanded="false"
+        data-label-open="{% translate 'Open navigation' %}"
+        data-label-close="{% translate 'Close navigation' %}">
+  <svg class="sb-toggle-chevron" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="m9 18 6-6-6-6"></path>
+  </svg>
+  <svg class="sb-toggle-menu" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 6h16M4 12h16M4 18h16"></path>
+  </svg>
+  <svg class="sb-toggle-close" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="m6 6 12 12M18 6 6 18"></path>
+  </svg>
+</button>
+
+<nav class="sticky" id="nav-sidebar" aria-label="{% translate 'Back-office navigation' %}">
+  <div class="sb-header">
+    <div class="sb-brand">
+      <a href="{{ admin_index_url }}">
+        <span class="sb-mark" aria-hidden="true">{{ back_office.brand|slice:":1"|default:"F" }}</span>
+        <span class="sb-brand-text">
+          <span class="sb-brand-name">{{ back_office.brand|default:"Fliptech" }}</span>
+          <span class="sb-brand-sub">{% translate 'Skills Hub' %}</span>
+        </span>
+        <svg class="sb-brand-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
+      </a>
+    </div>
+
+    <label class="sb-search" for="nav-filter">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <input type="search" id="nav-filter"
+             placeholder="{% translate 'Search navigation…' %}"
+             aria-label="{% translate 'Search navigation' %}"
+             aria-controls="sb-navigation-groups"
+             autocomplete="off">
+      <kbd aria-hidden="true">/</kbd>
+    </label>
+    <p class="sb-filter-empty" id="nav-filter-empty" role="status" hidden>
+      {% translate 'No navigation items match.' %}
+    </p>
+  </div>
+
+  <div class="sb-scroll">
+    <div class="sb-group sb-primary-nav" data-nav-search-group>
+      <a class="sb-item sb-dashboard{% if request.path == admin_index_url %} is-active{% endif %}"
+         href="{{ admin_index_url }}"
+         data-nav-search-item data-nav-search-text="{% translate 'Overview dashboard' %}"
+         {% if request.path == admin_index_url %}aria-current="page"{% endif %}>
+        <svg class="sb-item-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+        </svg>
+        <span class="sb-item-text">{% translate 'Overview' %}</span>
+      </a>
+    </div>
+
+    {% if back_office %}
+      <section class="sb-group" aria-labelledby="sb-queues-label" data-nav-search-group>
+        <div class="sb-group-label" id="sb-queues-label">
+          <span>{% translate 'Needs attention' %}</span>
+          {% if back_office.queues %}
+            <span class="sb-label-count">{{ back_office.queues|length }}</span>
+          {% endif %}
+        </div>
+        {% if back_office.queues %}
+          <ul class="sb-menu">
+            {% for queue in back_office.queues %}
+              <li data-nav-search-item data-nav-search-text="{{ queue.label }}">
+                <a class="sb-item sb-queue{% if request.GET.queue == queue.key %} is-active{% endif %}"
+                   href="{{ queue.url }}"
+                   {% if request.GET.queue == queue.key %}aria-current="page"{% endif %}>
+                  <span class="sb-queue-dot" aria-hidden="true"></span>
+                  <span class="sb-item-text">{{ queue.label }}</span>
+                  <span class="sb-count" aria-label="{% blocktranslate with count=queue.count %}{{ count }} items{% endblocktranslate %}">{{ queue.count }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="sb-clear">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m5 12 4 4L19 6"></path>
+            </svg>
+            <span>{% translate 'Nothing waiting' %}</span>
+          </div>
+        {% endif %}
+      </section>
+
+      {% if back_office.enquiry_queues %}
+        <section class="sb-group" aria-labelledby="sb-enquiry-queues-label" data-nav-search-group>
+          <div class="sb-group-label" id="sb-enquiry-queues-label">
+            <span>{% translate 'Enquiry follow-up' %}</span>
+            <span class="sb-label-count">{{ back_office.enquiry_queues|length }}</span>
+          </div>
+          <ul class="sb-menu">
+            {% for queue in back_office.enquiry_queues %}
+              <li data-nav-search-item data-nav-search-text="{{ queue.label }}">
+                <a class="sb-item sb-queue sb-queue--enquiry{% if queue.model_url in request.path and request.GET.queue == queue.key %} is-active{% endif %}"
+                   href="{{ queue.url }}"
+                   {% if queue.model_url in request.path and request.GET.queue == queue.key %}aria-current="page"{% endif %}>
+                  <span class="sb-queue-dot" aria-hidden="true"></span>
+                  <span class="sb-item-text">{{ queue.label }}</span>
+                  <span class="sb-count" aria-label="{% blocktranslate with count=queue.count %}{{ count }} items{% endblocktranslate %}">{{ queue.count }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      {% if back_office.catalog_queues %}
+        <section class="sb-group" aria-labelledby="sb-catalog-queues-label" data-nav-search-group>
+          <div class="sb-group-label" id="sb-catalog-queues-label">
+            <span>{% translate 'Catalog readiness' %}</span>
+            <span class="sb-label-count">{{ back_office.catalog_queues|length }}</span>
+          </div>
+          <ul class="sb-menu">
+            {% for queue in back_office.catalog_queues %}
+              <li data-nav-search-item data-nav-search-text="{{ queue.label }}">
+                <a class="sb-item sb-queue sb-queue--catalog{% if queue.model_url in request.path and request.GET.queue == queue.key %} is-active{% endif %}"
+                   href="{{ queue.url }}"
+                   {% if queue.model_url in request.path and request.GET.queue == queue.key %}aria-current="page"{% endif %}>
+                  <span class="sb-queue-dot" aria-hidden="true"></span>
+                  <span class="sb-item-text">{{ queue.label }}</span>
+                  <span class="sb-count" aria-label="{% blocktranslate with count=queue.count %}{{ count }} items{% endblocktranslate %}">{{ queue.count }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    {% endif %}
+
+    <section class="sb-group sb-nav" aria-labelledby="sb-navigation-label" data-nav-search-group>
+      <div class="sb-group-label" id="sb-navigation-label">
+        <span>{% translate 'Workspace' %}</span>
+      </div>
+
+      <div class="sb-apps" id="sb-navigation-groups">
+        {% if available_apps %}
+          {% for app in available_apps %}
+            <details class="sb-app app-{{ app.app_label }}{% if app.app_url in request.path|urlencode %} is-current{% endif %}"
+                     data-sidebar-app="{{ app.app_label }}"
+                     {% if app.app_label == 'providers' or app.app_url in request.path|urlencode %}open{% endif %}>
+              <summary class="sb-app-trigger" data-nav-search-label="{{ app.name }}">
+                <svg class="sb-app-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7.5A1.5 1.5 0 0 1 5.5 6H10l2 2h6.5A1.5 1.5 0 0 1 20 9.5v8A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"></path>
+                </svg>
+                <span class="sb-app-name">{{ app.name }}</span>
+                <span class="sb-app-count">{{ app.models|length }}</span>
+                <svg class="sb-app-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 18 6-6-6-6"></path>
+                </svg>
+              </summary>
+
+              <div class="sb-app-panel">
+                <table>
+                  <thead class="visually-hidden">
+                    <tr>
+                      <th scope="col">{% translate 'Model name' %}</th>
+                      <th scope="col">{% translate 'Add link' %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for model in app.models %}
+                      {% with model_name=model.object_name|lower %}
+                        <tr class="sb-app-model model-{{ model_name }}{% if model.admin_url in request.path|urlencode %} is-active{% endif %}"
+                            data-nav-search-item data-nav-search-text="{{ app.name }} {{ model.name }}">
+                          <th scope="row" id="{{ app.app_label }}-{{ model_name }}">
+                            {% if model.admin_url %}
+                              <a class="sb-model-link" href="{{ model.admin_url }}"
+                                 {% if model.admin_url in request.path|urlencode %}aria-current="page"{% endif %}>
+                                <span class="sb-model-rail" aria-hidden="true"></span>
+                                <span class="sb-model-name">{{ model.name }}</span>
+                              </a>
+                            {% else %}
+                              <span class="sb-model-link">
+                                <span class="sb-model-rail" aria-hidden="true"></span>
+                                <span class="sb-model-name">{{ model.name }}</span>
+                              </span>
+                            {% endif %}
+                          </th>
+
+                          {% if model.add_url %}
+                            <td>
+                              <a href="{{ model.add_url }}" class="sb-add-link"
+                                 aria-describedby="{{ app.app_label }}-{{ model_name }}"
+                                 aria-label="{% blocktranslate with name=model.name %}Add {{ name }}{% endblocktranslate %}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M12 5v14M5 12h14"></path>
+                                </svg>
+                              </a>
+                            </td>
+                          {% else %}
+                            <td></td>
+                          {% endif %}
+                        </tr>
+                      {% endwith %}
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          {% endfor %}
+        {% else %}
+          <p class="sb-no-permission">{% translate 'You don’t have permission to view or edit anything.' %}</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  {% if back_office.published %}
+    <a class="sb-foot" href="{% url 'admin:providers_provider_changelist' %}">
+      <span class="sb-foot-head">
+        <span class="sb-foot-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"></path></svg>
+        </span>
+        <span class="sb-foot-copy">
+          <span class="sb-foot-title">{% translate 'Listing freshness' %}</span>
+          <span class="sb-foot-note">{% translate 'Confirmed in last 90 days' %}</span>
+        </span>
+        <span class="sb-foot-n">{{ back_office.confirmed }}/{{ back_office.published }}</span>
+      </span>
+      <span class="sb-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+            aria-valuenow="{{ back_office.confirmed_pct }}"
+            aria-label="{% blocktranslate with pct=back_office.confirmed_pct %}{{ pct }}% of published listings confirmed in the last 90 days{% endblocktranslate %}">
+        <span style="width: {{ back_office.confirmed_pct }}%"></span>
+      </span>
+    </a>
+  {% endif %}
+</nav>
