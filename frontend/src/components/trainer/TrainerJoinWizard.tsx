@@ -16,13 +16,15 @@ import {
   LockKeyhole,
   MapPin,
   Pencil,
+  RefreshCw,
   ShieldCheck,
   Smartphone,
 } from "lucide-react";
 import Link from "next/link";
-import {useEffect, useRef, useState, type RefObject} from "react";
+import {useEffect, useMemo, useRef, useState, type RefObject} from "react";
 import {useForm, type FieldPath} from "react-hook-form";
 
+import {LocationPickerField} from "@/components/trainer/LocationPickerField";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
 import {Button} from "@/components/ui/button";
@@ -54,13 +56,22 @@ import {
   draftFromTrainerProfile,
   EMPTY_TRAINER_DRAFT,
   trainerDraftForStorage,
-  trainerDraftSchema,
+  trainerDraftSchemaFor,
   trainerProfilePayload,
   type TrainerDraftForm,
 } from "@/lib/trainer-profile";
 import type {Trade, TrainerArea, TrainerProfile, TrainerSession} from "@/lib/types";
 
 const DRAFT_KEY = "skillshub.trainer.public-profile-draft";
+
+// Long enough that a slow SMS has a chance to land before the button tempts
+// another one, short enough not to feel like a punishment.
+const RESEND_COOLDOWN_SECONDS = 45;
+
+function countdown(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 type Step = "phone" | "code" | "workshop" | "course" | "review" | "submitted";
 type LocationState = "idle" | "loading" | "success" | "error";
@@ -311,6 +322,8 @@ export function TrainerJoinWizard() {
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
+  const [resendIn, setResendIn] = useState(0);
+  const [resent, setResent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -319,8 +332,16 @@ export function TrainerJoinWizard() {
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const previousStepRef = useRef<Step>("phone");
 
+  // Rebuilt when the loaded profile changes, so the intake rule knows which
+  // date is already stored and therefore still allowed.
+  const storedIntakeDate = profile?.programme?.intake?.start_date ?? null;
+  const resolver = useMemo(
+    () => zodResolver(trainerDraftSchemaFor(storedIntakeDate)),
+    [storedIntakeDate],
+  );
+
   const form = useForm<TrainerDraftForm>({
-    resolver: zodResolver(trainerDraftSchema),
+    resolver,
     defaultValues: EMPTY_TRAINER_DRAFT,
   });
   const {
@@ -390,6 +411,19 @@ export function TrainerJoinWizard() {
     return () => subscription.unsubscribe();
   }, [session, watch]);
 
+  // One second tick for the code step. It drives both the time left on the
+  // current code and the cooldown before another can be sent — a static "expires
+  // in 10 minutes" that never moved was still claiming ten minutes nine minutes
+  // later, which is worse than showing nothing.
+  useEffect(() => {
+    if (step !== "code") return;
+    const timer = window.setInterval(() => {
+      setExpiresIn((seconds) => (seconds === null ? null : Math.max(0, seconds - 1)));
+      setResendIn((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [step]);
+
   useEffect(() => {
     if (loading || previousStepRef.current === step) return;
     previousStepRef.current = step;
@@ -418,9 +452,40 @@ export function TrainerJoinWizard() {
       setPhone(normalized);
       setChallengeId(result.challenge_id);
       setExpiresIn(result.expires_in_seconds);
+      setResendIn(RESEND_COOLDOWN_SECONDS);
+      setResent(false);
       setStep("code");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not send the code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Send a second code to the same number.
+   *
+   * Without this the only way out of an SMS that never arrived was "Change
+   * phone number" and retyping the same digits — which works, but reads as a
+   * dead end at the exact moment someone is deciding whether this is worth the
+   * trouble. Undelivered messages are ordinary on Ghanaian networks.
+   *
+   * The new challenge replaces the old one; the server issues a fresh id and
+   * the previous code stops being the one it will accept.
+   */
+  async function resendCode() {
+    if (resendIn > 0 || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await requestTrainerCode(phone);
+      setChallengeId(result.challenge_id);
+      setExpiresIn(result.expires_in_seconds);
+      setResendIn(RESEND_COOLDOWN_SECONDS);
+      setResent(true);
+      setCode("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not send another code.");
     } finally {
       setBusy(false);
     }
@@ -468,25 +533,32 @@ export function TrainerJoinWizard() {
     if (valid) setStep(next);
   }
 
+  /** Single writer for the pin: the map, the GPS button and the inputs agree. */
+  function setCoordinates({lat, lng}: {lat: number; lng: number}) {
+    setValue("latitude", lat.toFixed(6), {shouldValidate: true, shouldDirty: true});
+    setValue("longitude", lng.toFixed(6), {shouldValidate: true, shouldDirty: true});
+  }
+
   function useCurrentLocation() {
     setLocationMessage(null);
     if (!("geolocation" in navigator)) {
       setLocationState("error");
-      setLocationMessage("This browser cannot read your location. Enter the coordinates below.");
+      setLocationMessage("This browser cannot read your location. Drag the pin instead.");
       return;
     }
     setLocationState("loading");
     setLocationMessage("Finding the workshop location…");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setValue("latitude", position.coords.latitude.toFixed(6), {shouldValidate: true});
-        setValue("longitude", position.coords.longitude.toFixed(6), {shouldValidate: true});
+        setCoordinates({lat: position.coords.latitude, lng: position.coords.longitude});
         setLocationState("success");
-        setLocationMessage("Workshop location saved.");
+        // GPS indoors is routinely out by the width of a street, so this is
+        // where the pin starts, not where it ends.
+        setLocationMessage("Location found. Drag the pin onto the workshop entrance.");
       },
       () => {
         setLocationState("error");
-        setLocationMessage("Location was not available. Enter the coordinates below.");
+        setLocationMessage("Location was not available. Tap the map to place the pin instead.");
       },
       {enableHighAccuracy: true, timeout: 15_000},
     );
@@ -648,19 +720,44 @@ export function TrainerJoinWizard() {
               />
               <p id="trainer-code-help" className="text-center text-xs leading-5 text-[var(--color-muted-foreground)]">
                 Sent to {phone}
-                {expiresIn ? ` · expires in ${Math.ceil(expiresIn / 60)} minutes` : ""}
+                {expiresIn === null ? null : expiresIn > 0 ? (
+                  <>
+                    {" · expires in "}
+                    <span className="tabular-nums">{countdown(expiresIn)}</span>
+                  </>
+                ) : (
+                  " · this code has expired"
+                )}
+              </p>
+              <p aria-live="polite" className="sr-only">
+                {resent ? "A new code has been sent." : ""}
               </p>
             </div>
             {error ? <FormError id="trainer-code-error" message={error} /> : null}
           </CardContent>
           <CardFooter className="flex-col gap-2 sm:px-6">
-            <Button type="submit" variant="brand" disabled={busy} className="w-full">
+            <Button
+              type="submit"
+              variant="brand"
+              disabled={busy || expiresIn === 0}
+              className="w-full"
+            >
               {busy ? (
                 <Loader2 aria-hidden="true" className="animate-spin" />
               ) : (
                 <ShieldCheck aria-hidden="true" />
               )}
               {busy ? "Checking…" : "Verify and continue"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resendCode}
+              disabled={busy || resendIn > 0}
+              className="w-full"
+            >
+              <RefreshCw aria-hidden="true" />
+              {resendIn > 0 ? `Send again in ${countdown(resendIn)}` : "Send another code"}
             </Button>
             <Button
               type="button"
@@ -682,6 +779,12 @@ export function TrainerJoinWizard() {
 
   const values = getValues();
   const selectedArea = areas.find((area) => String(area.id) === values.area_id);
+  // Somewhere sensible to open the map before a pin exists: the middle of the
+  // area they picked beats the middle of Ghana.
+  const areaCentroid =
+    selectedArea && selectedArea.centroid_lat !== null && selectedArea.centroid_lng !== null
+      ? {lat: selectedArea.centroid_lat, lng: selectedArea.centroid_lng}
+      : null;
   const selectedTrade = trades.find((trade) => String(trade.id) === values.trade_id);
   const instalmentsAllowed = watch("instalments_allowed");
   const intakeStartDate = watch("intake_start_date");
@@ -827,8 +930,23 @@ export function TrainerJoinWizard() {
                   <RequiredCue />
                 </legend>
                 <p id="workshop-location-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  Stand at the workshop and use your phone location. Staff will confirm it before publication.
+                  Stand at the workshop and use your phone location, then drag the pin onto the
+                  entrance. Staff will confirm it before publication.
                 </p>
+
+                <div className="mt-4">
+                  <LocationPickerField
+                    latitude={watch("latitude")}
+                    longitude={watch("longitude")}
+                    areaCentroid={areaCentroid}
+                    onChange={setCoordinates}
+                  />
+                  <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+                    {watch("latitude") && watch("longitude")
+                      ? "Drag the pin, or tap the map, to correct the position."
+                      : "Tap the map to place the pin, or use your phone location below."}
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -867,7 +985,7 @@ export function TrainerJoinWizard() {
                 <div className="mt-4">
                   <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted-foreground)]">
                     <MapPin aria-hidden="true" className="size-3.5" />
-                    Coordinates are filled automatically when location succeeds
+                    These follow the pin. Type them only if you already know them.
                   </p>
                   <div className="mt-3 grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">

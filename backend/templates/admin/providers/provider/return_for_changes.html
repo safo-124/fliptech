@@ -1,0 +1,92 @@
+{% extends "admin/base_site.html" %}
+{% load i18n l10n admin_urls %}
+
+{% comment %}
+  Confirmation page for the "return for changes" action.
+
+  Modelled on Django's delete_selected_confirmation: the action posts back to
+  the changelist with the same selection, so every selected id is re-sent as a
+  hidden field. Django has already resolved a select-across into the queryset by
+  the time the action runs, so re-posting its ids preserves the whole selection
+  rather than only the visible page.
+{% endcomment %}
+
+{% block bodyclass %}{{ block.super }} return-changes-page{% endblock %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; {% translate 'Return for changes' %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p class="help" style="margin-bottom: 16px">
+      {% blocktranslate count counter=returnable|length %}
+        One submission will be returned to the workshop owner who sent it.
+      {% plural %}
+        {{ counter }} submissions will be returned to the workshop owners who sent them.
+      {% endblocktranslate %}
+      {% translate 'They can edit the profile again and resubmit it for review.' %}
+    </p>
+
+    {% if queryset|length != returnable|length %}
+      <ul class="messagelist">
+        <li class="warning">
+          {% blocktranslate with total=queryset|length ok=returnable|length %}
+            {{ total }} selected, but only {{ ok }} are awaiting approval. The rest will be
+            left untouched.
+          {% endblocktranslate %}
+        </li>
+      </ul>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      <fieldset class="module aligned">
+        <h2>{% translate 'Reason for returning' %}</h2>
+        {% for field in form %}
+          <div class="form-row{% if field.errors %} errors{% endif %}">
+            {% if field.errors %}{{ field.errors }}{% endif %}
+            <div>
+              {{ field.label_tag }}
+              {{ field }}
+              {% if field.help_text %}
+                <div class="help">{{ field.help_text }}</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </fieldset>
+
+      <div class="module" style="margin-top: 16px">
+        <h2>{% translate 'Submissions being returned' %}</h2>
+        <ul class="actionlist" style="padding: 12px 24px">
+          {% for provider in queryset %}
+            <li>
+              <a href="{% url 'admin:providers_provider_change' provider.pk %}">{{ provider.name }}</a>
+              <span class="mini"> — {{ provider.get_status_display }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      {% for obj in queryset %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk|unlocalize }}">
+      {% endfor %}
+      <input type="hidden" name="action" value="return_for_changes">
+      <input type="hidden" name="apply" value="1">
+
+      <div class="submit-row" style="margin-top: 16px">
+        <input type="submit" class="default" value="{% translate 'Return for changes' %}">
+        <a href="{% url opts|admin_urlname:'changelist' %}" class="button cancel-link">
+          {% translate 'Cancel' %}
+        </a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

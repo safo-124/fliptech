@@ -8,6 +8,7 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.gis.geos import Point
 from django.contrib.sessions.models import Session
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.test import Client, RequestFactory
 from django.urls import reverse
@@ -74,7 +75,6 @@ def profile_payload(catalogue, **overrides):
             "intake": {
                 "start_date": (timezone.localdate() + timedelta(days=30)).isoformat(),
                 "places_offered": 15,
-                "places_remaining": 12,
                 "is_open": True,
             },
         },
@@ -421,7 +421,8 @@ def test_profile_put_atomically_creates_owned_draft_programme_and_intake(
     assert provider.slug == "safo-welding-academy"
     assert ProviderMembership.objects.get(trainer=account).provider == provider
     assert programme.title == "Practical arc welding"
-    assert intake.places_remaining == 12
+    # Seeded from the offer, because a new intake has had no enrolments yet.
+    assert intake.places_remaining == 15
     assert body["editable"] is True
     assert body["programme"]["fee"] == "1200.00"
     assert provider.history.latest().history_user == account.user
@@ -447,6 +448,9 @@ def test_profile_rejects_mass_assignment_and_rolls_back_nested_errors(
     assert Provider.objects.count() == 0
     assert Programme.objects.count() == 0
 
+    # places_remaining is the counter that moves as trainees enrol, so it is
+    # not a field the profile form owns. Posting it is refused outright rather
+    # than quietly ignored.
     invalid = profile_payload(catalogue)
     invalid["programme"]["intake"]["places_remaining"] = 20
     response = csrf_client.put(
@@ -456,6 +460,7 @@ def test_profile_rejects_mass_assignment_and_rolls_back_nested_errors(
         **authenticated_csrf(csrf_client),
     )
     assert response.status_code == 400
+    assert response.json()["programme"]["intake"]["places_remaining"]
     assert Provider.objects.count() == 0
     assert Programme.objects.count() == 0
 
@@ -774,16 +779,260 @@ def test_admin_return_for_changes_is_audited_and_awaiting_queue_still_matches(
     queued = client.get(changelist, {"queue": "awaiting_approval"})
     assert list(queued.context["cl"].result_list) == [provider]
 
-    client.post(
+    # The action stops to collect a reason rather than returning the submission
+    # straight away, so this first post is the confirmation page.
+    confirm = client.post(
         changelist,
         {"action": "return_for_changes", "_selected_action": [provider.pk]},
     )
+    assert confirm.status_code == 200
+    assert list(confirm.context["queryset"]) == [provider]
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+
+    # A note too short to act on is refused, so nobody can click through the
+    # page and send the trainer away with nothing to change.
+    terse = client.post(
+        changelist,
+        {
+            "action": "return_for_changes",
+            "_selected_action": [provider.pk],
+            "apply": "1",
+            "note": "no",
+        },
+    )
+    assert terse.status_code == 200
+    assert terse.context["form"].errors["note"]
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+
+    note = "The fee reads GH¢120. If the course costs GH¢1,200 please correct it."
+    client.post(
+        changelist,
+        {
+            "action": "return_for_changes",
+            "_selected_action": [provider.pk],
+            "apply": "1",
+            "note": note,
+        },
+    )
     provider.refresh_from_db()
     assert provider.status == Provider.Status.CHANGES_REQUESTED
-    assert provider.review_note
+    # The reviewer's own words reach the trainer, not a fixed sentence.
+    assert provider.review_note == note
     returned_history = provider.history.filter(
         status=Provider.Status.CHANGES_REQUESTED,
         history_type="~",
     ).latest()
     assert returned_history.history_user == lead
     assert returned_history.history_change_reason == "Changes requested during review"
+
+
+@pytest.mark.django_db
+def test_editing_a_profile_does_not_reset_places_already_taken(csrf_client, monkeypatch, catalogue):
+    """A half-full course must not read as empty after an unrelated edit.
+
+    places_remaining is an operational counter, not a profile field, and the
+    trainer's form has no idea what it should be. Every save used to post the
+    number offered straight back into it.
+    """
+    login_trainer(csrf_client, monkeypatch)
+    url = reverse("trainer-profile")
+    headers = authenticated_csrf(csrf_client)
+
+    csrf_client.put(url, profile_payload(catalogue), content_type="application/json", **headers)
+    intake = Intake.objects.get()
+    assert intake.places_remaining == 15
+
+    # Four trainees enrol.
+    Intake.objects.filter(pk=intake.pk).update(places_remaining=11)
+
+    renamed = profile_payload(catalogue, name="Safo Welding Institute")
+    response = csrf_client.put(url, renamed, content_type="application/json", **headers)
+    assert response.status_code == 200, response.content
+
+    intake.refresh_from_db()
+    assert intake.places_remaining == 11
+
+
+@pytest.mark.django_db
+def test_lowering_the_offer_clamps_rather_than_breaking_the_check_constraint(
+    csrf_client, monkeypatch, catalogue
+):
+    login_trainer(csrf_client, monkeypatch)
+    url = reverse("trainer-profile")
+    headers = authenticated_csrf(csrf_client)
+
+    csrf_client.put(url, profile_payload(catalogue), content_type="application/json", **headers)
+    intake = Intake.objects.get()
+
+    smaller = profile_payload(catalogue)
+    smaller["programme"]["intake"]["places_offered"] = 8
+    response = csrf_client.put(url, smaller, content_type="application/json", **headers)
+    assert response.status_code == 200, response.content
+
+    intake.refresh_from_db()
+    assert intake.places_offered == 8
+    assert intake.places_remaining == 8
+
+
+@pytest.mark.django_db
+def test_a_returned_profile_can_be_saved_without_touching_a_stale_intake_date(
+    csrf_client, monkeypatch, catalogue, django_user_model
+):
+    """The intake date that expired during the review must not block the fix.
+
+    A trainer submits in March with an April intake and is asked for changes in
+    May. Rejecting any non-future date would make every save fail on a field
+    they were never asked to revisit, with no way to work out why.
+    """
+    login_trainer(csrf_client, monkeypatch)
+    url = reverse("trainer-profile")
+    headers = authenticated_csrf(csrf_client)
+
+    csrf_client.put(url, profile_payload(catalogue), content_type="application/json", **headers)
+    provider = Provider.objects.get()
+    csrf_client.post(reverse("trainer-profile-submit"), content_type="application/json", **headers)
+
+    lead = django_user_model.objects.create_user("lead-stale", is_staff=True)
+    request_provider_changes(provider, actor=lead, note="Please correct the fee before we publish.")
+
+    # The intake date slips into the past while the submission sits in review.
+    stale = timezone.localdate() - timedelta(days=3)
+    Intake.objects.update(start_date=stale)
+
+    unchanged = profile_payload(catalogue, name="Safo Welding Academy")
+    unchanged["programme"]["intake"]["start_date"] = stale.isoformat()
+    response = csrf_client.put(url, unchanged, content_type="application/json", **headers)
+    assert response.status_code == 200, response.content
+
+    # A different past date is still refused: the exemption is for the date
+    # already stored, not for past dates in general.
+    moved = profile_payload(catalogue)
+    moved["programme"]["intake"]["start_date"] = (
+        timezone.localdate() - timedelta(days=1)
+    ).isoformat()
+    refused = csrf_client.put(url, moved, content_type="application/json", **headers)
+    assert refused.status_code == 400
+    assert refused.json()["programme"]["intake"]["start_date"]
+
+
+@pytest.mark.django_db
+def test_suspending_a_trainer_account_locks_out_a_live_session(csrf_client, monkeypatch, catalogue):
+    """Suspension has to bite on the next request, not the next login.
+
+    The flag is read through the IsActiveTrainer permission on every trainer
+    request, so an open browser tab stops working immediately and no session
+    flush is needed. Until the admin existed nothing could set it at all.
+    """
+    login_trainer(csrf_client, monkeypatch)
+    url = reverse("trainer-profile")
+    headers = authenticated_csrf(csrf_client)
+
+    csrf_client.put(url, profile_payload(catalogue), content_type="application/json", **headers)
+    assert csrf_client.get(url).status_code == 200
+
+    TrainerAccount.objects.update(is_active=False)
+
+    assert csrf_client.get(url).status_code == 403
+    blocked = csrf_client.put(
+        url, profile_payload(catalogue), content_type="application/json", **headers
+    )
+    assert blocked.status_code == 403
+    # The session endpoint reports the account as signed out rather than 500ing.
+    assert csrf_client.get(reverse("trainer-session-me")).json()["authenticated"] is False
+
+
+def _lose_the_slug_race(monkeypatch, *, skip_validation):
+    """Make the first save attempt collide, as a concurrent trainer would.
+
+    `skip_validation` picks which of the two real races is simulated. Django's
+    full_clean runs validate_unique, so a row committed before that SELECT
+    surfaces as a ValidationError; one committed in the gap between it and the
+    INSERT reaches the database and surfaces as an IntegrityError. Both happen,
+    and catching only the second left the usual case broken.
+    """
+    from providers import trainer_profiles
+
+    real_unique_slug = trainer_profiles._unique_slug
+    attempts = {"n": 0}
+
+    def racing_slug(**kwargs):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            return "accra-welding-works"
+        return real_unique_slug(**kwargs)
+
+    monkeypatch.setattr(trainer_profiles, "_unique_slug", racing_slug)
+
+    if skip_validation:
+        real_validate_unique = Provider.validate_unique
+        checks = {"n": 0}
+
+        def blind_validate_unique(self, exclude=None):
+            checks["n"] += 1
+            if checks["n"] == 1:
+                return  # The other row is not committed yet, so this sees nothing.
+            return real_validate_unique(self, exclude=exclude)
+
+        monkeypatch.setattr(Provider, "validate_unique", blind_validate_unique)
+
+    return attempts
+
+
+@pytest.mark.parametrize("skip_validation", [False, True], ids=["at_validation", "at_insert"])
+@pytest.mark.django_db
+def test_two_workshops_with_one_name_in_one_area_both_get_a_slug(
+    catalogue, monkeypatch, skip_validation
+):
+    """The slug is picked with a SELECT, so the winner is decided by the insert.
+
+    Two owners registering "Accra Welding Works" in the same area at the same
+    moment can both be told the same slug is free. Without the retry the loser
+    got a 500 on their first save.
+    """
+    from providers import trainer_profiles
+
+    first = Provider.objects.create(
+        name="Accra Welding Works",
+        slug="accra-welding-works",
+        area=catalogue["area"],
+        location=ACCRA,
+        contact_phone=PHONE,
+    )
+    attempts = _lose_the_slug_race(monkeypatch, skip_validation=skip_validation)
+
+    second = Provider(
+        name="Accra Welding Works",
+        area=catalogue["area"],
+        location=ACCRA,
+        contact_phone=OTHER_PHONE,
+    )
+    with transaction.atomic():
+        trainer_profiles._save_with_unique_slug(
+            second, area=catalogue["area"], actor=None, reason="Trainer created profile draft"
+        )
+
+    second.refresh_from_db()
+    assert attempts["n"] == 2
+    assert second.pk != first.pk
+    assert second.slug != first.slug
+
+
+@pytest.mark.django_db
+def test_a_validation_error_that_is_not_a_slug_clash_is_not_retried_away(catalogue):
+    """Retrying must not swallow a real problem with the record."""
+    from providers import trainer_profiles
+
+    provider = Provider(
+        name="x" * 300,  # Longer than the column allows.
+        area=catalogue["area"],
+        location=ACCRA,
+        contact_phone=PHONE,
+    )
+    with pytest.raises(DjangoValidationError) as raised, transaction.atomic():
+        trainer_profiles._save_with_unique_slug(
+            provider, area=catalogue["area"], actor=None, reason="Trainer created profile draft"
+        )
+    assert "name" in raised.value.error_dict
+    assert Provider.objects.count() == 0

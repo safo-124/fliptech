@@ -3,7 +3,8 @@
 from uuid import uuid4
 
 from django.contrib.gis.geos import Point
-from django.db import transaction
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from catalog.models import Intake, Programme
@@ -62,6 +63,75 @@ def _history_save(instance, *, actor, reason, fields=None):
         instance.save(update_fields=[*fields, "updated_at"])
 
 
+SLUG_ATTEMPTS = 4
+
+
+def _is_slug_collision(error):
+    """True for the unique_provider_slug_per_area failure, not other errors.
+
+    Anything else — a field too long, a broken constraint — is a real problem
+    and must not be retried into silence.
+    """
+    for message in getattr(error, "error_dict", {}).get(NON_FIELD_ERRORS, []):
+        params = message.params or {}
+        if message.code == "unique_together" and "slug" in params.get("unique_check", ()):
+            return True
+    return False
+
+
+def _save_with_unique_slug(provider, *, area, actor, reason):
+    """Save, re-deriving the slug if another trainer took the one we picked.
+
+    _unique_slug finds a free slug with a SELECT, so two owners registering
+    "Accra Welding Works" in the same area at the same moment can both be told
+    the same slug is free. Whoever loses used to get a 500 on the most
+    important request of their day.
+
+    The collision arrives as one of two different exceptions depending on how
+    close the race was, and both have to be caught:
+
+      ValidationError  the other row was committed before full_clean ran, so
+                       validate_unique's own SELECT sees it. This is the usual
+                       case, and it is why catching IntegrityError alone was
+                       not enough.
+      IntegrityError   the other row landed in the gap between that SELECT and
+                       our INSERT, leaving the database to reject it.
+
+    Each attempt needs its own savepoint. An IntegrityError leaves the
+    enclosing atomic block unusable, so a retry without one fails on the next
+    query with a confusing TransactionManagementError instead.
+    """
+    for attempt in range(SLUG_ATTEMPTS):
+        provider.slug = _unique_slug(area=area, name=provider.name, provider_id=provider.pk)
+        try:
+            with transaction.atomic():
+                provider.full_clean()
+                _history_save(provider, actor=actor, reason=reason)
+            return provider
+        except ValidationError as error:
+            if not _is_slug_collision(error) or attempt == SLUG_ATTEMPTS - 1:
+                raise
+        except IntegrityError:
+            if attempt == SLUG_ATTEMPTS - 1:
+                raise
+    return provider
+
+
+def current_intake_start_date(provider):
+    """The intake date already stored, so re-saving it unchanged is allowed.
+
+    Returns None when there is no single unambiguous intake, which makes the
+    serializer fall back to requiring a future date.
+    """
+    if provider is None:
+        return None
+    programmes = list(provider.programmes.all())
+    if len(programmes) != 1:
+        return None
+    intakes = list(programmes[0].intakes.all())
+    return intakes[0].start_date if len(intakes) == 1 else None
+
+
 @transaction.atomic
 def save_owned_profile(*, account, actor, validated_data):
     # Serialise profile creation for one trainer so two mobile retries cannot
@@ -96,13 +166,13 @@ def save_owned_profile(*, account, actor, validated_data):
     }
 
     if provider is None:
-        provider = Provider(
-            **provider_values,
-            slug=_unique_slug(area=area, name=provider_values["name"]),
-            status=Provider.Status.DRAFT,
+        provider = Provider(**provider_values, status=Provider.Status.DRAFT)
+        _save_with_unique_slug(
+            provider,
+            area=area,
+            actor=actor,
+            reason="Trainer created profile draft",
         )
-        provider.full_clean()
-        _history_save(provider, actor=actor, reason="Trainer created profile draft")
         ProviderMembership.objects.create(
             trainer=account,
             provider=provider,
@@ -111,13 +181,12 @@ def save_owned_profile(*, account, actor, validated_data):
     else:
         for field, value in provider_values.items():
             setattr(provider, field, value)
-        provider.slug = _unique_slug(
+        _save_with_unique_slug(
+            provider,
             area=area,
-            name=provider.name,
-            provider_id=provider.pk,
+            actor=actor,
+            reason="Trainer updated profile draft",
         )
-        provider.full_clean()
-        _history_save(provider, actor=actor, reason="Trainer updated profile draft")
 
     programmes = list(Programme.objects.select_for_update().filter(provider=provider)[:2])
     if len(programmes) > 1:
@@ -150,10 +219,19 @@ def save_owned_profile(*, account, actor, validated_data):
         intake = intakes[0]
         for field, value in intake_data.items():
             setattr(intake, field, value)
+        # places_remaining is not a form field: it is the counter that moves as
+        # trainees enrol, and the trainer's form has no idea what it should be.
+        # Only clamp it, so lowering the offer cannot leave more places
+        # remaining than are offered — which the check constraint rejects.
+        if intake.places_offered is not None and intake.places_remaining is not None:
+            intake.places_remaining = min(intake.places_remaining, intake.places_offered)
         intake.full_clean()
         intake.save()
     else:
         intake = Intake(programme=programme, **intake_data)
+        # A brand new intake has had no enrolments, so every place offered is
+        # still free. This is the only moment the counter is seeded.
+        intake.places_remaining = intake.places_offered
         intake.full_clean()
         intake.save()
 

@@ -28,24 +28,29 @@ class TrainerOTPVerifySerializer(RejectUnknownFieldsMixin, serializers.Serialize
 
 
 class TrainerIntakeInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    """The intake a trainer offers.
+
+    `places_remaining` is deliberately not accepted. It is an operational
+    counter that moves as trainees enrol, not a profile field — letting the
+    form post it meant every save silently reset it to the number offered.
+    It is seeded from `places_offered` when the intake is created and left
+    alone afterwards. See save_owned_profile.
+    """
+
     start_date = serializers.DateField()
     places_offered = serializers.IntegerField(min_value=0, required=False, allow_null=True)
-    places_remaining = serializers.IntegerField(min_value=0, required=False, allow_null=True)
     is_open = serializers.BooleanField(required=False, default=True)
 
     def validate_start_date(self, value):
-        if value <= timezone.localdate():
-            raise serializers.ValidationError("Choose a future intake date.")
-        return value
-
-    def validate(self, attrs):
-        offered = attrs.get("places_offered")
-        remaining = attrs.get("places_remaining")
-        if offered is not None and remaining is not None and remaining > offered:
-            raise serializers.ValidationError(
-                {"places_remaining": "Places remaining cannot exceed places offered."}
-            )
-        return attrs
+        if value > timezone.localdate():
+            return value
+        # A date already stored on this profile is accepted unchanged. A trainer
+        # asked for changes months after submitting would otherwise be blocked
+        # by an intake date that expired while they were waiting on the review,
+        # on a step they were not asked to revisit.
+        if value == self.context.get("current_intake_start_date"):
+            return value
+        raise serializers.ValidationError("Choose a future intake date.")
 
 
 class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

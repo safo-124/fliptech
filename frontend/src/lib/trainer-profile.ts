@@ -69,6 +69,38 @@ export const trainerDraftSchema = z
 
 export type TrainerDraftForm = z.infer<typeof trainerDraftSchema>;
 
+/** Today in the browser's own timezone, as the YYYY-MM-DD the input produces. */
+export function todayIsoDate(now: Date = new Date()): string {
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+/**
+ * The form schema, plus the intake rule the API enforces.
+ *
+ * The server rejects an intake date that is not in the future, *unless* it is
+ * the date already stored on this profile. That exemption matters: a trainer
+ * returned for changes months after submitting would otherwise be unable to
+ * save anything at all, blocked by a date that expired while they waited on
+ * the review, on a step nobody asked them to revisit.
+ *
+ * Checking it here as well means they see it on the course step, beside the
+ * field, instead of discovering it after filling in the whole wizard and
+ * pressing submit. ISO dates compare correctly as strings.
+ */
+export function trainerDraftSchemaFor(existingIntakeStartDate?: string | null) {
+  return trainerDraftSchema.superRefine((values, context) => {
+    if (!values.intake_start_date) return;
+    if (values.intake_start_date === existingIntakeStartDate) return;
+    if (values.intake_start_date > todayIsoDate()) return;
+    context.addIssue({
+      code: "custom",
+      path: ["intake_start_date"],
+      message: "Choose a start date in the future",
+    });
+  });
+}
+
 export const EMPTY_TRAINER_DRAFT: TrainerDraftForm = {
   name: "",
   owner_name: "",
@@ -114,7 +146,6 @@ function optionalNumber(value: string): number | null {
 
 export function trainerProfilePayload(raw: TrainerDraftForm) {
   const values = trainerDraftSchema.parse(raw);
-  const placesOffered = optionalNumber(values.places_offered);
 
   return {
     name: values.name,
@@ -134,11 +165,14 @@ export function trainerProfilePayload(raw: TrainerDraftForm) {
       hours_per_week: optionalNumber(values.hours_per_week),
       weekly_schedule: values.weekly_schedule,
       capacity: optionalNumber(values.capacity),
+      // places_remaining is not sent. It is the counter that moves as trainees
+      // enrol; the API seeds it from the offer when the intake is created and
+      // owns it from then on. Posting it meant every edit silently reset a
+      // half-full course back to empty.
       intake: values.intake_start_date
         ? {
             start_date: values.intake_start_date,
-            places_offered: placesOffered,
-            places_remaining: placesOffered,
+            places_offered: optionalNumber(values.places_offered),
             is_open: true,
           }
         : null,

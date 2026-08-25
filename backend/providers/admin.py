@@ -13,10 +13,13 @@ shape this module:
 
 from datetime import timedelta
 
+from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.gis.admin import GISModelAdmin
 from django.db.models import Prefetch
-from django.urls import path
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
 from import_export.admin import ExportActionMixin
@@ -34,8 +37,10 @@ from .models import (
     ListingConfirmation,
     Provider,
     ProviderEvidence,
+    ProviderMembership,
     ProviderPhoto,
     Suspension,
+    TrainerAccount,
     Verification,
 )
 
@@ -92,6 +97,37 @@ class SubscriptionInline(admin.TabularInline):
     classes = ("collapse",)
 
 
+class ProviderMembershipInline(admin.TabularInline):
+    """Who submitted this listing, on the record the lead is reviewing.
+
+    Without it the back office cannot tell a listing a field officer drafted
+    from one a workshop owner submitted through the trainer portal, which is
+    the first thing you want to know when deciding whether to trust it.
+
+    Ownership is never edited here. It is created by the trainer's first save
+    and is structural — see the unique constraints on ProviderMembership.
+    """
+
+    model = ProviderMembership
+    extra = 0
+    max_num = 0
+    can_delete = False
+    fields = ("trainer_link", "role", "created_at")
+    readonly_fields = fields
+    verbose_name_plural = "Submitted by (trainer portal)"
+
+    @admin.display(description="Trainer")
+    def trainer_link(self, obj):
+        return format_html(
+            '<a href="{}">{}</a>',
+            reverse("admin:providers_traineraccount_change", args=[obj.trainer_id]),
+            obj.trainer.phone,
+        )
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 class WorkQueueFilter(admin.SimpleListFilter):
     """Turns each sidebar badge into a changelist you can actually work through.
 
@@ -110,6 +146,38 @@ class WorkQueueFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         queue = queues.QUEUES_BY_KEY.get(self.value())
         return queue.narrow(queryset) if queue else queryset
+
+
+class ReturnForChangesForm(forms.Form):
+    """The reason a submission is going back, in the reviewer's own words."""
+
+    note = forms.CharField(
+        label="What does the trainer need to change?",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 5,
+                "placeholder": (
+                    "Be specific enough to act on. For example: the fee is listed as "
+                    "GH¢120 — if the course costs GH¢1,200 please correct it, and add "
+                    "the landmark to the address so an officer can find the workshop."
+                ),
+            }
+        ),
+        max_length=1000,
+        help_text=(
+            "This is the only thing the trainer sees. It replaces any previous note, "
+            "and it is recorded against the listing's history with your name."
+        ),
+    )
+
+    def clean_note(self):
+        note = self.cleaned_data["note"].strip()
+        if len(note) < 15:
+            raise forms.ValidationError(
+                "Write a sentence the trainer can act on — a few words will send them "
+                "back with nothing to change."
+            )
+        return note
 
 
 @admin.register(Provider)
@@ -147,6 +215,7 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
     # the change form, which uploads each one separately so a dropped
     # connection cannot lose the whole visit. See admin_upload.py.
     inlines = [
+        ProviderMembershipInline,
         VerificationInline,
         GovernmentStatusInline,
         ProviderEvidenceInline,
@@ -392,31 +461,70 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
 
     @admin.action(description="Return selected for trainer changes")
     def return_for_changes(self, request, queryset):
+        """Send a submission back with a reason the trainer can act on.
+
+        This is the one step in the review loop that has to carry a sentence
+        written by a person. The note is the only thing the trainer sees, and a
+        fixed "please update your details" tells them nothing — they resubmit
+        the same profile and the loop never converges.
+
+        So the action stops on an intermediate page to collect it, the way
+        Django's own delete_selected confirms first. Django resolves a
+        select-across into the full queryset before calling an action, so
+        re-posting its ids on the confirm form preserves the whole selection.
+        """
         if not request.user.has_perm("providers.publish_provider"):
             self.message_user(
                 request,
                 "Returning a submission needs the operations lead permission.",
                 level=messages.ERROR,
             )
-            return
+            return None
 
-        updated = 0
-        skipped = 0
-        note = "Please update the profile details and submit it for review again."
-        for provider in queryset:
-            try:
-                request_provider_changes(provider, actor=request.user, note=note)
-            except ProviderTransitionError:
-                skipped += 1
-                continue
-            updated += 1
-        self.message_user(request, f"{updated} provider submission(s) returned for changes.")
-        if skipped:
-            self.message_user(
-                request,
-                f"{skipped} skipped: only listings pending approval can be returned.",
-                level=messages.WARNING,
-            )
+        if "apply" in request.POST:
+            form = ReturnForChangesForm(request.POST)
+            if form.is_valid():
+                note = form.cleaned_data["note"]
+                updated = 0
+                skipped = 0
+                for provider in queryset:
+                    try:
+                        request_provider_changes(provider, actor=request.user, note=note)
+                    except ProviderTransitionError:
+                        skipped += 1
+                        continue
+                    updated += 1
+                self.message_user(
+                    request, f"{updated} provider submission(s) returned for changes."
+                )
+                if skipped:
+                    self.message_user(
+                        request,
+                        f"{skipped} skipped: only listings pending approval can be returned.",
+                        level=messages.WARNING,
+                    )
+                return None
+        else:
+            form = ReturnForChangesForm()
+
+        return TemplateResponse(
+            request,
+            "admin/providers/provider/return_for_changes.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Return submissions for changes",
+                "opts": self.model._meta,
+                "queryset": queryset,
+                "returnable": [
+                    provider
+                    for provider in queryset
+                    if provider.status == Provider.Status.PENDING_APPROVAL
+                ],
+                "form": form,
+                "media": self.media + form.media,
+                "action_checkbox_name": ACTION_CHECKBOX_NAME,
+            },
+        )
 
 
 @admin.register(Verification)
@@ -514,3 +622,91 @@ class ProviderEvidenceAdmin(admin.ModelAdmin):
     search_fields = ("provider__name",)
     autocomplete_fields = ("provider", "verification")
     readonly_fields = ("exif_stripped",)
+
+
+@admin.register(TrainerAccount)
+class TrainerAccountAdmin(admin.ModelAdmin):
+    """Workshop owners who submit their own listing.
+
+    This exists so the disable path is reachable. `TrainerAccount.is_active` is
+    checked on every trainer request and on every login, but until there was a
+    screen to turn it off, the whole fail-closed branch in trainer_auth was
+    unreachable in production — the only thing that could set the flag was a
+    test.
+
+    Nothing here is editable by hand. The identity is created by phone
+    verification and the phone is the account, so renaming or repointing one
+    would silently hand someone else's listing to a different number.
+    """
+
+    list_display = ("phone", "owned_provider", "is_active", "phone_verified_at", "created_at")
+    list_filter = ("is_active", "phone_verified_at")
+    search_fields = ("phone", "memberships__provider__name")
+    ordering = ("-created_at",)
+    actions = ("suspend_trainer_access", "restore_trainer_access")
+    readonly_fields = ("user", "phone", "phone_verified_at", "created_at", "updated_at")
+    fields = ("phone", "is_active", "user", "phone_verified_at", "created_at", "updated_at")
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("user")
+            .prefetch_related("memberships__provider")
+        )
+
+    @admin.display(description="Listing")
+    def owned_provider(self, obj):
+        memberships = list(obj.memberships.all())
+        if not memberships:
+            return format_html(
+                '<span class="pc-freshness pc-freshness--neutral">No profile yet</span>'
+            )
+        provider = memberships[0].provider
+        return format_html(
+            '<a href="{}">{}</a> <span class="pc-freshness pc-freshness--neutral">{}</span>',
+            reverse("admin:providers_provider_change", args=[provider.pk]),
+            provider.name,
+            provider.get_status_display(),
+        )
+
+    def has_add_permission(self, request):
+        # An account is created by verifying a phone number, never by hand.
+        return False
+
+    def _set_active(self, request, queryset, *, active, verb):
+        if not request.user.has_perm("providers.change_traineraccount"):
+            self.message_user(
+                request,
+                "Changing trainer access needs the trainer account permission.",
+                level=messages.ERROR,
+            )
+            return
+
+        # Logged one at a time rather than with a bulk update. Cutting off
+        # someone's access to their own listing is exactly the decision that
+        # should carry a name and a timestamp, and a queryset .update() records
+        # nothing at all.
+        changed = list(queryset.exclude(is_active=active))
+        for account in changed:
+            account.is_active = active
+            account.save(update_fields=["is_active", "updated_at"])
+            self.log_change(request, account, f"Trainer access {verb}.")
+        self.message_user(request, f"{len(changed)} trainer account(s) {verb}.")
+
+    @admin.action(description="Suspend trainer access")
+    def suspend_trainer_access(self, request, queryset):
+        """Locks the account out immediately, including any live session.
+
+        No session flush is needed: every trainer request re-reads this flag
+        through the IsActiveTrainer permission, so an open browser tab stops
+        working on its next request rather than at its next login.
+
+        The listing itself is untouched. Suspending a listing is a separate
+        decision with its own recorded reason — see the Suspension model.
+        """
+        self._set_active(request, queryset, active=False, verb="suspended")
+
+    @admin.action(description="Restore trainer access")
+    def restore_trainer_access(self, request, queryset):
+        self._set_active(request, queryset, active=True, verb="restored")

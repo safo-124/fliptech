@@ -24,6 +24,7 @@ from .models import TrainerAccount
 from .trainer_auth import TrainerAccountDisabled, account_for_verified_phone
 from .trainer_profiles import (
     TrainerProfileConflict,
+    current_intake_start_date,
     get_owned_profile,
     save_owned_profile,
     serialize_profile,
@@ -139,6 +140,22 @@ class TrainerOTPVerifyView(APIView):
         serializer = TrainerOTPVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Each challenge caps its own guesses, but nothing stopped a caller
+        # burning challenges at the request endpoint's 5/min and taking a fresh
+        # allowance of guesses with each one. The two endpoints now have
+        # symmetric limits; the per-phone daily cap remains the real backstop.
+        if is_ratelimited(
+            request,
+            group="trainer-otp-verify",
+            key=ratelimit_client_ip,
+            rate="10/m",
+            increment=True,
+        ):
+            return Response(
+                {"detail": "Too many attempts. Wait a minute and try again."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         try:
             verification = verify_code(
                 serializer.validated_data["phone"],
@@ -179,11 +196,20 @@ class TrainerProfileView(APIView):
 
     @extend_schema(request=TrainerProfileInputSerializer, responses={200: None})
     def put(self, request):
-        serializer = TrainerProfileInputSerializer(data=request.data)
+        account = _account(request)
+        # The intake date the profile already carries is passed to the
+        # serializer so re-saving an unchanged one is allowed. Otherwise a
+        # trainer returned for changes in May cannot save anything at all until
+        # they work out that an April intake date they never touched is the
+        # thing blocking them.
+        serializer = TrainerProfileInputSerializer(
+            data=request.data,
+            context={"current_intake_start_date": current_intake_start_date(_profile_for(account))},
+        )
         serializer.is_valid(raise_exception=True)
         try:
             profile = save_owned_profile(
-                account=_account(request),
+                account=account,
                 actor=request.user,
                 validated_data=dict(serializer.validated_data),
             )
@@ -205,7 +231,9 @@ class TrainerProfileSubmitView(APIView):
             # There is no object identifier in the public contract, and the
             # generic response reveals nothing about another trainer's record.
             raise NotFound("No trainer profile exists.")
-        if provider.programmes.count() != 1:
+        # len() over the prefetched relation rather than .count(), which would
+        # issue a second query and throw the prefetch away.
+        if len(provider.programmes.all()) != 1:
             return Response(
                 {"detail": "Add exactly one programme before submitting."},
                 status=status.HTTP_400_BAD_REQUEST,

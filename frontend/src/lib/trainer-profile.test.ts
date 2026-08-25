@@ -3,7 +3,9 @@ import {describe, expect, it} from "vitest";
 import {
   EMPTY_TRAINER_DRAFT,
   trainerDraftForStorage,
+  todayIsoDate,
   trainerDraftSchema,
+  trainerDraftSchemaFor,
   trainerProfilePayload,
   type TrainerDraftForm,
 } from "./trainer-profile";
@@ -72,5 +74,54 @@ describe("trainer profile form", () => {
     expect(storage).not.toHaveProperty("phone");
     expect(storage).not.toHaveProperty("code");
     expect(storage).not.toHaveProperty("challenge_id");
+  });
+});
+
+describe("intake dates", () => {
+  const dated = (start: string): TrainerDraftForm => ({
+    ...complete,
+    intake_start_date: start,
+    places_offered: "15",
+  });
+
+  const iso = (offsetDays: number) => {
+    const day = new Date();
+    day.setDate(day.getDate() + offsetDays);
+    return todayIsoDate(day);
+  };
+
+  it("does not post places_remaining, which the API owns", () => {
+    const payload = trainerProfilePayload(dated(iso(30)));
+    expect(payload.programme.intake).toEqual({
+      start_date: iso(30),
+      places_offered: 15,
+      is_open: true,
+    });
+    expect(payload.programme.intake).not.toHaveProperty("places_remaining");
+  });
+
+  it("rejects a start date that has already passed", () => {
+    const result = trainerDraftSchemaFor().safeParse(dated(iso(-1)));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({path: ["intake_start_date"]}),
+      );
+    }
+  });
+
+  it("accepts the date already stored, so a returned profile can still be saved", () => {
+    // The trainer waited months for the review; the date they entered then has
+    // since passed. Blocking the save would leave them stuck on a step nobody
+    // asked them to revisit.
+    const stale = iso(-40);
+    expect(trainerDraftSchemaFor(stale).safeParse(dated(stale)).success).toBe(true);
+    // A different past date is still refused.
+    expect(trainerDraftSchemaFor(stale).safeParse(dated(iso(-1))).success).toBe(false);
+  });
+
+  it("accepts a future date whether or not one is already stored", () => {
+    expect(trainerDraftSchemaFor().safeParse(dated(iso(30))).success).toBe(true);
+    expect(trainerDraftSchemaFor(iso(-40)).safeParse(dated(iso(30))).success).toBe(true);
   });
 });
