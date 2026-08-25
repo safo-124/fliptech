@@ -1,59 +1,112 @@
 #!/usr/bin/env bash
 #
-# Deploy on the VPS. Idempotent — safe to re-run.
+# Deploy on the VPS, without Docker. Idempotent — safe to re-run.
 #
 #   ./deploy.sh
 #
-# Migrations run before the new containers take traffic, so a failed migration
-# leaves the previous release serving rather than a half-migrated database
-# behind a new one.
+# Run deploy/bootstrap.sh once first. This script installs dependencies,
+# migrates, builds the frontend and restarts both services.
+#
+# Ordering matters: everything that can fail is done BEFORE either service is
+# restarted, so a broken release leaves the previous one serving rather than
+# putting a half-built one in front of users.
 
 set -euo pipefail
 
-cd "$(dirname "$0")"
+APP_DIR="${APP_DIR:-/opt/fliptech}"
+DATA_DIR="${DATA_DIR:-/var/lib/fliptech}"
+SERVICE_USER="${SERVICE_USER:-fliptech}"
+VENV="$APP_DIR/backend/.venv"
 
-if [ ! -f .env.production ]; then
-  echo "No .env.production. Copy .env.production.example and fill it in." >&2
+cd "$APP_DIR"
+
+run_as() { sudo -u "$SERVICE_USER" "$@"; }
+
+if [ ! -f backend/.env ]; then
+  echo "backend/.env is missing. Copy backend/.env.example and fill it in." >&2
+  exit 1
+fi
+if [ ! -f frontend/.env.production ]; then
+  echo "frontend/.env.production is missing." >&2
+  exit 1
+fi
+if grep -qE '^DJANGO_SECRET_KEY=\s*$' backend/.env; then
+  echo "DJANGO_SECRET_KEY is empty in backend/.env." >&2
+  exit 1
+fi
+if grep -q 'CHANGE_ME' backend/.env; then
+  echo "backend/.env still contains CHANGE_ME." >&2
   exit 1
 fi
 
-# Fail early and loudly rather than deploying with a placeholder secret.
-if grep -qE '^DJANGO_SECRET_KEY=\s*$' .env.production; then
-  echo "DJANGO_SECRET_KEY is empty in .env.production." >&2
-  exit 1
-fi
-if grep -q 'CHANGE_ME' .env.production; then
-  echo ".env.production still contains CHANGE_ME." >&2
-  exit 1
-fi
+echo "==> Backend dependencies"
+[ -d "$VENV" ] || run_as python3 -m venv "$VENV"
+run_as "$VENV/bin/pip" install --quiet --upgrade pip
+run_as "$VENV/bin/pip" install --quiet -r backend/requirements.txt
 
-echo "==> Building images"
-docker compose build
+echo "==> Checking the database"
+# Reports a missing PostGIS extension, a plain postgres:// scheme or an
+# unencrypted remote connection before anything is written.
+( cd backend && run_as "$VENV/bin/python" manage.py check_database )
 
-echo "==> Checking the database is usable"
-# Reports missing PostGIS, a plain postgres:// scheme, an unencrypted remote
-# connection or insufficient privileges — before anything is written.
-docker compose run --rm django python manage.py check_database
+echo "==> Migrations"
+( cd backend && run_as "$VENV/bin/python" manage.py migrate --noinput )
 
-echo "==> Applying migrations"
-docker compose run --rm django python manage.py migrate --noinput
+echo "==> Back-office roles"
+( cd backend && run_as "$VENV/bin/python" manage.py setup_groups )
 
-echo "==> Ensuring back-office roles exist"
-docker compose run --rm django python manage.py setup_groups
+echo "==> Static files"
+( cd backend && run_as "$VENV/bin/python" manage.py collectstatic --noinput --clear >/dev/null )
 
-echo "==> Starting"
-docker compose up -d --remove-orphans
+echo "==> Deployment checks"
+# --deploy surfaces missing HSTS, insecure cookies and a debug-mode leak. It is
+# advisory here rather than fatal, but it should be read.
+( cd backend && run_as "$VENV/bin/python" manage.py check --deploy 2>&1 | tail -20 ) || true
 
-echo "==> Waiting for health"
+echo "==> Frontend"
+cd frontend
+run_as npm ci --omit=dev --no-audit --no-fund 2>/dev/null || run_as npm install --no-audit --no-fund
+# NEXT_PUBLIC_* values are inlined at build time, not read at run time, so the
+# build has to see them. Changing the domain or brand name means rebuilding.
+set -a; . ./.env.production; set +a
+run_as env \
+  NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-}" \
+  NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-}" \
+  NEXT_PUBLIC_BRAND_NAME="${NEXT_PUBLIC_BRAND_NAME:-Fliptech}" \
+  NEXT_PUBLIC_MEDIA_HOST="${NEXT_PUBLIC_MEDIA_HOST:-}" \
+  npm run build
+cd ..
+
+echo "==> Restarting"
+# Only now, once every fallible step has succeeded.
+sudo systemctl restart fliptech-api
+sudo systemctl restart fliptech-web
+
+echo "==> Health"
+ok=false
 for _ in $(seq 1 30); do
-  if docker compose exec -T django curl -fsS http://127.0.0.1:8000/healthz/ >/dev/null 2>&1; then
-    echo "    django healthy"
-    break
-  fi
+  if curl -fsS http://127.0.0.1:8000/healthz/ >/dev/null 2>&1; then ok=true; break; fi
   sleep 2
 done
+if [ "$ok" = true ]; then
+  echo "    api healthy: $(curl -fsS http://127.0.0.1:8000/healthz/)"
+else
+  echo "    api did NOT come up. Recent log:" >&2
+  sudo journalctl -u fliptech-api -n 30 --no-pager >&2
+  exit 1
+fi
 
-docker compose ps
+web=false
+for _ in $(seq 1 30); do
+  if curl -fsS -o /dev/null http://127.0.0.1:3000/ 2>/dev/null; then web=true; break; fi
+  sleep 2
+done
+[ "$web" = true ] && echo "    web healthy" || {
+  echo "    web did NOT come up. Recent log:" >&2
+  sudo journalctl -u fliptech-web -n 30 --no-pager >&2
+  exit 1
+}
+
 echo
-echo "Done. If this is the first deploy, create the admin account:"
-echo "  docker compose exec django python manage.py createsuperuser"
+echo "Deployed. If this is the first run, create your account:"
+echo "  cd $APP_DIR/backend && sudo -u $SERVICE_USER $VENV/bin/python manage.py createsuperuser"

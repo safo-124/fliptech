@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 
 from catalog.models import Programme
 from core.money import money
+from geography.models import Area, Region
 
 from .filters import ProviderFilter
 from .models import Provider
@@ -82,14 +83,14 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
             return (
                 queryset.annotate(distance=Distance("location", origin))
                 .filter(distance__lte=D(km=radius_km))
-                .order_by("distance")
+                .order_by("distance", "name", "pk")
             )
 
         # for_card() annotates aggregates, which introduces a GROUP BY, and
         # Django treats a grouped queryset as unordered even when the model has
         # Meta.ordering. Paginating an unordered queryset silently repeats and
         # drops rows between pages, so the ordering is stated explicitly.
-        return queryset.order_by("name")
+        return queryset.order_by("name", "pk")
 
     def get_serializer_class(self):
         return ProviderDetailSerializer if self.action == "retrieve" else ProviderListSerializer
@@ -145,15 +146,28 @@ class TradeAreaSummaryView(APIView):
 
         programmes = Programme.objects.filter(
             is_active=True,
+            trade__is_active=True,
             trade__slug__iexact=trade,
             provider__status=Provider.Status.PUBLISHED,
         )
         area = request.query_params.get("area")
         region = request.query_params.get("region")
         if area:
-            programmes = programmes.filter(provider__area__slug__iexact=area)
+            # Area pages remain available independently of the wider region
+            # launch switch. This lets useful town-level inventory surface
+            # without accidentally publishing the whole region.
+            public_area = get_object_or_404(Area, slug__iexact=area)
+            programmes = programmes.filter(provider__area=public_area)
         if region:
-            programmes = programmes.filter(provider__area__region__slug__iexact=region)
+            # `is_launched` is the publication boundary for generated region
+            # pages. Applying it here matters because a direct URL can call
+            # this endpoint without first passing through the region index.
+            public_region = get_object_or_404(
+                Region,
+                slug__iexact=region,
+                is_launched=True,
+            )
+            programmes = programmes.filter(provider__area__region=public_region)
 
         stats = programmes.aggregate(
             provider_count=Count("provider", distinct=True),

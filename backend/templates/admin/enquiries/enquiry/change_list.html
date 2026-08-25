@@ -1,0 +1,195 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% comment %}
+  An operations inbox layered around Django's native ChangeList primitives.
+  Search, filters, facets, actions, list formsets, sorting, popup selection,
+  date hierarchy and pagination remain owned by Django.
+{% endcomment %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_enquiry.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_enquiry.js' %}" defer></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} enquiry-workbench-page{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+  {% url opts|admin_urlname:'changelist' as enquiry_default_all_url %}
+  <div id="content-main" class="eq-list-page" data-enquiry-workbench>
+    <header class="eq-list-header">
+      <div class="eq-list-heading">
+        <p class="eq-eyebrow">{% translate "Trainee conversations" %}</p>
+        <h1>
+          {% if enquiry_workbench.title %}
+            {{ enquiry_workbench.title }}
+          {% elif enquiry_work_queue %}
+            {{ enquiry_work_queue.label }}
+          {% else %}
+            {% translate "Enquiry inbox" %}
+          {% endif %}
+        </h1>
+        <p class="eq-list-description">
+          {% if enquiry_workbench.description %}
+            {{ enquiry_workbench.description }}
+          {% elif enquiry_queue_description %}
+            {{ enquiry_queue_description }}
+          {% elif enquiry_work_queue %}
+            {% translate "Work through this enquiry queue and record only outcomes confirmed by a person." %}
+          {% else %}
+            {% translate "Review trainee requests, delivery state and human-reported outcomes without rewriting the original message." %}
+          {% endif %}
+        </p>
+        <div class="eq-list-summary" aria-label="{% translate 'Enquiry list summary' %}">
+          <span class="eq-list-summary__item">
+            <strong>{{ enquiry_workbench.matching|default:cl.result_count }}</strong>
+            <span>{% translate "matching" %}</span>
+          </span>
+          <span class="eq-list-summary__divider" aria-hidden="true"></span>
+          <span class="eq-list-summary__item">
+            <strong>{{ enquiry_workbench.total|default:cl.full_result_count }}</strong>
+            <span>{% translate "total enquiries" %}</span>
+          </span>
+          {% if cl.has_active_filters %}
+            <span class="eq-list-summary__divider" aria-hidden="true"></span>
+            <span class="eq-filter-applied"><span aria-hidden="true"></span>{% translate "Filters applied" %}</span>
+          {% endif %}
+          <span class="eq-list-summary__divider" aria-hidden="true"></span>
+          <span class="eq-list-timestamp">
+            {% translate "Viewed" %}
+            <time datetime="{% now 'c' %}">{% now "H:i" %}</time>
+          </span>
+        </div>
+      </div>
+
+      <div class="eq-page-tools">
+        {% block object-tools %}
+          <ul class="object-tools">
+            {% block object-tools-items %}{% change_list_object_tools %}{% endblock %}
+          </ul>
+        {% endblock %}
+      </div>
+    </header>
+
+    <nav class="eq-queue-nav" aria-label="{% translate 'Enquiry work queues' %}">
+      <div class="eq-queue-nav__scroll">
+        {% if enquiry_workbench.queues %}
+          {% for queue in enquiry_workbench.queues %}
+            <a href="{{ queue.url }}"
+               class="eq-queue-link eq-queue-link--{{ queue.tone|default:'neutral' }}{% if queue.active %} is-active{% endif %}"
+               {% if queue.active %}aria-current="page"{% endif %}>
+              {% if queue.key == "all" %}
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+              {% else %}
+                <span class="eq-queue-link__dot" aria-hidden="true"></span>
+              {% endif %}
+              <span>{{ queue.label }}</span>
+              {% if queue.count != None %}<span class="eq-queue-link__count">{{ queue.count }}</span>{% endif %}
+            </a>
+          {% endfor %}
+        {% else %}
+          <a href="{{ enquiry_all_url|default:enquiry_default_all_url }}"
+             class="eq-queue-link{% if not enquiry_work_queue %} is-active{% endif %}"
+             {% if not enquiry_work_queue %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            {% translate "All enquiries" %}
+          </a>
+          {% for queue in enquiry_queue_links %}
+            <a href="{{ queue.url }}"
+               class="eq-queue-link eq-queue-link--{{ queue.tone|default:'neutral' }}{% if queue.active %} is-active{% endif %}"
+               {% if queue.active %}aria-current="page"{% endif %}>
+              <span class="eq-queue-link__dot" aria-hidden="true"></span>
+              <span>{{ queue.label }}</span>
+              {% if queue.count != None %}<span class="eq-queue-link__count">{{ queue.count }}</span>{% endif %}
+            </a>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </nav>
+
+    {% if cl.formset and cl.formset.errors %}
+      <p class="errornote">
+        {% blocktranslate count counter=cl.formset.total_error_count %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+      </p>
+      {{ cl.formset.non_form_errors }}
+    {% endif %}
+
+    {% if cl.has_filters %}
+      <button class="eq-filter-toggle" type="button" aria-controls="changelist-filter"
+              aria-expanded="false" data-enquiry-filter-toggle hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>{% translate "Filters" %}</span>
+        {% if cl.has_active_filters %}<span class="eq-filter-toggle__state">{% translate "Applied" %}</span>{% endif %}
+      </button>
+    {% endif %}
+
+    <div class="module{% if cl.has_filters %} filtered{% endif %}" id="changelist">
+      <div class="changelist-form-container">
+        {% block search %}{% search_form cl %}{% endblock %}
+        {% block date_hierarchy %}{% if cl.date_hierarchy %}{% date_hierarchy cl %}{% endif %}{% endblock %}
+
+        <form id="changelist-form" method="post"{% if cl.formset and cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %} novalidate>
+          {% csrf_token %}
+          {% if cl.formset %}<div>{{ cl.formset.management_form }}</div>{% endif %}
+
+          {% block result_list %}
+            {% if action_form and actions_on_top and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+            {% if cl.result_count %}
+              {% result_list cl %}
+            {% else %}
+              <div class="eq-empty-state">
+                <span class="eq-empty-state__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"></path><path d="M8 9h8M8 13h5"></path></svg>
+                </span>
+                <h2>{% translate "No enquiries found" %}</h2>
+                <p>{% translate "Try another search, queue or filter combination." %}</p>
+                <a class="button" href="{{ enquiry_reset_url|default:enquiry_default_all_url }}">{% translate "Clear search and filters" %}</a>
+              </div>
+            {% endif %}
+            {% if action_form and actions_on_bottom and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+          {% endblock %}
+          {% block pagination %}{% pagination cl %}{% endblock %}
+        </form>
+      </div>
+
+      {% block filters %}
+        {% if cl.has_filters %}
+          <nav id="changelist-filter" aria-labelledby="changelist-filter-header" data-enquiry-filter-panel>
+            <div class="eq-filter-heading">
+              <div>
+                <span class="eq-filter-heading__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+                </span>
+                <h2 id="changelist-filter-header">{% translate "Filters" %}</h2>
+              </div>
+              <button class="eq-filter-close" type="button" aria-label="{% translate 'Close filters' %}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+              </button>
+            </div>
+            {% if cl.is_facets_optional or cl.has_active_filters %}
+              <div id="changelist-filter-extra-actions">
+                {% if cl.is_facets_optional %}
+                  <h3>
+                    {% if cl.add_facets %}
+                      <a href="{{ cl.remove_facet_link }}" class="hidelink">{% translate "Hide counts" %}</a>
+                    {% else %}
+                      <a href="{{ cl.add_facet_link }}" class="viewlink">{% translate "Show counts" %}</a>
+                    {% endif %}
+                  </h3>
+                {% endif %}
+                {% if cl.has_active_filters %}<h3><a href="{{ cl.clear_all_filters_qs }}">{% translate "Clear all" %}</a></h3>{% endif %}
+              </div>
+            {% endif %}
+            {% for spec in cl.filter_specs %}{% admin_list_filter cl spec %}{% endfor %}
+          </nav>
+        {% endif %}
+      {% endblock %}
+    </div>
+  </div>
+{% endblock %}

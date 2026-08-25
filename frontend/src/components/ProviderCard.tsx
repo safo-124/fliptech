@@ -21,75 +21,121 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import {
+  ArrowUpRight,
+  CalendarDays,
+  CircleAlert,
+  Clock3,
+  ImageIcon,
+  MapPin,
+  WalletCards,
+  type LucideIcon,
+} from "lucide-react";
 
+import { Card } from "@/components/ui/card";
 import { formatDate, formatDistance, formatDuration, formatFee } from "@/lib/format";
-import type { ProviderCard as Card } from "@/lib/types";
+import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
 import { TrustBadges } from "./TrustBadges";
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="min-w-0">
-      <dt className="text-[11px] uppercase tracking-wide text-[var(--color-ink-soft)]">{label}</dt>
-      <dd className="text-sm font-semibold text-[var(--color-ink)]">{value}</dd>
+    <div className="min-w-0 px-2.5 first:pl-0 last:pr-0">
+      <dt className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
+        <Icon className="size-3 shrink-0" aria-hidden="true" />
+        <span>{label}</span>
+      </dt>
+      <dd className="mt-1 text-[13px] font-semibold leading-5 tabular-nums text-[var(--color-foreground)] sm:text-sm">
+        {value}
+      </dd>
     </div>
   );
 }
 
-export function ProviderCard({ provider }: { provider: Card }) {
+export function ProviderCard({ provider }: { provider: ProviderCardData }) {
   const distance = formatDistance(provider.distance_m);
 
   return (
-    <article className="h-full rounded-lg border border-[var(--color-line)] bg-[var(--color-canvas)]">
-      <Link
-        href={`/${provider.area_slug}/${provider.slug}`}
-        className="flex h-full flex-col rounded-lg p-3 focus-visible:outline-offset-0"
+    <article className="h-full">
+      <Card
+        className="group h-full overflow-hidden transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-lg)]"
       >
-        <div className="flex gap-3">
-          {provider.primary_photo ? (
-            <Image
-              src={provider.primary_photo}
-              alt=""
-              width={88}
-              height={88}
-              className="h-22 w-22 flex-none rounded object-cover"
-              // Below the fold on all but the first row, and prepaid data is a
-              // real cost to this user.
-              loading="lazy"
-              sizes="88px"
-            />
-          ) : (
-            <div aria-hidden className="h-22 w-22 flex-none rounded bg-[var(--color-canvas-soft)]" />
-          )}
+        <Link
+          href={`/${provider.area_slug}/${provider.slug}`}
+          className="flex h-full flex-col p-4 focus-visible:outline-offset-[-2px] sm:p-[1.125rem]"
+        >
+          <div className="flex gap-3.5">
+            {provider.primary_photo ? (
+              <Image
+                src={provider.primary_photo}
+                alt=""
+                width={84}
+                height={84}
+                className="size-[5.25rem] flex-none rounded-xl object-cover ring-1 ring-black/5"
+                // Below the fold on all but the first row, and prepaid data is a
+                // real cost to this user.
+                loading="lazy"
+                sizes="84px"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="surface-grid grid size-[5.25rem] flex-none place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)]/80 text-[var(--color-muted-foreground)]"
+              >
+                <ImageIcon className="size-5" strokeWidth={1.7} />
+              </div>
+            )}
 
-          <div className="min-w-0 flex-1">
-            <h2 className="line-clamp-2 text-base font-semibold leading-snug">{provider.name}</h2>
-            <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">
-              {provider.area}
-              {distance ? ` · ${distance}` : ""}
-            </p>
-            <div className="mt-2">
-              <TrustBadges visit={provider.site_visit} government={provider.government_status} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start gap-2">
+                <h2 className="line-clamp-2 flex-1 text-[15px] font-bold leading-snug tracking-tight sm:text-base">
+                  {provider.name}
+                </h2>
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-secondary)] text-[var(--color-muted-foreground)] transition-colors group-hover:bg-[var(--color-brand-soft)] group-hover:text-[var(--color-brand-strong)]">
+                  <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                </span>
+              </div>
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] sm:text-sm">
+                <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {provider.area}
+                  {distance ? ` · ${distance}` : ""}
+                </span>
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* mt-auto pins this to the bottom so the numbers align across a row. */}
-        <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-[var(--color-line)] pt-3">
-          <Fact label="Fee from" value={formatFee(provider.lowest_fee)} />
-          <Fact label="Duration" value={formatDuration(provider.shortest_duration_weeks)} />
-          <Fact
-            label="Next intake"
-            value={provider.next_intake ? formatDate(provider.next_intake) : "Ask provider"}
-          />
-        </dl>
+          <div className="mt-3.5">
+              <TrustBadges visit={provider.site_visit} government={provider.government_status} />
+          </div>
 
-        {provider.is_stale && (
-          <p className="mt-2 rounded bg-[var(--color-warn-bg)] px-2 py-1 text-xs text-[var(--color-warn)]">
-            Not confirmed recently. Check the fee before you travel.
-          </p>
-        )}
-      </Link>
+          {provider.is_stale && (
+            <p className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--color-warn)]/20 bg-[var(--color-warn-bg)] px-3 py-2 text-xs leading-4 text-[var(--color-warn)]">
+              <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>Not confirmed recently. Check the fee before you travel.</span>
+            </p>
+          )}
+
+          {/* mt-auto pins this to the bottom so the numbers align across a row. */}
+          <dl className="mt-auto grid grid-cols-3 divide-x divide-[var(--color-border)] rounded-xl bg-[var(--color-muted)]/65 px-3 py-3.5">
+            <Fact icon={WalletCards} label="Fee from" value={formatFee(provider.lowest_fee)} />
+            <Fact icon={Clock3} label="Duration" value={formatDuration(provider.shortest_duration_weeks)} />
+            <Fact
+              icon={CalendarDays}
+              label="Next intake"
+              value={provider.next_intake ? formatDate(provider.next_intake) : "Ask provider"}
+            />
+          </dl>
+        </Link>
+      </Card>
     </article>
   );
 }

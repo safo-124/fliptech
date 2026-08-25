@@ -1,0 +1,173 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% comment %}
+  Shared Trade, Programme and Intake operations workspace. Django remains the
+  source of truth for actions, search, date hierarchy, filters, result rows,
+  list-editable formsets, sorting, pagination, popup selection and permissions.
+{% endcomment %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_catalog.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_catalog.js' %}" defer></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} catalog-workspace-page catalog-{{ opts.model_name }}-page{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+  <div id="content-main"
+       class="cat-list-page cat-list-page--{{ catalog_workspace.kind|default:opts.model_name }}"
+       data-catalog-changelist
+       data-catalog-kind="{{ catalog_workspace.kind|default:opts.model_name }}">
+    <header class="cat-list-header">
+      <div class="cat-list-heading">
+        <p class="cat-eyebrow">{% translate "Catalog operations" %}</p>
+        <h1>{{ catalog_workspace.title|default:opts.verbose_name_plural|capfirst }}</h1>
+        <p class="cat-list-description">
+          {% if catalog_workspace.description %}
+            {{ catalog_workspace.description }}
+          {% elif opts.model_name == "trade" %}
+            {% translate "Keep the skills taxonomy useful, searchable and tied to real training inventory." %}
+          {% elif opts.model_name == "programme" %}
+            {% translate "Audit the fees, duration and availability trainees need before they contact a provider." %}
+          {% else %}
+            {% translate "Keep upcoming starts accurate and close dates that can no longer accept trainees." %}
+          {% endif %}
+        </p>
+        <div class="cat-list-counts" aria-label="{% translate 'Catalog list summary' %}">
+          <span><strong>{{ catalog_workspace.matching|default:cl.result_count }}</strong> {% translate "matching" %}</span>
+          <span class="cat-count-divider" aria-hidden="true"></span>
+          <span><strong>{{ catalog_workspace.total|default:cl.full_result_count }}</strong> {% translate "total" %}</span>
+          {% if cl.has_active_filters %}
+            <span class="cat-count-divider" aria-hidden="true"></span>
+            <span class="cat-filter-applied"><i aria-hidden="true"></i>{% translate "Filters applied" %}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="cat-page-tools">
+        {% block object-tools %}
+          <ul class="object-tools">
+            {% block object-tools-items %}{% change_list_object_tools %}{% endblock %}
+          </ul>
+        {% endblock %}
+      </div>
+    </header>
+
+    {% if catalog_workspace.metrics %}
+      <section class="cat-metric-grid" aria-label="{% translate 'Filtered catalog health' %}">
+        {% for metric in catalog_workspace.metrics %}
+          <article class="cat-metric cat-metric--{{ metric.tone|default:'neutral' }}">
+            <span class="cat-metric__signal" aria-hidden="true"></span>
+            <div>
+              <strong>{{ metric.value }}</strong>
+              <span>{{ metric.label }}</span>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    {% if catalog_workspace.queues %}
+      <nav class="cat-queue-nav" aria-label="{% translate 'Catalog work queues' %}" data-catalog-queue-nav>
+        {% for queue in catalog_workspace.queues %}
+          <a href="{{ queue.url }}"
+             class="cat-queue-card cat-queue-card--{{ queue.tone|default:'neutral' }}{% if queue.active %} is-active{% endif %}"
+             {% if queue.active %}aria-current="page"{% endif %}>
+            <span class="cat-queue-card__top"><strong>{{ queue.label }}</strong><b>{{ queue.count }}</b></span>
+            <small>{{ queue.description }}</small>
+          </a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    {% if catalog_workspace.guidance %}
+      <aside class="cat-guidance cat-guidance--{{ catalog_workspace.guidance.tone|default:'neutral' }}"
+             aria-labelledby="cat-guidance-heading">
+        <span class="cat-guidance__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        </span>
+        <div>
+          <h2 id="cat-guidance-heading">{{ catalog_workspace.guidance.title|default:_('Catalog quality rule') }}</h2>
+          <p>{{ catalog_workspace.guidance.description|default:catalog_workspace.guidance }}</p>
+        </div>
+      </aside>
+    {% endif %}
+
+    {% if cl.formset and cl.formset.errors %}
+      <p class="errornote">
+        {% blocktranslate count counter=cl.formset.total_error_count %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+      </p>
+      {{ cl.formset.non_form_errors }}
+    {% endif %}
+
+    {% if cl.has_filters %}
+      <button class="cat-filter-toggle" type="button" aria-controls="changelist-filter"
+              aria-expanded="false" data-catalog-filter-toggle hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>{% translate "Filters" %}</span>
+        {% if cl.has_active_filters %}<span class="cat-filter-toggle__state">{% translate "Applied" %}</span>{% endif %}
+      </button>
+    {% endif %}
+
+    <div class="module{% if cl.has_filters %} filtered{% endif %}" id="changelist">
+      <div class="changelist-form-container">
+        {% block search %}{% search_form cl %}{% endblock %}
+        {% block date_hierarchy %}{% if cl.date_hierarchy %}{% date_hierarchy cl %}{% endif %}{% endblock %}
+
+        <form id="changelist-form" method="post"{% if cl.formset and cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %} novalidate>
+          {% csrf_token %}
+          {% if cl.formset %}<div>{{ cl.formset.management_form }}</div>{% endif %}
+          {% block result_list %}
+            {% if action_form and actions_on_top and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+            {% if cl.result_count %}
+              {% result_list cl %}
+            {% else %}
+              <div class="cat-empty-state">
+                <span class="cat-empty-state__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M8 9h8M8 13h5"></path></svg>
+                </span>
+                <h2>{% blocktranslate with name=opts.verbose_name_plural %}No {{ name }} found{% endblocktranslate %}</h2>
+                <p>{% translate "Try another search, queue or filter." %}</p>
+                <a class="button" href="{{ catalog_workspace.reset_url|default:'?' }}">{% translate "Clear search and filters" %}</a>
+              </div>
+            {% endif %}
+            {% if action_form and actions_on_bottom and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+          {% endblock %}
+          {% block pagination %}{% pagination cl %}{% endblock %}
+        </form>
+      </div>
+
+      {% block filters %}
+        {% if cl.has_filters %}
+          <nav id="changelist-filter" aria-labelledby="changelist-filter-header" data-catalog-filter-panel>
+            <div class="cat-filter-heading">
+              <div>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+                <h2 id="changelist-filter-header">{% translate "Filters" %}</h2>
+              </div>
+              <button class="cat-filter-close" type="button" aria-label="{% translate 'Close filters' %}" data-catalog-filter-close>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+              </button>
+            </div>
+            {% if cl.is_facets_optional or cl.has_active_filters %}
+              <div id="changelist-filter-extra-actions">
+                {% if cl.is_facets_optional %}
+                  <h3>{% if cl.add_facets %}<a href="{{ cl.remove_facet_link }}" class="hidelink">{% translate "Hide counts" %}</a>{% else %}<a href="{{ cl.add_facet_link }}" class="viewlink">{% translate "Show counts" %}</a>{% endif %}</h3>
+                {% endif %}
+                {% if cl.has_active_filters %}<h3><a href="{{ cl.clear_all_filters_qs }}">{% translate "Clear all" %}</a></h3>{% endif %}
+              </div>
+            {% endif %}
+            {% for spec in cl.filter_specs %}{% admin_list_filter cl spec %}{% endfor %}
+          </nav>
+        {% endif %}
+      {% endblock %}
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,12 @@
+# Scripts and container files execute on Linux. Force LF regardless of the
+# checkout platform: with CRLF the shebang reads as "bash\r", which is not a
+# program, and the script fails with a confusing "No such file or directory".
+*.sh text eol=lf
+Dockerfile text eol=lf
+Caddyfile text eol=lf
+*.yml text eol=lf
+
+# Never let git rewrite these.
+*.png binary
+*.jpg binary
+*.pdf binary

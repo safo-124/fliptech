@@ -1,0 +1,62 @@
+# TLS and routing for the native (non-Docker) deployment.
+# Install to /etc/caddy/Caddyfile, then: sudo systemctl reload caddy
+#
+# Caddy obtains and renews certificates automatically, which removes the certbot
+# cron job and the renewal that quietly fails a year later. It needs a real
+# hostname — it cannot issue a certificate for a bare IP address.
+#
+# Replace skillshub.example.com with your domain.
+
+skillshub.example.com {
+	encode zstd gzip
+
+	# Django owns the API, the back office and the health probe.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /back-office/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle /healthz* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Static files are collected to disk at deploy time, so Caddy serves them
+	# directly rather than waking a Python worker for a stylesheet.
+	handle /static/* {
+		root * /var/lib/fliptech
+		file_server
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+
+	# PUBLIC media only. Verification evidence and owner identification live in
+	# /var/lib/fliptech/private-media, which is deliberately not under this root
+	# and is never served by Caddy — Section 10 requires that evidence is never
+	# publicly served. Moving or widening this root would leak identity
+	# documents.
+	handle /media/* {
+		root * /var/lib/fliptech
+		file_server
+		header Cache-Control "public, max-age=604800"
+	}
+
+	# Everything else is the public site.
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+		format json
+	}
+}

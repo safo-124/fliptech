@@ -20,7 +20,10 @@ class TradeViewSet(viewsets.ReadOnlyModelViewSet):
                 provider_count=Count(
                     "programmes__provider",
                     distinct=True,
-                    filter=Q(programmes__provider__status=Provider.Status.PUBLISHED),
+                    filter=Q(
+                        programmes__is_active=True,
+                        programmes__provider__status=Provider.Status.PUBLISHED,
+                    ),
                 )
             )
             .order_by("display_order", "name")

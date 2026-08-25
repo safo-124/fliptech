@@ -1,0 +1,197 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static admin_modify %}
+
+{% comment %}
+  Shared catalog editor. The form fields, validation, autocomplete widgets,
+  prepopulation, inlines, object tools and submit controls remain native Django.
+{% endcomment %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_catalog.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_catalog.js' %}" defer></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} catalog-form-page catalog-{{ opts.model_name }}-form-page{% if original %} catalog-form-page--change{% else %} catalog-form-page--add{% endif %}{% endblock %}
+{% block content_subtitle %}{% endblock %}
+
+{% block content_title %}
+  <header class="cat-record-header" data-catalog-form-header data-catalog-model="{{ opts.model_name }}">
+    <div class="cat-record-header__main">
+      <span class="cat-record-header__icon" aria-hidden="true">
+        {% if opts.model_name == "trade" %}
+          <svg viewBox="0 0 24 24"><path d="m14.7 6.3 3-3a3 3 0 0 1-4 4l-6.4 6.4a3 3 0 1 1-1-1l6.4-6.4a3 3 0 0 1 4-4l-3 3 1 1Z"></path><path d="m15 15 6 6M17 13l4 4"></path></svg>
+        {% elif opts.model_name == "programme" %}
+          <svg viewBox="0 0 24 24"><path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H11v17H5.5A2.5 2.5 0 0 0 3 22V5.5ZM21 5.5A2.5 2.5 0 0 0 18.5 3H13v17h5.5A2.5 2.5 0 0 1 21 22V5.5Z"></path></svg>
+        {% else %}
+          <svg viewBox="0 0 24 24"><path d="M8 2v3M16 2v3M3 9h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z"></path><path d="M8 14h3M8 17h6"></path></svg>
+        {% endif %}
+      </span>
+
+      <div class="cat-record-header__copy">
+        <p class="cat-eyebrow">
+          {% if opts.model_name == "trade" %}{% translate "Search taxonomy" %}
+          {% elif opts.model_name == "programme" %}{% translate "Training offer" %}
+          {% else %}{% translate "Training availability" %}{% endif %}
+        </p>
+        <div class="cat-record-header__title-row">
+          <h1>
+            {% if original %}{{ original }}
+            {% elif opts.model_name == "trade" %}{% translate "Add trade" %}
+            {% elif opts.model_name == "programme" %}{% translate "Add programme" %}
+            {% else %}{% translate "Add intake" %}{% endif %}
+          </h1>
+          {% if original %}
+            {% if opts.model_name == "intake" %}
+              <span class="cat-record-state cat-record-state--{{ original.admin_lifecycle|default:'neutral' }}">
+                <i aria-hidden="true"></i>{% if original.admin_lifecycle_label %}{{ original.admin_lifecycle_label }}{% elif original.is_open %}{% translate "Open" %}{% else %}{% translate "Closed" %}{% endif %}
+              </span>
+            {% else %}
+              <span class="cat-record-state{% if original.is_active %} cat-record-state--positive{% else %} cat-record-state--muted{% endif %}">
+                <i aria-hidden="true"></i>{% if original.is_active %}{% translate "Active" %}{% else %}{% translate "Inactive" %}{% endif %}
+              </span>
+            {% endif %}
+          {% endif %}
+        </div>
+        <p class="cat-record-header__description">
+          {% if opts.model_name == "trade" %}
+            {% translate "Use plain names and real search synonyms so trainees can find the right skill even when they use another word." %}
+          {% elif opts.model_name == "programme" %}
+            {% translate "Keep the price, duration, schedule and future starts specific enough for a trainee to make a decision." %}
+          {% else %}
+            {% translate "A start date is a promise of availability. Close it as soon as the provider stops accepting trainees." %}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if original %}
+      <div class="cat-record-actions" aria-label="{% translate 'Related catalog records' %}">
+        {% if opts.model_name == "programme" and original.provider_id and perms.providers.view_provider %}
+          <a href="{% url 'admin:providers_provider_change' original.provider_id %}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V10l8-6 8 6v11M9 21v-7h6v7"></path></svg>
+            {% translate "Open provider" %}
+          </a>
+        {% elif opts.model_name == "intake" and original.programme_id %}
+          {% if perms.catalog.view_programme %}
+          <a href="{% url 'admin:catalog_programme_change' original.programme_id %}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5"></path></svg>
+            {% translate "Open programme" %}
+          </a>
+          {% endif %}
+          {% if original.programme.provider_id and perms.providers.view_provider %}
+            <a href="{% url 'admin:providers_provider_change' original.programme.provider_id %}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V10l8-6 8 6v11M9 21v-7h6v7"></path></svg>
+              {% translate "Open provider" %}
+            </a>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if original and opts.model_name == "trade" %}
+      <dl class="cat-record-facts" aria-label="{% translate 'Trade inventory summary' %}">
+        <div><dt>{% translate "Programmes" %}</dt><dd>{{ original.admin_programme_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Active offers" %}</dt><dd>{{ original.admin_active_programme_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Published" %}</dt><dd>{{ original.admin_published_provider_count|default:0 }}</dd></div>
+      </dl>
+    {% elif original and opts.model_name == "programme" %}
+      <dl class="cat-record-facts" aria-label="{% translate 'Programme lifecycle summary' %}">
+        <div><dt>{% translate "Fee" %}</dt><dd>GH₵{{ original.fee|floatformat:2 }}</dd></div>
+        <div><dt>{% translate "Duration" %}</dt><dd>{% blocktranslate with weeks=original.duration_weeks %}{{ weeks }} weeks{% endblocktranslate %}</dd></div>
+        <div><dt>{% translate "Future starts" %}</dt><dd>{{ original.admin_future_intake_count|default:0 }}</dd></div>
+        <div><dt>{% translate "Next intake" %}</dt><dd>{% if original.admin_next_intake %}<time datetime="{{ original.admin_next_intake|date:'Y-m-d' }}">{{ original.admin_next_intake|date:"j M Y" }}</time>{% else %}{% translate "Not scheduled" %}{% endif %}</dd></div>
+      </dl>
+    {% elif original %}
+      <dl class="cat-record-facts" aria-label="{% translate 'Intake availability summary' %}">
+        <div><dt>{% translate "Starts" %}</dt><dd><time datetime="{{ original.start_date|date:'Y-m-d' }}">{{ original.start_date|date:"j M Y" }}</time></dd></div>
+        <div><dt>{% translate "Offered" %}</dt><dd>{{ original.places_offered|default_if_none:_('Not set') }}</dd></div>
+        <div><dt>{% translate "Remaining" %}</dt><dd>{{ original.places_remaining|default_if_none:_('Not set') }}</dd></div>
+        <div><dt>{% translate "Enrolments" %}</dt><dd>{{ original.admin_enrolment_count|default:0 }}</dd></div>
+      </dl>
+    {% endif %}
+  </header>
+{% endblock %}
+
+{% block field_sets %}
+  <section class="cat-form-section" aria-labelledby="cat-details-heading">
+    <header class="cat-section-heading">
+      <span class="cat-section-heading__number" aria-hidden="true">01</span>
+      <div>
+        <p>{% translate "Configuration" %}</p>
+        <h2 id="cat-details-heading">
+          {% if opts.model_name == "trade" %}{% translate "Trade and discovery details" %}
+          {% elif opts.model_name == "programme" %}{% translate "Programme offer details" %}
+          {% else %}{% translate "Intake date and capacity" %}{% endif %}
+        </h2>
+      </div>
+      <small>{% translate "Fields marked in bold are required." %}</small>
+    </header>
+    <div class="cat-fieldset-stack">
+      {% for fieldset in adminform %}
+        {% include "admin/includes/fieldset.html" with heading_level=3 prefix="fieldset" id_prefix=0 id_suffix=forloop.counter0 %}
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+  {% if opts.model_name == "trade" %}
+    <aside class="cat-form-guidance" aria-labelledby="cat-form-guidance-heading" data-catalog-form-guidance>
+      <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg></span>
+      <div><h2 id="cat-form-guidance-heading">{% translate "Write for the words people use" %}</h2><p>{% translate "Add lowercase alternatives such as welder, fabrication, sewing or fitter. Do not repeat the official trade name." %}</p></div>
+    </aside>
+  {% elif opts.model_name == "programme" %}
+    <aside class="cat-form-guidance" aria-labelledby="cat-form-guidance-heading" data-catalog-form-guidance>
+      <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg></span>
+      <div><h2 id="cat-form-guidance-heading">{% translate "Decision-ready before active" %}</h2><p>{% translate "Confirm the exact fee and duration, then add at least one future open intake. Only keep offers active while the provider still teaches them." %}</p></div>
+    </aside>
+  {% else %}
+    <aside class="cat-form-guidance" aria-labelledby="cat-form-guidance-heading" data-catalog-form-guidance>
+      <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg></span>
+      <div><h2 id="cat-form-guidance-heading">{% translate "Keep capacity honest" %}</h2><p>{% translate "Leave capacity blank when the provider does not know it. When both figures are known, remaining places should never exceed places offered." %}</p></div>
+    </aside>
+  {% endif %}
+{% endblock %}
+
+{% block inline_field_sets %}
+  {% if inline_admin_formsets %}
+    <section class="cat-form-section cat-form-section--inlines" aria-labelledby="cat-inlines-heading">
+      <header class="cat-section-heading">
+        <span class="cat-section-heading__number" aria-hidden="true">02</span>
+        <div><p>{% translate "Availability" %}</p><h2 id="cat-inlines-heading">{% translate "Upcoming intakes" %}</h2></div>
+        <small>{% translate "Add each confirmed start separately." %}</small>
+      </header>
+      <div class="cat-inline-stack">
+        {% for inline_admin_formset in inline_admin_formsets %}
+          {% include inline_admin_formset.opts.template %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+  {% if add and has_add_permission or change and has_change_permission %}
+    <div class="cat-save-dock" data-catalog-save-dock data-catalog-dirty-title="{% translate 'Unsaved changes' %}" aria-label="{% translate 'Save catalog record' %}">
+      <div class="cat-save-dock__context">
+        <span aria-hidden="true"></span>
+        <div aria-live="polite">
+          <strong>{% if original %}{% translate "Record ready" %}{% else %}{% translate "New record ready" %}{% endif %}</strong>
+          <small>{% if original %}{% translate "Save before leaving this page." %}{% else %}{% translate "Create this record to continue." %}{% endif %}</small>
+        </div>
+      </div>
+      {% submit_row %}
+    </div>
+  {% else %}
+    <div class="cat-readonly-bar" role="note" data-catalog-readonly>
+      <div><strong>{% translate "Read-only record" %}</strong><span>{% translate "Your account can review this catalog record but cannot change it." %}</span></div>
+      {% submit_row %}
+    </div>
+  {% endif %}
+{% endblock %}

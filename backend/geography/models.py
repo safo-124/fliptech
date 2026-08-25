@@ -7,6 +7,7 @@ geography is a table.
 """
 
 from django.contrib.gis.db import models as gis_models
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import TimeStampedModel
@@ -30,6 +31,14 @@ class Region(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        """Keep region and area slugs in their shared public URL namespace."""
+        super().clean()
+        if self.slug and Area.objects.filter(slug=self.slug).exists():
+            raise ValidationError(
+                {"slug": "This slug is already used by an area, and both share the URL namespace."}
+            )
 
 
 class Area(TimeStampedModel):
@@ -59,9 +68,12 @@ class Area(TimeStampedModel):
         return f"{self.name}, {self.region.name}"
 
     def clean(self):
-        from django.core.exceptions import ValidationError
-
-        if Region.objects.filter(slug=self.slug).exists():
+        super().clean()
+        if self.centroid is not None and self.centroid.empty:
+            raise ValidationError(
+                {"centroid": "Set a real point or leave the fallback search origin blank."}
+            )
+        if self.slug and Region.objects.filter(slug=self.slug).exists():
             raise ValidationError(
                 {"slug": "This slug is already used by a region, and both share the URL namespace."}
             )

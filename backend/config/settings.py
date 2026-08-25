@@ -7,6 +7,8 @@ codebase may be handed to a contractor: one file that can be read top to bottom
 is worth more here than a clever inheritance chain.
 """
 
+import os
+import sys
 from pathlib import Path
 
 import environ
@@ -21,8 +23,43 @@ env = environ.Env(
     SENTRY_DSN=(str, ""),
     R2_ENDPOINT_URL=(str, ""),
     CSRF_TRUSTED_ORIGINS=(list, []),
+    TRUSTED_PROXY_CIDRS=(
+        list,
+        [
+            "127.0.0.0/8",
+            "::1/128",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+        ],
+    ),
 )
-environ.Env.read_env(BASE_DIR / ".env")
+# Which env file to load.
+#
+# Day-to-day development reads .env, which points at the server's database
+# through the SSH tunnel (see tunnel.sh). Override it for a single command:
+#
+#     ENV_FILE=.env.local python manage.py dbshell
+#
+# Under pytest this is forced to .env.local, ignoring any override. A test run
+# creates a database, migrates it and drops it again; against the server that
+# would be slow, would litter a shared instance, and is destructive if the drop
+# ever resolved to the wrong name. The server role has createdb=False, so it
+# fails outright anyway — loudly, but only after wasting a round trip.
+#
+# This check lives here rather than in conftest.py because pytest-django calls
+# django.setup() from pytest_load_initial_conftests, which runs BEFORE conftest
+# files are imported. Anything set there is already too late.
+_UNDER_PYTEST = "pytest" in sys.modules
+
+if _UNDER_PYTEST and (BASE_DIR / ".env.local").exists():
+    ENV_FILE = ".env.local"
+else:
+    ENV_FILE = os.environ.get("ENV_FILE", ".env")
+
+# CI has no env file at all and supplies real environment variables instead;
+# read_env simply does nothing when the file is absent.
+environ.Env.read_env(BASE_DIR / ENV_FILE)
 
 # The brand name appears in the back office, in every SMS and in the WhatsApp
 # handover text. It is a setting rather than a literal because the ORC name
@@ -117,6 +154,9 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # The back-office sidebar's work queues. Costs nothing outside
+                # an admin view — see the module for the guards.
+                "core.context_processors.back_office",
             ],
         },
     },
@@ -138,13 +178,26 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Cache
 # --------------------------------------------------------------------------
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL"),
-        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+# Tests use an in-process cache rather than Redis. DRF throttling and
+# django-ratelimit both read the cache on ordinary API requests, so with Redis
+# configured a test run needs a live Redis — which meant CI failed with
+# "Connection refused" on 23 tests, and a developer without Redis running could
+# not run the suite at all. Nothing under test depends on Redis specifically.
+if _UNDER_PYTEST:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "skillshub-tests",
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": env("REDIS_URL"),
+            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+        }
+    }
 
 
 # --------------------------------------------------------------------------
@@ -171,6 +224,14 @@ AXES_COOLOFF_TIME = 1  # hours
 AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]
 AXES_RESET_ON_SUCCESS = True
 
+# Trainer access uses Django's server-side session after phone verification.
+# The session credential must never be readable from JavaScript; the separate
+# CSRF cookie remains readable so the frontend can echo it in X-CSRFToken.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+
 
 # --------------------------------------------------------------------------
 # Internationalisation
@@ -195,20 +256,27 @@ PHONENUMBER_DEFAULT_FORMAT = "E164"
 # through short-lived signed URLs. See DATA_MODEL.md, ProviderMedia.
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = env("DJANGO_STATIC_ROOT", default=str(BASE_DIR / "staticfiles"))
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
 
-if DEBUG:
-    STORAGES = {
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "private": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        # Plain storage in development and under test. The manifest variant
-        # below refuses to serve any file that is not in staticfiles.json, so
-        # using it here breaks every admin page until collectstatic has run.
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    }
-else:
+# Public media: workshop photographs. The web server is pointed at this
+# directory, so anything in it is world-readable by design.
+MEDIA_ROOT = env("DJANGO_MEDIA_ROOT", default=str(BASE_DIR / "media"))
+
+# Private media: verification evidence and owner identification. Section 10
+# requires these are "never publicly served", so this MUST stay outside
+# MEDIA_ROOT — the web server is never pointed at it, and Django only hands
+# these files out through a view that checks permissions.
+PRIVATE_MEDIA_ROOT = env("DJANGO_PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "private-media"))
+
+# Cloudflare R2 is the eventual home for both, but the sender-ID and bucket
+# setup runs on its own timetable. Rather than block the first deploy on it,
+# storage falls back to the local filesystem and switches over the moment
+# credentials appear. Without this, a production deploy with blank R2 settings
+# raises ImproperlyConfigured at startup.
+_R2_CONFIGURED = bool(env("R2_ACCESS_KEY_ID", default=""))
+
+if _R2_CONFIGURED:
     _r2 = {
         "endpoint_url": env("R2_ENDPOINT_URL"),
         "access_key": env("R2_ACCESS_KEY_ID"),
@@ -216,7 +284,7 @@ else:
         "region_name": "auto",
         "signature_version": "s3v4",
     }
-    STORAGES = {
+    _media_storages = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {**_r2, "bucket_name": env("R2_BUCKET_PUBLIC"), "querystring_auth": False},
@@ -231,8 +299,29 @@ else:
                 "default_acl": "private",
             },
         },
-        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
+else:
+    _media_storages = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "private": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": PRIVATE_MEDIA_ROOT, "base_url": None},
+        },
+    }
+
+STORAGES = {
+    **_media_storages,
+    # Plain storage in development and under test. The manifest variant refuses
+    # to serve any file missing from staticfiles.json, which breaks every admin
+    # page until collectstatic has run.
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        )
+    },
+}
 
 
 # --------------------------------------------------------------------------
@@ -264,6 +353,11 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
+
+# Caddy is the sole public peer. In Docker it reaches Django over a private
+# bridge rather than loopback, so forwarded client addresses are trusted only
+# when the socket peer belongs to one of these explicitly configured networks.
+TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 
 
 # --------------------------------------------------------------------------

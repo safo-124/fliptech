@@ -1,51 +1,113 @@
 @import "tailwindcss";
 
 /*
+ * Public site theme, in the same shadcn/ui language as the back office.
+ *
  * Tailwind v4 is CSS-first: the theme lives here, not in tailwind.config.js.
  *
- * The palette is deliberately high-contrast. Section 10 asks for legible
- * contrast and 44px tap targets, and notes the reason is not only
- * accessibility guidance — the target user is often outdoors in strong
- * sunlight, on a cracked screen.
+ * The neutral scale is shadcn's default, verbatim in OKLCH — see
+ * ui.shadcn.com/docs/theming — so the two halves of the product look like one
+ * product. The old names are kept as aliases on top of it, which means the
+ * components did not have to be rewritten to change how the site looks.
+ *
+ * Two colours are deliberately NOT from that scale. A Fliptech site visit and
+ * a CTVET government record are different claims that must never read as the
+ * same thing, so they keep distinct hues. That separation is a legal-risk
+ * decision from Section 07 of the product documentation, not decoration.
  */
 @theme {
-  --color-ink: #14181f;
-  --color-ink-soft: #4a5361;
-  --color-line: #e2e6ec;
-  --color-canvas: #ffffff;
-  --color-canvas-soft: #f6f8fa;
+  /* --- shadcn neutral scale --- */
+  --color-background: oklch(0.982 0.006 82);
+  --color-foreground: oklch(0.205 0.028 255);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: var(--color-foreground);
+  --color-muted: oklch(0.955 0.01 82);
+  --color-muted-foreground: oklch(0.49 0.025 255);
+  --color-secondary: oklch(0.945 0.014 82);
+  --color-secondary-foreground: oklch(0.25 0.03 255);
+  --color-border: oklch(0.895 0.012 82);
+  --color-border-strong: oklch(0.82 0.018 82);
+  --color-input: oklch(0.86 0.014 82);
+  --color-ring: oklch(0.56 0.16 43);
+  --color-primary: oklch(0.245 0.04 255);
+  --color-primary-foreground: oklch(0.985 0 0);
+  --color-destructive: oklch(0.577 0.245 27.325);
 
-  /* Site visit: Fliiptech's own check. */
-  --color-visit: #0f6d43;
-  --color-visit-bg: #e6f4ed;
-  /* Government record: a different claim, so a different colour family. */
-  --color-gov: #2d4a8a;
-  --color-gov-bg: #eaeff8;
-  /* Absent or unconfirmed, which must read as neutral rather than alarming. */
-  --color-muted-bg: #f0f2f5;
-  --color-warn: #8a5a00;
-  --color-warn-bg: #fdf3e0;
+  /* Brand colour is warm and human; primary remains a calm ink so trust
+     colours retain their specific meanings. */
+  --color-brand: oklch(0.57 0.17 43);
+  --color-brand-strong: oklch(0.5 0.17 39);
+  --color-brand-soft: oklch(0.95 0.035 60);
 
-  --color-accent: #b03a1a;
-  --color-accent-ink: #ffffff;
+  --radius: 0.875rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-xs: 0 1px 2px 0 oklch(0.2 0.02 255 / 0.05);
+  --shadow-sm: 0 1px 3px oklch(0.2 0.02 255 / 0.07), 0 1px 2px oklch(0.2 0.02 255 / 0.04);
+  --shadow-card: 0 1px 2px oklch(0.2 0.02 255 / 0.04), 0 10px 30px -24px oklch(0.2 0.04 255 / 0.3);
+  --shadow-lg: 0 24px 60px -32px oklch(0.2 0.04 255 / 0.35);
+
+  /* --- aliases the components already use --- */
+  --color-ink: var(--color-foreground);
+  --color-ink-soft: var(--color-muted-foreground);
+  --color-line: var(--color-border);
+  --color-canvas: var(--color-background);
+  --color-canvas-soft: var(--color-muted);
+  --color-muted-bg: var(--color-muted);
+
+  /* Primary actions are near-black, as shadcn's are. Colour on this site is
+     reserved for the two trust signals, so a coloured button would compete
+     with the only marks that carry meaning. */
+  --color-accent: var(--color-primary);
+  --color-accent-ink: var(--color-primary-foreground);
+
+  /* --- semantic, and exempt from the neutral scale --- */
+  /* Site visit: Fliptech's own check. */
+  --color-visit: oklch(0.48 0.11 158);
+  --color-visit-bg: oklch(0.96 0.02 158);
+  /* Government record: a different claim, so a different hue. */
+  --color-gov: oklch(0.45 0.11 262);
+  --color-gov-bg: oklch(0.96 0.02 262);
+  /* Unconfirmed. Must read as caution, not as alarm — a stale listing is not
+     a bad provider. */
+  --color-warn: oklch(0.52 0.11 75);
+  --color-warn-bg: oklch(0.97 0.03 85);
 
   --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
 }
 
+/*
+ * Light only, on purpose. The target user is outdoors in strong sunlight where
+ * a light interface is far more legible, and both the map tiles and the
+ * provider photographs are light — a dark shell around them would look broken
+ * rather than considered.
+ */
 :root {
   color-scheme: light;
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 8% -12%, oklch(0.94 0.045 58 / 0.72), transparent 28rem),
+    var(--color-background);
+  color: var(--color-foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-text-size-adjust: 100%;
 }
 
-/* Section 10: tap targets of at least 44 pixels. Applied to the controls that
-   actually get tapped on a phone rather than left to each component. */
+::selection {
+  background: var(--color-brand-soft);
+  color: var(--color-foreground);
+}
+
 @layer components {
+  /* Section 10: tap targets of at least 44 pixels. Kept here rather than left
+     to each component, so no screen can quietly forget it. */
   .tap {
     min-height: 44px;
     min-width: 44px;
@@ -53,13 +115,69 @@ body {
     align-items: center;
     justify-content: center;
   }
+
+  /* One card definition, shared by search results, programmes and panels:
+     hairline border, generous radius, barely any shadow. */
+  .card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* shadcn Badge, variant="outline". */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .app-shell {
+    width: 100%;
+    max-width: 100rem;
+    margin-inline: auto;
+    padding-inline: 0.75rem;
+  }
+
+  .surface-grid {
+    background-image:
+      linear-gradient(to right, oklch(0.5 0.02 255 / 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.5 0.02 255 / 0.055) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: linear-gradient(to bottom, black, transparent 92%);
+  }
+
+  .glass {
+    background: oklch(0.985 0.004 82 / 0.82);
+    backdrop-filter: blur(18px) saturate(150%);
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Keyboard focus must stay visible. Never remove this without a replacement. */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 3px solid var(--color-accent);
+:where(a, button, input, select, textarea, [tabindex]):not([data-slot]):focus-visible {
+  outline: 2px solid var(--color-ring);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (min-width: 64rem) {
+  .app-shell {
+    padding-inline: 1.5rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

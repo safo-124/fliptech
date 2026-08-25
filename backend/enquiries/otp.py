@@ -10,6 +10,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
+from django.db.models import F
 from django.utils import timezone
 
 from core.sms import send_sms
@@ -26,7 +27,12 @@ def _generate_code():
     return f"{secrets.randbelow(upper):0{settings.OTP_CODE_LENGTH}d}"
 
 
-def request_code(phone, ip_address=None):
+def request_code(
+    phone,
+    ip_address=None,
+    *,
+    purpose=PhoneVerification.Purpose.TRAINEE_ENQUIRY,
+):
     """Issue and send a code, subject to the daily caps."""
     since = timezone.now() - timedelta(days=1)
 
@@ -43,6 +49,7 @@ def request_code(phone, ip_address=None):
     code = _generate_code()
     verification = PhoneVerification.objects.create(
         phone=phone,
+        purpose=purpose,
         code_hash=make_password(code),
         expires_at=timezone.now() + timedelta(seconds=settings.OTP_TTL_SECONDS),
         ip_address=ip_address,
@@ -55,30 +62,52 @@ def request_code(phone, ip_address=None):
     return verification
 
 
-def verify_code(phone, code):
+def verify_code(
+    phone,
+    code,
+    *,
+    purpose=PhoneVerification.Purpose.TRAINEE_ENQUIRY,
+    challenge_id=None,
+):
     """Return the verification on success, raise OTPError otherwise."""
-    verification = (
-        PhoneVerification.objects.filter(phone=phone, verified_at__isnull=True)
-        .order_by("-created_at")
-        .first()
+    candidates = PhoneVerification.objects.filter(
+        phone=phone,
+        purpose=purpose,
+        verified_at__isnull=True,
     )
+    if challenge_id is not None:
+        candidates = candidates.filter(challenge_id=challenge_id)
+    verification = candidates.order_by("-created_at").first()
 
     if verification is None:
         raise OTPError("No code was requested for this number.")
     if verification.is_expired:
         raise OTPError("That code has expired. Request a new one.")
-    if verification.attempts >= settings.OTP_MAX_ATTEMPTS:
+    # The limit check and increment are one conditional database operation.
+    # Two simultaneous guesses against the last available attempt cannot both
+    # pass by reading the same stale counter.
+    attempted = PhoneVerification.objects.filter(
+        pk=verification.pk,
+        verified_at__isnull=True,
+        attempts__lt=settings.OTP_MAX_ATTEMPTS,
+    ).update(attempts=F("attempts") + 1)
+    if not attempted:
         raise OTPError("Too many incorrect attempts. Request a new code.")
-
-    # Count the attempt before checking, so a crash mid-check cannot be used to
-    # get a free guess.
-    PhoneVerification.objects.filter(pk=verification.pk).update(attempts=verification.attempts + 1)
 
     if not check_password(code, verification.code_hash):
         raise OTPError("That code is not correct.")
 
-    verification.verified_at = timezone.now()
-    verification.save(update_fields=["verified_at"])
+    verified_at = timezone.now()
+    # Consuming the challenge is conditional, so two correct requests racing
+    # each other cannot both establish sessions from one code.
+    consumed = PhoneVerification.objects.filter(
+        pk=verification.pk,
+        verified_at__isnull=True,
+    ).update(verified_at=verified_at)
+    if not consumed:
+        raise OTPError("That code has already been used. Request a new one.")
+    verification.verified_at = verified_at
+    verification.attempts += 1
     return verification
 
 
@@ -89,4 +118,8 @@ def phone_is_trusted(phone):
     three.
     """
     cutoff = timezone.now() - timedelta(seconds=settings.OTP_SESSION_TRUST_SECONDS)
-    return PhoneVerification.objects.filter(phone=phone, verified_at__gte=cutoff).exists()
+    return PhoneVerification.objects.filter(
+        phone=phone,
+        purpose=PhoneVerification.Purpose.TRAINEE_ENQUIRY,
+        verified_at__gte=cutoff,
+    ).exists()

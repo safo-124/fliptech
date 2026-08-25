@@ -10,7 +10,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test"
@@ -18,8 +18,12 @@
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
     "@hookform/resolvers": "5.9.1",
+    "@radix-ui/react-slot": "1.3.3",
     "@tanstack/react-query": "5.101.4",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
     "leaflet": "1.9.4",
+    "lucide-react": "1.33.0",
     "next": "16.3.1",
     "next-intl": "4.13.7",
     "react": "19.2.8",
@@ -28,6 +32,7 @@
     "react-leaflet": "5.0.0",
     "sharp": "0.35.3",
     "supercluster": "9.0.0",
+    "tailwind-merge": "3.6.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

@@ -1,0 +1,26 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% comment %}
+  Django's stock admin/index.html intentionally removes the navigation sidebar,
+  and app_index.html inherits that empty block. Our dashboard restores it; app
+  landing pages must do the same or navigation vanishes between two admin
+  screens. The rest of this file mirrors Django 5.2's small stock override.
+{% endcomment %}
+
+{% block bodyclass %}{{ block.super }} app-{{ app_label }}{% endblock %}
+
+{% if not is_popup %}
+  {% block nav-breadcrumbs %}
+    <nav aria-label="{% translate 'Breadcrumbs' %}">
+      <div class="breadcrumbs">
+        <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+        &rsaquo;
+        {% for app in app_list %}{{ app.name }}{% endfor %}
+      </div>
+    </nav>
+  {% endblock %}
+{% endif %}
+
+{% block nav-sidebar %}{% include "admin/nav_sidebar.html" %}{% endblock %}
+{% block sidebar %}{% endblock %}

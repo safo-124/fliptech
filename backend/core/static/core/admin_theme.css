@@ -1,0 +1,1317 @@
+/*
+ * Back-office theme, in the shadcn/ui visual language.
+ *
+ * The tokens below are shadcn's own default (neutral) palette, verbatim, in
+ * OKLCH — see ui.shadcn.com/docs/theming. They are then mapped onto the
+ * variables Django's admin already uses, which is why this stays a palette
+ * file rather than a fight with selectors. Nothing here changes admin markup.
+ *
+ * The look it produces: near-white surfaces, hairline borders, almost no
+ * shadow, a near-black primary, muted grey for every label, and colour
+ * reserved for charts. Weight comes from type and spacing, not from fill.
+ *
+ * No web font. shadcn ships Geist; this loads nothing, because the back office
+ * is used in the field on prepaid data and the system stack renders instantly.
+ */
+
+/* ------------------------------------------------------------ shadcn tokens */
+
+:root {
+  --radius: 0.625rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --sh-primary: oklch(0.205 0 0);
+  --sh-primary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  /* The sidebar sits one step off the page background rather than on it, which
+     is what separates the two surfaces without drawing a heavy border. */
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-width: 17rem;
+
+  /* This dashboard is about verification and staleness, so good and bad still
+     have to read as such. They sit alongside the neutral scale, used sparingly. */
+  --sh-positive: oklch(0.62 0.14 155);
+  --sh-caution: oklch(0.72 0.15 75);
+
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.06);
+}
+
+/* Django exposes an explicit choice via [data-theme]; the media query below
+   covers viewers who never set one. A @media cannot join a selector list, so
+   the two have to be written separately. */
+:root[data-theme="dark"] {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --sh-primary: oklch(0.922 0 0);
+  --sh-primary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+
+  --sh-positive: oklch(0.7 0.14 158);
+  --sh-caution: oklch(0.78 0.15 78);
+
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --sh-primary: oklch(0.922 0 0);
+    --sh-primary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sh-positive: oklch(0.7 0.14 158);
+    --sh-caution: oklch(0.78 0.15 78);
+    --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+    --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4);
+  }
+}
+
+/* -------------------------------------------- mapped onto Django's variables */
+
+:root {
+  --primary: var(--sh-primary);
+  --primary-fg: var(--sh-primary-foreground);
+  --secondary: var(--sh-primary);
+  --accent: var(--chart-1);
+
+  --body-fg: var(--foreground);
+  --body-bg: var(--background);
+  --body-quiet-color: var(--muted-foreground);
+  --body-loud-color: var(--foreground);
+
+  /* shadcn dashboards have a light header with a hairline rule, not a dark
+     bar. This is the single biggest change to how the admin reads. */
+  --header-bg: var(--background);
+  --header-color: var(--foreground);
+  --header-branding-color: var(--foreground);
+  --header-link-color: var(--muted-foreground);
+
+  --breadcrumbs-bg: var(--background);
+  --breadcrumbs-fg: var(--muted-foreground);
+  --breadcrumbs-link-fg: var(--muted-foreground);
+
+  --link-fg: var(--foreground);
+  --link-hover-color: var(--muted-foreground);
+  --link-selected-fg: var(--foreground);
+
+  --hairline-color: var(--border);
+  --border-color: var(--border);
+
+  --error-fg: var(--destructive);
+  --message-success-bg: var(--muted);
+  --message-warning-bg: var(--muted);
+  --message-error-bg: var(--muted);
+
+  --darkened-bg: var(--muted);
+  --selected-bg: var(--muted);
+  --selected-row: var(--muted);
+
+  --button-bg: var(--background);
+  --button-fg: var(--foreground);
+  --button-hover-bg: var(--muted);
+  --default-button-bg: var(--sh-primary);
+  --default-button-hover-bg: var(--sh-primary);
+  --close-button-bg: var(--muted);
+  --close-button-hover-bg: var(--border);
+  --delete-button-bg: var(--destructive);
+  --delete-button-hover-bg: var(--destructive);
+
+  --object-tools-bg: var(--sh-primary);
+  --object-tools-fg: var(--sh-primary-foreground);
+  --object-tools-hover-bg: var(--sh-primary);
+
+  --font-family-primary: system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --------------------------------------------------------------- typography */
+
+body {
+  font-family: var(--font-family-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+h2 { font-size: 14px; font-weight: 600; }
+
+a:link, a:visited { text-decoration: none; }
+
+/* ------------------------------------------------------------------- header */
+
+#header {
+  padding: 0 24px;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  background: var(--background);
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+
+/* base.css colours the wordmark with --accent, which this theme maps to
+   --chart-1 — so the brand rendered orange in light mode and blue in dark. It
+   is a wordmark, not a link to be noticed. */
+#branding h1, #site-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+#branding h1 a:link, #branding h1 a:visited,
+#site-name a:link, #site-name a:visited { color: var(--foreground); }
+
+#user-tools {
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted-foreground);
+}
+#user-tools a {
+  color: var(--muted-foreground);
+  border-bottom: none;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+}
+#user-tools a:hover { background: var(--muted); color: var(--foreground); }
+
+div.breadcrumbs {
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  font-size: 13px;
+}
+div.breadcrumbs a { color: var(--muted-foreground); }
+div.breadcrumbs a:focus, div.breadcrumbs a:hover { color: var(--foreground); }
+
+/* ------------------------------------------------------------------ surface */
+
+.module {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+/* shadcn card headers are quiet: sentence case, no heavy fill, hairline rule. */
+.module h2,
+.module caption,
+.inline-group h2 {
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 16px 24px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+fieldset.module { padding: 0; }
+.form-row { padding: 14px 24px; border-bottom: 1px solid var(--border); }
+.form-row:last-child { border-bottom: none; }
+
+.aligned label { font-weight: 500; font-size: 13.5px; color: var(--foreground); padding-top: 9px; }
+.help, .helptext, div.help { color: var(--muted-foreground); font-size: 13px; }
+
+/* -------------------------------------------------------------------- forms */
+
+input[type="text"], input[type="password"], input[type="email"],
+input[type="url"], input[type="number"], input[type="tel"],
+input[type="search"], input[type="date"], input[type="time"],
+textarea, select, .vTextField {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  min-height: 36px;
+  font-family: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* shadcn focus: a 3px ring at 50% opacity plus a border shift. */
+input:focus, textarea:focus, select:focus, .vTextField:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.button, input[type="submit"], input[type="button"],
+.submit-row input, a.button {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  min-height: 36px;
+  font-weight: 500;
+  font-size: 14px;
+  box-shadow: var(--shadow-xs);
+  transition: background 0.15s ease;
+}
+.button:hover, input[type="submit"]:hover, .submit-row input:hover {
+  background: var(--muted);
+}
+
+.button.default, input[type="submit"].default, .submit-row input.default,
+.submit-row input[name="_save"] {
+  background: var(--sh-primary);
+  color: var(--sh-primary-foreground);
+  border-color: transparent;
+}
+.button.default:hover, .submit-row input[name="_save"]:hover {
+  background: var(--sh-primary);
+  opacity: 0.9;
+}
+
+.object-tools a {
+  background: var(--sh-primary);
+  color: var(--sh-primary-foreground);
+  border-radius: var(--radius-md);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: var(--shadow-xs);
+}
+
+.submit-row {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 16px 24px;
+}
+
+.deletelink, .submit-row a.deletelink {
+  background: var(--destructive);
+  color: oklch(0.985 0 0);
+  border-color: transparent;
+}
+
+/* ------------------------------------------------------------------- tables */
+
+#changelist table thead th {
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+#changelist table tbody td, #changelist table tbody th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+#changelist table tbody tr:hover { background: var(--muted); }
+
+#changelist-filter {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+#changelist-filter h2 { border-bottom: 1px solid var(--border); }
+
+.paginator { border-top: 1px solid var(--border); padding: 14px 16px; font-size: 13px; }
+
+/* ------------------------------------------------------------------ sidebar */
+/*
+ * shadcn's Sidebar: a slightly-off-background surface, quiet group labels, and
+ * items that are rounded rectangles which fill on hover. The active item is
+ * the only one with a background at rest.
+ *
+ * The markup underneath is still Django's app-list table, because its
+ * type-to-filter script walks `th[scope=row] a` up to the `<tr>` to hide it.
+ * Rewriting it as a list would break the filter with no error, so the table
+ * parts are re-declared as blocks and flex rows here instead. The script sets
+ * `display` to the empty string when showing a row, which restores the
+ * stylesheet's value rather than fighting it.
+ */
+
+#nav-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 0 8px 8px;
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  border-right: 1px solid var(--sidebar-border);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* 275px is Django's. The hidden state is a negative margin of the same size,
+     so the width and the offset have to be changed together or the closed
+     sidebar leaves a sliver on screen. */
+  flex: 0 0 var(--sidebar-width);
+  left: calc(-1px - var(--sidebar-width));
+  margin-left: calc(-1px - var(--sidebar-width));
+}
+[dir="rtl"] #nav-sidebar {
+  left: 0;
+  margin-left: 0;
+  right: calc(-1px - var(--sidebar-width));
+  margin-right: calc(-1px - var(--sidebar-width));
+}
+
+.main > #nav-sidebar + .content { max-width: none; }
+
+.toggle-nav-sidebar {
+  flex: 0 0 20px;
+  width: 20px;
+  font-size: 14px;
+  background: var(--sidebar);
+  color: var(--muted-foreground);
+  border-right: 1px solid var(--sidebar-border);
+}
+.toggle-nav-sidebar:hover,
+.toggle-nav-sidebar:focus { background: var(--sidebar-accent); color: var(--foreground); }
+
+/* -- brand ---------------------------------------------------------------- */
+
+.sb-brand { padding: 10px 0 6px; }
+.sb-brand a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+.sb-brand a:hover { background: var(--sidebar-accent); }
+.sb-mark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--sidebar-primary);
+  color: var(--sidebar-primary-foreground);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+.sb-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.sb-brand-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--sidebar-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-brand-sub { font-size: 12px; color: var(--muted-foreground); }
+
+/* -- filter --------------------------------------------------------------- */
+
+#nav-filter {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  min-height: 32px;
+  font-size: 13px;
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+/* -- groups --------------------------------------------------------------- */
+
+.sb-group-label {
+  padding: 8px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted-foreground);
+}
+
+.sb-menu { list-style: none; margin: 0; padding: 0; }
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px 6px 10px;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  color: var(--sidebar-foreground);
+}
+.sb-item:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.sb-item-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-count {
+  flex: none;
+  min-width: 20px;
+  padding: 1px 6px;
+  text-align: center;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.sb-item:hover .sb-count { background: var(--background); color: var(--foreground); }
+
+.sb-clear { margin: 0; padding: 2px 10px 6px; font-size: 13px; color: var(--muted-foreground); }
+
+/* -- the app list, restyled as navigation --------------------------------- */
+
+#nav-sidebar .sb-nav .module {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+}
+#nav-sidebar .sb-nav table { display: block; width: 100%; }
+#nav-sidebar .sb-nav tbody { display: block; }
+#nav-sidebar .sb-nav caption {
+  display: block;
+  padding: 10px 10px 3px;
+  text-align: left;
+  background: transparent;
+  border: none;
+}
+#nav-sidebar .sb-nav caption a.section {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--muted-foreground);
+}
+#nav-sidebar .sb-nav caption a.section:hover { color: var(--foreground); }
+
+#nav-sidebar .sb-nav tr {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+#nav-sidebar .sb-nav th { display: block; flex: 1; min-width: 0; padding: 0; }
+#nav-sidebar .sb-nav td { display: block; flex: none; padding: 0; }
+#nav-sidebar .sb-nav th a {
+  display: block;
+  padding: 6px 10px;
+  font-size: 13.5px;
+  color: var(--sidebar-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#nav-sidebar .sb-nav tr:hover { background: var(--sidebar-accent); }
+#nav-sidebar .sb-nav tr:hover th a { color: var(--sidebar-accent-foreground); }
+#nav-sidebar .sb-nav tr.current-model { background: var(--sidebar-accent); }
+#nav-sidebar .sb-nav tr.current-model th a {
+  color: var(--sidebar-accent-foreground);
+  font-weight: 500;
+}
+
+/* The per-model "Add" shortcut. Eight of these down the sidebar is noise, so
+   it is revealed on hover — except where there is no hover to reveal it with,
+   which is the phone the back office is mostly used on. */
+#nav-sidebar .sb-nav td a.addlink {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted-foreground);
+  font-size: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+#nav-sidebar .sb-nav td a.addlink::before { content: "+"; font-size: 16px; line-height: 1; }
+#nav-sidebar .sb-nav tr:hover td a.addlink,
+#nav-sidebar .sb-nav td a.addlink:focus-visible { opacity: 1; }
+#nav-sidebar .sb-nav td a.addlink:hover { background: var(--background); color: var(--foreground); }
+@media (hover: none) {
+  #nav-sidebar .sb-nav td a.addlink { opacity: 1; }
+}
+
+/* -- footer --------------------------------------------------------------- */
+
+.sb-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px 4px;
+  border-top: 1px solid var(--sidebar-border);
+}
+.sb-foot-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.sb-foot-n { color: var(--foreground); font-weight: 500; font-variant-numeric: tabular-nums; }
+.sb-meter { height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+.sb-meter > span { display: block; height: 100%; border-radius: 999px; background: var(--sh-positive); }
+
+/* -- sidebar v2 ----------------------------------------------------------- */
+/*
+ * The first sidebar pass above keeps the stock Django app table readable. The
+ * current template has a stronger information hierarchy: a fixed header,
+ * independently scrolling navigation, native collapsible app groups and a
+ * compact status card. These rules intentionally live after the compatibility
+ * layer so a future Django point release can keep its table/filter contract
+ * without dictating the visual structure.
+ */
+
+#nav-sidebar,
+#nav-sidebar * { box-sizing: border-box; }
+
+#nav-sidebar {
+  gap: 0;
+  padding: 0;
+  height: calc(100dvh - 56px);
+  max-height: calc(100dvh - 56px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  box-shadow: none;
+}
+
+#nav-sidebar svg,
+.toggle-nav-sidebar svg {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#nav-sidebar [hidden] { display: none !important; }
+
+/* Django hard-codes its original 275px sidebar into the shifted content rule.
+   Match that rule's specificity so the content uses the width that flexbox has
+   actually given it instead of clipping the right-most dashboard cards. */
+.main > #nav-sidebar + .content,
+.main.shifted > #nav-sidebar + .content {
+  min-width: 0;
+  max-width: none;
+}
+
+/* A compact PanelLeft control replaces Django's full-height 20px rail. */
+.toggle-nav-sidebar {
+  position: fixed;
+  top: 68px;
+  left: 4px;
+  z-index: 30;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--muted-foreground);
+  box-shadow: var(--shadow-xs);
+  transition: left 0.18s ease, right 0.18s ease, color 0.15s ease, background 0.15s ease;
+}
+[dir="rtl"] .toggle-nav-sidebar { right: 4px; left: auto; }
+.main.shifted .toggle-nav-sidebar { left: calc(var(--sidebar-width) - 40px); }
+[dir="rtl"] .main.shifted .toggle-nav-sidebar { right: calc(var(--sidebar-width) - 40px); left: auto; }
+.main > .toggle-nav-sidebar::before,
+.main.shifted > .toggle-nav-sidebar::before { content: none !important; }
+.toggle-nav-sidebar:hover,
+.toggle-nav-sidebar:focus-visible {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
+.toggle-nav-sidebar svg { width: 16px; height: 16px; }
+.sb-toggle-chevron { transition: transform 0.18s ease; }
+.main.shifted .sb-toggle-chevron { transform: rotate(180deg); }
+.sb-toggle-menu,
+.sb-toggle-close { display: none !important; }
+
+/* Header ----------------------------------------------------------------- */
+
+.sb-header {
+  flex: none;
+  padding: 10px 10px 9px;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.sb-brand { padding: 0 0 9px; }
+.sb-brand a {
+  min-height: 44px;
+  gap: 10px;
+  padding: 6px 42px 6px 6px;
+}
+.sb-brand a:hover { background: var(--sidebar-accent); }
+.sb-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.sb-brand-text { gap: 2px; }
+.sb-brand-name { font-size: 13.5px; line-height: 1.15; }
+.sb-brand-sub { font-size: 11.5px; line-height: 1.15; }
+.sb-brand-chevron { display: none !important; }
+
+.sb-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  color: var(--muted-foreground);
+}
+.sb-search > svg {
+  position: absolute;
+  left: 10px;
+  z-index: 1;
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+}
+#nav-sidebar .sb-search #nav-filter {
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 34px 6px 31px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--sidebar-foreground);
+  font-size: 12.5px;
+  box-shadow: var(--shadow-xs);
+}
+#nav-sidebar .sb-search #nav-filter::placeholder { color: var(--muted-foreground); opacity: 0.85; }
+#nav-sidebar .sb-search #nav-filter.no-results { border-color: var(--destructive); background: var(--background); }
+.sb-search kbd {
+  position: absolute;
+  right: 7px;
+  min-width: 20px;
+  padding: 1px 5px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 10px;
+  line-height: 17px;
+  text-align: center;
+  pointer-events: none;
+}
+.sb-filter-empty {
+  margin: 7px 4px 0;
+  color: var(--destructive);
+  font-size: 11.5px;
+}
+
+/* Scrolling body and shared items ---------------------------------------- */
+
+.sb-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sidebar-border) transparent;
+}
+.sb-scroll::-webkit-scrollbar { width: 8px; }
+.sb-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--sidebar-border);
+  background-clip: padding-box;
+}
+
+.sb-group + .sb-group { margin-top: 10px; }
+.sb-primary-nav { margin-bottom: 4px; }
+.sb-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 6px 8px 5px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+.sb-label-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+.sb-menu { display: grid; gap: 2px; }
+.sb-item {
+  position: relative;
+  min-height: 34px;
+  gap: 9px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--sidebar-foreground);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.25;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.sb-item:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.sb-item.is-active {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+  font-weight: 550;
+  box-shadow: inset 2px 0 0 var(--sidebar-primary);
+}
+.sb-item:focus-visible,
+.sb-app-trigger:focus-visible,
+.sb-model-link:focus-visible,
+.sb-add-link:focus-visible,
+.sb-foot:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+.sb-item-icon { flex: none; width: 16px; height: 16px; color: var(--muted-foreground); }
+.sb-item.is-active .sb-item-icon,
+.sb-item:hover .sb-item-icon { color: currentColor; }
+.sb-queue-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--sh-caution);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--sh-caution) 14%, transparent);
+}
+.sb-queue--enquiry .sb-queue-dot {
+  background: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent);
+}
+.sb-count {
+  min-width: 23px;
+  padding: 1px 6px;
+  border: 1px solid var(--sidebar-border);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  line-height: 17px;
+}
+.sb-item:hover .sb-count,
+.sb-item.is-active .sb-count { background: var(--background); color: var(--foreground); }
+.sb-clear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 7px 9px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+}
+.sb-clear svg { width: 15px; height: 15px; color: var(--sh-positive); }
+
+/* Collapsible app groups ------------------------------------------------- */
+
+.sb-apps { display: grid; gap: 2px; min-width: 0; }
+.sb-app {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border-radius: var(--radius-md);
+}
+.sb-app-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 7px;
+  border-radius: var(--radius-md);
+  color: var(--sidebar-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.sb-app-trigger::-webkit-details-marker { display: none; }
+.sb-app-trigger::marker { content: ""; }
+.sb-app-trigger:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.sb-app.is-current > .sb-app-trigger { color: var(--sidebar-accent-foreground); font-weight: 600; }
+.sb-app-icon { flex: none; width: 16px; height: 16px; color: var(--muted-foreground); }
+.sb-app-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-app-count {
+  min-width: 18px;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.sb-app-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  transition: transform 0.15s ease;
+}
+.sb-app[open] > .sb-app-trigger .sb-app-chevron { transform: rotate(90deg); }
+.sb-app-panel {
+  margin: 1px 0 3px 15px;
+  padding-left: 10px;
+  border-left: 1px solid var(--sidebar-border);
+}
+
+#nav-sidebar .sb-app-panel table,
+#nav-sidebar .sb-app-panel tbody { display: block; width: 100%; }
+#nav-sidebar .sb-app-panel tr {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted-foreground);
+}
+#nav-sidebar .sb-app-panel tr:hover,
+#nav-sidebar .sb-app-panel tr.is-active {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
+#nav-sidebar .sb-app-panel th {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#nav-sidebar .sb-app-panel td {
+  display: block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#nav-sidebar .sb-app-panel .sb-model-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 5px;
+  border-radius: var(--radius-md);
+  color: inherit;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+#nav-sidebar .sb-app-panel .sb-model-rail {
+  display: block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  opacity: 0.55;
+}
+.sb-app-model.is-active .sb-model-rail { border-color: var(--sidebar-primary); background: var(--sidebar-primary); opacity: 1; }
+.sb-app-model.is-active .sb-model-link { color: var(--sidebar-accent-foreground); font-weight: 550; }
+.sb-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-add-link {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.sb-add-link svg { width: 14px; height: 14px; }
+.sb-app-model:hover .sb-add-link,
+.sb-add-link:focus-visible { opacity: 1; }
+.sb-add-link:hover { background: var(--background); color: var(--foreground); }
+.sb-no-permission { margin: 0; padding: 8px; color: var(--muted-foreground); font-size: 12.5px; }
+
+/* Footer status card ----------------------------------------------------- */
+
+.sb-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 8px;
+  padding: 10px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  color: var(--sidebar-foreground);
+  box-shadow: var(--shadow-xs);
+}
+.sb-foot:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.sb-foot-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sb-foot-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--sh-positive) 13%, var(--muted));
+  color: var(--sh-positive);
+}
+.sb-foot-icon svg { width: 15px; height: 15px; }
+.sb-foot-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+.sb-foot-title { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.sb-foot-note { color: var(--muted-foreground); font-size: 10.5px; line-height: 1.2; }
+.sb-foot-n { color: inherit; font-size: 11.5px; font-weight: 600; }
+.sb-meter { height: 5px; background: var(--muted); }
+
+@media (hover: none) {
+  .sb-add-link { opacity: 1; }
+}
+
+@media (forced-colors: active) {
+  .sb-item.is-active,
+  #nav-sidebar .sb-app-panel tr.is-active { border: 1px solid SelectedItem; }
+  .sb-queue-dot,
+  .sb-model-rail { forced-color-adjust: none; }
+}
+
+/* ----------------------------------------------------------------- messages */
+
+ul.messagelist li {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  font-size: 14px;
+  background-image: none;
+}
+ul.messagelist li.error { border-color: var(--destructive); color: var(--destructive); }
+
+.errornote, .errorlist li {
+  background: var(--card);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-lg);
+  color: var(--destructive);
+  padding: 12px 16px;
+  font-size: 13.5px;
+}
+
+/* --------------------------------------------------------------- login page */
+
+.login #container {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.login #header { border-radius: 0; min-height: 0; padding: 20px 24px; }
+.login .submit-row { border: none; background: transparent; box-shadow: none; padding: 0; }
+.login .submit-row input[type="submit"] { width: 100%; }
+
+/* --------------------------------------------------------------- responsive */
+
+@media (max-width: 1024px) {
+  #header, div.breadcrumbs { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (max-width: 767px) {
+  /* Thumb-sized targets: this screen gets used standing up in a workshop.
+     These selectors carry the .form-row prefix to match the specificity of
+     Django's own mobile rule (`.form-row input[type=text]`, 0-2-1); a bare
+     `input[type=text]` is 0-1-1 and loses to it whatever the load order. */
+  .button, input[type="submit"], .submit-row input, a.button { min-height: 44px; }
+
+  .form-row input:not([type]),
+  .form-row input[type="text"],
+  .form-row input[type="password"],
+  .form-row input[type="email"],
+  .form-row input[type="url"],
+  .form-row input[type="tel"],
+  .form-row input[type="number"],
+  .form-row input[type="search"],
+  .form-row textarea,
+  .form-row select,
+  .form-row .vTextField {
+    min-height: 44px;
+    padding: 11px 12px;
+    /* 16px exactly: smaller makes iOS Safari zoom the page on focus, which
+       throws the officer out of position mid-form. */
+    font-size: 16px;
+  }
+  .form-row select { height: 44px; }
+
+  #changelist-search input[type="text"], #nav-filter { min-height: 44px; font-size: 16px; }
+  .form-row { padding: 14px 16px; }
+  .module h2, .module caption { padding: 14px 16px 10px; }
+}
+
+/* ------------------------------------------------- sidebar, on a phone */
+/*
+ * Below 768px the sidebar becomes an overlay drawer rather than a column.
+ * Django's own behaviour is to keep it in flow at 275px, which on a 375px
+ * screen leaves 100px for the actual work.
+ *
+ * Django's script remembers the open state in localStorage and defaults it to
+ * open, so admin/base_site.html sets it closed on a narrow screen before that
+ * script runs — otherwise a field officer's first view of the back office is a
+ * drawer covering it.
+ */
+
+@media (max-width: 767px) {
+  /* Django hides both outright below 768px — `#nav-sidebar, #toggle-nav-sidebar
+     { display: none }` in nav_sidebar.css — because on the stock admin the
+     index page carries the app list instead. Here the app list only exists in
+     the sidebar, so hiding it would leave a phone with no navigation at all.
+     Same specificity as Django's rule; this file loads later. */
+  #nav-sidebar { display: flex; }
+  #toggle-nav-sidebar { display: flex; }
+
+  #nav-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: 17rem;
+    max-width: 85vw;
+    max-height: none;
+    margin-left: 0;
+    border-right: 1px solid var(--sidebar-border);
+    box-shadow: var(--shadow-sm);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+  .main.shifted > #nav-sidebar { transform: none; margin-left: 0; }
+  [dir="rtl"] #nav-sidebar {
+    left: auto;
+    right: 0;
+    margin-right: 0;
+    transform: translateX(100%);
+  }
+  [dir="rtl"] .main.shifted > #nav-sidebar { transform: none; margin-right: 0; }
+
+  /* The scrim. It belongs to .main, so a tap on it targets #main — which is
+     how core/admin_sidebar.js knows to close the drawer. */
+  .main.shifted::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: oklch(0 0 0 / 0.45);
+  }
+
+  /* A 20px strip against the screen edge is not a target anyone can hit
+     standing up in a workshop. */
+  #toggle-nav-sidebar {
+    position: fixed;
+    left: 12px;
+    /* Django's .sticky sets top: 0. With a fixed height, an element given both
+       top and bottom is over-constrained and top wins, which parks the button
+       in the header instead of under the thumb. */
+    top: auto;
+    bottom: 12px;
+    z-index: 70;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: var(--shadow-sm);
+    font-size: 16px;
+  }
+  [dir="rtl"] #toggle-nav-sidebar { left: auto; right: 12px; }
+  #toggle-nav-sidebar::before { content: "\2630"; }
+  .main.shifted #toggle-nav-sidebar::before { content: "\2715"; }
+
+  .sb-item { min-height: 40px; font-size: 14px; }
+  #nav-sidebar .sb-nav th a { padding: 10px; font-size: 14px; }
+}
+
+/* The v2 drawer keeps its trigger in the header, uses the same Sheet-like
+   motion as shadcn, and gives every interactive row a touch-sized target. */
+body.sb-drawer-open { overflow: hidden; }
+
+@media (max-width: 767px) {
+  #header { padding-left: 64px; }
+  [dir="rtl"] #header { padding-left: 16px; padding-right: 64px; }
+
+  #nav-sidebar {
+    width: 18rem;
+    max-width: 86vw;
+    height: 100dvh;
+    max-height: none;
+    padding: 0;
+    box-shadow: 8px 0 28px oklch(0 0 0 / 0.18);
+    transform: translateX(-102%);
+    transition: transform 0.2s ease, visibility 0.2s ease;
+  }
+  [dir="rtl"] #nav-sidebar {
+    box-shadow: -8px 0 28px oklch(0 0 0 / 0.18);
+    transform: translateX(102%);
+  }
+  .main.shifted > #nav-sidebar,
+  [dir="rtl"] .main.shifted > #nav-sidebar { transform: none; }
+
+  #toggle-nav-sidebar {
+    position: fixed;
+    top: 7px;
+    bottom: auto;
+    left: 10px;
+    width: 42px;
+    height: 42px;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--background);
+    box-shadow: var(--shadow-sm);
+    transition: left 0.2s ease, right 0.2s ease, background 0.15s ease;
+  }
+  [dir="rtl"] #toggle-nav-sidebar { left: auto; right: 10px; }
+  .main.shifted #toggle-nav-sidebar {
+    left: min(236px, calc(86vw - 52px));
+    background: var(--sidebar-accent);
+    box-shadow: none;
+  }
+  [dir="rtl"] .main.shifted #toggle-nav-sidebar {
+    right: min(236px, calc(86vw - 52px));
+    left: auto;
+  }
+  #toggle-nav-sidebar::before,
+  .main.shifted #toggle-nav-sidebar::before { content: none; }
+  .sb-toggle-chevron { display: none !important; }
+  .sb-toggle-menu { display: block !important; width: 18px !important; height: 18px !important; }
+  .sb-toggle-close { display: none !important; width: 18px !important; height: 18px !important; }
+  .main.shifted .sb-toggle-menu { display: none !important; }
+  .main.shifted .sb-toggle-close { display: block !important; }
+
+  .main.shifted::after { backdrop-filter: blur(1px); }
+  .main.shifted .sb-brand a { padding-right: 44px; }
+
+  .sb-header { padding: 9px 10px; }
+  .sb-brand a { min-height: 44px; }
+  .sb-search { min-height: 44px; }
+  #nav-sidebar .sb-search #nav-filter {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 16px;
+  }
+  .sb-search > svg { width: 17px; height: 17px; }
+
+  .sb-scroll { padding: 9px 8px; }
+  .sb-item,
+  .sb-app-trigger { min-height: 44px; font-size: 14px; }
+  .sb-model-link { min-height: 42px; padding-top: 9px; padding-bottom: 9px; font-size: 13.5px; }
+  .sb-add-link { width: 40px; height: 40px; margin-right: 0; opacity: 1; }
+  .sb-foot { margin: 8px; padding: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #nav-sidebar,
+  #toggle-nav-sidebar,
+  .sb-app-chevron,
+  .sb-toggle-chevron { transition: none !important; }
+}

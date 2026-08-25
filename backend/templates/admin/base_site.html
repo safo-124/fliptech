@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% comment %}
+  Loads the back-office theme.
+
+  The link lives in the `responsive` block rather than `extrastyle`, because
+  Django loads responsive.css *after* extrastyle — so a theme linked there
+  loses every tie on equal specificity, and inputs kept Django's mobile sizing
+  no matter what the theme asked for.
+
+  Overriding base_site.html rather than each page template means the theme
+  reaches the login screen and popups too, and stays a single file to delete
+  if it is ever unwanted.
+{% endcomment %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+  {% comment %}
+    Not deferred, and therefore ahead of every deferred script including
+    Django's nav_sidebar.js, which is what makes it work: below 768px the
+    sidebar is an overlay drawer, and Django's remembered open state defaults
+    to open. Without this, a field officer's first sight of the back office is
+    a drawer covering it. An explicit choice, once made, is left alone.
+  {% endcomment %}
+  <script>
+    try {
+      if (window.innerWidth < 768 &&
+          localStorage.getItem('django.admin.navSidebarIsOpen') === null) {
+        localStorage.setItem('django.admin.navSidebarIsOpen', 'false');
+      }
+    } catch (e) {
+      // Storage is unavailable in some privacy modes. The drawer still works,
+      // it just starts open.
+    }
+  </script>
+  <script src="{% static 'core/admin_sidebar.js' %}" defer></script>
+{% endblock %}
+
+{% block responsive %}
+  {% comment %}
+    Django's own viewport tag sets user-scalable=no and maximum-scale=1.0,
+    which blocks pinch-zoom. This interface is used outdoors in sunlight on
+    cracked screens, so being able to zoom matters more than a tidy layout —
+    and blocking it is a WCAG failure besides.
+  {% endcomment %}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{% static 'admin/css/responsive.css' %}">
+  {% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% static 'admin/css/responsive_rtl.css' %}">{% endif %}
+  <link rel="stylesheet" href="{% static 'core/admin_theme.css' %}">
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a>
+</div>
+{% if user.is_authenticated and user.is_staff %}
+  {% block nav-global %}{% endblock %}
+{% endif %}
+{% endblock %}

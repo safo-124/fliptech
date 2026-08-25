@@ -95,10 +95,12 @@ sudo apt install postgresql-17-postgis-3 gdal-bin libgdal-dev binutils libproj-d
 ```
 
 **Extensions before models.** `backend/core/migrations/0001_extensions.py`
-creates `postgis`, `pg_trgm`, `unaccent` and `btree_gin`. It must run before any
-migration declaring a geometry field or trigram index — make the catalog app's
-`0001` depend on it. `CREATE EXTENSION` needs superuser; on your own Hetzner box
-that is fine.
+creates `postgis`, `pg_trgm`, `unaccent` and `btree_gin`, and must run before
+any migration declaring a geometry field or trigram index. That ordering is
+enforced by a `run_before` list in the migration itself — it is not automatic,
+and without it Django is free to build the trigram indexes first and fail with
+`operator class "gin_trgm_ops" does not exist`. `CREATE EXTENSION` needs
+superuser; on your own Hetzner box that is fine.
 
 ---
 
@@ -285,10 +287,17 @@ The test suite asserts that `pg_trgm` and `unaccent` are actually installed and
 that `similarity('welding','welder')` clears 0.3 — so if someone later drops the
 extensions migration, a test fails rather than search quietly degrading.
 
-Running the tests needed two database grants: `ALTER ROLE skillshub CREATEDB`,
-and the four extensions installed into `template1` so the throwaway test
-database inherits them. Without the second, test-database creation fails,
-because `CREATE EXTENSION postgis` needs superuser and the app role is not one.
+Running the tests needs one database grant: `ALTER ROLE skillshub CREATEDB`.
+
+Earlier this also said to install the four extensions into `template1`. **Do
+not do that.** It was a workaround for a real bug — `core.0001_extensions` was
+not ordered before the migrations that create trigram indexes — and because
+every new database inherited the extensions from `template1`, the ordering
+never mattered locally and the bug stayed invisible for days while CI failed on
+every run. The migration now declares `run_before`, so a clean database works,
+and `template1` is deliberately left with only what PostGIS puts there. Keeping
+the local template as bare as CI's is what makes this class of bug show up
+here rather than in a pipeline nobody is reading.
 
 A `No directory at: staticfiles/` warning during tests is expected and harmless
 until `collectstatic` has run once.

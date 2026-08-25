@@ -1,7 +1,22 @@
 # Secrets
+# SSH keys must never land here. ssh-keygen writes to the current directory
+# if you give it a bare filename instead of a path, which is easy to do and
+# would otherwise leave a private key one `git add -A` away from GitHub.
+id_rsa
+id_ecdsa
+id_ed25519
+*.pem
+*.key
+*_rsa
+*_ed25519
+!*.pub.example
+
 .env
 .env.*
-!.env.example
+# Match every *.example template, not just .env.example — .env.*
+# swallowed .env.production.example, so DEPLOY.md told people to copy a file
+# that was never in the repo.
+!.env*.example
 
 # Python
 .venv/
@@ -17,8 +32,11 @@ htmlcov/
 # Node
 node_modules/
 .next/
+*.tsbuildinfo
 out/
 .turbo/
+.playwright-results/
+playwright-report/
 
 # Media and static
 /backend/media/

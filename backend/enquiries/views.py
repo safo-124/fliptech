@@ -14,6 +14,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.network import canonical_client_ip, ratelimit_client_ip
+
 from .models import Enquiry
 from .otp import OTPError, phone_is_trusted, request_code, verify_code
 from .serializers import (
@@ -24,13 +26,6 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
 
 
 class OTPRequestView(APIView):
@@ -46,7 +41,13 @@ class OTPRequestView(APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
 
-        if is_ratelimited(request, group="otp-request", key="ip", rate="5/m", increment=True):
+        if is_ratelimited(
+            request,
+            group="otp-request",
+            key=ratelimit_client_ip,
+            rate="5/m",
+            increment=True,
+        ):
             return Response(
                 {"detail": "Too many requests. Wait a minute and try again."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -58,7 +59,7 @@ class OTPRequestView(APIView):
             return Response({"verified": True, "code_sent": False})
 
         try:
-            request_code(phone, ip_address=client_ip(request))
+            request_code(phone, ip_address=canonical_client_ip(request))
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 

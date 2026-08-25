@@ -5,12 +5,15 @@ from datetime import date, timedelta
 import pytest
 from django.contrib.gis.geos import Point
 from django.urls import reverse
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from billing.models import Subscription
 from catalog.models import Intake, Programme, Trade
 from geography.models import Area, Region
 from providers.dashboard import make_dashboard_token
 from providers.models import GovernmentStatus, Provider, Verification
+from providers.views import ProviderViewSet
 
 ACCRA = Point(-0.1870, 5.6037, srid=4326)
 MADINA = Point(-0.1660, 5.6830, srid=4326)
@@ -144,6 +147,18 @@ def test_unpublished_providers_are_never_returned(client, world):
     assert "accra-welding-works" not in slugs
 
 
+@pytest.mark.django_db
+def test_provider_ordering_has_a_unique_tiebreaker_for_list_and_distance_search(world):
+    factory = APIRequestFactory()
+    view = ProviderViewSet()
+
+    view.request = Request(factory.get("/api/providers/"))
+    assert view.get_queryset().query.order_by == ("name", "pk")
+
+    view.request = Request(factory.get("/api/providers/", {"lat": "5.6037", "lng": "-0.1870"}))
+    assert view.get_queryset().query.order_by == ("distance", "name", "pk")
+
+
 # --------------------------------------------------------------------------
 # Profile
 # --------------------------------------------------------------------------
@@ -204,6 +219,33 @@ def test_summary_flags_a_thin_page_as_not_worth_indexing(client, world):
 
     assert body["provider_count"] == 1
     assert body["has_enough_inventory_to_index"] is False
+
+
+@pytest.mark.django_db
+def test_unlaunched_region_has_no_summary_but_area_and_search_stay_public(client, world):
+    region = world["accra"].region
+    region.is_launched = False
+    region.save(update_fields=["is_launched"])
+
+    region_summary = client.get(
+        "/api/pages/summary/",
+        {"trade": "welding", "region": region.slug},
+    )
+    area_summary = client.get(
+        "/api/pages/summary/",
+        {"trade": "welding", "area": world["accra"].slug},
+    )
+    search = client.get("/api/providers/", {"region": region.slug, "trade": "welding"})
+
+    assert region_summary.status_code == 404
+    assert area_summary.status_code == 200
+    assert area_summary.json()["provider_count"] == 2
+    assert search.status_code == 200
+    assert {provider["slug"] for provider in search.json()["results"]} == {
+        "accra-welding-works",
+        "madina-welding-works",
+        "tema-welding-works",
+    }
 
 
 # --------------------------------------------------------------------------

@@ -12,26 +12,42 @@
  */
 
 import type { MetadataRoute } from "next";
+import { connection } from "next/server";
 
-import { getAreaSummary, getAreas, getRegions, getTrades, searchProviders } from "@/lib/api";
+import {
+  getAllAreas,
+  getAllRegions,
+  getAllTrades,
+  getAreaSummary,
+  searchAllProviders,
+} from "@/lib/api";
+import {
+  collectIndexableGeneratedPages,
+  generatedPageCandidates,
+} from "@/lib/sitemap";
 
-const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Sitemap inventory belongs to the running API, not the frontend build.
+  // Deferring until request time prevents an offline build from caching a
+  // home-page-only sitemap for the revalidation window.
+  await connection();
+
   const entries: MetadataRoute.Sitemap = [
     { url: site, changeFrequency: "daily", priority: 1 },
   ];
 
   const [trades, areas, regions, providers] = await Promise.all([
-    getTrades().catch(() => ({ results: [] })),
-    getAreas().catch(() => ({ results: [] })),
-    getRegions().catch(() => ({ results: [] })),
-    searchProviders({}).catch(() => ({ results: [] })),
+    getAllTrades().catch(() => []),
+    getAllAreas().catch(() => []),
+    getAllRegions().catch(() => []),
+    searchAllProviders({}).catch(() => []),
   ]);
 
-  for (const trade of trades.results) {
+  for (const trade of trades) {
     entries.push({
       url: `${site}/trades/${trade.slug}`,
       changeFrequency: "weekly",
@@ -42,46 +58,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Section 04 specifies two scopes: a trade in a region
   // (/greater-accra/welding-training) and a trade in a town (/tema/...).
   // Both share the /<place>/<trade>-training shape, so both are checked here.
-  const pairs = [
-    ...trades.results.flatMap((trade) =>
-      regions.results.map((region) => ({
-        trade: trade.slug,
-        place: region.slug,
-        scope: "region" as const,
-      })),
-    ),
-    ...trades.results.flatMap((trade) =>
-      areas.results.map((area) => ({
-        trade: trade.slug,
-        place: area.slug,
-        scope: "area" as const,
-      })),
-    ),
-  ];
-
-  const summaries = await Promise.all(
-    pairs.map(async (pair) => ({
-      pair,
-      summary: await getAreaSummary({
-        trade: pair.trade,
-        ...(pair.scope === "region" ? { region: pair.place } : { area: pair.place }),
-      }).catch(() => null),
-    })),
+  const indexablePages = await collectIndexableGeneratedPages(
+    generatedPageCandidates(trades, regions, areas),
+    (candidate) =>
+      getAreaSummary({
+        trade: candidate.trade,
+        ...(candidate.scope === "region"
+          ? { region: candidate.place }
+          : { area: candidate.place }),
+      }),
   );
 
-  for (const { pair, summary } of summaries) {
-    if (summary?.has_enough_inventory_to_index) {
-      entries.push({
-        url: `${site}/${pair.place}/${pair.trade}-training`,
-        changeFrequency: "weekly",
-        // A region page covers more inventory than a town page, so it is the
-        // stronger landing target of the two.
-        priority: pair.scope === "region" ? 0.8 : 0.7,
-      });
-    }
+  for (const page of indexablePages) {
+    entries.push({
+      url: `${site}/${page.place}/${page.trade}-training`,
+      changeFrequency: "weekly",
+      // A region page covers more inventory than a town page, so it is the
+      // stronger landing target of the two.
+      priority: page.scope === "region" ? 0.8 : 0.7,
+    });
   }
 
-  for (const provider of providers.results) {
+  for (const provider of providers) {
     entries.push({
       url: `${site}/${provider.area_slug}/${provider.slug}`,
       changeFrequency: "weekly",

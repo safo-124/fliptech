@@ -1,0 +1,202 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static admin_modify %}
+
+{% comment %}
+  The source request and staff-reported outcome are intentionally separate.
+  Django still renders the actual fields, errors, permissions, object tools,
+  management forms and save controls; this template supplies workflow context.
+{% endcomment %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_enquiry.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'core/admin_enquiry.js' %}" defer></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} enquiry-workflow-page{% endblock %}
+
+{% block content_title %}
+  <header class="eq-record-header" data-enquiry-form-header>
+    <div class="eq-record-header__main">
+      <span class="eq-record-header__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+          <path d="M8 9h8M8 13h5" />
+        </svg>
+      </span>
+      <div class="eq-record-header__copy">
+        <p class="eq-eyebrow">{% translate "Enquiry record" %}</p>
+        <div class="eq-record-header__title-row">
+          <h1>{% if original %}{{ original.reference_code }}{% else %}{% translate "Enquiry" %}{% endif %}</h1>
+          {% if original %}
+            <span class="eq-state eq-state--{{ original.state }}">
+              <span class="eq-state__dot" aria-hidden="true"></span>
+              {{ original.get_state_display }}
+            </span>
+          {% endif %}
+        </div>
+        <p class="eq-record-header__description">
+          {% if original %}
+            {% blocktranslate with provider=original.provider %}Trainee request sent to {{ provider }}. Source details remain locked; staff record only delivery routing and outcomes.{% endblocktranslate %}
+          {% else %}
+            {% translate "Enquiries are created by trainees through the public journey." %}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if original %}
+      <dl class="eq-record-facts" aria-label="{% translate 'Enquiry summary' %}">
+        <div><dt>{% translate "Received" %}</dt><dd><time datetime="{{ original.created_at|date:'c' }}">{{ original.created_at|date:"j M Y, H:i" }}</time></dd></div>
+        <div><dt>{% translate "Trainee" %}</dt><dd>{{ original.trainee_name|default:_('Name not provided') }}</dd></div>
+        <div><dt>{% translate "Provider" %}</dt><dd>{{ original.provider }}</dd></div>
+        <div>
+          <dt>{% translate "Phone verification" %}</dt>
+          <dd>{% if original.phone_verified_at %}<span class="eq-fact-positive">{% translate "Verified" %}</span>{% else %}{% translate "Not verified" %}{% endif %}</dd>
+        </div>
+      </dl>
+    {% endif %}
+  </header>
+
+  {% if original %}
+    <section class="eq-lifecycle" aria-labelledby="eq-lifecycle-heading" data-enquiry-lifecycle>
+      <div class="eq-section-heading eq-section-heading--compact">
+        <div>
+          <p class="eq-section-kicker">{% translate "Lifecycle" %}</p>
+          <h2 id="eq-lifecycle-heading">{% translate "From request to reported outcome" %}</h2>
+        </div>
+        <p>{% translate "Platform events and human reports are shown as separate steps." %}</p>
+      </div>
+      <ol class="eq-timeline">
+        <li class="eq-timeline__step is-complete">
+          <span class="eq-timeline__marker" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"></path></svg></span>
+          <div><strong>{% translate "Request received" %}</strong><span>{{ original.created_at|date:"j M Y, H:i" }}</span></div>
+        </li>
+        <li class="eq-timeline__step{% if original.phone_verified_at %} is-complete{% elif original.state == 'pending_verification' %} is-current{% endif %}">
+          <span class="eq-timeline__marker" aria-hidden="true">2</span>
+          <div>
+            <strong>{% translate "Phone verification" %}</strong>
+            <span>{% if original.phone_verified_at %}{{ original.phone_verified_at|date:"j M Y, H:i" }}{% elif original.state == "pending_verification" %}{% translate "Waiting for trainee" %}{% else %}{% translate "No verification timestamp" %}{% endif %}</span>
+          </div>
+        </li>
+        <li class="eq-timeline__step{% if original.state == 'sent' %} is-complete{% elif original.state == 'failed' %} is-error{% elif original.state == 'spam' %} is-paused{% else %} is-upcoming{% endif %}">
+          <span class="eq-timeline__marker" aria-hidden="true">3</span>
+          <div>
+            <strong>{% translate "Provider delivery" %}</strong>
+            <span>{{ original.get_state_display }}</span>
+          </div>
+        </li>
+        {% with outcome=original.outcome %}
+          <li class="eq-timeline__step{% if outcome %} is-complete{% else %} is-upcoming{% endif %}">
+            <span class="eq-timeline__marker" aria-hidden="true">4</span>
+            <div>
+              <strong>{% translate "Human-reported outcome" %}</strong>
+              <span>
+                {% if outcome %}
+                  {% if outcome.enrolled %}{% translate "Enrolled" %}{% elif outcome.visited %}{% translate "Visited workshop" %}{% elif outcome.replied %}{% translate "Provider replied" %}{% else %}{% translate "Outcome recorded" %}{% endif %}
+                {% else %}
+                  {% translate "Not recorded yet" %}
+                {% endif %}
+              </span>
+            </div>
+          </li>
+        {% endwith %}
+      </ol>
+    </section>
+
+    <div class="eq-context-grid">
+      <section class="eq-source-card" aria-labelledby="eq-source-heading" data-enquiry-source>
+        <header class="eq-card-heading">
+          <span class="eq-card-heading__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+          </span>
+          <div><p>{% translate "Immutable source" %}</p><h2 id="eq-source-heading">{% translate "Trainee request" %}</h2></div>
+          <span class="eq-locked-label"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>{% translate "Locked" %}</span>
+        </header>
+        <dl class="eq-source-fields">
+          <div><dt>{% translate "Reference" %}</dt><dd><code>{{ original.reference_code }}</code></dd></div>
+          <div><dt>{% translate "Phone" %}</dt><dd>{{ original.trainee_phone }}</dd></div>
+          <div><dt>{% translate "Verified" %}</dt><dd>{% if original.phone_verified_at %}{{ original.phone_verified_at|date:"j M Y, H:i" }}{% else %}{% translate "No" %}{% endif %}</dd></div>
+          <div><dt>{% translate "Last updated" %}</dt><dd>{{ original.updated_at|date:"j M Y, H:i" }}</dd></div>
+        </dl>
+        <div class="eq-source-message">
+          <span>{% translate "Original message" %}</span>
+          {% if original.message %}<blockquote>{{ original.message|linebreaksbr }}</blockquote>{% else %}<p class="eq-empty-copy">{% translate "No message was included." %}</p>{% endif %}
+        </div>
+      </section>
+
+      <section class="eq-context-card" aria-labelledby="eq-context-heading">
+        <header class="eq-card-heading">
+          <span class="eq-card-heading__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 21V10.5L12 4l8 6.5V21"></path><path d="M8 21v-7h8v7"></path></svg>
+          </span>
+          <div><p>{% translate "Destination" %}</p><h2 id="eq-context-heading">{% translate "Provider and programme" %}</h2></div>
+        </header>
+        <dl class="eq-context-fields">
+          <div><dt>{% translate "Provider" %}</dt><dd>{{ original.provider }}</dd></div>
+          <div><dt>{% translate "Area" %}</dt><dd>{{ original.provider.area }}</dd></div>
+          <div><dt>{% translate "Programme" %}</dt><dd>{{ original.programme|default:_('Not selected') }}</dd></div>
+          <div><dt>{% translate "Intake" %}</dt><dd>{{ original.intake|default:_('Not selected') }}</dd></div>
+        </dl>
+      </section>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block content_subtitle %}{% endblock %}
+
+{% block field_sets %}
+  <section class="eq-form-section" aria-labelledby="eq-routing-heading">
+    <header class="eq-section-heading">
+      <div>
+        <p class="eq-section-kicker">01 · {% translate "Staff maintained" %}</p>
+        <h2 id="eq-routing-heading">{% translate "Delivery state" %}</h2>
+      </div>
+      <p>{% translate "Update only the operational delivery state. The trainee, provider, programme, intake and original submission remain locked." %}</p>
+    </header>
+    <div class="eq-routing-card">{{ block.super }}</div>
+  </section>
+{% endblock %}
+
+{% block inline_field_sets %}
+  <section class="eq-form-section" aria-labelledby="eq-outcome-heading" data-enquiry-outcome>
+    <header class="eq-section-heading">
+      <div>
+        <p class="eq-section-kicker">02 · {% translate "Human reported" %}</p>
+        <h2 id="eq-outcome-heading">{% translate "Conversation outcome" %}</h2>
+      </div>
+      <p>{% translate "The conversation happens on WhatsApp. Record only what a trainee, provider or field officer has actually confirmed, and use the note for essential context." %}</p>
+    </header>
+    <div class="eq-outcome-card">{{ block.super }}</div>
+  </section>
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+  {% if has_change_permission %}
+    <div class="eq-save-dock" data-enquiry-save-dock
+         data-dirty-title="{% translate 'Unsaved changes' %}"
+         data-dirty-detail="{% translate 'Save delivery state and reported outcomes before leaving.' %}"
+         aria-label="{% translate 'Save enquiry' %}">
+      <div class="eq-save-dock__context">
+        <span class="eq-save-dock__indicator" aria-hidden="true"></span>
+        <div aria-live="polite">
+          <strong>{% translate "Record reviewed" %}</strong>
+          <span>{% translate "Save delivery state and reported outcomes before leaving." %}</span>
+        </div>
+      </div>
+      {% submit_row %}
+    </div>
+  {% else %}
+    <div class="eq-readonly-bar" role="note">
+      <span class="eq-readonly-bar__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+      </span>
+      <div><strong>{% translate "Read-only record" %}</strong><span>{% translate "Your account can review this enquiry but cannot change it." %}</span></div>
+      {% submit_row %}
+    </div>
+  {% endif %}
+{% endblock %}

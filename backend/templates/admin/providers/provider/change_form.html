@@ -1,0 +1,292 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static admin_modify %}
+
+{% comment %}
+  The provider form is a field-work workflow rather than a generic database
+  editor. Django still owns the form, permissions, errors, inlines and submit
+  controls; this template adds orientation and styles the existing structures.
+
+  Photographs only appear once the provider has an id. Each file continues to
+  use the existing background uploader and its per-photo endpoints, so a weak
+  connection cannot lose the rest of the form or the whole photo batch.
+{% endcomment %}
+
+{% block responsive %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/admin_provider_form.css' %}">
+{% endblock %}
+
+{% block bodyclass %}
+  {{ block.super }} provider-workflow-page{% if original %} provider-workflow-page--change{% else %} provider-workflow-page--add{% endif %}
+{% endblock %}
+
+{% block content_title %}
+  <header class="provider-record-header" data-provider-form-header>
+    <div class="provider-record-header__identity">
+      <span class="provider-record-header__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M4 21V10.5L12 4l8 6.5V21" />
+          <path d="M8 21v-7h8v7M9 9h.01M15 9h.01" />
+        </svg>
+      </span>
+      <div class="provider-record-header__copy">
+        <p class="provider-record-header__eyebrow">{% translate "Provider workspace" %}</p>
+        <div class="provider-record-header__title-row">
+          <h1>{% if original %}{{ original.name }}{% else %}{% translate "Add provider" %}{% endif %}</h1>
+          {% if original %}
+            <span class="provider-status provider-status--{{ original.status }}">
+              <span class="provider-status__dot" aria-hidden="true"></span>
+              {{ original.get_status_display }}
+            </span>
+          {% endif %}
+        </div>
+        <p class="provider-record-header__description">
+          {% if original %}
+            {% translate "Keep the public profile, contact details, verification records and workshop media up to date." %}
+          {% else %}
+            {% translate "Create the workshop profile first. Verification records and photographs can be completed after the initial save." %}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if original %}
+      <dl class="provider-record-summary" aria-label="{% translate 'Provider summary' %}">
+        <div class="provider-record-summary__item">
+          <dt>{% translate "Area" %}</dt>
+          <dd>{{ original.area }}</dd>
+        </div>
+        <div class="provider-record-summary__item">
+          <dt>{% translate "Public contact" %}</dt>
+          <dd>{{ original.contact_phone|default:_('Not provided') }}</dd>
+        </div>
+        <div class="provider-record-summary__item">
+          <dt>{% translate "Listing health" %}</dt>
+          <dd>
+            {% if original.status == "published" and original.is_listing_stale %}
+              <span class="provider-health provider-health--attention">{% translate "Confirmation due" %}</span>
+            {% elif original.status == "published" %}
+              <span class="provider-health provider-health--current">{% translate "Current" %}</span>
+            {% else %}
+              <span class="provider-health">{% translate "Not live" %}</span>
+            {% endif %}
+          </dd>
+        </div>
+        <div class="provider-record-summary__item">
+          <dt>{% translate "Last confirmed" %}</dt>
+          <dd>
+            {% if original.last_confirmed_at %}
+              <time datetime="{{ original.last_confirmed_at|date:'c' }}">{{ original.last_confirmed_at|date:"j M Y" }}</time>
+            {% else %}
+              {% translate "Never" %}
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    {% else %}
+      <ol class="provider-onboarding-steps" aria-label="{% translate 'Provider onboarding steps' %}">
+        <li class="provider-onboarding-steps__item provider-onboarding-steps__item--active">
+          <span aria-hidden="true">1</span>
+          <div><strong>{% translate "Create profile" %}</strong><small>{% translate "Workshop and contact details" %}</small></div>
+        </li>
+        <li class="provider-onboarding-steps__item">
+          <span aria-hidden="true">2</span>
+          <div><strong>{% translate "Add evidence" %}</strong><small>{% translate "Visits, status and photographs" %}</small></div>
+        </li>
+        <li class="provider-onboarding-steps__item">
+          <span aria-hidden="true">3</span>
+          <div><strong>{% translate "Submit" %}</strong><small>{% translate "Send for approval when ready" %}</small></div>
+        </li>
+      </ol>
+    {% endif %}
+  </header>
+{% endblock %}
+
+{% block content_subtitle %}{% endblock %}
+
+{% block field_sets %}
+  <section class="provider-workflow-section provider-workflow-section--profile" aria-labelledby="provider-profile-heading">
+    <header class="provider-workflow-section__header">
+      <span class="provider-workflow-section__number" aria-hidden="true">01</span>
+      <div>
+        <h2 id="provider-profile-heading">{% translate "Provider profile" %}</h2>
+        <p>{% translate "The essential information people use to find and contact this workshop." %}</p>
+      </div>
+    </header>
+    <div class="provider-fieldset-stack">
+      {% for fieldset in adminform %}
+        {% include "admin/includes/fieldset.html" with heading_level=3 prefix="fieldset" id_prefix=0 id_suffix=forloop.counter0 %}
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block inline_field_sets %}
+  <section class="provider-workflow-section provider-workflow-section--records" aria-labelledby="provider-records-heading">
+    <header class="provider-workflow-section__header">
+      <span class="provider-workflow-section__number" aria-hidden="true">02</span>
+      <div>
+        <h2 id="provider-records-heading">{% translate "Checks and operating records" %}</h2>
+        <p>{% translate "Keep visits, government status, private evidence and subscription records separate and auditable." %}</p>
+      </div>
+    </header>
+    <div class="provider-inline-stack">
+      {% for inline_admin_formset in inline_admin_formsets %}
+        {% include inline_admin_formset.opts.template %}
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block after_related_objects %}
+  {{ block.super }}
+
+  <section class="shp{% if not original %} shp--locked{% elif not has_change_permission %} shp--readonly{% endif %}"
+           role="region"
+           aria-labelledby="provider-photos-heading"
+           {% if original and has_change_permission %}
+             data-photo-uploader
+             data-upload-url="{% url 'admin:providers_provider_upload_photo' original.pk %}"
+             data-base-url="{% url 'admin:providers_provider_photos_base' original.pk %}"
+           {% endif %}>
+    <header class="shp-header">
+      <span class="shp-header__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <circle cx="8.5" cy="9" r="1.5" />
+          <path d="m4 17 4.5-4.5 3.5 3 2.5-2.5 5.5 5" />
+        </svg>
+      </span>
+      <div class="shp-header__copy">
+        <p class="shp-kicker">03 · {% translate "Workshop media" %}</p>
+        <h2 id="provider-photos-heading">{% translate "Workshop photographs" %}</h2>
+        <p class="shp-help">
+          {% if original %}
+            {% translate "Each photograph saves independently in the background, so you can continue editing on a weak connection." %}
+          {% else %}
+            {% translate "Save the provider first, then photographs can be added without risking the rest of the form." %}
+          {% endif %}
+        </p>
+      </div>
+      {% if original %}
+        <span class="shp-privacy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+          {% translate "Location data removed" %}
+        </span>
+      {% endif %}
+    </header>
+
+    {% if original and has_change_permission %}
+      <div class="shp-drop">
+        <div class="shp-drop__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 16V4M7 9l5-5 5 5" />
+            <path d="M5 13v6h14v-6" />
+          </svg>
+        </div>
+        <div class="shp-drop__copy">
+          <strong>{% translate "Add workshop photographs" %}</strong>
+          <span>{% translate "Choose images from this device or drag them into this area." %}</span>
+        </div>
+        <label class="shp-choose">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {% translate "Add photographs" %}
+          <input class="shp-input" type="file" accept="image/*" multiple capture="environment" aria-label="{% translate 'Choose workshop photographs' %}">
+        </label>
+      </div>
+
+      <div class="shp-status" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      <div class="shp-list" aria-label="{% translate 'Workshop photographs' %}">
+        {% for photo in original.photos.all %}
+          <div class="shp-existing"
+               data-photo-id="{{ photo.pk }}"
+               data-url="{{ photo.image.url }}"
+               data-caption="{{ photo.caption }}"
+               data-exif-stripped="{{ photo.exif_stripped|yesno:'true,false' }}"></div>
+        {% empty %}
+          <div class="shp-empty">
+            <span class="shp-empty__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="m4 17 4.5-4.5 3.5 3 2.5-2.5 5.5 5" />
+              </svg>
+            </span>
+            <strong>{% translate "No photographs yet" %}</strong>
+            <span>{% translate "Add clear exterior, workspace and equipment views." %}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% elif original %}
+      <div class="shp-readonly-note">
+        <span class="shp-readonly-note__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+            <circle cx="12" cy="12" r="2.5" />
+          </svg>
+        </span>
+        <div>
+          <strong>{% translate "Read-only photographs" %}</strong>
+          <span>{% translate "You can review this workshop's media, but your account cannot change it." %}</span>
+        </div>
+      </div>
+      <div class="shp-list shp-list--readonly" aria-label="{% translate 'Workshop photographs' %}">
+        {% for photo in original.photos.all %}
+          <article class="shp-item shp-item--readonly">
+            <div class="shp-thumb">
+              <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:_('Workshop photograph') }}" loading="lazy">
+            </div>
+            {% if photo.caption %}<p class="shp-readonly-caption">{{ photo.caption }}</p>{% endif %}
+            {% if photo.exif_stripped %}<div class="shp-meta">{% translate "Location data removed" %}</div>{% endif %}
+          </article>
+        {% empty %}
+          <div class="shp-empty">
+            <span class="shp-empty__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="m4 17 4.5-4.5 3.5 3 2.5-2.5 5.5 5" />
+              </svg>
+            </span>
+            <strong>{% translate "No photographs yet" %}</strong>
+            <span>{% translate "No workshop media has been added to this provider." %}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="shp-locked-message">
+        <span class="shp-locked-message__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="5" y="10" width="14" height="10" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          </svg>
+        </span>
+        <div>
+          <strong>{% translate "Photographs unlock after the first save" %}</strong>
+          <p>{% translate "Saving the text fields first creates a secure provider record. Photographs will then upload one at a time in the background." %}</p>
+        </div>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if original and has_change_permission %}<script src="{% static 'providers/photo_uploader.js' %}" defer></script>{% endif %}
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+  {% if add and has_add_permission or change and has_change_permission %}
+    <div class="provider-save-dock" aria-label="{% translate 'Save provider' %}">
+      <div class="provider-save-dock__context">
+        <span class="provider-save-dock__indicator" aria-hidden="true"></span>
+        <div>
+          <strong>{% if original %}{% translate "Save your changes" %}{% else %}{% translate "Create this provider" %}{% endif %}</strong>
+          <span>{% if original %}{% translate "Review the record before leaving this page." %}{% else %}{% translate "You can add evidence and photographs next." %}{% endif %}</span>
+        </div>
+      </div>
+      {% submit_row %}
+    </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,52 @@
+# Django (gunicorn). Install to /etc/systemd/system/fliptech-api.service
+#
+#   sudo systemctl enable --now fliptech-api
+#
+[Unit]
+Description=Fliptech Skills Hub API and back office
+# PostgreSQL is on this host. Wants= rather than Requires= so a database
+# restart does not take the app down with it — gunicorn reconnects.
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=notify
+User=fliptech
+Group=fliptech
+WorkingDirectory=/opt/fliptech/backend
+Environment=DJANGO_SETTINGS_MODULE=config.settings
+Environment=PYTHONUNBUFFERED=1
+
+# Two workers for two vCPUs, four threads each. Every worker holds its own
+# database connections, so raising this costs Postgres connections as well as
+# memory — and this box also builds and runs Next.js.
+ExecStart=/opt/fliptech/backend/.venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8000 \
+    --workers 2 \
+    --threads 4 \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -
+
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+
+# The service needs to write uploaded media and nothing else on the disk.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/fliptech
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fliptech-api
+
+[Install]
+WantedBy=multi-user.target

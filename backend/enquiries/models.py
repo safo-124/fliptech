@@ -14,6 +14,7 @@ in year two with a fraction of the real population.
 """
 
 import secrets
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -41,6 +42,21 @@ class PhoneVerification(TimeStampedModel):
     SMS.
     """
 
+    class Purpose(models.TextChoices):
+        TRAINEE_ENQUIRY = "trainee_enquiry", "Trainee enquiry"
+        TRAINER_ACCESS = "trainer_access", "Trainer access"
+
+    # A public, unguessable handle lets the verification endpoint consume the
+    # exact challenge it issued. Phone plus "latest code" is sufficient for the
+    # low-risk enquiry flow, but it is not a safe authentication boundary for a
+    # trainer account when requests can overlap or be replayed.
+    challenge_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    purpose = models.CharField(
+        max_length=30,
+        choices=Purpose.choices,
+        default=Purpose.TRAINEE_ENQUIRY,
+        db_index=True,
+    )
     phone = PhoneNumberField(db_index=True)
     code_hash = models.CharField(max_length=128)
     expires_at = models.DateTimeField()
@@ -53,7 +69,7 @@ class PhoneVerification(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["phone", "-created_at"])]
+        indexes = [models.Index(fields=["phone", "purpose", "-created_at"])]
 
     def __str__(self):
         return f"Code for {self.phone}"

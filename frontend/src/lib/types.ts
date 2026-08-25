@@ -148,6 +148,62 @@ export type DashboardData = {
   subscription: { tier: string; price: string; period_end: string } | null;
 };
 
+export type TrainerIntake = {
+  id: number;
+  start_date: string;
+  places_offered: number | null;
+  places_remaining: number | null;
+  is_open: boolean;
+};
+
+export type TrainerProgramme = {
+  id: number;
+  trade: { id: number; name: string; slug: string };
+  title: string;
+  fee: string | number;
+  instalments_allowed: boolean;
+  instalment_note: string;
+  duration_weeks: number;
+  hours_per_week: number | null;
+  weekly_schedule: string;
+  capacity: number | null;
+  intake: TrainerIntake | null;
+};
+
+export type TrainerProfile = {
+  id: number;
+  name: string;
+  owner_name: string;
+  /** Private sign-in identity. The server owns this field. */
+  owner_phone: string;
+  /** Public number trainees use for WhatsApp enquiries. */
+  contact_phone: string;
+  area: { id: number; name: string; slug: string; region: string };
+  address: string;
+  latitude: number;
+  longitude: number;
+  status: "draft" | "pending_approval" | "published" | "suspended" | string;
+  status_label: string;
+  review_note: string;
+  submitted_at: string | null;
+  editable: boolean;
+  programme: TrainerProgramme | null;
+};
+
+export type TrainerSession =
+  | { authenticated: false; profile: null; phone?: never }
+  | { authenticated: true; phone: string; profile: TrainerProfile | null };
+
+export type TrainerArea = {
+  id: number;
+  name: string;
+  slug: string;
+  region_slug: string;
+  provider_count: number;
+  centroid_lat: number | null;
+  centroid_lng: number | null;
+};
+
 export type EnquiryConfirmation = {
   reference_code: string;
   provider_name: string;

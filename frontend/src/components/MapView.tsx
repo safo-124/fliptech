@@ -17,33 +17,41 @@
  *    React version is irrelevant to it.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import Supercluster from "supercluster";
 import L from "leaflet";
 import Link from "next/link";
+import { ArrowUpRight, LocateFixed, MapPinned } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
+import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
 import { formatFee } from "@/lib/format";
 import type { ProviderCard } from "@/lib/types";
 
-const ACCRA: [number, number] = [5.6037, -0.187];
+const DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const DEFAULT_TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL?.trim() || DEFAULT_TILE_URL;
+const TILE_ATTRIBUTION =
+  process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION?.trim() || DEFAULT_TILE_ATTRIBUTION;
 
 function clusterIcon(count: number) {
-  const size = count < 10 ? 34 : count < 50 ? 42 : 50;
+  const size = count < 10 ? 42 : count < 50 ? 46 : 52;
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:#14181f;color:#fff;display:flex;align-items:center;justify-content:center;font:600 13px/1 system-ui;border:2px solid #fff">${count}</div>`,
+    html: `<div aria-hidden="true" style="width:${size}px;height:${size}px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font:700 13px/1 system-ui;border:3px solid #fff;box-shadow:0 5px 15px rgba(20,24,31,.28)">${count}</div>`,
     className: "",
     iconSize: [size, size],
   });
 }
 
 const pinIcon = L.divIcon({
-  html: `<div style="width:22px;height:22px;border-radius:50%;background:#b03a1a;border:3px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>`,
+  html: `<div aria-hidden="true" style="width:42px;height:42px;display:grid;place-items:center"><div style="width:22px;height:22px;border-radius:50%;background:var(--color-brand-strong);border:3px solid #fff;box-shadow:0 4px 12px rgba(20,24,31,.35)"></div></div>`,
   className: "",
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
+  iconSize: [42, 42],
+  iconAnchor: [21, 21],
 });
 
 type ClusterPoint = {
@@ -103,6 +111,10 @@ function Clusters({ providers }: { providers: ProviderCard[] }) {
               key={`cluster-${item.id}`}
               position={[lat, lng]}
               icon={clusterIcon(count)}
+              keyboard
+              riseOnHover
+              title={`${count} providers. Open to zoom in.`}
+              alt={`${count} provider locations`}
               eventHandlers={{
                 click: () => map.setView([lat, lng], index.getClusterExpansionZoom(item.id as number)),
               }}
@@ -112,19 +124,31 @@ function Clusters({ providers }: { providers: ProviderCard[] }) {
 
         const provider = (item.properties as ClusterPoint["properties"]).provider;
         return (
-          <Marker key={provider.id} position={[lat, lng]} icon={pinIcon}>
+          <Marker
+            key={provider.id}
+            position={[lat, lng]}
+            icon={pinIcon}
+            keyboard
+            riseOnHover
+            title={`Open ${provider.name}`}
+            alt={`${provider.name} training provider`}
+          >
             {/* Selecting a pin raises the same comparison the list supports. */}
             <Popup>
-              <strong className="block text-sm">{provider.name}</strong>
-              <span className="block text-xs">{formatFee(provider.lowest_fee)}</span>
-              <span className="block text-xs">
+              <strong className="block max-w-52 text-sm leading-5 text-[var(--color-foreground)]">
+                {provider.name}
+              </strong>
+              <span className="mt-1 block text-xs font-medium text-[var(--color-muted-foreground)]">
+                {provider.area} · {formatFee(provider.lowest_fee)}
+              </span>
+              <span className="mt-1 block text-xs text-[var(--color-muted-foreground)]">
                 {provider.site_visit ? `Visited by ${BRAND}` : "Not visited"}
               </span>
               <Link
                 href={`/${provider.area_slug}/${provider.slug}`}
-                className="mt-1 inline-block text-xs underline"
+                className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs font-semibold text-[var(--color-primary-foreground)]"
               >
-                See details
+                See details <ArrowUpRight className="size-3.5" aria-hidden="true" />
               </Link>
             </Popup>
           </Marker>
@@ -134,35 +158,180 @@ function Clusters({ providers }: { providers: ProviderCard[] }) {
   );
 }
 
+function fitProviderBounds(map: L.Map, bounds: L.LatLngBounds) {
+  map.fitBounds(bounds, {
+    animate: false,
+    maxZoom: 14,
+    padding: [32, 32],
+  });
+}
+
+function FitProviderBounds({ bounds }: { bounds: L.LatLngBounds }) {
+  const map = useMap();
+
+  useEffect(() => {
+    fitProviderBounds(map, bounds);
+  }, [bounds, map]);
+
+  return null;
+}
+
+function MapAccessibility({
+  labelId,
+  instructionsId,
+}: {
+  labelId: string;
+  instructionsId: string;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    container.setAttribute("role", "region");
+    container.setAttribute("aria-labelledby", labelId);
+    container.setAttribute("aria-describedby", instructionsId);
+
+    const closePopup = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        map.closePopup();
+      }
+    };
+    container.addEventListener("keydown", closePopup);
+    return () => container.removeEventListener("keydown", closePopup);
+  }, [instructionsId, labelId, map]);
+
+  return null;
+}
+
+function hasValidCoordinates(provider: ProviderCard) {
+  return (
+    Number.isFinite(provider.lat) &&
+    Number.isFinite(provider.lng) &&
+    provider.lat >= -90 &&
+    provider.lat <= 90 &&
+    provider.lng >= -180 &&
+    provider.lng <= 180
+  );
+}
+
 export default function MapView({
   providers,
   fillParent = false,
+  scopeLabel,
 }: {
   providers: ProviderCard[];
   /** Fill the parent's height instead of a fixed viewport fraction. Used by the
       search-page side panel, which is already height-constrained. */
   fillParent?: boolean;
+  /** Clarifies when a side map contains only the current paginated list. */
+  scopeLabel?: string;
 }) {
   const ref = useRef<L.Map | null>(null);
+  const labelId = useId();
+  const instructionsId = useId();
+  const [tileError, setTileError] = useState(false);
+  const validProviders = useMemo(() => providers.filter(hasValidCoordinates), [providers]);
+  const bounds = useMemo(
+    () => L.latLngBounds(validProviders.map((provider) => [provider.lat, provider.lng])),
+    [validProviders],
+  );
+
+  if (validProviders.length === 0) {
+    return (
+      <div
+        className="grid place-items-center bg-[var(--color-muted)]/35 px-6 text-center"
+        style={{ height: fillParent ? "100%" : "70dvh" }}
+        role="status"
+      >
+        <div>
+          <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
+            <MapPinned className="size-5" aria-hidden="true" />
+          </span>
+          <h2 className="mt-3 text-base font-semibold">No usable locations</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
+            These providers are still available in the list view.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <MapContainer
-      center={ACCRA}
-      zoom={11}
-      ref={ref}
-      style={{ height: fillParent ? "100%" : "70dvh", width: "100%" }}
-      scrollWheelZoom
+    <section
+      className="flex min-h-0 flex-col bg-[var(--color-card)]"
+      style={{ height: fillParent ? "100%" : "70dvh" }}
+      data-provider-map
     >
-      {/*
-        OpenStreetMap's public tile server prohibits this kind of use, so a
-        tile provider must be chosen before launch. The Leaflet code does not
-        change when it is — only this URL and its attribution.
-      */}
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <Clusters providers={providers} />
-    </MapContainer>
+      <div className="grid gap-2 border-b border-[var(--color-border)] bg-[var(--color-card)]/95 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+            <MapPinned className="size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 pt-1">
+            <h2 id={labelId} className="text-xs font-bold text-[var(--color-foreground)] sm:text-sm">
+              Interactive map · {validProviders.length}{" "}
+              {validProviders.length === 1 ? "provider" : "providers"}
+              {scopeLabel ? ` ${scopeLabel}` : ""}
+            </h2>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="min-h-11 shrink-0"
+          onClick={() => {
+            if (ref.current) fitProviderBounds(ref.current, bounds);
+          }}
+        >
+          <LocateFixed aria-hidden="true" />
+          Show all providers
+        </Button>
+        <p
+          id={instructionsId}
+          className="text-[11px] leading-4 text-[var(--color-muted-foreground)] sm:col-span-2"
+        >
+          Use arrow keys to pan, + and − to zoom, and Tab then Enter to open a marker. Press
+          Escape to close details.
+        </p>
+      </div>
+
+      {tileError ? (
+        <p
+          className="border-b border-[var(--color-border)] bg-[var(--color-warn-bg)] px-3 py-2 text-xs text-[var(--color-warn)]"
+          role="alert"
+        >
+          The base map tiles are not loading. Provider markers may still be available; check your
+          connection or use the list view.
+        </p>
+      ) : null}
+
+      <div className="min-h-0 flex-1">
+        <MapContainer
+          bounds={bounds}
+          boundsOptions={{ maxZoom: 14, padding: [32, 32] }}
+          ref={ref}
+          style={{ height: "100%", width: "100%" }}
+          scrollWheelZoom
+          keyboard
+          keyboardPanDelta={80}
+        >
+          {/* Public OpenStreetMap tiles are a convenient local-development
+              default. Production can select its tile service without a code
+              change through NEXT_PUBLIC_MAP_TILE_URL and attribution. */}
+          <TileLayer
+            attribution={TILE_ATTRIBUTION}
+            url={TILE_URL}
+            eventHandlers={{
+              load: () => setTileError(false),
+              tileerror: () => setTileError(true),
+            }}
+          />
+          <FitProviderBounds bounds={bounds} />
+          <MapAccessibility labelId={labelId} instructionsId={instructionsId} />
+          <Clusters providers={validProviders} />
+        </MapContainer>
+      </div>
+    </section>
   );
 }
