@@ -22,8 +22,10 @@ import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "re
 import Supercluster from "supercluster";
 import L from "leaflet";
 import Link from "next/link";
+import { ArrowUpRight, LocateFixed, MapPinned } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
+import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
 import { formatFee } from "@/lib/format";
 import type { ProviderCard } from "@/lib/types";
@@ -37,19 +39,19 @@ const TILE_ATTRIBUTION =
   process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION?.trim() || DEFAULT_TILE_ATTRIBUTION;
 
 function clusterIcon(count: number) {
-  const size = count < 10 ? 34 : count < 50 ? 42 : 50;
+  const size = count < 10 ? 42 : count < 50 ? 46 : 52;
   return L.divIcon({
-    html: `<div aria-hidden="true" style="width:${size}px;height:${size}px;border-radius:50%;background:#14181f;color:#fff;display:flex;align-items:center;justify-content:center;font:600 13px/1 system-ui;border:2px solid #fff">${count}</div>`,
+    html: `<div aria-hidden="true" style="width:${size}px;height:${size}px;border-radius:50%;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font:700 13px/1 system-ui;border:3px solid #fff;box-shadow:0 5px 15px rgba(20,24,31,.28)">${count}</div>`,
     className: "",
     iconSize: [size, size],
   });
 }
 
 const pinIcon = L.divIcon({
-  html: `<div style="width:22px;height:22px;border-radius:50%;background:#b03a1a;border:3px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>`,
+  html: `<div aria-hidden="true" style="width:42px;height:42px;display:grid;place-items:center"><div style="width:22px;height:22px;border-radius:50%;background:var(--color-brand-strong);border:3px solid #fff;box-shadow:0 4px 12px rgba(20,24,31,.35)"></div></div>`,
   className: "",
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
+  iconSize: [42, 42],
+  iconAnchor: [21, 21],
 });
 
 type ClusterPoint = {
@@ -133,16 +135,20 @@ function Clusters({ providers }: { providers: ProviderCard[] }) {
           >
             {/* Selecting a pin raises the same comparison the list supports. */}
             <Popup>
-              <strong className="block text-sm">{provider.name}</strong>
-              <span className="block text-xs">{formatFee(provider.lowest_fee)}</span>
-              <span className="block text-xs">
+              <strong className="block max-w-52 text-sm leading-5 text-[var(--color-foreground)]">
+                {provider.name}
+              </strong>
+              <span className="mt-1 block text-xs font-medium text-[var(--color-muted-foreground)]">
+                {provider.area} · {formatFee(provider.lowest_fee)}
+              </span>
+              <span className="mt-1 block text-xs text-[var(--color-muted-foreground)]">
                 {provider.site_visit ? `Visited by ${BRAND}` : "Not visited"}
               </span>
               <Link
                 href={`/${provider.area_slug}/${provider.slug}`}
-                className="mt-1 inline-block text-xs underline"
+                className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs font-semibold text-[var(--color-primary-foreground)]"
               >
-                See details
+                See details <ArrowUpRight className="size-3.5" aria-hidden="true" />
               </Link>
             </Popup>
           </Marker>
@@ -211,11 +217,14 @@ function hasValidCoordinates(provider: ProviderCard) {
 export default function MapView({
   providers,
   fillParent = false,
+  scopeLabel,
 }: {
   providers: ProviderCard[];
   /** Fill the parent's height instead of a fixed viewport fraction. Used by the
       search-page side panel, which is already height-constrained. */
   fillParent?: boolean;
+  /** Clarifies when a side map contains only the current paginated list. */
+  scopeLabel?: string;
 }) {
   const ref = useRef<L.Map | null>(null);
   const labelId = useId();
@@ -235,7 +244,10 @@ export default function MapView({
         role="status"
       >
         <div>
-          <h2 className="text-base font-semibold">No usable locations</h2>
+          <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
+            <MapPinned className="size-5" aria-hidden="true" />
+          </span>
+          <h2 className="mt-3 text-base font-semibold">No usable locations</h2>
           <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
             These providers are still available in the list view.
           </p>
@@ -250,25 +262,38 @@ export default function MapView({
       style={{ height: fillParent ? "100%" : "70dvh" }}
       data-provider-map
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-2">
-        <div className="min-w-0">
-          <h2 id={labelId} className="text-xs font-semibold text-[var(--color-foreground)]">
-            Interactive map · {validProviders.length} {validProviders.length === 1 ? "provider" : "providers"}
-          </h2>
-          <p id={instructionsId} className="mt-0.5 text-[11px] leading-4 text-[var(--color-muted-foreground)]">
-            Use arrow keys to pan, + and − to zoom, and Tab then Enter to open a marker.
-            Press Escape to close details.
-          </p>
+      <div className="grid gap-2 border-b border-[var(--color-border)] bg-[var(--color-card)]/95 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+            <MapPinned className="size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 pt-1">
+            <h2 id={labelId} className="text-xs font-bold text-[var(--color-foreground)] sm:text-sm">
+              Interactive map · {validProviders.length}{" "}
+              {validProviders.length === 1 ? "provider" : "providers"}
+              {scopeLabel ? ` ${scopeLabel}` : ""}
+            </h2>
+          </div>
         </div>
-        <button
+        <Button
           type="button"
-          className="tap shrink-0 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-xs font-medium"
+          variant="outline"
+          size="sm"
+          className="min-h-11 shrink-0"
           onClick={() => {
             if (ref.current) fitProviderBounds(ref.current, bounds);
           }}
         >
+          <LocateFixed aria-hidden="true" />
           Show all providers
-        </button>
+        </Button>
+        <p
+          id={instructionsId}
+          className="text-[11px] leading-4 text-[var(--color-muted-foreground)] sm:col-span-2"
+        >
+          Use arrow keys to pan, + and − to zoom, and Tab then Enter to open a marker. Press
+          Escape to close details.
+        </p>
       </div>
 
       {tileError ? (

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-
-import { BRAND } from "@/lib/brand";
+import {SiteFooter} from "@/components/SiteFooter";
+import {SiteHeader} from "@/components/SiteHeader";
+import {BRAND} from "@/lib/brand";
 
 import "@fontsource-variable/inter";
 import "./globals.css";
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   },
   description:
     "Compare fees, duration and start dates for welding, tailoring, plumbing and other trades training in Greater Accra.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"),
 };
 
 // Fonts are self-hosted via @fontsource so the app does not depend on a font
@@ -50,37 +50,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="#main"
           className="sr-only focus:not-sr-only focus:block focus:bg-[var(--color-foreground)] focus:p-3 focus:text-white"
         >
-          Skip to results
+          Skip to main content
         </a>
 
-        <header className="border-b border-[var(--color-border)]">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-2 lg:px-6 lg:py-3 xl:max-w-7xl 2xl:max-w-[100rem]">
-            <Link href="/" className="tap font-semibold lg:text-lg">
-              Skills Hub
-            </Link>
-            <nav className="flex items-center gap-1">
-              <Link href="/" className="tap px-3 text-sm">
-                List
-              </Link>
-              <Link href="/map" className="tap px-3 text-sm underline">
-                Map
-              </Link>
-            </nav>
-          </div>
-        </header>
+        <SiteHeader />
 
         <main id="main" className="mx-auto max-w-6xl xl:max-w-7xl 2xl:max-w-[100rem]">
           {children}
         </main>
-
-        <footer className="mt-8 border-t border-[var(--color-border)]">
-          <div className="mx-auto max-w-6xl px-3 py-6 text-xs text-[var(--color-muted-foreground)] lg:px-6 xl:max-w-7xl 2xl:max-w-[100rem]">
-            <p className="max-w-prose">
-              {BRAND} Skills Hub lists training providers in Greater Accra. A {BRAND} site
-              visit is not a government accreditation.
-            </p>
-          </div>
-        </footer>
+        <SiteFooter />
       </body>
     </html>
   );

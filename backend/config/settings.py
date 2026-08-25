@@ -23,6 +23,16 @@ env = environ.Env(
     SENTRY_DSN=(str, ""),
     R2_ENDPOINT_URL=(str, ""),
     CSRF_TRUSTED_ORIGINS=(list, []),
+    TRUSTED_PROXY_CIDRS=(
+        list,
+        [
+            "127.0.0.0/8",
+            "::1/128",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+        ],
+    ),
 )
 # Which env file to load.
 #
@@ -214,6 +224,14 @@ AXES_COOLOFF_TIME = 1  # hours
 AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]
 AXES_RESET_ON_SUCCESS = True
 
+# Trainer access uses Django's server-side session after phone verification.
+# The session credential must never be readable from JavaScript; the separate
+# CSRF cookie remains readable so the frontend can echo it in X-CSRFToken.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+
 
 # --------------------------------------------------------------------------
 # Internationalisation
@@ -335,6 +353,11 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
+
+# Caddy is the sole public peer. In Docker it reaches Django over a private
+# bridge rather than loopback, so forwarded client addresses are trusted only
+# when the socket peer belongs to one of these explicitly configured networks.
+TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 
 
 # --------------------------------------------------------------------------

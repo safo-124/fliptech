@@ -101,6 +101,7 @@ class Provider(TimeStampedModel):
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
         PENDING_APPROVAL = "pending_approval", "Pending approval"
         PUBLISHED = "published", "Published"
         SUSPENDED = "suspended", "Suspended"
@@ -123,6 +124,8 @@ class Provider(TimeStampedModel):
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     published_at = models.DateTimeField(null=True, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True)
 
     # Section 09: prompted every 90 days, marked unconfirmed after 30 days
     # without a reply, and the date last checked is shown on the listing.
@@ -158,6 +161,59 @@ class Provider(TimeStampedModel):
         if self.last_confirmed_at is None:
             return self.published_at is not None
         return timezone.now() - self.last_confirmed_at > timedelta(days=120)
+
+
+class TrainerAccount(TimeStampedModel):
+    """A passwordless, non-staff trainer identity verified by phone."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="trainer_account",
+    )
+    phone = PhoneNumberField(unique=True)
+    phone_verified_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["phone"]
+
+    def __str__(self):
+        return str(self.phone)
+
+
+class ProviderMembership(TimeStampedModel):
+    """Structural ownership used to scope every trainer-facing provider query."""
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+
+    trainer = models.ForeignKey(
+        TrainerAccount,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    provider = models.ForeignKey(
+        Provider,
+        on_delete=models.CASCADE,
+        related_name="trainer_memberships",
+    )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.OWNER)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["trainer"],
+                name="one_provider_membership_per_trainer",
+            ),
+            models.UniqueConstraint(
+                fields=["provider"],
+                name="one_trainer_membership_per_provider",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.trainer} owns {self.provider}"
 
 
 class ProviderPhoto(TimeStampedModel):

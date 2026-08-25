@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,9 +8,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // The dashboard is per-owner and reached by a signed link. It must
-        // never be crawled, and the token must never appear in an index.
-        disallow: ["/dashboard/", "/enquiry/"],
+        // Trainer routes contain private sessions or signed links. Neither
+        // those tokens nor incomplete profile drafts belong in an index.
+        disallow: ["/dashboard/", "/trainer/", "/enquiry/"],
       },
     ],
     sitemap: `${site}/sitemap.xml`,

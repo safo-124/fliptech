@@ -23,6 +23,12 @@ from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
 from . import admin_upload, queues
+from .lifecycle import (
+    ProviderTransitionError,
+    publish_provider,
+    request_provider_changes,
+    submit_provider,
+)
 from .models import (
     GovernmentStatus,
     ListingConfirmation,
@@ -153,7 +159,13 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
         (
             "Listing",
             {
-                "fields": ("status", "published_at", "last_confirmed_at"),
+                "fields": (
+                    "status",
+                    "submitted_at",
+                    "published_at",
+                    "last_confirmed_at",
+                    "review_note",
+                ),
                 "description": (
                     "Status is changed with the publish and suspend actions, not by hand, "
                     "so that the approval step and the reason for a suspension are recorded."
@@ -161,8 +173,8 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
             },
         ),
     )
-    readonly_fields = ("published_at",)
-    actions = ["submit_for_approval", "publish_listings"]
+    readonly_fields = ("status", "submitted_at", "published_at", "review_note")
+    actions = ["submit_for_approval", "publish_listings", "return_for_changes"]
     change_form_template = "admin/providers/provider/change_form.html"
 
     def get_queryset(self, request):
@@ -340,9 +352,13 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
 
     @admin.action(description="Submit selected for approval")
     def submit_for_approval(self, request, queryset):
-        updated = queryset.filter(status=Provider.Status.DRAFT).update(
-            status=Provider.Status.PENDING_APPROVAL
-        )
+        updated = 0
+        for provider in queryset:
+            try:
+                submit_provider(provider, actor=request.user)
+            except ProviderTransitionError:
+                continue
+            updated += 1
         self.message_user(request, f"{updated} provider(s) submitted for approval.")
 
     @admin.action(description="Publish selected listings")
@@ -357,19 +373,48 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
             )
             return
 
-        publishable = queryset.filter(status=Provider.Status.PENDING_APPROVAL)
-        skipped = queryset.count() - publishable.count()
-
-        updated = publishable.update(
-            status=Provider.Status.PUBLISHED,
-            published_at=timezone.now(),
-            last_confirmed_at=timezone.now(),
-        )
+        updated = 0
+        skipped = 0
+        for provider in queryset:
+            try:
+                publish_provider(provider, actor=request.user)
+            except ProviderTransitionError:
+                skipped += 1
+                continue
+            updated += 1
         self.message_user(request, f"{updated} listing(s) published.")
         if skipped:
             self.message_user(
                 request,
                 f"{skipped} skipped: only listings pending approval can be published.",
+                level=messages.WARNING,
+            )
+
+    @admin.action(description="Return selected for trainer changes")
+    def return_for_changes(self, request, queryset):
+        if not request.user.has_perm("providers.publish_provider"):
+            self.message_user(
+                request,
+                "Returning a submission needs the operations lead permission.",
+                level=messages.ERROR,
+            )
+            return
+
+        updated = 0
+        skipped = 0
+        note = "Please update the profile details and submit it for review again."
+        for provider in queryset:
+            try:
+                request_provider_changes(provider, actor=request.user, note=note)
+            except ProviderTransitionError:
+                skipped += 1
+                continue
+            updated += 1
+        self.message_user(request, f"{updated} provider submission(s) returned for changes.")
+        if skipped:
+            self.message_user(
+                request,
+                f"{skipped} skipped: only listings pending approval can be returned.",
                 level=messages.WARNING,
             )
 
@@ -422,7 +467,11 @@ class SuspensionAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         # Suspending the record suspends the listing.
         if obj.lifted_at is None:
-            Provider.objects.filter(pk=obj.provider_id).update(status=Provider.Status.SUSPENDED)
+            provider = Provider.objects.get(pk=obj.provider_id)
+            provider.status = Provider.Status.SUSPENDED
+            provider._history_user = request.user
+            provider._change_reason = f"Suspended: {obj.reason}"
+            provider.save(update_fields=["status", "updated_at"])
 
 
 @admin.register(ListingConfirmation)

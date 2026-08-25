@@ -12,26 +12,27 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { List, MapPinned, RefreshCw } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderCard } from "@/lib/types";
 
 function MapLoadingState() {
   return (
     <div
-      className="grid h-[70dvh] place-items-center bg-[var(--color-muted)]/35 px-6 text-center"
+      className="relative grid h-[70dvh] min-h-[28rem] place-items-center overflow-hidden bg-[var(--color-muted)]/35 px-6 text-center"
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
-      <div>
+      <Skeleton className="absolute inset-0 rounded-none opacity-60" />
+      <div className="relative">
         <span
-          className="mx-auto grid size-10 place-items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-xs"
+          className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm"
           aria-hidden="true"
         >
-          <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-current stroke-[1.8]">
-            <path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z" />
-            <path d="M9 3v15M15 6v15" />
-          </svg>
+          <MapPinned className="size-5" />
         </span>
         <p className="mt-3 text-sm font-medium text-[var(--color-foreground)]">Loading map</p>
         <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
@@ -47,7 +48,10 @@ const MapView = dynamic(() => import("./MapView"), {
   loading: MapLoadingState,
 });
 
-class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class MapErrorBoundary extends Component<
+  { children: ReactNode; listHref: string },
+  { failed: boolean }
+> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -63,27 +67,30 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
   render() {
     if (this.state.failed) {
       return (
-        <div className="grid h-[70dvh] place-items-center bg-[var(--color-muted)]/35 px-6 text-center" role="alert">
+        <div className="grid h-[70dvh] min-h-[28rem] place-items-center bg-[var(--color-muted)]/35 px-6 text-center" role="alert">
           <div className="max-w-sm">
-            <h2 className="text-base font-semibold">The interactive map could not start</h2>
+            <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
+              <MapPinned className="size-5" aria-hidden="true" />
+            </span>
+            <h2 className="mt-3 text-base font-semibold">The interactive map could not start</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
               Provider details are safe. Reload the page to try the map again, or use the list
               view to keep browsing.
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
-              <button
+              <Button
                 type="button"
-                className="tap rounded-md bg-[var(--color-primary)] px-4 text-sm text-[var(--color-primary-foreground)]"
                 onClick={() => window.location.reload()}
               >
+                <RefreshCw aria-hidden="true" />
                 Reload map
-              </button>
-              <Link
-                href="/"
-                className="tap rounded-md border border-[var(--color-border)] px-4 text-sm"
-              >
-                Use list view
-              </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={this.props.listHref}>
+                  <List aria-hidden="true" />
+                  Use list view
+                </Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -94,13 +101,22 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
   }
 }
 
-export function MapLoader({ providers }: { providers: ProviderCard[] }) {
+export function MapLoader({
+  providers,
+  listHref = "/",
+}: {
+  providers: ProviderCard[];
+  listHref?: string;
+}) {
   // Avoid downloading Leaflet's client chunk when there is nothing to plot.
   if (providers.length === 0) {
     return (
-      <div className="grid h-[70dvh] place-items-center bg-[var(--color-muted)]/35 px-6 text-center" role="status">
+      <div className="grid h-[70dvh] min-h-[28rem] place-items-center bg-[var(--color-muted)]/35 px-6 text-center" role="status">
         <div className="max-w-sm">
-          <h2 className="text-base font-semibold">No provider locations to map</h2>
+          <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
+            <MapPinned className="size-5" aria-hidden="true" />
+          </span>
+          <h2 className="mt-3 text-base font-semibold">No provider locations to map</h2>
           <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
             Try the list view while provider locations are being added.
           </p>
@@ -110,7 +126,7 @@ export function MapLoader({ providers }: { providers: ProviderCard[] }) {
   }
 
   return (
-    <MapErrorBoundary>
+    <MapErrorBoundary listHref={listHref}>
       <MapView providers={providers} />
     </MapErrorBoundary>
   );

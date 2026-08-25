@@ -11,6 +11,14 @@ from catalog.views import TradeViewSet
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
+from providers.trainer_views import (
+    TrainerLogoutView,
+    TrainerOTPRequestView,
+    TrainerOTPVerifyView,
+    TrainerProfileSubmitView,
+    TrainerProfileView,
+    TrainerSessionView,
+)
 from providers.views import ProviderBySlugView, ProviderViewSet, TradeAreaSummaryView
 
 router = DefaultRouter()
@@ -20,6 +28,26 @@ router.register("areas", AreaViewSet, basename="area")
 router.register("regions", RegionViewSet, basename="region")
 
 urlpatterns = [
+    # Passwordless trainer onboarding. Session bootstrap is first so the
+    # frontend can obtain a CSRF cookie before any unsafe request.
+    path("trainer/session/me/", TrainerSessionView.as_view(), name="trainer-session-me"),
+    path(
+        "trainer/auth/request-code/",
+        TrainerOTPRequestView.as_view(),
+        name="trainer-otp-request",
+    ),
+    path(
+        "trainer/auth/verify-code/",
+        TrainerOTPVerifyView.as_view(),
+        name="trainer-otp-verify",
+    ),
+    path("trainer/profile/", TrainerProfileView.as_view(), name="trainer-profile"),
+    path(
+        "trainer/profile/submit/",
+        TrainerProfileSubmitView.as_view(),
+        name="trainer-profile-submit",
+    ),
+    path("trainer/logout/", TrainerLogoutView.as_view(), name="trainer-logout"),
     # Public page data. Registered before the router so the two-segment provider
     # address does not collide with the router's detail route.
     path("pages/summary/", TradeAreaSummaryView.as_view(), name="trade-area-summary"),

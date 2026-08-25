@@ -25,8 +25,11 @@
  */
 
 import dynamic from "next/dynamic";
+import { MapPinned } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderCard } from "@/lib/types";
 
 const DESKTOP_QUERY = "(min-width: 1024px)";
@@ -34,8 +37,18 @@ const DESKTOP_QUERY = "(min-width: 1024px)";
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
   loading: () => (
-    <div className="grid h-full place-items-center text-sm text-[var(--color-muted-foreground)]">
-      Loading map…
+    <div
+      className="relative grid h-full place-items-center overflow-hidden bg-[var(--color-muted)]/35 text-sm text-[var(--color-muted-foreground)]"
+      role="status"
+      aria-live="polite"
+    >
+      <Skeleton className="absolute inset-0 rounded-none opacity-60" />
+      <span className="relative grid place-items-center gap-3 font-medium">
+        <span className="grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
+          <MapPinned className="size-5" aria-hidden="true" />
+        </span>
+        Loading map…
+      </span>
     </div>
   ),
 });
@@ -60,8 +73,8 @@ export function SearchMapPanel({ providers }: { providers: ProviderCard[] }) {
   if (!isDesktop) return null;
 
   return (
-    <div className="h-[calc(100dvh-8rem)] overflow-hidden rounded-lg border border-[var(--color-border)]">
-      <MapView providers={providers} fillParent />
-    </div>
+    <Card className="h-[clamp(30rem,calc(100dvh-6.5rem),54rem)] overflow-hidden rounded-2xl border-[var(--color-border-strong)] shadow-[var(--shadow-lg)]">
+      <MapView providers={providers} fillParent scopeLabel="on this page" />
+    </Card>
   );
 }

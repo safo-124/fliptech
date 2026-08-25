@@ -17,25 +17,38 @@
  */
 @theme {
   /* --- shadcn neutral scale --- */
-  --color-background: oklch(1 0 0);
-  --color-foreground: oklch(0.145 0 0);
+  --color-background: oklch(0.982 0.006 82);
+  --color-foreground: oklch(0.205 0.028 255);
   --color-card: oklch(1 0 0);
-  --color-muted: oklch(0.97 0 0);
-  --color-muted-foreground: oklch(0.556 0 0);
-  --color-border: oklch(0.922 0 0);
-  --color-input: oklch(0.922 0 0);
-  --color-ring: oklch(0.708 0 0);
-  --color-primary: oklch(0.205 0 0);
+  --color-card-foreground: var(--color-foreground);
+  --color-muted: oklch(0.955 0.01 82);
+  --color-muted-foreground: oklch(0.49 0.025 255);
+  --color-secondary: oklch(0.945 0.014 82);
+  --color-secondary-foreground: oklch(0.25 0.03 255);
+  --color-border: oklch(0.895 0.012 82);
+  --color-border-strong: oklch(0.82 0.018 82);
+  --color-input: oklch(0.86 0.014 82);
+  --color-ring: oklch(0.56 0.16 43);
+  --color-primary: oklch(0.245 0.04 255);
   --color-primary-foreground: oklch(0.985 0 0);
   --color-destructive: oklch(0.577 0.245 27.325);
 
-  --radius: 0.625rem;
+  /* Brand colour is warm and human; primary remains a calm ink so trust
+     colours retain their specific meanings. */
+  --color-brand: oklch(0.57 0.17 43);
+  --color-brand-strong: oklch(0.5 0.17 39);
+  --color-brand-soft: oklch(0.95 0.035 60);
+
+  --radius: 0.875rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-xs: 0 1px 2px 0 oklch(0.2 0.02 255 / 0.05);
+  --shadow-sm: 0 1px 3px oklch(0.2 0.02 255 / 0.07), 0 1px 2px oklch(0.2 0.02 255 / 0.04);
+  --shadow-card: 0 1px 2px oklch(0.2 0.02 255 / 0.04), 0 10px 30px -24px oklch(0.2 0.04 255 / 0.3);
+  --shadow-lg: 0 24px 60px -32px oklch(0.2 0.04 255 / 0.35);
 
   /* --- aliases the components already use --- */
   --color-ink: var(--color-foreground);
@@ -77,10 +90,19 @@
 }
 
 body {
-  background: var(--color-background);
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 8% -12%, oklch(0.94 0.045 58 / 0.72), transparent 28rem),
+    var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-text-size-adjust: 100%;
+}
+
+::selection {
+  background: var(--color-brand-soft);
+  color: var(--color-foreground);
 }
 
 @layer components {
@@ -100,7 +122,7 @@ body {
     background: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-xs);
+    box-shadow: var(--shadow-card);
   }
 
   /* shadcn Badge, variant="outline". */
@@ -109,19 +131,53 @@ body {
     align-items: center;
     gap: 0.25rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
     font-size: 0.75rem;
     font-weight: 500;
     line-height: 1.4;
   }
+
+  .app-shell {
+    width: 100%;
+    max-width: 100rem;
+    margin-inline: auto;
+    padding-inline: 0.75rem;
+  }
+
+  .surface-grid {
+    background-image:
+      linear-gradient(to right, oklch(0.5 0.02 255 / 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.5 0.02 255 / 0.055) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: linear-gradient(to bottom, black, transparent 92%);
+  }
+
+  .glass {
+    background: oklch(0.985 0.004 82 / 0.82);
+    backdrop-filter: blur(18px) saturate(150%);
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Keyboard focus must stay visible. Never remove this without a replacement. */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+:where(a, button, input, select, textarea, [tabindex]):not([data-slot]):focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+@media (min-width: 64rem) {
+  .app-shell {
+    padding-inline: 1.5rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
