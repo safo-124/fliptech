@@ -107,6 +107,12 @@ install -m 644 "$HERE/fliptech-web.service" /etc/systemd/system/
 # unit files.
 systemctl daemon-reload
 systemctl enable redis-server >/dev/null 2>&1 || true
+
+# Enable without --now: there is no code at /opt/fliptech yet, so starting them
+# here would only log a failure. Enabling is what makes the site come back on
+# its own after a reboot — deploy.sh only restarts, so without this the machine
+# would come up with Caddy answering and nothing behind it.
+systemctl enable fliptech-api.service fliptech-web.service >/dev/null 2>&1 || true
 systemctl start redis-server >/dev/null 2>&1 || true
 
 echo "==> Firewall"

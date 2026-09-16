@@ -20,7 +20,11 @@ VENV="$APP_DIR/backend/.venv"
 
 cd "$APP_DIR"
 
-run_as() { sudo -u "$SERVICE_USER" "$@"; }
+# -H sets HOME to the service user's own home. Without it HOME stays whoever
+# invoked the deploy — root, or your own account — and pnpm puts its content
+# store there instead of under /home/fliptech, so the service user cannot reach
+# the packages it just installed.
+run_as() { sudo -u "$SERVICE_USER" -H "$@"; }
 
 if [ ! -f backend/.env ]; then
   echo "backend/.env is missing. Copy backend/.env.example and fill it in." >&2
