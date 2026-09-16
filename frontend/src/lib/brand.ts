@@ -7,4 +7,4 @@
  * so correcting the spelling is one environment variable rather than a search
  * across the components.
  */
-export const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Fliptech";
+export const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Fliiptech";

@@ -24,10 +24,10 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { BrandShards } from "@/components/BrandShards";
 import { FilterBar } from "@/components/FilterBar";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SearchMapPanel } from "@/components/SearchMapPanel";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { buildQuery, getTrades, searchProviders, type SearchParams } from "@/lib/api";
@@ -92,30 +92,50 @@ export default async function SearchPage({
 
   return (
     <>
-      <section className="relative overflow-hidden border-b border-[var(--color-border)]/80">
-        <div className="surface-grid pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
-        <div className="app-shell relative py-7 sm:py-9 lg:py-11">
-          <div className="mb-6 max-w-3xl sm:mb-7">
-            <Badge
-              variant="outline"
-              className="border-[var(--color-brand)]/20 bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
-            >
-              <MapPin aria-hidden="true" />
+      {/* The hero continues the header's indigo rather than sitting below it as
+          a separate light block, so the brand reads as one field the page
+          emerges from. The filter card then breaks the band's lower edge,
+          which is what stops this looking like a stock hero-over-form. */}
+      <section className="band relative isolate overflow-hidden pb-20 sm:pb-24">
+        <div
+          className="surface-grid pointer-events-none absolute inset-0 opacity-[0.07]"
+          aria-hidden="true"
+        />
+        {/* Anchored bottom-right, behind the filter card that overlaps this
+            band's edge, so the wedges read as depth rather than as clutter. */}
+        <BrandShards className="pointer-events-none absolute -bottom-10 right-0 h-[19rem] w-[22rem] opacity-70 sm:h-[23rem] sm:w-[28rem]" />
+        <div className="app-shell relative z-10 pt-8 sm:pt-10 lg:pt-14">
+          <div className="max-w-3xl">
+            <span className="badge border-white/20 bg-white/10 text-white/80 backdrop-blur-sm">
+              <MapPin aria-hidden="true" className="size-3.5" />
               Practical training across Greater Accra
-            </Badge>
-            <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] sm:text-4xl lg:text-5xl">
-              Find training that fits your plans and your pocket.
+            </span>
+            <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.05] tracking-[-0.035em] text-white sm:text-4xl lg:text-[3.25rem]">
+              Find training that fits your plans and{" "}
+              <span className="bg-gradient-to-r from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] bg-clip-text text-transparent">
+                your pocket
+              </span>
+              .
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-base sm:leading-7">
+            <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 sm:text-base sm:leading-7">
               Compare course fees, duration and next intake dates before you spend time or money
               travelling to a workshop.
             </p>
           </div>
-          <FilterBar trades={trades.results} params={params} />
         </div>
       </section>
 
-      <section className="app-shell py-6 sm:py-8" aria-labelledby="search-results-heading">
+      {/* Pulled up over the band's edge. -mt matches the pb above. */}
+      <div className="app-shell relative z-20 -mt-14 sm:-mt-16">
+        <FilterBar trades={trades.results} params={params} />
+      </div>
+
+      {/* pb-24 on phones clears the floating map button below, so it never
+          covers the last result card. */}
+      <section
+        className="app-shell pt-6 pb-24 sm:pt-8 lg:pb-8"
+        aria-labelledby="search-results-heading"
+      >
         {results === null ? (
           // Section 10: api.ts has already retried twice, so this is a genuine
           // outage rather than a dropped packet. The filters above stay usable.
@@ -161,6 +181,25 @@ export default async function SearchPage({
               </div>
               <ResultsViewSwitch listHref={listHref} mapHref={mapHref} />
             </div>
+
+            {/* Phone-only route to the map.
+                The switch above is the desktop affordance, but on a phone it
+                wraps under the heading and sits above the fold only until the
+                first scroll — so in practice the map was unreachable without
+                knowing it was there.
+                A plain link, not a client component: the /map route loads
+                Leaflet itself, so a phone that never taps this still downloads
+                none of it and the Section 10 budget is untouched. The list
+                also stays the default view, which Section 04 requires. */}
+            {results.count > 0 ? (
+              <Link
+                href={mapHref}
+                className="band fixed inset-x-0 bottom-5 z-[900] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
+              >
+                <Map aria-hidden="true" className="size-4" />
+                View {results.count} on map
+              </Link>
+            ) : null}
 
             {results.count === 0 ? (
               <Card className="grid min-h-64 place-items-center border-dashed p-6 text-center">

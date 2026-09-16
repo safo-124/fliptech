@@ -13,6 +13,14 @@ const buttonVariants = cva(
           "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-sm hover:bg-[var(--color-primary)]/90 hover:shadow-md",
         brand:
           "bg-[var(--color-brand)] text-white shadow-sm shadow-[var(--color-brand)]/20 hover:bg-[var(--color-brand-strong)] hover:shadow-md",
+        // The logo's warm shards, for the one primary action sitting on the
+        // indigo band. Another violet button there would disappear into it,
+        // and this is the contrast the logo itself already uses.
+        warm: "bg-gradient-to-br from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] text-[var(--color-brand-deep)] shadow-sm hover:brightness-105 hover:shadow-md",
+        // Secondary actions on the indigo band. Hairline white rather than a
+        // filled surface, so it recedes behind `warm`.
+        onBand:
+          "border border-white/25 bg-white/10 text-white backdrop-blur-sm hover:border-white/40 hover:bg-white/20",
         destructive:
           "bg-[var(--color-destructive)] text-white shadow-sm hover:bg-[var(--color-destructive)]/90",
         outline:

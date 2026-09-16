@@ -10,7 +10,7 @@
  * product. The old names are kept as aliases on top of it, which means the
  * components did not have to be rewritten to change how the site looks.
  *
- * Two colours are deliberately NOT from that scale. A Fliptech site visit and
+ * Two colours are deliberately NOT from that scale. A Fliiptech site visit and
  * a CTVET government record are different claims that must never read as the
  * same thing, so they keep distinct hues. That separation is a legal-risk
  * decision from Section 07 of the product documentation, not decoration.
@@ -18,7 +18,7 @@
 @theme {
   /* --- shadcn neutral scale --- */
   --color-background: oklch(0.982 0.006 82);
-  --color-foreground: oklch(0.205 0.028 255);
+  --color-foreground: oklch(0.205 0.035 290);
   --color-card: oklch(1 0 0);
   --color-card-foreground: var(--color-foreground);
   --color-muted: oklch(0.955 0.01 82);
@@ -28,16 +28,35 @@
   --color-border: oklch(0.895 0.012 82);
   --color-border-strong: oklch(0.82 0.018 82);
   --color-input: oklch(0.86 0.014 82);
-  --color-ring: oklch(0.56 0.16 43);
-  --color-primary: oklch(0.245 0.04 255);
+  --color-ring: oklch(0.55 0.18 295);
+  --color-primary: oklch(0.245 0.05 292);
   --color-primary-foreground: oklch(0.985 0 0);
   --color-destructive: oklch(0.577 0.245 27.325);
 
-  /* Brand colour is warm and human; primary remains a calm ink so trust
-     colours retain their specific meanings. */
-  --color-brand: oklch(0.57 0.17 43);
-  --color-brand-strong: oklch(0.5 0.17 39);
-  --color-brand-soft: oklch(0.95 0.035 60);
+  /* --- Fliiptech brand, taken from the logo ---
+     The mark is a violet-to-pink aperture on a deep indigo field, with warm
+     sand, peach and coral shards. Indigo carries structure (bands, primary
+     actions); the warm shards are the only decoration, and they are what stops
+     an indigo site reading as every other indigo site.
+
+     Indigo is dark enough at --color-brand for white text to clear AA at body
+     size, so the same token works for a filled button and for a link. */
+  --color-brand: oklch(0.42 0.21 293);
+  --color-brand-strong: oklch(0.32 0.18 293);
+  /* The logo field itself. Used for the header, hero and footer bands. */
+  --color-brand-deep: oklch(0.24 0.14 292);
+  --color-brand-soft: oklch(0.955 0.025 300);
+
+  /* The mark's own gradient, for the logo and for accents that should feel
+     like it rather than like another UI colour. */
+  --color-brand-violet: oklch(0.62 0.18 300);
+  --color-brand-pink: oklch(0.72 0.17 350);
+
+  /* The warm shards. On indigo they carry real contrast; on the light canvas
+     they are the quiet counterweight to all that violet. */
+  --color-sand: oklch(0.9 0.075 88);
+  --color-peach: oklch(0.81 0.085 55);
+  --color-coral: oklch(0.71 0.115 30);
 
   --radius: 0.875rem;
   --radius-sm: calc(var(--radius) - 4px);
@@ -65,7 +84,7 @@
   --color-accent-ink: var(--color-primary-foreground);
 
   /* --- semantic, and exempt from the neutral scale --- */
-  /* Site visit: Fliptech's own check. */
+  /* Site visit: Fliiptech's own check. */
   --color-visit: oklch(0.48 0.11 158);
   --color-visit-bg: oklch(0.96 0.02 158);
   /* Government record: a different claim, so a different hue. */
@@ -92,7 +111,8 @@
 body {
   min-width: 320px;
   background:
-    radial-gradient(circle at 8% -12%, oklch(0.94 0.045 58 / 0.72), transparent 28rem),
+    radial-gradient(circle at 100% -8%, oklch(0.9 0.06 330 / 0.5), transparent 32rem),
+    radial-gradient(circle at 0% -12%, oklch(0.93 0.06 88 / 0.62), transparent 30rem),
     var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
@@ -156,6 +176,17 @@ body {
   .glass {
     background: oklch(0.985 0.004 82 / 0.82);
     backdrop-filter: blur(18px) saturate(150%);
+  }
+
+  /* The indigo field from the logo, used for the header, hero and footer.
+     Bands rather than a dark theme: the canvas, the cards and the map stay
+     light, because the trainee reading this is outdoors in direct sun. */
+  .band {
+    background:
+      radial-gradient(ellipse at 12% 0%, oklch(0.36 0.17 296 / 0.85), transparent 55%),
+      radial-gradient(ellipse at 88% 110%, oklch(0.4 0.16 330 / 0.6), transparent 55%),
+      var(--color-brand-deep);
+    color: oklch(0.98 0.01 300);
   }
 
   .scrollbar-none {
