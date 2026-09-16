@@ -205,10 +205,28 @@ export type TrainerSession =
 
 export type TraineeChannel = "whatsapp" | "telegram";
 
+/** Mirrors TraineeAccount.EducationLevel in backend/trainees/models.py. */
+export type TraineeEducationLevel =
+  | "not_in_school"
+  | "jhs"
+  | "shs_general"
+  | "shs_technical"
+  | "tvet"
+  | "university"
+  | "other";
+
+export type TraineeEducationStatus = "in_progress" | "completed" | "left";
+
 export type TraineeAccount = {
   phone: string;
   display_name: string;
   preferred_channel: TraineeChannel;
+  /** All of the background is optional: registration never blocks on it. */
+  education_level: TraineeEducationLevel | "";
+  institution_name: string;
+  field_of_study: string;
+  education_status: TraineeEducationStatus | "";
+  education_year: number | null;
   created_at: string;
 };
 

@@ -125,22 +125,48 @@ class SupportSessionInline(ReadOnlyInline):
 class TraineeAccountAdmin(SimpleHistoryAdmin):
     list_display = (
         "trainee_summary",
+        "background",
         "preferred_channel",
         "enquiry_count",
         "enrolment_count",
         "is_active",
-        "last_seen_at",
         "created_at",
     )
-    list_filter = ("is_active", "preferred_channel", "created_at")
-    search_fields = ("phone", "display_name")
-    search_help_text = "Search by phone number or name."
+    # education_level is a filter rather than only a column because the
+    # question the field team asks is "who came from a technical SHS", and a
+    # filter answers it in one click where a column needs a sort and a scroll.
+    list_filter = (
+        "education_level",
+        "education_status",
+        "is_active",
+        "preferred_channel",
+        "created_at",
+    )
+    search_fields = ("phone", "display_name", "institution_name", "field_of_study")
+    search_help_text = "Search by phone number, name, school or subject."
     ordering = ("-created_at",)
     date_hierarchy = "created_at"
     actions = ("switch_off", "switch_on")
     readonly_fields = ("phone", "phone_verified_at", "last_seen_at", "created_at", "updated_at")
     fieldsets = (
         ("Trainee", {"fields": ("phone", "display_name", "preferred_channel")}),
+        (
+            "Background",
+            {
+                "fields": (
+                    "education_level",
+                    "institution_name",
+                    "field_of_study",
+                    "education_status",
+                    "education_year",
+                ),
+                "description": (
+                    "Self-reported by the trainee and entirely optional — registration "
+                    "never blocks on it, so expect these to be empty for many accounts. "
+                    "Nothing here is verified."
+                ),
+            },
+        ),
         (
             "Access",
             {
@@ -165,6 +191,20 @@ class TraineeAccountAdmin(SimpleHistoryAdmin):
                 n_enrolments=Count("enrolments", distinct=True),
             )
         )
+
+    @admin.display(description="Background", ordering="education_level")
+    def background(self, obj):
+        """Level plus where, in one column.
+
+        Returns an em dash rather than blank for an account that never filled
+        this in, so a reviewer can tell "not answered" from a rendering fault.
+        """
+        if not obj.education_level:
+            return "—"
+        label = obj.get_education_level_display()
+        if obj.institution_name:
+            return f"{label} · {obj.institution_name}"
+        return label
 
     @admin.display(description="Trainee", ordering="display_name")
     def trainee_summary(self, obj):

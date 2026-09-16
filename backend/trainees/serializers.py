@@ -32,7 +32,20 @@ class TraineeAccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TraineeAccount
-        fields = ["phone", "display_name", "preferred_channel", "created_at"]
+        fields = [
+            "phone",
+            "display_name",
+            "preferred_channel",
+            # All optional. PATCH is partial, so a trainee who never opens the
+            # background form is never blocked by it and never sees an error
+            # about it.
+            "education_level",
+            "institution_name",
+            "field_of_study",
+            "education_status",
+            "education_year",
+            "created_at",
+        ]
         read_only_fields = ["phone", "created_at"]
 
 

@@ -28,6 +28,30 @@ class TraineeAccount(TimeStampedModel):
         WHATSAPP = "whatsapp", "WhatsApp"
         TELEGRAM = "telegram", "Telegram"
 
+    class EducationLevel(models.TextChoices):
+        """Where the trainee is coming from.
+
+        The split that matters is SHS general against SHS technical, and both
+        against a CTVET or TVET institution. Someone leaving a technical SHS
+        has already done workshop hours and is choosing a trade to deepen;
+        someone leaving a general SHS is usually choosing one for the first
+        time. Collapsing those into "SHS" throws away the distinction the
+        field team will actually use to place people.
+        """
+
+        NOT_IN_SCHOOL = "not_in_school", "Not in school"
+        JHS = "jhs", "JHS"
+        SHS_GENERAL = "shs_general", "SHS — general"
+        SHS_TECHNICAL = "shs_technical", "SHS — technical or vocational"
+        TVET = "tvet", "CTVET or other TVET institution"
+        UNIVERSITY = "university", "University or other tertiary"
+        OTHER = "other", "Something else"
+
+    class EducationStatus(models.TextChoices):
+        IN_PROGRESS = "in_progress", "Still studying"
+        COMPLETED = "completed", "Completed"
+        LEFT = "left", "Left before finishing"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -45,6 +69,45 @@ class TraineeAccount(TimeStampedModel):
         choices=Channel.choices,
         default=Channel.WHATSAPP,
     )
+    # --- Background ---
+    #
+    # Every one of these is optional, and registration never blocks on them.
+    # Section 03 makes the trainee side free and frictionless because the
+    # marketplace has to feel useful at forty providers; a sign-up that
+    # interrogates someone before showing them a single course is the thing
+    # that makes them give up.
+    #
+    # Worth noting against Section 10, which scopes trainee data to "phone
+    # number and enquiry history only, no identity documents". None of this is
+    # an identity document, so the hard rule holds — but it is more than that
+    # line describes, and it belongs in the privacy policy before it is
+    # collected in anger.
+    education_level = models.CharField(
+        max_length=20,
+        choices=EducationLevel.choices,
+        blank=True,
+    )
+    institution_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="The school, college or university. Typed by the trainee.",
+    )
+    field_of_study = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="What they studied there. For example: building construction.",
+    )
+    education_status = models.CharField(
+        max_length=20,
+        choices=EducationStatus.choices,
+        blank=True,
+    )
+    education_year = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Year completed, or the year they expect to finish.",
+    )
+
     is_active = models.BooleanField(
         default=True,
         help_text="Untick to stop this number signing in. History is kept.",

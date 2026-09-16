@@ -11,6 +11,8 @@ import {trainerFetch as sessionFetch} from "./trainer-api";
 import type {
   SavedProvider,
   TraineeAccount,
+  TraineeEducationLevel,
+  TraineeEducationStatus,
   TraineeChannel,
   TraineeEnquiry,
   TraineeEnrolment,
@@ -71,6 +73,13 @@ export async function removeSavedProvider(providerId: number) {
 export function updateTraineeAccount(changes: {
   display_name?: string;
   preferred_channel?: TraineeChannel;
+  // PATCH is partial on the server, so sending only what changed is enough and
+  // a trainee who never opens the background form is never asked about it.
+  education_level?: TraineeEducationLevel | "";
+  institution_name?: string;
+  field_of_study?: string;
+  education_status?: TraineeEducationStatus | "";
+  education_year?: number | null;
 }) {
   return sessionFetch<TraineeAccount>("/api/trainee/account/", {
     method: "PATCH",

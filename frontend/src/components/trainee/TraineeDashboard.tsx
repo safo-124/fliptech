@@ -25,6 +25,7 @@ import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
+import {NativeSelect} from "@/components/ui/native-select";
 import {Skeleton} from "@/components/ui/skeleton";
 import {browserApiUrl} from "@/lib/api-origin";
 import {formatDate, formatFee} from "@/lib/format";
@@ -41,6 +42,8 @@ import {
 import type {
   SavedProvider,
   TraineeChannel,
+  TraineeEducationLevel,
+  TraineeEducationStatus,
   TraineeEnquiry,
   TraineeEnquiryStatus,
   TraineeEnrolment,
@@ -132,6 +135,15 @@ function SupportBanner({
   );
 }
 
+/** The optional background block, saved and reset as one unit. */
+type TraineeBackground = {
+  education_level: TraineeEducationLevel | "";
+  institution_name: string;
+  field_of_study: string;
+  education_status: TraineeEducationStatus | "";
+  education_year: number | null;
+};
+
 export function TraineeDashboard() {
   const router = useRouter();
   const [session, setSession] = useState<Extract<TraineeSession, {authenticated: true}> | null>(null);
@@ -145,6 +157,15 @@ export function TraineeDashboard() {
   const [notice, setNotice] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<TraineeChannel>("whatsapp");
+  // One object rather than five useStates: it is saved and reset as a unit,
+  // and five setters in the load effect is five chances to forget one.
+  const [background, setBackground] = useState<TraineeBackground>({
+    education_level: "",
+    institution_name: "",
+    field_of_study: "",
+    education_status: "",
+    education_year: null,
+  });
   const [confirmClose, setConfirmClose] = useState(false);
 
   useEffect(() => {
@@ -164,6 +185,13 @@ export function TraineeDashboard() {
         setSession(current);
         setName(current.account.display_name);
         setChannel(current.account.preferred_channel);
+        setBackground({
+          education_level: current.account.education_level,
+          institution_name: current.account.institution_name,
+          field_of_study: current.account.field_of_study,
+          education_status: current.account.education_status,
+          education_year: current.account.education_year,
+        });
         setEnquiries(nextEnquiries);
         setEnrolments(nextEnrolments);
         setSaved(nextSaved);
@@ -220,7 +248,13 @@ export function TraineeDashboard() {
   const saveSettings = (event: React.FormEvent) => {
     event.preventDefault();
     return run(async () => {
-      const account = await updateTraineeAccount({display_name: name.trim(), preferred_channel: channel});
+      const account = await updateTraineeAccount({
+        display_name: name.trim(),
+        preferred_channel: channel,
+        ...background,
+        institution_name: background.institution_name.trim(),
+        field_of_study: background.field_of_study.trim(),
+      });
       setSession((current) => (current ? {...current, account} : current));
       setNotice("Saved.");
     });
@@ -489,6 +523,124 @@ export function TraineeDashboard() {
                       </label>
                     ))}
                   </div>
+                  <div className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
+                    <div>
+                      <p className="text-sm font-semibold">Your background</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                        All optional, and it never affects what you can see. It helps us
+                        suggest training that suits where you are coming from.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="trainee-education">Where are you coming from?</Label>
+                      <NativeSelect
+                        id="trainee-education"
+                        value={background.education_level}
+                        onChange={(event) =>
+                          setBackground((current) => ({
+                            ...current,
+                            education_level: event.target
+                              .value as TraineeBackground["education_level"],
+                          }))
+                        }
+                      >
+                        <option value="">Prefer not to say</option>
+                        <option value="university">University or other tertiary</option>
+                        <option value="tvet">CTVET or other TVET institution</option>
+                        <option value="shs_technical">SHS — technical or vocational</option>
+                        <option value="shs_general">SHS — general</option>
+                        <option value="jhs">JHS</option>
+                        <option value="not_in_school">Not in school</option>
+                        <option value="other">Something else</option>
+                      </NativeSelect>
+                    </div>
+
+                    {/* The rest only matters once a school has been named, and
+                        hiding it keeps the default form short on a phone. */}
+                    {background.education_level &&
+                    background.education_level !== "not_in_school" ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="trainee-institution">Which school?</Label>
+                          <Input
+                            id="trainee-institution"
+                            value={background.institution_name}
+                            maxLength={200}
+                            onChange={(event) =>
+                              setBackground((current) => ({
+                                ...current,
+                                institution_name: event.target.value,
+                              }))
+                            }
+                            placeholder="For example: Accra Technical Training Centre"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="trainee-subject">What did you study?</Label>
+                          <Input
+                            id="trainee-subject"
+                            value={background.field_of_study}
+                            maxLength={200}
+                            onChange={(event) =>
+                              setBackground((current) => ({
+                                ...current,
+                                field_of_study: event.target.value,
+                              }))
+                            }
+                            placeholder="For example: building construction"
+                          />
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="trainee-education-status">How far did you get?</Label>
+                            <NativeSelect
+                              id="trainee-education-status"
+                              value={background.education_status}
+                              onChange={(event) =>
+                                setBackground((current) => ({
+                                  ...current,
+                                  education_status: event.target
+                                    .value as TraineeBackground["education_status"],
+                                }))
+                              }
+                            >
+                              <option value="">Prefer not to say</option>
+                              <option value="in_progress">Still studying</option>
+                              <option value="completed">Completed</option>
+                              <option value="left">Left before finishing</option>
+                            </NativeSelect>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="trainee-education-year">Which year?</Label>
+                            <Input
+                              id="trainee-education-year"
+                              type="number"
+                              inputMode="numeric"
+                              min={1950}
+                              max={2100}
+                              value={background.education_year ?? ""}
+                              onChange={(event) =>
+                                setBackground((current) => ({
+                                  ...current,
+                                  // Empty clears it rather than sending NaN,
+                                  // which the API would refuse.
+                                  education_year: event.target.value
+                                    ? Number(event.target.value)
+                                    : null,
+                                }))
+                              }
+                              placeholder="2024"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+
                   <Button type="submit" variant="brand">
                     {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
                     Save
