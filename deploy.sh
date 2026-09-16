@@ -101,13 +101,34 @@ sudo systemctl restart fliptech-api
 sudo systemctl restart fliptech-web
 
 echo "==> Health"
+# The probe goes to gunicorn on loopback, so it has to look like a request that
+# arrived through Caddy, or it never reaches the view:
+#
+#   Host             ALLOWED_HOSTS is the public hostname, so Django answered
+#                    "127.0.0.1:8000" with a 400 DisallowedHost and the deploy
+#                    reported a dead API while the site was serving perfectly.
+#   X-Forwarded-Proto  SECURE_SSL_REDIRECT is on in production. Over plain HTTP
+#                    Django replies 301 to https, and `curl -fsS` treats a 301
+#                    as success without following it — a health check that
+#                    passes on a redirect is worse than none.
+#
+# The hostname comes from the env file rather than being hardcoded, so this
+# keeps working when the domain changes.
+health_host=$(grep -E '^DJANGO_ALLOWED_HOSTS=' backend/.env | cut -d= -f2- | cut -d, -f1 | tr -d '[:space:]')
+probe_api() {
+  curl -fsS --max-time 5 \
+    -H "Host: ${health_host}" \
+    -H "X-Forwarded-Proto: https" \
+    http://127.0.0.1:8000/healthz/
+}
+
 ok=false
 for _ in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:8000/healthz/ >/dev/null 2>&1; then ok=true; break; fi
+  if probe_api >/dev/null 2>&1; then ok=true; break; fi
   sleep 2
 done
 if [ "$ok" = true ]; then
-  echo "    api healthy: $(curl -fsS http://127.0.0.1:8000/healthz/)"
+  echo "    api healthy: $(probe_api)"
 else
   echo "    api did NOT come up. Recent log:" >&2
   sudo journalctl -u fliptech-api -n 30 --no-pager >&2
