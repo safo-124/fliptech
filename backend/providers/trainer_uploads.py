@@ -20,14 +20,22 @@ file.
 import logging
 
 from django.db import transaction
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .admin_upload import validate_image_upload
 from .models import ProviderEvidence, ProviderPhoto
+from .trainer_serializers import (
+    TrainerIdentityDocumentSerializer,
+    TrainerIdentityStoredSerializer,
+    TrainerPhotoSerializer,
+    TrainerPhotoUploadSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +79,12 @@ class TrainerPhotoUploadView(APIView):
 
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
+    @extend_schema(
+        request={"multipart/form-data": TrainerPhotoUploadSerializer},
+        responses={201: TrainerPhotoSerializer},
+    )
     def post(self, request):
         from .trainer_views import IsActiveTrainer, _account
 
@@ -130,6 +143,7 @@ class TrainerPhotoDeleteView(APIView):
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(request=None, responses={204: None})
     def delete(self, request, photo_id):
         from .trainer_views import IsActiveTrainer, _account
 
@@ -160,7 +174,12 @@ class TrainerIdentityDocumentView(APIView):
 
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
+    @extend_schema(
+        request={"multipart/form-data": TrainerIdentityDocumentSerializer},
+        responses={201: TrainerIdentityStoredSerializer},
+    )
     def post(self, request):
         from .trainer_views import IsActiveTrainer, _account
 

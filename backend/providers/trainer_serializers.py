@@ -169,3 +169,38 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
     data_consent = serializers.BooleanField(required=False, default=False)
 
     programme = TrainerProgrammeInputSerializer()
+
+
+# --- Upload schemas -------------------------------------------------------
+#
+# These describe the multipart endpoints in trainer_uploads.py for
+# drf-spectacular. They are documentation, NOT validation: the views check
+# uploads through admin_upload.validate_image_upload, which is shared with the
+# staff photograph endpoint so the two cannot drift, and which reports size and
+# type problems in words a trainer can act on. Declaring them here is what
+# stops the generated schema silently omitting three endpoints.
+
+
+class TrainerPhotoUploadSerializer(serializers.Serializer):
+    image = serializers.ImageField()
+    caption = serializers.CharField(max_length=200, required=False, allow_blank=True)
+
+
+class TrainerPhotoSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    url = serializers.CharField()
+    caption = serializers.CharField()
+
+
+class TrainerIdentityDocumentSerializer(serializers.Serializer):
+    document = serializers.ImageField()
+
+
+class TrainerIdentityStoredSerializer(serializers.Serializer):
+    """Deliberately carries no URL.
+
+    Section 10 requires identity documents are never publicly served, so the
+    only thing the trainer is told is whether the upload landed.
+    """
+
+    stored = serializers.BooleanField()
