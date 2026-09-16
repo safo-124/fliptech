@@ -126,6 +126,51 @@ export async function saveTrainerProfile(body: unknown) {
   return response.profile;
 }
 
+/** Everything still missing before the listing can go for review. */
+export async function getTrainerProfileBlockers() {
+  const response = await trainerFetch<{profile: TrainerProfile | null; blockers: string[] | null}>(
+    "/api/trainer/profile/",
+  );
+  return {profile: response.profile, blockers: response.blockers ?? []};
+}
+
+/**
+ * One workshop photograph.
+ *
+ * FormData rather than JSON, and trainerFetch already leaves Content-Type
+ * alone for a FormData body — the browser has to set it itself so the
+ * multipart boundary matches.
+ */
+export async function uploadTrainerPhoto(file: File, caption = "") {
+  const form = new FormData();
+  form.append("image", file);
+  if (caption) form.append("caption", caption);
+  return trainerFetch<{id: number; url: string; caption: string}>(
+    "/api/trainer/profile/photos/",
+    {method: "POST", body: form},
+  );
+}
+
+export function deleteTrainerPhoto(photoId: number) {
+  return trainerFetch<null>(`/api/trainer/profile/photos/${photoId}/`, {method: "DELETE"});
+}
+
+/**
+ * The owner's identity document.
+ *
+ * Returns only whether it stored. There is deliberately no URL in the
+ * response: Section 10 requires identity documents are never publicly served,
+ * so the only place one can be opened is the back office.
+ */
+export async function uploadTrainerIdentityDocument(file: File) {
+  const form = new FormData();
+  form.append("document", file);
+  return trainerFetch<{stored: boolean}>("/api/trainer/profile/identity/", {
+    method: "POST",
+    body: form,
+  });
+}
+
 export async function submitTrainerProfile() {
   const response = await trainerFetch<{profile: TrainerProfile}>(
     "/api/trainer/profile/submit/",

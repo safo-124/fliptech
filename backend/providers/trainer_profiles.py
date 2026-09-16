@@ -326,7 +326,37 @@ def submission_blockers(provider, account):
     return blockers
 
 
-def serialize_profile(provider):
+def _identity_payload(provider, account):
+    """Who the trainer says they are, and whether a document is on file.
+
+    `has_document` is a boolean rather than a link. Section 10 requires
+    identity documents are never publicly served, and the trainer only needs
+    to know whether the upload landed — a URL here would be one careless
+    template away from rendering.
+    """
+    from .models import ProviderEvidence
+
+    if account is None:
+        return None
+    return {
+        "full_name": account.full_name,
+        "role": account.role,
+        "id_document_type": account.id_document_type,
+        "id_document_number": account.id_document_number,
+        "has_document": ProviderEvidence.objects.filter(
+            provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+        ).exists(),
+        "data_consent_given": account.data_consent_at is not None,
+    }
+
+
+def serialize_profile(provider, account=None):
+    """The trainer's own view of their listing.
+
+    `account` is optional so existing callers that only have a provider keep
+    working; pass it to include the identity block, which lives on
+    TrainerAccount rather than on Provider.
+    """
     if provider is None:
         return None
 
@@ -352,6 +382,11 @@ def serialize_profile(provider):
             "hours_per_week": programme.hours_per_week,
             "weekly_schedule": programme.weekly_schedule,
             "capacity": programme.capacity,
+            "fee_includes_tools": programme.fee_includes_tools,
+            "fee_includes_materials": programme.fee_includes_materials,
+            "fee_includes_ppe": programme.fee_includes_ppe,
+            "fee_includes_certificate": programme.fee_includes_certificate,
+            "certificate_awarded": programme.certificate_awarded,
             "intake": (
                 {
                     "id": intake.pk,
@@ -378,6 +413,13 @@ def serialize_profile(provider):
             "region": provider.area.region.name,
         },
         "address": provider.address,
+        "landmark": provider.landmark,
+        "year_established": provider.year_established,
+        "premises_tenure": provider.premises_tenure,
+        "trainer_count": provider.trainer_count,
+        "trainee_count": provider.trainee_count,
+        "declared_accurate_at": provider.declared_accurate_at,
+        "site_visit_consent_at": provider.site_visit_consent_at,
         "latitude": provider.location.y,
         "longitude": provider.location.x,
         "status": provider.status,
@@ -385,5 +427,13 @@ def serialize_profile(provider):
         "review_note": provider.review_note,
         "submitted_at": provider.submitted_at,
         "editable": provider.status in EDITABLE_STATUSES,
+        # Public workshop photographs. Safe to hand back a URL: these are the
+        # gallery on the provider profile. The identity document below is not,
+        # and deliberately has no URL anywhere in this payload.
+        "photos": [
+            {"id": photo.pk, "url": photo.image.url, "caption": photo.caption}
+            for photo in provider.photos.all()
+        ],
+        "identity": _identity_payload(provider, account),
         "programme": programme_payload,
     }

@@ -76,7 +76,7 @@ def _session_payload(request):
         "phone": str(account.phone),
         "account_status": account.approval_status,
         "account_note": account.approval_note,
-        "profile": serialize_profile(_profile_for(account)),
+        "profile": serialize_profile(_profile_for(account), account),
     }
 
 
@@ -199,7 +199,7 @@ class TrainerProfileView(APIView):
         provider = _profile_for(account)
         return Response(
             {
-                "profile": serialize_profile(provider),
+                "profile": serialize_profile(provider, account),
                 # Empty list means ready to send. Returned on every read so the
                 # wizard shows a live checklist rather than discovering what is
                 # missing only when a submit is refused.
@@ -228,7 +228,7 @@ class TrainerProfileView(APIView):
             )
         except TrainerProfileConflict as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
-        return Response({"profile": serialize_profile(profile)})
+        return Response({"profile": serialize_profile(profile, account)})
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -257,7 +257,7 @@ class TrainerProfileSubmitView(APIView):
             submit_provider(provider, actor=request.user)
         except ProviderTransitionError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
-        return Response({"profile": serialize_profile(_profile_for(account))})
+        return Response({"profile": serialize_profile(_profile_for(account), account)})
 
 
 @method_decorator(csrf_protect, name="dispatch")

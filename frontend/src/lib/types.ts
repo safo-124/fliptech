@@ -167,6 +167,12 @@ export type TrainerProgramme = {
   hours_per_week: number | null;
   weekly_schedule: string;
   capacity: number | null;
+  /** What the fee covers. A fee excluding materials is not comparable. */
+  fee_includes_tools: boolean;
+  fee_includes_materials: boolean;
+  fee_includes_ppe: boolean;
+  fee_includes_certificate: boolean;
+  certificate_awarded: string;
   intake: TrainerIntake | null;
 };
 
@@ -182,12 +188,48 @@ export type TrainerProfile = {
   address: string;
   latitude: number;
   longitude: number;
+  /** The nearest well-known place. What a field officer navigates by. */
+  landmark: string;
+  year_established: number | null;
+  premises_tenure: TrainerPremisesTenure | "";
+  trainer_count: number | null;
+  trainee_count: number | null;
+  /** Declarations, stored server-side as the moment they were made. */
+  declared_accurate_at: string | null;
+  site_visit_consent_at: string | null;
   status: "draft" | "pending_approval" | "published" | "suspended" | string;
   status_label: string;
   review_note: string;
   submitted_at: string | null;
   editable: boolean;
+  photos: TrainerPhoto[];
+  identity: TrainerIdentity | null;
   programme: TrainerProgramme | null;
+};
+
+export type TrainerPremisesTenure = "owned" | "rented" | "shared";
+
+export type TrainerRole = "owner" | "manager" | "lead_trainer";
+
+export type TrainerIdDocument = "ghana_card" | "passport" | "voter_id";
+
+/** A public workshop photograph. */
+export type TrainerPhoto = { id: number; url: string; caption: string };
+
+/**
+ * Who the trainer says they are.
+ *
+ * `has_document` is a boolean and not a URL on purpose: Section 10 requires
+ * identity documents are never publicly served, so nothing outside the back
+ * office ever receives a link to one.
+ */
+export type TrainerIdentity = {
+  full_name: string;
+  role: TrainerRole | "";
+  id_document_type: TrainerIdDocument | "";
+  id_document_number: string;
+  has_document: boolean;
+  data_consent_given: boolean;
 };
 
 export type TrainerAccountStatus = "pending" | "confirmed" | "declined";

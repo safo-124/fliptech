@@ -12,11 +12,16 @@ import {
 
 const complete: TrainerDraftForm = {
   ...EMPTY_TRAINER_DRAFT,
+  full_name: "Ama Mensah",
+  role: "owner",
+  id_document_type: "ghana_card",
+  id_document_number: "GHA-000111222-3",
   name: "Accra Welding Works",
   owner_name: "Ama Mensah",
   contact_phone: "0241234567",
   area_id: "7",
   address: "Opposite the community market",
+  landmark: "Behind the community market",
   latitude: "5.6037",
   longitude: "-0.1870",
   trade_id: "3",
@@ -28,13 +33,25 @@ const complete: TrainerDraftForm = {
 describe("trainer profile form", () => {
   it("builds the nested API payload and permits an unknown intake date", () => {
     expect(trainerProfilePayload(complete)).toEqual({
+      full_name: "Ama Mensah",
+      role: "owner",
+      id_document_type: "ghana_card",
+      id_document_number: "GHA-000111222-3",
       name: "Accra Welding Works",
       owner_name: "Ama Mensah",
       contact_phone: "+233241234567",
       area_id: 7,
       address: "Opposite the community market",
+      landmark: "Behind the community market",
       latitude: 5.6037,
       longitude: -0.187,
+      year_established: null,
+      premises_tenure: "",
+      trainer_count: null,
+      trainee_count: null,
+      declared_accurate: false,
+      site_visit_consent: false,
+      data_consent: false,
       programme: {
         trade_id: 3,
         title: "Beginner arc welding",
@@ -45,6 +62,11 @@ describe("trainer profile form", () => {
         hours_per_week: null,
         weekly_schedule: "",
         capacity: null,
+        fee_includes_tools: false,
+        fee_includes_materials: false,
+        fee_includes_ppe: false,
+        fee_includes_certificate: false,
+        certificate_awarded: "",
         intake: null,
       },
     });
@@ -74,6 +96,37 @@ describe("trainer profile form", () => {
     expect(storage).not.toHaveProperty("phone");
     expect(storage).not.toHaveProperty("code");
     expect(storage).not.toHaveProperty("challenge_id");
+  });
+
+  it("never stores the identity document in the browser draft", () => {
+    // The draft persists in the browser until it is cleared, and for this
+    // audience a shared or borrowed handset is realistic. An ID number left
+    // in localStorage is a worse outcome than re-typing two fields after a
+    // reload.
+    const storage = trainerDraftForStorage(complete);
+
+    expect(storage).not.toHaveProperty("id_document_number");
+    expect(storage).not.toHaveProperty("id_document_type");
+    // The rest of the step still survives a reload.
+    expect(storage).toMatchObject({full_name: complete.full_name, role: complete.role});
+  });
+
+  it("keeps the landmark, which the field officer navigates by", () => {
+    expect(trainerDraftSchema.safeParse({...complete, landmark: ""}).success).toBe(false);
+  });
+
+  it("wants the certificate named once the fee is said to include one", () => {
+    const result = trainerDraftSchema.safeParse({
+      ...complete,
+      fee_includes_certificate: true,
+      certificate_awarded: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({path: ["certificate_awarded"]}),
+      );
+    }
   });
 });
 

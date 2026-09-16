@@ -48,8 +48,12 @@ import {
   getTrainerReferenceData,
   getTrainerSession,
   requestTrainerCode,
+  deleteTrainerPhoto,
+  getTrainerProfileBlockers,
   saveTrainerProfile,
   submitTrainerProfile,
+  uploadTrainerIdentityDocument,
+  uploadTrainerPhoto,
   TrainerApiError,
   verifyTrainerCode,
 } from "@/lib/trainer-api";
@@ -61,7 +65,13 @@ import {
   trainerProfilePayload,
   type TrainerDraftForm,
 } from "@/lib/trainer-profile";
-import type {Trade, TrainerArea, TrainerProfile, TrainerSession} from "@/lib/types";
+import type {
+  Trade,
+  TrainerArea,
+  TrainerPhoto,
+  TrainerProfile,
+  TrainerSession,
+} from "@/lib/types";
 
 const DRAFT_KEY = "skillshub.trainer.public-profile-draft";
 
@@ -74,13 +84,26 @@ function countdown(seconds: number): string {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-type Step = "phone" | "code" | "workshop" | "course" | "review" | "submitted";
+type Step = "phone" | "code" | "you" | "workshop" | "photos" | "course" | "review" | "submitted";
 type LocationState = "idle" | "loading" | "success" | "error";
 
 const PROFILE_STEPS: {key: Step; label: string}[] = [
+  {key: "you", label: "You"},
   {key: "workshop", label: "Workshop"},
+  {key: "photos", label: "Photos"},
   {key: "course", label: "Course"},
   {key: "review", label: "Review"},
+];
+
+// Identity comes first, before the workshop. It is four fields and it is the
+// thing the confirming admin is actually deciding on; asking for it last, after
+// someone has typed out their whole course, is how you lose the submission at
+// the point it finally becomes clear that ID is required.
+const IDENTITY_FIELDS: FieldPath<TrainerDraftForm>[] = [
+  "full_name",
+  "role",
+  "id_document_type",
+  "id_document_number",
 ];
 
 const WORKSHOP_FIELDS: FieldPath<TrainerDraftForm>[] = [
@@ -89,8 +112,13 @@ const WORKSHOP_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "contact_phone",
   "area_id",
   "address",
+  "landmark",
   "latitude",
   "longitude",
+  "year_established",
+  "premises_tenure",
+  "trainer_count",
+  "trainee_count",
 ];
 
 const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
@@ -103,6 +131,11 @@ const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "hours_per_week",
   "weekly_schedule",
   "capacity",
+  "fee_includes_tools",
+  "fee_includes_materials",
+  "fee_includes_ppe",
+  "fee_includes_certificate",
+  "certificate_awarded",
   "intake_start_date",
   "places_offered",
 ];
@@ -315,6 +348,14 @@ function LoadingCard() {
 
 export function TrainerJoinWizard() {
   const [step, setStep] = useState<Step>("phone");
+  const [photos, setPhotos] = useState<TrainerPhoto[]>([]);
+  const [hasIdDocument, setHasIdDocument] = useState(false);
+  const [blockers, setBlockers] = useState<string[]>([]);
+  // Upload failures are kept apart from `error`, which drives the whole-form
+  // banner. A photo that was too large should not read like the profile failed
+  // to save.
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [session, setSession] = useState<TrainerSession | null>(null);
   const [profile, setProfile] = useState<TrainerProfile | null>(null);
   const [areas, setAreas] = useState<TrainerArea[]>([]);
@@ -372,7 +413,7 @@ export function TrainerJoinWizard() {
           if (nextSession.profile) {
             setProfile(nextSession.profile);
             reset(draftFromTrainerProfile(nextSession.profile));
-            setStep(nextSession.profile.editable ? "workshop" : "submitted");
+            setStep(nextSession.profile.editable ? "you" : "submitted");
           } else {
             const saved = sessionStorage.getItem(DRAFT_KEY);
             if (saved) {
@@ -383,7 +424,7 @@ export function TrainerJoinWizard() {
               }
             }
             if (!getValues("contact_phone")) setValue("contact_phone", nextSession.phone);
-            setStep("workshop");
+            setStep("you");
           }
         }
       })
@@ -507,7 +548,7 @@ export function TrainerJoinWizard() {
       setProfile(nextSession.profile);
       if (nextSession.profile) {
         reset(draftFromTrainerProfile(nextSession.profile));
-        setStep(nextSession.profile.editable ? "workshop" : "submitted");
+        setStep(nextSession.profile.editable ? "you" : "submitted");
       } else {
         const saved = sessionStorage.getItem(DRAFT_KEY);
         if (saved) {
@@ -518,7 +559,7 @@ export function TrainerJoinWizard() {
           }
         }
         if (!getValues("contact_phone")) setValue("contact_phone", phone);
-        setStep("workshop");
+        setStep("you");
       }
       setCode("");
     } catch (reason) {
@@ -532,6 +573,81 @@ export function TrainerJoinWizard() {
     setError(null);
     const valid = await trigger(fields, {shouldFocus: true});
     if (valid) setStep(next);
+  }
+
+  /**
+   * Validate, save the draft, then advance.
+   *
+   * The upload endpoints attach files to a provider row, so one has to exist
+   * before the photos step is any use — the API answers 409 "create your
+   * workshop details first" otherwise. Saving on the way in also means the
+   * workshop details survive a phone that dies during the photo step, which
+   * is the longest and most data-hungry part of the form.
+   */
+  async function saveThenContinue(fields: FieldPath<TrainerDraftForm>[], next: Step) {
+    setError(null);
+    const valid = await trigger(fields, {shouldFocus: true});
+    if (!valid) return;
+    setBusy(true);
+    try {
+      const saved = await saveTrainerProfile(trainerProfilePayload(getValues()));
+      setProfile(saved);
+      setPhotos(saved.photos);
+      setHasIdDocument(saved.identity?.has_document ?? false);
+      if (next === "review") {
+        // Ask the server what it would still refuse on, so the checklist on
+        // the review step is the API's own answer rather than a second
+        // implementation of the same rules drifting beside it.
+        const {blockers: outstanding} = await getTrainerProfileBlockers();
+        setBlockers(outstanding);
+      }
+      setStep(next);
+    } catch (reason) {
+      if (reason instanceof TrainerApiError) applyApiErrors(reason);
+      else setError(reason instanceof Error ? reason.message : "Could not save your details.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addPhoto(file: File) {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const photo = await uploadTrainerPhoto(file);
+      setPhotos((current) => [...current, photo]);
+    } catch (reason) {
+      setUploadError(
+        reason instanceof Error ? reason.message : "That photo could not be uploaded.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removePhoto(photoId: number) {
+    setUploadError(null);
+    try {
+      await deleteTrainerPhoto(photoId);
+      setPhotos((current) => current.filter((photo) => photo.id !== photoId));
+    } catch (reason) {
+      setUploadError(reason instanceof Error ? reason.message : "Could not remove that photo.");
+    }
+  }
+
+  async function addIdDocument(file: File) {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      await uploadTrainerIdentityDocument(file);
+      setHasIdDocument(true);
+    } catch (reason) {
+      setUploadError(
+        reason instanceof Error ? reason.message : "That document could not be uploaded.",
+      );
+    } finally {
+      setUploading(false);
+    }
   }
 
   /** Single writer for the pin: the map, the GPS button and the inputs agree. */
@@ -590,6 +706,15 @@ export function TrainerJoinWizard() {
     } catch (reason) {
       if (reason instanceof TrainerApiError) applyApiErrors(reason);
       else setError(reason instanceof Error ? reason.message : "Could not submit the profile.");
+      // A refused submit is nearly always something missing rather than
+      // something wrong, so re-read the checklist instead of leaving the
+      // trainer with a banner and no next action.
+      try {
+        const {blockers: outstanding} = await getTrainerProfileBlockers();
+        setBlockers(outstanding);
+      } catch {
+        // The submit error already on screen is the more useful one.
+      }
     } finally {
       setBusy(false);
     }
@@ -793,11 +918,120 @@ export function TrainerJoinWizard() {
       : null;
   const selectedTrade = trades.find((trade) => String(trade.id) === values.trade_id);
   const instalmentsAllowed = watch("instalments_allowed");
+  const feeIncludesCertificate = watch("fee_includes_certificate");
   const intakeStartDate = watch("intake_start_date");
 
   return (
     <form onSubmit={saveAndSubmit} noValidate aria-busy={busy}>
       <Progress step={step} />
+
+      {step === "you" ? (
+        <section aria-labelledby="you-heading">
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-4 sm:px-6 sm:pt-6">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="grid size-11 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+                  <ShieldCheck aria-hidden="true" className="size-5" />
+                </div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> Required fields
+                </p>
+              </div>
+              <h2
+                id="you-heading"
+                ref={stepHeadingRef}
+                tabIndex={-1}
+                className="text-xl font-bold tracking-tight outline-none sm:text-2xl"
+              >
+                About you
+              </h2>
+              <CardDescription>
+                We check that a real person runs a real workshop before a listing goes live.
+                Your ID is never shown on the site and never shared with trainees.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="sm:px-6">
+              <fieldset disabled={busy} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">
+                    Your full name <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                  </Label>
+                  <Input
+                    id="full_name"
+                    autoComplete="name"
+                    {...register("full_name")}
+                    aria-invalid={errors.full_name ? true : undefined}
+                  />
+                  <FieldError id="full-name-error" message={errors.full_name?.message} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">
+                    Your role here <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                  </Label>
+                  <NativeSelect id="role" {...register("role")} aria-invalid={errors.role ? true : undefined}>
+                    <option value="">Choose one</option>
+                    <option value="owner">I own this workshop</option>
+                    <option value="manager">I manage it</option>
+                    <option value="lead_trainer">I am the lead trainer</option>
+                  </NativeSelect>
+                  <FieldError id="role-error" message={errors.role?.message} />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="id_document_type">
+                      ID type <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                    </Label>
+                    <NativeSelect
+                      id="id_document_type"
+                      {...register("id_document_type")}
+                      aria-invalid={errors.id_document_type ? true : undefined}
+                    >
+                      <option value="">Choose one</option>
+                      <option value="ghana_card">Ghana Card</option>
+                      <option value="passport">Passport</option>
+                      <option value="voter_id">Voter ID</option>
+                    </NativeSelect>
+                    <FieldError id="id-type-error" message={errors.id_document_type?.message} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="id_document_number">
+                      ID number <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                    </Label>
+                    <Input
+                      id="id_document_number"
+                      {...register("id_document_number")}
+                      aria-invalid={errors.id_document_number ? true : undefined}
+                    />
+                    <FieldError id="id-number-error" message={errors.id_document_number?.message} />
+                  </div>
+                </div>
+
+                <Alert>
+                  <LockKeyhole aria-hidden="true" className="size-4" />
+                  <AlertDescription>
+                    You upload a photo of the ID on the next-but-one step. It is stored
+                    privately, is never published, and only the Fliiptech staff reviewing
+                    your listing can open it.
+                  </AlertDescription>
+                </Alert>
+              </fieldset>
+            </CardContent>
+            <CardFooter className="sm:px-6">
+              <Button
+                type="button"
+                variant="brand"
+                onClick={() => continueFrom(IDENTITY_FIELDS, "workshop")}
+                className="w-full"
+              >
+                Continue to workshop
+                <ArrowRight aria-hidden="true" />
+              </Button>
+            </CardFooter>
+          </Card>
+        </section>
+      ) : null}
 
       {step === "workshop" ? (
         <section aria-labelledby="workshop-heading">
@@ -915,7 +1149,7 @@ export function TrainerJoinWizard() {
 
               <div className="space-y-2">
                 <Label htmlFor="address">
-                  Workshop address or landmark
+                  Workshop address
                   <RequiredCue />
                 </Label>
                 <Textarea
@@ -929,6 +1163,80 @@ export function TrainerJoinWizard() {
                 />
                 <FieldError id="address-error" message={errors.address?.message} />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="landmark">
+                  Nearest landmark
+                  <RequiredCue />
+                </Label>
+                <Input
+                  id="landmark"
+                  {...register("landmark")}
+                  required
+                  placeholder="For example: behind Tema Community 1 market"
+                  aria-invalid={Boolean(errors.landmark)}
+                  aria-describedby={describedBy("landmark-help", errors.landmark && "landmark-error")}
+                />
+                <p id="landmark-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  A place anyone nearby would know. This is how our officer finds you for
+                  the visit.
+                </p>
+                <FieldError id="landmark-error" message={errors.landmark?.message} />
+              </div>
+
+              <fieldset className="grid gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:grid-cols-2 sm:p-5">
+                <legend className="px-1.5 text-sm font-semibold">About the workshop</legend>
+                <p className="text-xs leading-5 text-[var(--color-muted-foreground)] sm:col-span-2">
+                  All optional, and none of it appears on your public listing. It helps us
+                  understand the workshop before we visit.
+                </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="year_established">Year it started</Label>
+                  <Input
+                    id="year_established"
+                    inputMode="numeric"
+                    {...register("year_established")}
+                    placeholder="2016"
+                    aria-invalid={Boolean(errors.year_established)}
+                  />
+                  <FieldError id="year-error" message={errors.year_established?.message} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="premises_tenure">The premises are</Label>
+                  <NativeSelect id="premises_tenure" {...register("premises_tenure")}>
+                    <option value="">Prefer not to say</option>
+                    <option value="owned">Owned</option>
+                    <option value="rented">Rented</option>
+                    <option value="shared">Shared or family premises</option>
+                  </NativeSelect>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="trainer_count">How many people teach here?</Label>
+                  <Input
+                    id="trainer_count"
+                    inputMode="numeric"
+                    {...register("trainer_count")}
+                    placeholder="3"
+                    aria-invalid={Boolean(errors.trainer_count)}
+                  />
+                  <FieldError id="trainer-count-error" message={errors.trainer_count?.message} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="trainee_count">How many trainees right now?</Label>
+                  <Input
+                    id="trainee_count"
+                    inputMode="numeric"
+                    {...register("trainee_count")}
+                    placeholder="12"
+                    aria-invalid={Boolean(errors.trainee_count)}
+                  />
+                  <FieldError id="trainee-count-error" message={errors.trainee_count?.message} />
+                </div>
+              </fieldset>
 
               <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">
                 <legend className="px-1.5 text-sm font-semibold">
@@ -1038,8 +1346,167 @@ export function TrainerJoinWizard() {
               <Button
                 type="button"
                 variant="brand"
-                onClick={() => continueFrom(WORKSHOP_FIELDS, "course")}
+                onClick={() => saveThenContinue(WORKSHOP_FIELDS, "photos")}
                 className="w-full"
+              >
+                Continue to photos
+                <ArrowRight aria-hidden="true" />
+              </Button>
+            </CardFooter>
+          </Card>
+        </section>
+      ) : null}
+
+      {step === "photos" ? (
+        <section aria-labelledby="photos-heading">
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-4 sm:px-6 sm:pt-6">
+              <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+                <Eye aria-hidden="true" className="size-5" />
+              </div>
+              <h2
+                id="photos-heading"
+                ref={stepHeadingRef}
+                tabIndex={-1}
+                className="text-xl font-bold tracking-tight outline-none sm:text-2xl"
+              >
+                Photos and ID
+              </h2>
+              <CardDescription>
+                Trainees choose with their eyes. Show the outside so people can find you,
+                and the inside so they can see what they will learn on.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 sm:px-6">
+              {uploadError ? <FormError id="upload-error" message={uploadError} /> : null}
+
+              <fieldset disabled={uploading} className="space-y-4">
+                <legend className="text-sm font-semibold">
+                  Workshop photos
+                  <RequiredCue />
+                </legend>
+                <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  At least two: one of the outside with your sign, one of the inside or your
+                  equipment. Up to eight.
+                </p>
+
+                {photos.length ? (
+                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {photos.map((photo) => (
+                      <li key={photo.id} className="group relative">
+                        {/* A plain img, not next/image: these are just-uploaded
+                            files on an origin the optimiser is not configured
+                            for, and the trainer only needs a thumbnail to
+                            confirm the right photo landed. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.url}
+                          alt={photo.caption || "Workshop photo"}
+                          className="aspect-4/3 w-full rounded-xl border border-[var(--color-border)] object-cover"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removePhoto(photo.id)}
+                          className="absolute right-1.5 top-1.5 h-8 min-h-0 bg-[var(--color-card)] px-2 text-xs"
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {photos.length < 8 ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="photo-input" className="sr-only">
+                      Add a workshop photo
+                    </Label>
+                    <Input
+                      id="photo-input"
+                      type="file"
+                      accept="image/*"
+                      // capture hints the camera on a phone, which is where
+                      // these are actually taken.
+                      capture="environment"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        // Cleared straight away so the same file can be picked
+                        // again after a failed upload — without this, choosing
+                        // it a second time fires no change event at all.
+                        event.target.value = "";
+                        if (file) void addPhoto(file);
+                      }}
+                    />
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      {photos.length} of 8 added. Each photo uploads on its own, so a dropped
+                      connection only costs you that one.
+                    </p>
+                  </div>
+                ) : null}
+              </fieldset>
+
+              <Separator />
+
+              <fieldset disabled={uploading} className="space-y-3">
+                <legend className="text-sm font-semibold">
+                  Photo of your ID
+                  <RequiredCue />
+                </legend>
+                {hasIdDocument ? (
+                  <Alert>
+                    <CheckCircle2 aria-hidden="true" className="size-4" />
+                    <AlertDescription>
+                      Your ID is on file. Upload again only if you need to replace it.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                <Label htmlFor="id-input" className="sr-only">
+                  Upload a photo of your ID
+                </Label>
+                <Input
+                  id="id-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) void addIdDocument(file);
+                  }}
+                />
+                <p className="flex items-start gap-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  <LockKeyhole aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                  <span>
+                    Stored privately and never published. Only the staff reviewing your
+                    listing can open it, and it is never shown to trainees.
+                  </span>
+                </p>
+              </fieldset>
+
+              {uploading ? (
+                <p role="status" className="flex items-center gap-2 text-sm">
+                  <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                  Uploading…
+                </p>
+              ) : null}
+            </CardContent>
+            <CardFooter className="flex-col gap-3 sm:flex-row sm:px-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep("workshop")}
+                className="w-full sm:w-auto"
+              >
+                <ArrowLeft aria-hidden="true" />
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="brand"
+                onClick={() => setStep("course")}
+                className="w-full sm:flex-1"
               >
                 Continue to course
                 <ArrowRight aria-hidden="true" />
@@ -1228,6 +1695,54 @@ export function TrainerJoinWizard() {
               </div>
 
               <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">
+                <legend className="px-1.5 text-sm font-semibold">What does the fee cover?</legend>
+                <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  Trainees compare fees side by side. Saying what yours includes is how a
+                  higher fee stops looking expensive.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ["fee_includes_tools", "Tools"],
+                      ["fee_includes_materials", "Materials"],
+                      ["fee_includes_ppe", "Safety gear"],
+                      ["fee_includes_certificate", "A certificate"],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <label
+                      key={field}
+                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3"
+                    >
+                      <input type="checkbox" {...register(field)} />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {feeIncludesCertificate ? (
+                  <div className="mt-3 space-y-2">
+                    <Label htmlFor="certificate_awarded">
+                      What is the certificate called?
+                      <RequiredCue />
+                    </Label>
+                    <Input
+                      id="certificate_awarded"
+                      {...register("certificate_awarded")}
+                      placeholder="For example: Fliiptech workshop certificate"
+                      aria-invalid={Boolean(errors.certificate_awarded)}
+                      aria-describedby={describedBy(
+                        errors.certificate_awarded && "certificate-error",
+                      )}
+                    />
+                    <FieldError
+                      id="certificate-error"
+                      message={errors.certificate_awarded?.message}
+                    />
+                  </div>
+                ) : null}
+              </fieldset>
+
+              <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">
                 <legend className="px-1.5 text-sm font-semibold">
                   Next intake <OptionalCue />
                 </legend>
@@ -1280,7 +1795,7 @@ export function TrainerJoinWizard() {
               <Button
                 type="button"
                 variant="brand"
-                onClick={() => continueFrom(COURSE_FIELDS, "review")}
+                onClick={() => saveThenContinue(COURSE_FIELDS, "review")}
                 className="w-full sm:w-auto"
               >
                 Review profile
@@ -1392,15 +1907,69 @@ export function TrainerJoinWizard() {
             </CardContent>
           </Card>
 
-          <div className="flex items-start gap-3 rounded-2xl border border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-4 text-sm leading-6">
-            <ShieldCheck
-              aria-hidden="true"
-              className="mt-1 size-4 shrink-0 text-[var(--color-brand-strong)]"
-            />
-            <p>
-              By submitting, you confirm these details are accurate. Workshop name, owner/contact details, location and course information will be public only after staff approval. Your private sign-in phone remains separate.
+          {/* Three separate declarations rather than one blanket tick. Each is
+              stored server-side as the moment it was made, and a trainee
+              disputing a fee later is answered by "declared accurate on the
+              14th", which one merged checkbox could never support. */}
+          <fieldset
+            disabled={busy}
+            className="space-y-3 rounded-2xl border border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-4"
+          >
+            <legend className="px-1.5 text-sm font-semibold">Before you send</legend>
+
+            {(
+              [
+                [
+                  "declared_accurate",
+                  "The fees, dates and course details above are correct today.",
+                ],
+                [
+                  "site_visit_consent",
+                  "A Fliiptech officer may visit the workshop to check the listing.",
+                ],
+                [
+                  "data_consent",
+                  "Fliiptech may hold my name, phone number and ID to verify this listing.",
+                ],
+              ] as const
+            ).map(([field, label]) => (
+              <label key={field} className="flex cursor-pointer items-start gap-3 text-sm leading-6">
+                <input type="checkbox" className="mt-1.5 shrink-0" {...register(field)} />
+                <span>{label}</span>
+              </label>
+            ))}
+
+            <p className="flex items-start gap-1.5 border-t border-[var(--color-brand)]/10 pt-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
+              <ShieldCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                The workshop name, contact details, location and course go public only after
+                staff approval. Your sign-in phone and your ID never appear on the site.
+              </span>
             </p>
-          </div>
+          </fieldset>
+
+          {/* What the server will refuse on, shown before the button rather
+              than after it. The list comes from the same submission_blockers
+              the API runs, so the two cannot disagree. */}
+          {blockers.length ? (
+            <div
+              role="status"
+              className="rounded-2xl border border-[var(--color-warn)]/25 bg-[var(--color-warn-bg)] p-4"
+            >
+              <p className="flex items-center gap-2 text-sm font-semibold text-[var(--color-warn)]">
+                <AlertCircle aria-hidden="true" className="size-4" />
+                Still needed before you can send
+              </p>
+              <ul className="mt-2 space-y-1.5 text-sm leading-6">
+                {blockers.map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--color-warn)]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {error ? <FormError id="profile-submit-error" message={error} /> : null}
 
