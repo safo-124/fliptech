@@ -38,6 +38,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     { url: site, changeFrequency: "daily", priority: 1 },
+    // Low priority, but it should be findable: a privacy policy nobody can
+    // locate is not published in any useful sense.
+    { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   const [trades, areas, regions, providers] = await Promise.all([

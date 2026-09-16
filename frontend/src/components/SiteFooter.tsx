@@ -36,6 +36,7 @@ export function SiteFooter() {
           <Link href="/" className="hover:text-white hover:underline">Browse providers</Link>
           <Link href="/map" className="hover:text-white hover:underline">Explore map</Link>
           <Link href="/trainer/join" className="hover:text-white hover:underline">For trainers</Link>
+          <Link href="/privacy" className="hover:text-white hover:underline">Privacy</Link>
         </nav>
       </div>
     </footer>
