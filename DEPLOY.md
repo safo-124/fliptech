@@ -59,7 +59,7 @@ ssh safo@YOUR_SERVER 'sudo rsync -a /tmp/fliptech/ /opt/fliptech/ && sudo chown 
 BRAND_NAME=Fliptech
 DJANGO_SECRET_KEY=            # python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 DJANGO_DEBUG=False
-DJANGO_ALLOWED_HOSTS=your-domain.com
+DJANGO_ALLOWED_HOSTS=your-domain.com,127.0.0.1
 CSRF_TRUSTED_ORIGINS=https://your-domain.com
 CORS_ALLOWED_ORIGINS=https://your-domain.com
 
@@ -131,6 +131,15 @@ preflight on the enquiry POST, and back-office session cookies stay first-party.
 over loopback via `API_URL_INTERNAL`, while the browser uses the public HTTPS
 origin. Using one value for both is the classic deploy bug — SSR requests would
 leave the box, cross TLS and come back for no reason.
+
+That loopback hop is why `127.0.0.1` belongs in `DJANGO_ALLOWED_HOSTS` above.
+An SSR request arrives with `Host: 127.0.0.1:8000`, and without it Django
+answers 400 DisallowedHost — every page renders its "could not load" state
+while the site looks perfectly healthy from outside. Node's `fetch` cannot
+send a different `Host` (undici ignores the header), so this cannot be fixed
+in the frontend. The frontend does send `X-Forwarded-Proto: https`, without
+which `SECURE_SSL_REDIRECT` answers the same hop with a 301 to a port nothing
+is listening on.
 
 **`NEXT_PUBLIC_*` is baked in at build time**, not read at run time. Changing the
 domain or brand name means re-running `deploy.sh`, which rebuilds.

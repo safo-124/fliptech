@@ -1,3 +1,4 @@
+import {SSR_HEADERS} from "./api";
 import {browserApiUrl} from "./api-origin";
 import type {
   Paginated,
@@ -57,6 +58,10 @@ export async function trainerFetch<T>(path: string, init: RequestInit = {}): Pro
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
+  // Empty in the browser, which is where this module actually runs today. It
+  // matters only if one of these calls is ever moved to the server, where the
+  // loopback hop to gunicorn needs it — see SSR_HEADERS.
+  for (const [name, value] of Object.entries(SSR_HEADERS)) headers.set(name, value);
   if (init.body !== undefined && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }

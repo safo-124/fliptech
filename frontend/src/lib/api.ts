@@ -32,6 +32,30 @@ const API_URL =
     ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
     : browserApiUrl();
 
+/**
+ * Extra headers that only a server-rendered request needs.
+ *
+ * SSR reaches gunicorn over loopback while Django is configured for the public
+ * origin, and two production settings reject that request:
+ *
+ *   SECURE_SSL_REDIRECT   the hop is plain HTTP, so Django answers 301 to
+ *                         https://127.0.0.1/..., which has neither a listener
+ *                         nor a certificate that would match. This header is
+ *                         what prevents it, and it is not a lie: the request
+ *                         did arrive over TLS, at Caddy, which terminated it.
+ *                         Caddy sets the same header on browser traffic.
+ *
+ *   ALLOWED_HOSTS         the Host is "127.0.0.1:8000" and Django answers 400
+ *                         DisallowedHost. That one cannot be fixed here —
+ *                         Node's fetch silently ignores a Host header, so
+ *                         DJANGO_ALLOWED_HOSTS has to list 127.0.0.1.
+ *
+ * Empty in the browser, where the request goes to the public HTTPS origin and
+ * Caddy supplies the header itself.
+ */
+export const SSR_HEADERS: Record<string, string> =
+  typeof window === "undefined" ? { "X-Forwarded-Proto": "https" } : {};
+
 /** Search results change when staff edit a listing, not by the second. */
 const LIST_REVALIDATE_SECONDS = 300;
 const MAX_COMPLETE_PAGES = 100;
@@ -54,7 +78,7 @@ async function fetchJson<T>(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, { next: { revalidate } });
+      const response = await fetch(url, { next: { revalidate }, headers: SSR_HEADERS });
       if (response.status === 404) throw new ApiError("Not found", 404);
       if (!response.ok) throw new ApiError(`API ${response.status}`, response.status);
       return (await response.json()) as T;
