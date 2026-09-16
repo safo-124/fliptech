@@ -189,6 +189,19 @@ body {
     color: oklch(0.98 0.01 300);
   }
 
+  /* The full-screen phone map puts the provider count exactly where Leaflet
+     places its +/- control, and the two collide. Pinch is the gesture anyone
+     reaches for on a touch screen and the + and - keys still work, so the
+     control is hidden below lg and returns for the desktop card, where there
+     is room for it and a mouse to use it.
+
+     Hidden in CSS rather than by passing zoomControl={false}, because that is
+     a render-time decision and this component renders once for both
+     viewports. */
+  .map-immersive .leaflet-control-zoom {
+    display: none;
+  }
+
   .scrollbar-none {
     scrollbar-width: none;
   }
@@ -208,6 +221,10 @@ body {
 @media (min-width: 64rem) {
   .app-shell {
     padding-inline: 1.5rem;
+  }
+
+  .map-immersive .leaflet-control-zoom {
+    display: block;
   }
 }
 

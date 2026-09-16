@@ -18,10 +18,24 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderCard } from "@/lib/types";
 
+/**
+ * Placeholder sizing.
+ *
+ * `fill` makes the loading, error and empty states match a parent that has
+ * already decided the height — the full-screen map on a phone. Without it they
+ * kept their own 70dvh and the screen visibly jumped when the map arrived.
+ */
+const placeholderSize = (fill: boolean) =>
+  fill ? "h-full min-h-0" : "h-[70dvh] min-h-[28rem]";
+
 function MapLoadingState() {
   return (
+    // next/dynamic's `loading` takes no props, so this one size has to be
+    // right in both places. `h-full` fills the phone's full-screen parent;
+    // `min-h-[70dvh]` is what applies on desktop, where the parent has no
+    // height of its own and matches what MapView settles at once loaded.
     <div
-      className="relative grid h-[70dvh] min-h-[28rem] place-items-center overflow-hidden bg-[var(--color-muted)]/35 px-6 text-center"
+      className="relative grid h-full min-h-[70dvh] place-items-center overflow-hidden bg-[var(--color-muted)]/35 px-6 text-center"
       role="status"
       aria-live="polite"
       aria-busy="true"
@@ -49,7 +63,7 @@ const MapView = dynamic(() => import("./MapView"), {
 });
 
 class MapErrorBoundary extends Component<
-  { children: ReactNode; listHref: string },
+  { children: ReactNode; listHref: string; fill?: boolean },
   { failed: boolean }
 > {
   state = { failed: false };
@@ -67,7 +81,10 @@ class MapErrorBoundary extends Component<
   render() {
     if (this.state.failed) {
       return (
-        <div className="grid h-[70dvh] min-h-[28rem] place-items-center bg-[var(--color-muted)]/35 px-6 text-center" role="alert">
+        <div
+          className={`grid ${placeholderSize(Boolean(this.props.fill))} place-items-center bg-[var(--color-muted)]/35 px-6 text-center`}
+          role="alert"
+        >
           <div className="max-w-sm">
             <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
               <MapPinned className="size-5" aria-hidden="true" />
@@ -104,14 +121,23 @@ class MapErrorBoundary extends Component<
 export function MapLoader({
   providers,
   listHref = "/",
+  fill = false,
+  immersive = false,
 }: {
   providers: ProviderCard[];
   listHref?: string;
+  /** Take the parent's height rather than a fixed fraction of the viewport. */
+  fill?: boolean;
+  /** Float the map's controls over the tiles. See MapView. */
+  immersive?: boolean;
 }) {
   // Avoid downloading Leaflet's client chunk when there is nothing to plot.
   if (providers.length === 0) {
     return (
-      <div className="grid h-[70dvh] min-h-[28rem] place-items-center bg-[var(--color-muted)]/35 px-6 text-center" role="status">
+      <div
+        className={`grid ${placeholderSize(fill)} place-items-center bg-[var(--color-muted)]/35 px-6 text-center`}
+        role="status"
+      >
         <div className="max-w-sm">
           <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
             <MapPinned className="size-5" aria-hidden="true" />
@@ -126,8 +152,8 @@ export function MapLoader({
   }
 
   return (
-    <MapErrorBoundary listHref={listHref}>
-      <MapView providers={providers} />
+    <MapErrorBoundary listHref={listHref} fill={fill}>
+      <MapView providers={providers} fillParent={fill} immersive={immersive} />
     </MapErrorBoundary>
   );
 }

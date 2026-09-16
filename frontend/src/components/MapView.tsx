@@ -217,12 +217,22 @@ function hasValidCoordinates(provider: ProviderCard) {
 export default function MapView({
   providers,
   fillParent = false,
+  immersive = false,
   scopeLabel,
 }: {
   providers: ProviderCard[];
   /** Fill the parent's height instead of a fixed viewport fraction. Used by the
       search-page side panel, which is already height-constrained. */
   fillParent?: boolean;
+  /**
+   * Float the chrome over the map instead of stacking it above.
+   *
+   * For the full-screen map on a phone. The bar costs about 90px of a 812px
+   * screen, and on a screen that is meant to be all map that is the difference
+   * between a map and a panel with a map in it. The same controls are still
+   * there, as pills sitting on the tiles.
+   */
+  immersive?: boolean;
   /** Clarifies when a side map contains only the current paginated list. */
   scopeLabel?: string;
 }) {
@@ -258,20 +268,56 @@ export default function MapView({
 
   return (
     <section
-      className="flex min-h-0 flex-col bg-[var(--color-card)]"
+      className={`relative flex min-h-0 flex-col bg-[var(--color-card)]${
+        immersive ? " map-immersive" : ""
+      }`}
       style={{ height: fillParent ? "100%" : "70dvh" }}
       data-provider-map
     >
-      <div className="grid gap-2 border-b border-[var(--color-border)] bg-[var(--color-card)]/95 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-3">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
-            <MapPinned className="size-4" aria-hidden="true" />
+      {/* Immersive means "float below lg, ordinary bar from lg" — expressed in
+          CSS rather than a JS branch, because this is a Server-rendered page
+          and the viewport is not knowable at render time. Reading the width in
+          JS would either flash the wrong chrome or mismatch on hydration. */}
+      <div
+        className={
+          immersive
+            ? // z-[500] clears Leaflet's own panes, which sit at 400 and below.
+              "pointer-events-none absolute inset-x-0 top-0 z-[500] flex items-start justify-between gap-2 p-3 lg:pointer-events-auto lg:static lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-2 lg:gap-x-3 lg:border-b lg:border-[var(--color-border)] lg:bg-[var(--color-card)]/95 lg:p-0 lg:px-4 lg:py-3"
+            : "grid gap-2 border-b border-[var(--color-border)] bg-[var(--color-card)]/95 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-3"
+        }
+      >
+        <div
+          className={
+            immersive
+              ? "pointer-events-auto flex min-w-0 items-center gap-2 rounded-full bg-[var(--color-card)]/90 px-3 py-2 shadow-[var(--shadow-lg)] backdrop-blur-sm lg:items-start lg:gap-2.5 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none"
+              : "flex min-w-0 items-start gap-2.5"
+          }
+        >
+          <span
+            className={
+              immersive
+                ? "grid size-6 shrink-0 place-items-center rounded-full bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)] lg:mt-0.5 lg:size-8 lg:rounded-lg"
+                : "mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
+            }
+          >
+            <MapPinned
+              className={immersive ? "size-3.5 lg:size-4" : "size-4"}
+              aria-hidden="true"
+            />
           </span>
-          <div className="min-w-0 pt-1">
-            <h2 id={labelId} className="text-xs font-bold text-[var(--color-foreground)] sm:text-sm">
-              Interactive map · {validProviders.length}{" "}
+          <div className={immersive ? "min-w-0 lg:pt-1" : "min-w-0 pt-1"}>
+            <h2
+              id={labelId}
+              className="truncate text-xs font-bold text-[var(--color-foreground)] sm:text-sm"
+            >
+              {immersive ? <span className="lg:hidden">{validProviders.length} </span> : null}
+              <span className={immersive ? "hidden lg:inline" : undefined}>
+                Interactive map · {validProviders.length}{" "}
+              </span>
               {validProviders.length === 1 ? "provider" : "providers"}
-              {scopeLabel ? ` ${scopeLabel}` : ""}
+              {scopeLabel ? (
+                <span className={immersive ? "hidden lg:inline" : undefined}>{` ${scopeLabel}`}</span>
+              ) : null}
             </h2>
           </div>
         </div>
@@ -279,17 +325,36 @@ export default function MapView({
           type="button"
           variant="outline"
           size="sm"
-          className="min-h-11 shrink-0"
+          className={
+            immersive
+              ? "pointer-events-auto min-h-11 shrink-0 rounded-full shadow-[var(--shadow-lg)] backdrop-blur-sm lg:rounded-lg lg:shadow-none lg:backdrop-blur-none"
+              : "min-h-11 shrink-0"
+          }
           onClick={() => {
             if (ref.current) fitProviderBounds(ref.current, bounds);
           }}
         >
           <LocateFixed aria-hidden="true" />
-          Show all providers
+          {immersive ? (
+            <>
+              <span className="sr-only lg:hidden">Show all providers</span>
+              <span className="hidden lg:inline">Show all providers</span>
+            </>
+          ) : (
+            "Show all providers"
+          )}
         </Button>
+        {/* Keyboard help. Always in the DOM because aria-describedby on the map
+            points at it; hidden visually on the full-screen phone map, where
+            the whole point is an uncluttered screen and there are no arrow
+            keys to press anyway. */}
         <p
           id={instructionsId}
-          className="text-[11px] leading-4 text-[var(--color-muted-foreground)] sm:col-span-2"
+          className={
+            immersive
+              ? "sr-only lg:not-sr-only lg:col-span-2 lg:text-[11px] lg:leading-4 lg:text-[var(--color-muted-foreground)]"
+              : "text-[11px] leading-4 text-[var(--color-muted-foreground)] sm:col-span-2"
+          }
         >
           Use arrow keys to pan, + and − to zoom, and Tab then Enter to open a marker. Press
           Escape to close details.

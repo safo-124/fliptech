@@ -183,8 +183,14 @@ export default async function MapPage({
   }
 
   return (
-    <div className="app-shell py-6 sm:py-8">
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
+    // No vertical padding on a phone: the map starts directly under the site
+    // header and runs to the bottom of the screen.
+    <div className="app-shell py-0 lg:py-8">
+      {/* Kept in the accessibility tree and in the HTML for search engines, but
+          off the screen on a phone — an h1 and three lines of description above
+          a full-screen map is the panel-with-a-map-in-it this is meant to stop
+          being. The count and the controls are on the map itself. */}
+      <header className="sr-only mb-0 lg:not-sr-only lg:mb-5 lg:flex lg:flex-wrap lg:items-end lg:justify-between lg:gap-4">
         <div>
           <Badge
             variant="outline"
@@ -207,7 +213,7 @@ export default async function MapPage({
 
       {missingLocationCount > 0 ? (
         <Card
-          className="mb-4 flex-row items-start gap-3 border-[var(--color-warn)]/20 bg-[var(--color-warn-bg)] p-3.5 text-xs leading-5 text-[var(--color-warn)] shadow-none"
+          className="mb-4 hidden flex-row items-start gap-3 border-[var(--color-warn)]/20 bg-[var(--color-warn-bg)] p-3.5 text-xs leading-5 text-[var(--color-warn)] shadow-none lg:flex"
           role="status"
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -232,12 +238,31 @@ export default async function MapPage({
           ))}
         </ul>
 
-        <Card className="overflow-hidden rounded-2xl border-[var(--color-border-strong)] shadow-[var(--shadow-lg)]">
-          <MapLoader providers={mappableProviders} listHref={listHref} />
-        </Card>
+        {/* Full-bleed on a phone: -mx-3 cancels app-shell's gutter so the tiles
+            reach both edges, and the height is everything under the 4rem site
+            header. From lg it goes back to being a card in the grid. */}
+        <div className="relative -mx-3 h-[calc(100dvh-4rem)] overflow-hidden bg-[var(--color-card)] lg:mx-0 lg:h-auto lg:rounded-2xl lg:border lg:border-[var(--color-border-strong)] lg:shadow-[var(--shadow-lg)]">
+          <MapLoader
+            providers={mappableProviders}
+            listHref={listHref}
+            fill
+            immersive
+          />
+
+          {/* Back to the list. The header's List/Map switch is off-screen on a
+              phone now, so this is the way back, and it matches the "View on
+              map" pill the results page uses in the other direction. */}
+          <Link
+            href={listHref}
+            className="band absolute inset-x-0 bottom-9 z-[500] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
+          >
+            <List aria-hidden="true" className="size-4" />
+            List view
+          </Link>
+        </div>
       </div>
 
-      <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-[var(--color-muted-foreground)]">
+      <div className="mt-4 hidden items-start gap-2 text-xs leading-5 text-[var(--color-muted-foreground)] lg:flex">
         <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
         <p>
           The list view keeps fee, duration and next intake visible on every card, which makes
