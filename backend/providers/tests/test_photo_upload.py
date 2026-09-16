@@ -285,7 +285,13 @@ def test_a_large_photograph_is_downscaled_before_storage(
     """
     settings.MEDIA_ROOT = tmp_path
 
-    response = client.post(upload_url(provider), {"image": photo_file(size=(4000, 3000))})
+    # exif=False so this measures size alone. The default fixture carries an
+    # orientation flag of 6, and exif_transpose correctly rotates the image
+    # before it is scaled — which is what rotation is tested for elsewhere, and
+    # only noise here.
+    response = client.post(
+        upload_url(provider), {"image": photo_file(size=(4000, 3000), exif=False)}
+    )
     assert response.status_code == 201
 
     photo = ProviderPhoto.objects.get()
@@ -299,7 +305,7 @@ def test_a_small_photograph_is_left_at_its_own_size(client, officer, provider, s
     """Downscaling never enlarges. Upscaling would only invent detail."""
     settings.MEDIA_ROOT = tmp_path
 
-    response = client.post(upload_url(provider), {"image": photo_file(size=(640, 480))})
+    response = client.post(upload_url(provider), {"image": photo_file(size=(640, 480), exif=False)})
     assert response.status_code == 201
 
     photo = ProviderPhoto.objects.get()

@@ -55,13 +55,23 @@ def csrf_headers(client):
 
 def profile_payload(catalogue, **overrides):
     payload = {
+        # The trainer's own identity. A verified phone proves someone holds a
+        # SIM; these are what the confirming admin decides on.
+        "full_name": "Emmanuel Safo",
+        "role": "owner",
+        "id_document_type": "ghana_card",
+        "id_document_number": "GHA-000111222-3",
         "name": "Safo Welding Academy",
         "owner_name": "Emmanuel Safo",
         "contact_phone": "+233240000001",
         "area_id": catalogue["area"].pk,
         "address": "1 Workshop Road",
+        "landmark": "Behind the community market",
         "latitude": 5.6037,
         "longitude": -0.1870,
+        "declared_accurate": True,
+        "site_visit_consent": True,
+        "data_consent": True,
         "programme": {
             "trade_id": catalogue["trade"].pk,
             "title": "Practical arc welding",
@@ -81,6 +91,39 @@ def profile_payload(catalogue, **overrides):
     }
     payload.update(overrides)
     return payload
+
+
+def attach_review_files(provider, user):
+    """The photographs and identity document a submission cannot go without.
+
+    submission_blockers requires two workshop photographs and one identity
+    document before a listing reaches the review queue, because an admin
+    looking at a name and a pin has nothing to decide on. Uploading them
+    through the API in every test would be six extra requests of setup, so
+    they are created directly.
+    """
+    from io import BytesIO
+
+    from django.core.files.base import ContentFile
+    from PIL import Image
+
+    from providers.models import ProviderEvidence, ProviderPhoto
+
+    def jpeg(colour):
+        buffer = BytesIO()
+        Image.new("RGB", (40, 30), colour).save(buffer, format="JPEG")
+        return ContentFile(buffer.getvalue())
+
+    for index, colour in enumerate(("red", "blue")):
+        photo = ProviderPhoto(provider=provider, uploaded_by=user, display_order=index)
+        photo.image.save(f"workshop-{index}.jpg", jpeg(colour), save=True)
+
+    evidence = ProviderEvidence(
+        provider=provider,
+        kind=ProviderEvidence.Kind.ID_DOCUMENT,
+        uploaded_by=user,
+    )
+    evidence.file.save("id.jpg", jpeg("green"), save=True)
 
 
 def login_trainer(client, monkeypatch, phone=PHONE):
@@ -519,6 +562,8 @@ def test_submitted_profile_is_locked_and_excluded_until_admin_approval(
         content_type="application/json",
         **headers,
     )
+    # Photographs and an ID document, which a submission now needs.
+    attach_review_files(Provider.objects.get(), TrainerAccount.objects.get().user)
     submitted = csrf_client.post(
         reverse("trainer-profile-submit"),
         content_type="application/json",
@@ -568,6 +613,8 @@ def test_changes_requested_unlocks_only_the_owner_and_can_be_resubmitted(
         content_type="application/json",
         **headers,
     )
+    # Photographs and an ID document, which a submission now needs.
+    attach_review_files(Provider.objects.get(), TrainerAccount.objects.get().user)
     csrf_client.post(reverse("trainer-profile-submit"), content_type="application/json", **headers)
     provider = Provider.objects.get()
     reviewer = django_user_model.objects.create_superuser("reviewer")
@@ -616,7 +663,12 @@ def test_a_second_trainer_session_never_sees_the_first_owners_profile(
     )
 
     login_trainer(csrf_client, monkeypatch, OTHER_PHONE)
-    assert csrf_client.get(reverse("trainer-profile")).json() == {"profile": None}
+    # The profile read carries the readiness checklist beside the profile;
+    # both are None for a trainer who has not started one.
+    assert csrf_client.get(reverse("trainer-profile")).json() == {
+        "profile": None,
+        "blockers": None,
+    }
 
 
 @pytest.mark.django_db
@@ -898,6 +950,7 @@ def test_a_returned_profile_can_be_saved_without_touching_a_stale_intake_date(
 
     csrf_client.put(url, profile_payload(catalogue), content_type="application/json", **headers)
     provider = Provider.objects.get()
+    attach_review_files(provider, TrainerAccount.objects.get().user)
     csrf_client.post(reverse("trainer-profile-submit"), content_type="application/json", **headers)
 
     lead = django_user_model.objects.create_user("lead-stale", is_staff=True)
