@@ -63,14 +63,22 @@ if command -v psql >/dev/null 2>&1; then
 
   # PostGIS is the requirement people miss: the project stores geometry, which
   # a plain PostgreSQL cannot do.
-  if sudo -u postgres psql -tAc "SELECT 1 FROM pg_available_extensions WHERE name='postgis'" 2>/dev/null | grep -q 1; then
+  # -n so sudo fails immediately instead of prompting. Without it, running this
+  # script over a non-interactive ssh made the query fail for want of a
+  # password, 2>/dev/null hid that, and an installed PostGIS was reported as
+  # missing — which sends you off installing a package you already have.
+  if sudo -n -u postgres psql -tAc "SELECT 1 FROM pg_available_extensions WHERE name='postgis'" 2>/dev/null | grep -q 1; then
     ok "postgis is available to the server"
-    sudo -u postgres psql -tAc \
+    sudo -n -u postgres psql -tAc \
       "SELECT datname FROM pg_database WHERE datname NOT IN ('template0','template1')" 2>/dev/null \
       | sed 's/^/  database: /'
-  else
+  elif sudo -n true 2>/dev/null; then
     bad "postgis NOT available — provider search cannot work without it"
     echo "         sudo apt install postgresql-${pg_major}-postgis-3"
+  elif dpkg -l 2>/dev/null | grep -q "postgresql-${pg_major}-postgis"; then
+    ok "postgis package is installed (extension not queried — needs sudo)"
+  else
+    warn "cannot check postgis without sudo. Re-run on a terminal with sudo access."
   fi
 else
   warn "No psql on this host. Fine if the database lives elsewhere."

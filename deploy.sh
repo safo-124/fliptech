@@ -38,6 +38,10 @@ if grep -q 'CHANGE_ME' backend/.env; then
   echo "backend/.env still contains CHANGE_ME." >&2
   exit 1
 fi
+if ! command -v pnpm >/dev/null; then
+  echo "pnpm is not installed. Re-run deploy/bootstrap.sh, or: sudo npm install -g pnpm@11.22.0" >&2
+  exit 1
+fi
 
 echo "==> Backend dependencies"
 [ -d "$VENV" ] || run_as python3 -m venv "$VENV"
@@ -65,7 +69,17 @@ echo "==> Deployment checks"
 
 echo "==> Frontend"
 cd frontend
-run_as npm ci --omit=dev --no-audit --no-fund 2>/dev/null || run_as npm install --no-audit --no-fund
+# pnpm, not npm. pnpm-lock.yaml is the only lockfile in the repo, and CI and the
+# Dockerfile both install from it. `npm ci` therefore had nothing to read, fell
+# through to `npm install` — and that WRITES a package-lock.json. The next
+# deploy then found a lockfile, `npm ci --omit=dev` succeeded, and the build
+# lost typescript, tailwindcss and @tailwindcss/postcss, which are all
+# devDependencies that `next build` needs. The first deploy worked and the one
+# after it failed.
+#
+# --prod=false keeps those devDependencies even if NODE_ENV=production is
+# inherited from the environment, which pnpm would otherwise honour.
+run_as pnpm install --frozen-lockfile --prod=false
 # NEXT_PUBLIC_* values are inlined at build time, not read at run time, so the
 # build has to see them. Changing the domain or brand name means rebuilding.
 set -a; . ./.env.production; set +a
@@ -74,7 +88,7 @@ run_as env \
   NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-}" \
   NEXT_PUBLIC_BRAND_NAME="${NEXT_PUBLIC_BRAND_NAME:-Fliptech}" \
   NEXT_PUBLIC_MEDIA_HOST="${NEXT_PUBLIC_MEDIA_HOST:-}" \
-  npm run build
+  pnpm build
 cd ..
 
 echo "==> Restarting"

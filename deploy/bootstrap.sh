@@ -40,6 +40,21 @@ if ! command -v node >/dev/null || [ "$(node -v | cut -c2- | cut -d. -f1)" -lt "
 fi
 node -v | sed 's/^/    node /'
 
+echo "==> pnpm"
+# The frontend's only lockfile is pnpm-lock.yaml, so deploy.sh installs with
+# pnpm and this has to exist before it runs. Installed globally with npm rather
+# than through corepack: corepack caches per user, and the build runs as the
+# fliptech service account, which has no login shell and no writable HOME by
+# the time systemd hardening is in the picture. A global install is visible to
+# every user and needs no cache.
+#
+# Pinned to the version in frontend/package.json's packageManager field. Change
+# both together.
+if ! command -v pnpm >/dev/null || [ "$(pnpm --version 2>/dev/null)" != "11.22.0" ]; then
+  npm install -g pnpm@11.22.0 >/dev/null
+fi
+pnpm --version | sed 's/^/    pnpm /'
+
 echo "==> Caddy"
 if ! command -v caddy >/dev/null; then
   curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key \
