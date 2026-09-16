@@ -1,4 +1,4 @@
-"""EXIF stripping for uploaded photographs.
+"""Preparing uploaded photographs for storage: orientation, EXIF, and size.
 
 Section 10 commits to collecting the minimum, and "anything not collected
 cannot be leaked". Field officers photograph workshops on their own phones, and
@@ -8,6 +8,11 @@ workshop is the owner's home address.
 Orientation is applied before the metadata is discarded. Skipping that step is
 the classic bug: EXIF carries the rotation flag, so stripping it naively leaves
 half the photographs lying on their side.
+
+Photographs are also downscaled to MAX_STORED_EDGE. Section 10 asks for images
+"sized for the device", which next/image does at serve time — but it does that
+by reading the stored original for every size it emits, so an oversized
+original is a cost paid on disk and on every optimiser pass, not just once.
 """
 
 import logging
@@ -22,6 +27,19 @@ logger = logging.getLogger(__name__)
 # serve time, so there is nothing to gain by storing two derived formats here.
 JPEG_QUALITY = 88
 STRIPPABLE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF", "HEIF", "HEIC"}
+
+# Longest edge kept, in pixels.
+#
+# A current phone camera produces something like 4000x3000 and 8-12 MB. Nothing
+# on this site ever displays a workshop photograph larger than about 1200px
+# wide, so the remaining pixels are paid for three times: disk on a 40 GB VPS,
+# the image optimiser re-reading the original for every size it emits, and the
+# upload itself over a prepaid mobile connection.
+#
+# 2048 keeps enough for a full-width hero on a high-density desktop screen and
+# turns a 10 MB upload into roughly 400 KB. Photographs smaller than this are
+# left alone — upscaling would only invent detail.
+MAX_STORED_EDGE = 2048
 
 
 def strip_exif(django_file):
@@ -46,6 +64,11 @@ def strip_exif(django_file):
 
     if image.mode in ("RGBA", "P", "LA"):
         image = image.convert("RGB")
+
+    # thumbnail() is in-place, keeps the aspect ratio, and never enlarges, so a
+    # photograph already under the limit passes through untouched.
+    if max(image.size) > MAX_STORED_EDGE:
+        image.thumbnail((MAX_STORED_EDGE, MAX_STORED_EDGE), Image.LANCZOS)
 
     buffer = BytesIO()
     # Pillow does not carry EXIF into the output unless it is passed explicitly,

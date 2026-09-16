@@ -15,6 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from PIL import Image
 
+from core.images import MAX_STORED_EDGE
 from geography.models import Area, Region
 from providers.admin_upload import MAX_UPLOAD_BYTES
 from providers.models import Provider, ProviderPhoto
@@ -266,3 +267,41 @@ def test_the_uploader_appears_only_after_the_provider_is_saved(client, officer, 
     assert "Save the provider first" in add_page
     assert "data-photo-uploader" in change_page
     assert "photo_uploader.js" in change_page
+
+
+# --------------------------------------------------------------------------
+# Size
+
+
+def test_a_large_photograph_is_downscaled_before_storage(
+    client, officer, provider, settings, tmp_path
+):
+    """A phone camera photograph must not be stored at full resolution.
+
+    Nothing on the site displays a workshop photograph wider than about
+    1200px, and the image optimiser re-reads the stored original for every
+    size it emits. Keeping 4000px costs disk on a small VPS and CPU on every
+    request.
+    """
+    settings.MEDIA_ROOT = tmp_path
+
+    response = client.post(upload_url(provider), {"image": photo_file(size=(4000, 3000))})
+    assert response.status_code == 201
+
+    photo = ProviderPhoto.objects.get()
+    with Image.open(photo.image.path) as stored:
+        assert max(stored.size) == MAX_STORED_EDGE
+        # The aspect ratio survives: 4000x3000 is 4:3, so 2048 wide is 1536 tall.
+        assert stored.size == (MAX_STORED_EDGE, int(MAX_STORED_EDGE * 3 / 4))
+
+
+def test_a_small_photograph_is_left_at_its_own_size(client, officer, provider, settings, tmp_path):
+    """Downscaling never enlarges. Upscaling would only invent detail."""
+    settings.MEDIA_ROOT = tmp_path
+
+    response = client.post(upload_url(provider), {"image": photo_file(size=(640, 480))})
+    assert response.status_code == 201
+
+    photo = ProviderPhoto.objects.get()
+    with Image.open(photo.image.path) as stored:
+        assert stored.size == (640, 480)
