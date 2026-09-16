@@ -36,6 +36,28 @@ MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 
 
+def validate_image_upload(upload):
+    """Return a human-readable refusal, or None when the file may be accepted.
+
+    Shared with the trainer-facing upload endpoint so the two cannot drift.
+    A trainer uploading their own workshop photograph has to clear exactly the
+    limits a field officer does — the file ends up in the same public bucket.
+    """
+    if upload is None:
+        return "No file was received."
+    if upload.size > MAX_UPLOAD_BYTES:
+        return (
+            f"That image is {upload.size // (1024 * 1024)} MB. "
+            f"The limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+        )
+    # content_type is client-supplied and therefore a hint, not proof. The real
+    # check is Pillow: strip_exif re-encodes the image on save and returns None
+    # for anything it cannot read, so a mislabelled file cannot become a photo.
+    if upload.content_type and upload.content_type not in ALLOWED_CONTENT_TYPES:
+        return f"{upload.content_type} is not an image we can accept."
+    return None
+
+
 def _photo_payload(photo):
     return {
         "id": photo.pk,
@@ -58,27 +80,9 @@ def upload_photo(request, provider_id):
 
     provider = get_object_or_404(Provider, pk=provider_id)
     upload = request.FILES.get("image")
-    if upload is None:
-        return JsonResponse({"detail": "No file was received."}, status=400)
-
-    if upload.size > MAX_UPLOAD_BYTES:
-        return JsonResponse(
-            {
-                "detail": (
-                    f"That image is {upload.size // (1024 * 1024)} MB. "
-                    f"The limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
-                )
-            },
-            status=400,
-        )
-
-    # content_type is client-supplied and therefore a hint, not proof. The real
-    # check is Pillow: strip_exif re-encodes the image on save and returns None
-    # for anything it cannot read, so a mislabelled file cannot become a photo.
-    if upload.content_type and upload.content_type not in ALLOWED_CONTENT_TYPES:
-        return JsonResponse(
-            {"detail": f"{upload.content_type} is not an image we can accept."}, status=400
-        )
+    refusal = validate_image_upload(upload)
+    if refusal is not None:
+        return JsonResponse({"detail": refusal}, status=400)
 
     photo = ProviderPhoto(provider=provider, uploaded_by=request.user)
     photo.image = upload

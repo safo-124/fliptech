@@ -7,6 +7,8 @@ from rest_framework import serializers
 from catalog.models import Trade
 from geography.models import Area
 
+from .models import PremisesTenure, TrainerAccount
+
 
 class RejectUnknownFieldsMixin:
     """Fail closed when a client attempts to mass-assign a server-owned field."""
@@ -81,6 +83,13 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
         allow_blank=True,
         default="",
     )
+    fee_includes_tools = serializers.BooleanField(required=False, default=False)
+    fee_includes_materials = serializers.BooleanField(required=False, default=False)
+    fee_includes_ppe = serializers.BooleanField(required=False, default=False)
+    fee_includes_certificate = serializers.BooleanField(required=False, default=False)
+    certificate_awarded = serializers.CharField(
+        max_length=200, required=False, allow_blank=True, default=""
+    )
     capacity = serializers.IntegerField(
         min_value=1,
         required=False,
@@ -96,6 +105,25 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
 
 
 class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # --- the person, which lives on TrainerAccount rather than on Provider ---
+    # Carried on this one form so the wizard saves everything in a single
+    # request: on a connection that drops, two round trips is two chances to
+    # lose what was typed.
+    full_name = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    role = serializers.ChoiceField(
+        choices=TrainerAccount.Role.choices, required=False, allow_blank=True, default=""
+    )
+    id_document_type = serializers.ChoiceField(
+        choices=TrainerAccount.IdentityDocument.choices,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    id_document_number = serializers.CharField(
+        max_length=60, required=False, allow_blank=True, default=""
+    )
+
+    # --- the workshop ---
     name = serializers.CharField(max_length=200)
     owner_name = serializers.CharField(
         max_length=200,
@@ -111,6 +139,33 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
         allow_blank=True,
         default="",
     )
+    landmark = serializers.CharField(
+        max_length=200,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
     latitude = serializers.FloatField(min_value=-90, max_value=90)
     longitude = serializers.FloatField(min_value=-180, max_value=180)
+
+    year_established = serializers.IntegerField(
+        min_value=1900, max_value=2100, required=False, allow_null=True
+    )
+    premises_tenure = serializers.ChoiceField(
+        choices=PremisesTenure.choices, required=False, allow_blank=True, default=""
+    )
+    trainer_count = serializers.IntegerField(
+        min_value=0, max_value=500, required=False, allow_null=True
+    )
+    trainee_count = serializers.IntegerField(
+        min_value=0, max_value=5000, required=False, allow_null=True
+    )
+
+    # Declarations. Sent as booleans and stored as timestamps: when a trainee
+    # disputes a fee, "they ticked a box" is not an answer and "they declared
+    # it accurate on 14 March" is.
+    declared_accurate = serializers.BooleanField(required=False, default=False)
+    site_visit_consent = serializers.BooleanField(required=False, default=False)
+    data_consent = serializers.BooleanField(required=False, default=False)
+
     programme = TrainerProgrammeInputSerializer()

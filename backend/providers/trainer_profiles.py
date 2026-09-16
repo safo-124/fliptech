@@ -5,6 +5,7 @@ from uuid import uuid4
 from django.contrib.gis.geos import Point
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from django.utils.text import slugify
 
 from catalog.models import Intake, Programme
@@ -155,6 +156,37 @@ def save_owned_profile(*, account, actor, validated_data):
 
     programme_data = validated_data.pop("programme")
     intake_data = programme_data.pop("intake", None)
+
+    # These belong to the person, not the workshop, so they come off before
+    # the rest is splatted onto Provider.
+    account_values = {
+        "full_name": validated_data.pop("full_name", ""),
+        "role": validated_data.pop("role", ""),
+        "id_document_type": validated_data.pop("id_document_type", ""),
+        "id_document_number": validated_data.pop("id_document_number", ""),
+    }
+    data_consent = validated_data.pop("data_consent", False)
+
+    # Declarations arrive as booleans and are stored as the moment they were
+    # made. Once set they are not cleared by a later save that happens to send
+    # false: withdrawing consent is a deliberate act, not a dropped checkbox on
+    # a form that half-submitted over a bad connection.
+    now = timezone.now()
+    declared_accurate = validated_data.pop("declared_accurate", False)
+    site_visit_consent = validated_data.pop("site_visit_consent", False)
+
+    account_changed = False
+    for field, value in account_values.items():
+        if value and getattr(account, field) != value:
+            setattr(account, field, value)
+            account_changed = True
+    if data_consent and account.data_consent_at is None:
+        account.data_consent_at = now
+        account_changed = True
+    if account_changed:
+        account.full_clean()
+        account.save()
+
     area = validated_data["area"]
     location = Point(validated_data.pop("longitude"), validated_data.pop("latitude"), srid=4326)
 
@@ -164,6 +196,10 @@ def save_owned_profile(*, account, actor, validated_data):
         "location": location,
         "owner_phone": account.phone,
     }
+    if declared_accurate:
+        provider_values["declared_accurate_at"] = now
+    if site_visit_consent:
+        provider_values["site_visit_consent_at"] = now
 
     if provider is None:
         provider = Provider(**provider_values, status=Provider.Status.DRAFT)
@@ -236,6 +272,58 @@ def save_owned_profile(*, account, actor, validated_data):
         intake.save()
 
     return get_owned_profile(account)
+
+
+# What a listing must carry before a super admin is asked to decide on it.
+#
+# Returned as a list rather than raised as one error so the wizard can show a
+# checklist. A trainer on a prepaid connection who is told only "not ready"
+# submits four more times to find out why.
+MIN_PHOTOS_TO_SUBMIT = 2
+
+
+def submission_blockers(provider, account):
+    """Everything still missing before this listing can go for review."""
+    from .models import ProviderEvidence
+
+    blockers = []
+
+    if not account.full_name.strip():
+        blockers.append("Add your full name.")
+    if not account.role:
+        blockers.append("Say whether you are the owner, the manager or the lead trainer.")
+    if not account.id_document_type or not account.id_document_number.strip():
+        blockers.append("Add your ID type and number.")
+
+    # The document itself, not just the number. Section 10 keeps it in private
+    # storage; this only asks whether a row exists.
+    has_id = ProviderEvidence.objects.filter(
+        provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+    ).exists()
+    if not has_id:
+        blockers.append("Upload a photo of your ID.")
+
+    photo_count = provider.photos.count()
+    if photo_count < MIN_PHOTOS_TO_SUBMIT:
+        blockers.append(
+            f"Add at least {MIN_PHOTOS_TO_SUBMIT} photographs — the outside of the "
+            "workshop and the inside."
+        )
+
+    if not provider.programmes.exists():
+        blockers.append("Add at least one course.")
+
+    if not provider.landmark.strip():
+        blockers.append("Add the nearest landmark, so we can find the workshop.")
+
+    if provider.declared_accurate_at is None:
+        blockers.append("Confirm that the fees and dates you entered are correct.")
+    if provider.site_visit_consent_at is None:
+        blockers.append("Agree to a Fliiptech site visit.")
+    if account.data_consent_at is None:
+        blockers.append("Accept how we handle your personal information.")
+
+    return blockers
 
 
 def serialize_profile(provider):

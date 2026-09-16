@@ -28,6 +28,7 @@ from .trainer_profiles import (
     get_owned_profile,
     save_owned_profile,
     serialize_profile,
+    submission_blockers,
 )
 from .trainer_serializers import TrainerOTPVerifySerializer, TrainerProfileInputSerializer
 
@@ -194,7 +195,17 @@ class TrainerProfileView(APIView):
 
     @extend_schema(responses={200: None})
     def get(self, request):
-        return Response({"profile": serialize_profile(_profile_for(_account(request)))})
+        account = _account(request)
+        provider = _profile_for(account)
+        return Response(
+            {
+                "profile": serialize_profile(provider),
+                # Empty list means ready to send. Returned on every read so the
+                # wizard shows a live checklist rather than discovering what is
+                # missing only when a submit is refused.
+                "blockers": submission_blockers(provider, account) if provider else None,
+            }
+        )
 
     @extend_schema(request=TrainerProfileInputSerializer, responses={200: None})
     def put(self, request):
@@ -233,11 +244,13 @@ class TrainerProfileSubmitView(APIView):
             # There is no object identifier in the public contract, and the
             # generic response reveals nothing about another trainer's record.
             raise NotFound("No trainer profile exists.")
-        # len() over the prefetched relation rather than .count(), which would
-        # issue a second query and throw the prefetch away.
-        if len(provider.programmes.all()) != 1:
+        # A super admin is about to be asked whether this is a real workshop
+        # run by the person who submitted it. Everything that decision rests on
+        # has to be present before the queue is worth their time.
+        blockers = submission_blockers(provider, account)
+        if blockers:
             return Response(
-                {"detail": "Add exactly one programme before submitting."},
+                {"detail": "This listing is not ready to send.", "blockers": blockers},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:

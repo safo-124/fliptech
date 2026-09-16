@@ -94,6 +94,18 @@ class ProviderQuerySet(models.QuerySet):
         )
 
 
+class PremisesTenure(models.TextChoices):
+    """How the workshop holds its premises.
+
+    A rented or shared yard is not a problem in itself, but it changes what a
+    site visit should check and how durable the listing's address is.
+    """
+
+    OWNED = "owned", "Owned"
+    RENTED = "rented", "Rented"
+    SHARED = "shared", "Shared or family premises"
+
+
 class Provider(TimeStampedModel):
     """A workshop or training centre."""
 
@@ -117,6 +129,41 @@ class Provider(TimeStampedModel):
 
     area = models.ForeignKey("geography.Area", on_delete=models.PROTECT, related_name="providers")
     address = models.CharField(max_length=300, blank=True)
+    # A street address does not find a workshop in Accra and a GPS pin dropped
+    # from a phone can be tens of metres out. The landmark is what the field
+    # officer actually navigates by on the site visit, so it is asked for
+    # separately rather than hoped for inside `address`.
+    landmark = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="The nearest well-known place. For example: behind Tema Community 1 market.",
+    )
+
+    # Asked because they are the questions a workshop that does not exist
+    # cannot answer consistently, and because they cost one tap each.
+    year_established = models.PositiveSmallIntegerField(null=True, blank=True)
+    premises_tenure = models.CharField(
+        max_length=20,
+        choices=PremisesTenure.choices,
+        blank=True,
+    )
+    trainer_count = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="People who teach at this workshop, including the owner."
+    )
+    trainee_count = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Trainees enrolled when the listing was submitted."
+    )
+
+    # Section 09 puts a site visit at the centre of onboarding, so a
+    # self-submitted listing has to carry consent for one. Timestamps rather
+    # than booleans: when a trainee disputes a fee, the answer is what was
+    # declared and when, which a boolean cannot answer.
+    declared_accurate_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the trainer last attested that fees and dates are current.",
+    )
+    site_visit_consent_at = models.DateTimeField(null=True, blank=True)
 
     # geography=True so distance comes back in metres over the spheroid, which
     # is what "within 10 kilometres of a point" in Section 05 means.
@@ -178,6 +225,16 @@ class TrainerAccount(TimeStampedModel):
         CONFIRMED = "confirmed", "Confirmed"
         DECLINED = "declined", "Declined"
 
+    class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+        MANAGER = "manager", "Manager"
+        LEAD_TRAINER = "lead_trainer", "Lead trainer"
+
+    class IdentityDocument(models.TextChoices):
+        GHANA_CARD = "ghana_card", "Ghana Card"
+        PASSPORT = "passport", "Passport"
+        VOTER_ID = "voter_id", "Voter ID"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -186,6 +243,24 @@ class TrainerAccount(TimeStampedModel):
     phone = PhoneNumberField(unique=True)
     phone_verified_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
+
+    # A verified phone proves someone holds a SIM, not that they are who they
+    # say or that they speak for the workshop. These are what the confirming
+    # admin is actually deciding on.
+    full_name = models.CharField(max_length=200, blank=True)
+    role = models.CharField(max_length=20, choices=Role.choices, blank=True)
+
+    # The document itself is NOT here. It is a ProviderEvidence row of kind
+    # ID_DOCUMENT, which already writes to private storage that the web server
+    # is never pointed at — Section 10 requires identity documents are never
+    # publicly served. Only the type and number live on the account, so the
+    # queue is reviewable without opening a file.
+    id_document_type = models.CharField(max_length=20, choices=IdentityDocument.choices, blank=True)
+    id_document_number = models.CharField(max_length=60, blank=True)
+
+    # Section 10: the platform holds personal data and needs a lawful basis
+    # recorded, not assumed.
+    data_consent_at = models.DateTimeField(null=True, blank=True)
 
     approval_status = models.CharField(
         max_length=20,

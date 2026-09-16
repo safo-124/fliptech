@@ -228,8 +228,28 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
     ]
 
     fieldsets = (
-        ("Workshop", {"fields": ("name", "slug", "area", "address", "location")}),
+        ("Workshop", {"fields": ("name", "slug", "area", "address", "landmark", "location")}),
         ("Contact", {"fields": ("owner_name", "owner_phone", "contact_phone")}),
+        (
+            "What the trainer told us",
+            {
+                "fields": (
+                    "year_established",
+                    "premises_tenure",
+                    "trainer_count",
+                    "trainee_count",
+                    "declared_accurate_at",
+                    "site_visit_consent_at",
+                ),
+                "description": (
+                    "Self-reported by whoever submitted the listing, and not checked by "
+                    "anyone. Confirming a listing says it is a real workshop run by the "
+                    "person who submitted it — it is not a Fliiptech verification and it "
+                    "must not be recorded as one. A site visit is the only thing that "
+                    "creates a Verification."
+                ),
+            },
+        ),
         (
             "Listing",
             {
@@ -247,7 +267,14 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
             },
         ),
     )
-    readonly_fields = ("status", "submitted_at", "published_at", "review_note")
+    readonly_fields = (
+        "status",
+        "submitted_at",
+        "published_at",
+        "review_note",
+        "declared_accurate_at",
+        "site_visit_consent_at",
+    )
     actions = ["submit_for_approval", "publish_listings", "return_for_changes"]
     change_form_template = "admin/providers/provider/change_form.html"
 
@@ -658,14 +685,16 @@ class TrainerAccountAdmin(admin.ModelAdmin):
 
     list_display = (
         "phone",
+        "full_name",
+        "role",
+        "identity_summary",
         "approval_summary",
         "owned_provider",
         "is_active",
-        "phone_verified_at",
         "created_at",
     )
-    list_filter = ("approval_status", "is_active", "phone_verified_at")
-    search_fields = ("phone", "memberships__provider__name")
+    list_filter = ("approval_status", "is_active", "role", "id_document_type")
+    search_fields = ("phone", "full_name", "id_document_number", "memberships__provider__name")
     ordering = ("-created_at",)
     actions = (
         "confirm_trainers",
@@ -677,6 +706,8 @@ class TrainerAccountAdmin(admin.ModelAdmin):
         "user",
         "phone",
         "phone_verified_at",
+        "identity_document_link",
+        "data_consent_at",
         "approval_status",
         "approval_decided_at",
         "approval_decided_by",
@@ -685,6 +716,24 @@ class TrainerAccountAdmin(admin.ModelAdmin):
     )
     fieldsets = (
         (None, {"fields": ("phone", "is_active", "user", "phone_verified_at")}),
+        (
+            "Who this is",
+            {
+                "fields": (
+                    "full_name",
+                    "role",
+                    "id_document_type",
+                    "id_document_number",
+                    "identity_document_link",
+                    "data_consent_at",
+                ),
+                "description": (
+                    "A verified phone proves someone holds a SIM, not that they are who "
+                    "they say or that they speak for this workshop. Check the name and "
+                    "the document against each other before confirming."
+                ),
+            },
+        ),
         (
             "Confirmation",
             {
@@ -704,6 +753,57 @@ class TrainerAccountAdmin(admin.ModelAdmin):
     )
 
     @admin.display(description="Sign-up", ordering="approval_status")
+    @admin.display(description="ID on file")
+    def identity_summary(self, obj):
+        """Whether an identity document exists, without linking to it here.
+
+        A changelist is the wrong place for a link to someone's Ghana Card: it
+        renders for every row and invites a careless click. The link lives on
+        the detail page, behind the same view.
+        """
+        provider = self._owned_provider_object(obj)
+        if provider is None:
+            return "—"
+        has_id = ProviderEvidence.objects.filter(
+            provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+        ).exists()
+        if not has_id:
+            return format_html('<span style="color:#b45309">Not uploaded</span>')
+        label = obj.get_id_document_type_display() or "Document"
+        return format_html('<span style="color:#15803d">{}</span>', label)
+
+    @admin.display(description="Identity document")
+    def identity_document_link(self, obj):
+        """A link to the private file, or a plain statement that there is none.
+
+        Section 10 requires identity documents are never publicly served, so
+        this points at the permission-checked evidence view rather than at
+        storage. PRIVATE_MEDIA_ROOT is not under the directory the web server
+        is pointed at, so there is no public URL to link to even by accident.
+        """
+        provider = self._owned_provider_object(obj)
+        if provider is None:
+            return "No listing yet."
+        evidence = (
+            ProviderEvidence.objects.filter(
+                provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if evidence is None:
+            return "Not uploaded yet. The trainer cannot submit for review without one."
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener">Open identity document</a>'
+            "<br><small>Uploaded {}</small>",
+            reverse("admin:providers_providerevidence_change", args=[evidence.pk]),
+            evidence.created_at.strftime("%d %b %Y"),
+        )
+
+    def _owned_provider_object(self, obj):
+        membership = obj.memberships.select_related("provider").first()
+        return membership.provider if membership else None
+
     def approval_summary(self, obj):
         # Inline colours: this changelist does not load the provider stylesheet.
         colour = {

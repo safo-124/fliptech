@@ -11,6 +11,11 @@ from catalog.views import TradeViewSet
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
+from providers.trainer_uploads import (
+    TrainerIdentityDocumentView,
+    TrainerPhotoDeleteView,
+    TrainerPhotoUploadView,
+)
 from providers.trainer_views import (
     TrainerLogoutView,
     TrainerOTPRequestView,
@@ -46,6 +51,24 @@ urlpatterns = [
         "trainer/profile/submit/",
         TrainerProfileSubmitView.as_view(),
         name="trainer-profile-submit",
+    ),
+    # Files for the trainer's own listing. Photographs are public content and
+    # the identity document is not — see providers/trainer_uploads.py for why
+    # they are separate endpoints rather than one with a "kind" parameter.
+    path(
+        "trainer/profile/photos/",
+        TrainerPhotoUploadView.as_view(),
+        name="trainer-photo-upload",
+    ),
+    path(
+        "trainer/profile/photos/<int:photo_id>/",
+        TrainerPhotoDeleteView.as_view(),
+        name="trainer-photo-delete",
+    ),
+    path(
+        "trainer/profile/identity/",
+        TrainerIdentityDocumentView.as_view(),
+        name="trainer-identity-document",
     ),
     path("trainer/logout/", TrainerLogoutView.as_view(), name="trainer-logout"),
     # Trainee accounts: phone sign-in, own enquiries and saved providers. Staff

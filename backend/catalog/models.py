@@ -70,6 +70,30 @@ class Programme(TimeStampedModel):
     )
     capacity = models.PositiveSmallIntegerField(null=True, blank=True)
 
+    # What the fee actually covers.
+    #
+    # Section 03 makes the fee the single most important thing on the card: it
+    # is what lets someone rule a provider out without a tap. A fee that
+    # excludes tools and materials is not comparable with one that includes
+    # them, so without this the comparison the product is built on is
+    # misleading in exactly the cases that matter most.
+    #
+    # Four booleans rather than one multi-select field because the reviewing
+    # admin scans these in a changelist, and because each is independently
+    # answerable — "does GHC600 include the welding rods" is a question with a
+    # yes or a no.
+    fee_includes_tools = models.BooleanField(default=False)
+    fee_includes_materials = models.BooleanField(default=False)
+    fee_includes_ppe = models.BooleanField(
+        default=False, help_text="Goggles, gloves, overalls and similar."
+    )
+    fee_includes_certificate = models.BooleanField(default=False)
+    certificate_awarded = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="What the trainee receives on completion. Left blank if nothing is awarded.",
+    )
+
     is_active = models.BooleanField(default=True)
     history = HistoricalRecords()
 
