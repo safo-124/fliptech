@@ -59,6 +59,20 @@ class TraineeAccount(TimeStampedModel):
     )
     phone = PhoneNumberField(unique=True)
     phone_verified_at = models.DateTimeField()
+
+    # A second way into the same account, not a second account.
+    #
+    # The phone stays the identity: it is what a workshop replies to on
+    # WhatsApp, so an account without one has nowhere for an enquiry to go.
+    # Email is an added, separately verified route for signing in — useful for
+    # someone whose SMS is unreliable, which on a prepaid Ghanaian network is
+    # common.
+    #
+    # Unique, so one address cannot open two accounts, and null rather than
+    # blank so the uniqueness constraint ignores every account that has not
+    # added one. A blank string would collide on the second account.
+    email = models.EmailField(unique=True, null=True, blank=True)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
     display_name = models.CharField(
         max_length=120,
         blank=True,

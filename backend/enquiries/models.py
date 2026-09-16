@@ -82,6 +82,60 @@ class PhoneVerification(TimeStampedModel):
         return timezone.now() >= self.expires_at
 
 
+class EmailVerification(TimeStampedModel):
+    """A one-time code issued to an email address.
+
+    A sibling of PhoneVerification rather than a column added to it. The phone
+    flow carries the enquiry handover, the trainer session and the trainee
+    session, and making its identifying column nullable to accommodate a second
+    channel would put every one of those behind a new branch. Two small models
+    with the same shape are easier to reason about than one with a
+    discriminator, and the phone path keeps working untouched.
+
+    Codes are hashed here for the same reason they are there: a leaked backup
+    should not be a list of live codes.
+    """
+
+    class Purpose(models.TextChoices):
+        TRAINEE_ACCESS = "trainee_access", "Trainee access"
+        TRAINER_ACCESS = "trainer_access", "Trainer access"
+        STAFF_ACCESS = "staff_access", "Back-office access"
+        # Adding an address to an account that already signs in by phone. Kept
+        # apart from the access purposes so a code issued to prove ownership of
+        # a new address can never be replayed as a sign-in.
+        ADD_TO_ACCOUNT = "add_to_account", "Adding an address to an account"
+
+    challenge_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    purpose = models.CharField(
+        max_length=30,
+        choices=Purpose.choices,
+        default=Purpose.TRAINEE_ACCESS,
+        db_index=True,
+    )
+    # Stored lowercased by the OTP layer. Addresses are case-insensitive in
+    # practice, and without normalising, the daily cap is per capitalisation.
+    email = models.EmailField(db_index=True)
+    code_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["email", "purpose", "-created_at"])]
+
+    def __str__(self):
+        return f"Code for {self.email}"
+
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+
+        return timezone.now() >= self.expires_at
+
+
 class Enquiry(TimeStampedModel):
     """A trainee contacting a provider. The conversation then moves to WhatsApp."""
 

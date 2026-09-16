@@ -27,6 +27,16 @@ class TraineeCodeVerifySerializer(serializers.Serializer):
     code = serializers.RegexField(r"^\d{4,8}$")
 
 
+class TraineeEmailCodeRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class TraineeEmailCodeVerifySerializer(serializers.Serializer):
+    challenge_id = serializers.UUIDField()
+    email = serializers.EmailField()
+    code = serializers.RegexField(r"^\d{4,8}$")
+
+
 class TraineeAccountSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(read_only=True)
 
@@ -44,9 +54,13 @@ class TraineeAccountSerializer(serializers.ModelSerializer):
             "field_of_study",
             "education_status",
             "education_year",
+            "email",
             "created_at",
         ]
-        read_only_fields = ["phone", "created_at"]
+        # email is read-only here on purpose. It is claimed by proving the
+        # address with a one-time code, not by typing it into the settings
+        # form — otherwise an account could assert any address it liked.
+        read_only_fields = ["phone", "email", "created_at"]
 
 
 class ProviderLinkSerializer(serializers.ModelSerializer):

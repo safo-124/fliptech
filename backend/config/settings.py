@@ -383,6 +383,31 @@ TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 SMS_PROVIDER = env("SMS_PROVIDER", default="console")
 SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
 
+# --------------------------------------------------------------------------
+# Email one-time codes
+# --------------------------------------------------------------------------
+# The code system is ours end to end — see enquiries/email_otp.py. Only the
+# transport is configurable, and on this deployment it is the hard part:
+# outbound port 25 is blocked by the host, reverse DNS is the provider's
+# generic hostname, and there is no domain yet to sign mail for. So "console"
+# is the honest default; it logs the code rather than pretending to send it.
+#
+# Switch to "smtp" once there is either an unblocked port 25 with SPF, DKIM,
+# DMARC and rDNS on a real domain, or a submission host to relay through on
+# 587. Nothing above core/mail.py changes either way.
+EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="console")
+
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+# STARTTLS on 587. Implicit TLS on 465 is blocked here anyway.
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
+DEFAULT_FROM_EMAIL = env(
+    "DEFAULT_FROM_EMAIL", default=f"{BRAND_NAME} Skills Hub <no-reply@localhost>"
+)
+
 OTP_CODE_LENGTH = 6
 OTP_TTL_SECONDS = 600  # 10 minutes
 OTP_MAX_ATTEMPTS = 5  # wrong guesses before the code is burned

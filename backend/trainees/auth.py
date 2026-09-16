@@ -76,3 +76,42 @@ def account_for_verified_phone(*, phone, verified_at, display_name=""):
     link_history(account)
     account._just_created = created
     return account
+
+
+def account_for_verified_email(*, email, verified_at):
+    """Return the trainee account that owns an address that just proved itself.
+
+    Unlike the phone path this never creates an account. Email is a second door
+    into an existing one, and the phone is still the identity: it is what a
+    workshop replies to on WhatsApp, so an account created from an address
+    alone would have nowhere to send an enquiry. Someone whose address is not
+    on any account is told to sign in with their phone and add it there.
+
+    The error deliberately does not distinguish "no account has this address"
+    from anything else, so this endpoint cannot be used to discover which
+    addresses are registered.
+    """
+    from enquiries.email_otp import normalise_email
+
+    account = (
+        TraineeAccount.objects.select_for_update()
+        .select_related("user")
+        .filter(email=normalise_email(email))
+        .first()
+    )
+    if account is None:
+        raise TraineeAccountDisabled(
+            "That address is not on an account yet. Sign in with your phone number, "
+            "then add your email from your account page."
+        )
+
+    if not account.is_active or not user_is_unprivileged(account.user):
+        raise TraineeAccountDisabled("This account has been switched off. Contact support.")
+
+    account.email_verified_at = verified_at
+    account.last_seen_at = timezone.now()
+    account.save(update_fields=["email_verified_at", "last_seen_at", "updated_at"])
+
+    link_history(account)
+    account._just_created = False
+    return account
