@@ -108,6 +108,7 @@ THIRD_PARTY_APPS = [
 #              ListingConfirmation, Suspension
 #   enquiries  Enquiry, EnquiryOutcome, Enrolment
 #   billing    Subscription
+#   trainees   TraineeAccount, SavedProvider, SupportSession
 LOCAL_APPS = [
     "core",
     "geography",
@@ -115,6 +116,7 @@ LOCAL_APPS = [
     "providers",
     "enquiries",
     "billing",
+    "trainees",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -354,6 +356,16 @@ SPECTACULAR_SETTINGS = {
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
 
+# Origins allowed to send cookie-carrying POSTs. In development the Next.js dev
+# server is a different origin from Django (another port), so a signed-in
+# trainee or trainer would otherwise get "Origin checking failed" on every
+# write. In production everything is one origin behind Caddy; set this to the
+# public https origin.
+CSRF_TRUSTED_ORIGINS = env(
+    "CSRF_TRUSTED_ORIGINS",
+    default=["http://127.0.0.1:3000", "http://localhost:3000"] if DEBUG else [],
+)
+
 # Caddy is the sole public peer. In Docker it reaches Django over a private
 # bridge rather than loopback, so forwarded client addresses are trusted only
 # when the socket peer belongs to one of these explicitly configured networks.
@@ -389,6 +401,21 @@ DASHBOARD_TOKEN_TTL_SECONDS = 7 * 24 * 3600
 
 
 # --------------------------------------------------------------------------
+# Trainee accounts and staff support access
+# --------------------------------------------------------------------------
+# Where staff land after opening a trainee dashboard. In production Caddy puts
+# Django and Next.js on one origin, so a relative path is right. In development
+# they run on different ports, so point this at the Next.js dev server. Use the
+# same host as the API (127.0.0.1): browsers treat localhost as a different
+# site and would not send the staff session cookie.
+PUBLIC_SITE_URL = env("PUBLIC_SITE_URL", default="http://127.0.0.1:3000" if DEBUG else "")
+
+# A support session ends on its own after this long. Short on purpose: it is
+# someone else's personal data on the screen.
+SUPPORT_SESSION_SECONDS = 30 * 60
+
+
+# --------------------------------------------------------------------------
 # Security (production only)
 # --------------------------------------------------------------------------
 
@@ -396,7 +423,6 @@ if not DEBUG:
     # Behind Caddy, Django sees plain HTTP. Without these the admin login form
     # fails CSRF validation with "Origin checking failed", which is the single
     # most common first-deploy failure for a Django app behind a proxy.
-    CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS", default=[])
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True

@@ -1,0 +1,29 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  {% if original and can_support and original.is_active %}
+    <li><a href="{% url 'admin:trainees_traineeaccount_support' original.pk %}" class="historylink">Open dashboard</a></li>
+  {% endif %}
+  {% if original and can_erase %}
+    <li><a href="{% url 'admin:trainees_traineeaccount_erase' original.pk %}" class="deletelink">Erase data</a></li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
+
+{% block form_top %}
+  {% if live_support %}
+    <div class="messagelist" style="margin: 0 0 1rem">
+      <p class="warning" style="padding: .75rem 1rem">
+        You are in a support session on this account until {{ live_support.expires_at|time:"H:i" }}
+        ({% if live_support.can_edit %}view and edit{% else %}view only{% endif %}).
+        <a href="{{ trainee_dashboard_url }}">Go to their dashboard</a>
+      </p>
+      <form method="post" action="{% url 'admin:trainees_support_end' %}" style="margin-top:.5rem">
+        {% csrf_token %}
+        <button type="submit" class="button">End support session</button>
+      </form>
+    </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

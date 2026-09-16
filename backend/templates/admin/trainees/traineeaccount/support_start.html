@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'change' original.pk %}">{{ original }}</a>
+  &rsaquo; Open dashboard
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" style="max-width: 40rem">
+  <p>You are about to see <strong>{{ original }}</strong>'s dashboard as they see it.</p>
+  <ul>
+    <li>The session ends by itself after {{ support_minutes }} minutes.</li>
+    <li>{% if can_edit %}You can make changes for them. Every change is logged.{% else %}It is view only. Nothing can be changed.{% endif %}</li>
+    <li>Everything you open is recorded against your name with the reason below.</li>
+    <li>You stay signed in to the back office.</li>
+  </ul>
+  {% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      <label for="id_reason" class="required">Why are you opening this account?</label>
+      <input type="text" name="reason" id="id_reason" maxlength="300" required
+             value="{{ reason }}" style="width: 100%"
+             placeholder="For example: trainee cannot find their enquiry to Tema Welding">
+    </div>
+    <div class="submit-row">
+      <input type="submit" class="default" value="Open dashboard">
+      <a href="{% url opts|admin_urlname:'change' original.pk %}" class="closelink">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

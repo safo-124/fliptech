@@ -164,7 +164,19 @@ class Provider(TimeStampedModel):
 
 
 class TrainerAccount(TimeStampedModel):
-    """A passwordless, non-staff trainer identity verified by phone."""
+    """A passwordless, non-staff trainer identity verified by phone.
+
+    Anyone can sign up as a trainer, so a sign-up is not trusted until someone
+    with the confirm permission (the super admin by default) confirms it. An
+    unconfirmed trainer can still draft and submit a listing, so nobody waits
+    on staff to start typing, but that listing cannot be published until the
+    account is confirmed.
+    """
+
+    class Approval(models.TextChoices):
+        PENDING = "pending", "Waiting for confirmation"
+        CONFIRMED = "confirmed", "Confirmed"
+        DECLINED = "declined", "Declined"
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -175,8 +187,35 @@ class TrainerAccount(TimeStampedModel):
     phone_verified_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
 
+    approval_status = models.CharField(
+        max_length=20,
+        choices=Approval.choices,
+        default=Approval.PENDING,
+        db_index=True,
+    )
+    approval_decided_at = models.DateTimeField(null=True, blank=True)
+    approval_decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    approval_note = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="Shown to the trainer when a sign-up is declined.",
+    )
+
     class Meta:
         ordering = ["phone"]
+        permissions = [
+            ("confirm_trainer", "Can confirm or decline trainer sign-ups"),
+        ]
+
+    @property
+    def is_confirmed(self):
+        return self.approval_status == self.Approval.CONFIRMED
 
     def __str__(self):
         return str(self.phone)

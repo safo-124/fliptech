@@ -197,3 +197,25 @@ observe whether a provider replied — the same measurement problem the document
 honestly admits for enrolments, but does not admit here. Either define it as
 something observable ("acknowledged in the dashboard within N hours") and store
 that, or cut it from the screen. It cannot stay as written.
+
+
+---
+
+## Addendum, September 2026: trainee accounts
+
+Four tables in a new `trainees` app, and one nullable link on two existing ones.
+
+| Table | Holds |
+|---|---|
+| `TraineeAccount` | Verified phone (unique), optional name, preferred channel (WhatsApp or Telegram), active flag, last seen. Sits on a dedicated Django user with no password, no staff flag and no permissions. Change history kept |
+| `SavedProvider` | Trainee and provider, unique together |
+| `SupportSession` | Staff user, trainee (kept as null if the account is erased), reason, edit flag, start, expiry, end and why it ended |
+| `SupportSessionEvent` | One request or change made during a support session |
+
+`Enquiry.trainee` and `Enrolment.trainee` are nullable foreign keys to
+`TraineeAccount`. They are filled by phone number match, so the rule that most
+enrolments have no enquiry behind them is unchanged: an enrolment can belong to
+a trainee account whether or not it came through the platform.
+
+`PhoneVerification.purpose` gains `trainee_access`. A trainee sign-in counts as
+verification for the enquiry flow; a trainer sign-in does not.

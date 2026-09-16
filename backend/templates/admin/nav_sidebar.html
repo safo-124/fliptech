@@ -82,6 +82,28 @@
     </div>
 
     {% if back_office %}
+      {% if back_office.trainer_queues %}
+        <section class="sb-group" aria-labelledby="sb-trainer-queues-label" data-nav-search-group>
+          <div class="sb-group-label" id="sb-trainer-queues-label">
+            <span>{% translate 'Sign-ups' %}</span>
+            <span class="sb-label-count">{{ back_office.trainer_queues|length }}</span>
+          </div>
+          <ul class="sb-menu">
+            {% for queue in back_office.trainer_queues %}
+              <li data-nav-search-item data-nav-search-text="{{ queue.label }}">
+                <a class="sb-item sb-queue{% if queue.model_url in request.path and request.GET.approval_status__exact == 'pending' %} is-active{% endif %}"
+                   href="{{ queue.url }}"
+                   {% if queue.model_url in request.path and request.GET.approval_status__exact == 'pending' %}aria-current="page"{% endif %}>
+                  <span class="sb-queue-dot" aria-hidden="true"></span>
+                  <span class="sb-item-text">{{ queue.label }}</span>
+                  <span class="sb-count" aria-label="{% blocktranslate with count=queue.count %}{{ count }} items{% endblocktranslate %}">{{ queue.count }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
       <section class="sb-group" aria-labelledby="sb-queues-label" data-nav-search-group>
         <div class="sb-group-label" id="sb-queues-label">
           <span>{% translate 'Needs attention' %}</span>

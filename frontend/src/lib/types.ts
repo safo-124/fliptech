@@ -190,9 +190,76 @@ export type TrainerProfile = {
   programme: TrainerProgramme | null;
 };
 
+export type TrainerAccountStatus = "pending" | "confirmed" | "declined";
+
 export type TrainerSession =
   | { authenticated: false; profile: null; phone?: never }
-  | { authenticated: true; phone: string; profile: TrainerProfile | null };
+  | {
+      authenticated: true;
+      phone: string;
+      /** Whether the super admin has confirmed this trainer sign-up. */
+      account_status?: TrainerAccountStatus;
+      account_note?: string;
+      profile: TrainerProfile | null;
+    };
+
+export type TraineeChannel = "whatsapp" | "telegram";
+
+export type TraineeAccount = {
+  phone: string;
+  display_name: string;
+  preferred_channel: TraineeChannel;
+  created_at: string;
+};
+
+/** Present only when a member of staff is viewing this account to help. */
+export type TraineeSupport = {
+  staff_name: string;
+  reason: string;
+  can_edit: boolean;
+  expires_at: string;
+  back_office_url: string;
+};
+
+export type TraineeSession =
+  | { authenticated: false; account: null; support: null }
+  | { authenticated: true; account: TraineeAccount; support: TraineeSupport | null };
+
+export type TraineeProviderLink = {
+  id: number;
+  name: string;
+  slug: string;
+  area: string;
+  area_slug: string;
+  is_listed: boolean;
+};
+
+export type TraineeEnquiryStatus = "sent" | "replied" | "visited" | "enrolled" | "not_delivered";
+
+export type TraineeEnquiry = {
+  reference_code: string;
+  provider: TraineeProviderLink;
+  programme_title: string;
+  intake_start: string | null;
+  message: string;
+  status: TraineeEnquiryStatus;
+  whatsapp_url: string;
+  created_at: string;
+};
+
+export type TraineeEnrolment = {
+  id: number;
+  provider: TraineeProviderLink;
+  programme_title: string;
+  started_on: string;
+  completed_on: string | null;
+  fee_paid: string | null;
+};
+
+export type SavedProvider = {
+  provider: TraineeProviderLink;
+  created_at: string;
+};
 
 export type TrainerArea = {
   id: number;

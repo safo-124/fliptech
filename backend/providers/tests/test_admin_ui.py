@@ -128,7 +128,7 @@ def test_valid_work_queue_drives_context_results_and_accessible_active_state(
     assert list(response.context["cl"].result_list) == [provider]
 
     links = {item["key"]: item for item in response.context["provider_queue_links"]}
-    assert len(links) == 8
+    assert len(links) == 9
     assert links["awaiting_approval"]["active"] is True
     assert "queue=awaiting_approval" in links["awaiting_approval"]["url"]
     assert all(not item["active"] for key, item in links.items() if key != "awaiting_approval")

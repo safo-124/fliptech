@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import {Fragment, useEffect, useState} from "react";
 
+import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
 import {Button} from "@/components/ui/button";
@@ -249,11 +250,14 @@ export function TrainerDashboard() {
   const profile = session.profile;
   if (!profile) {
     return (
+      <>
+      <TrainerAccountNotice session={session} />
       <EmptyState
         title="Create your workshop profile"
         description="No profile has been submitted from this number yet."
         action="Start profile"
       />
+      </>
     );
   }
 
@@ -262,6 +266,7 @@ export function TrainerDashboard() {
 
   return (
     <div className="space-y-5" data-trainer-dashboard>
+      <TrainerAccountNotice session={session} />
       <section aria-labelledby="profile-status-heading" aria-live="polite">
         <Card className="relative overflow-hidden">
           <div

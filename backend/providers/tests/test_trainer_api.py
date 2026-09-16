@@ -222,7 +222,13 @@ def test_trainer_login_rotates_to_httponly_revocable_session(csrf_client, monkey
     new_key = csrf_client.session.session_key
     account = TrainerAccount.objects.select_related("user").get()
 
-    assert body == {"authenticated": True, "phone": PHONE, "profile": None}
+    assert body == {
+        "authenticated": True,
+        "phone": PHONE,
+        "account_status": "pending",
+        "account_note": "",
+        "profile": None,
+    }
     assert old_key != new_key
     assert account.user.is_staff is False
     assert account.user.has_usable_password() is False

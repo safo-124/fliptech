@@ -1,0 +1,35 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'change' original.pk %}">{{ original }}</a>
+  &rsaquo; Erase data
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main" style="max-width: 40rem">
+  <p>Use this only for a formal request from the trainee to erase their data. It cannot be undone.</p>
+  <ul>
+    <li>The account, its sign-in and saved providers are deleted.</li>
+    <li>The name and message are removed from {{ enquiry_count }} enquir{{ enquiry_count|pluralize:"y,ies" }} and the name from {{ enrolment_count }} enrolment{{ enrolment_count|pluralize }} on this number.</li>
+    <li>Verification code records for this number are deleted.</li>
+    <li>The phone number stays on enquiry and enrolment rows as the provider's business record.</li>
+  </ul>
+  {% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      <label for="id_confirm_phone" class="required">Type <strong>{{ original.phone }}</strong> to confirm</label>
+      <input type="text" name="confirm_phone" id="id_confirm_phone" required autocomplete="off">
+    </div>
+    <div class="submit-row">
+      <input type="submit" class="default" value="Erase permanently" style="background: var(--delete-button-bg, #ba2121)">
+      <a href="{% url opts|admin_urlname:'change' original.pk %}" class="closelink">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

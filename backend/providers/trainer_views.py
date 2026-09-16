@@ -73,6 +73,8 @@ def _session_payload(request):
     return {
         "authenticated": True,
         "phone": str(account.phone),
+        "account_status": account.approval_status,
+        "account_note": account.approval_note,
         "profile": serialize_profile(_profile_for(account)),
     }
 

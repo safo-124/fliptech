@@ -27,7 +27,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.urls import reverse
 
-CACHE_KEY = "back-office:sidebar:v3"
+CACHE_KEY = "back-office:sidebar:v4"
 CACHE_SECONDS = 60
 
 
@@ -65,7 +65,27 @@ def _snapshot():
         "availability_missing",
     }
 
+    from providers.models import TrainerAccount
+
+    trainer_changelist = reverse("admin:providers_traineraccount_changelist")
+    trainers_waiting = TrainerAccount.objects.filter(
+        approval_status=TrainerAccount.Approval.PENDING, is_active=True
+    ).count()
+
     return {
+        "trainer_queues": (
+            [
+                {
+                    "key": "trainers_to_confirm",
+                    "label": "Trainers to confirm",
+                    "count": trainers_waiting,
+                    "url": f"{trainer_changelist}?approval_status__exact=pending",
+                    "model_url": trainer_changelist,
+                }
+            ]
+            if trainers_waiting
+            else []
+        ),
         "queues": [
             {
                 "key": queue.key,
@@ -160,5 +180,9 @@ def back_office(request):
                 *(snapshot["intake_queues"] if can_view_intakes else []),
             ],
             "published": snapshot["published"] if can_view_providers else 0,
+            # Only people who can act on a sign-up are nagged about it.
+            "trainer_queues": (
+                snapshot["trainer_queues"] if user.has_perm("providers.confirm_trainer") else []
+            ),
         }
     }

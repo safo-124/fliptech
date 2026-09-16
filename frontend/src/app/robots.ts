@@ -8,9 +8,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // Trainer routes contain private sessions or signed links. Neither
-        // those tokens nor incomplete profile drafts belong in an index.
-        disallow: ["/dashboard/", "/trainer/", "/enquiry/"],
+        // Trainer and trainee routes contain private sessions or signed links.
+        // Neither those tokens nor anyone's own enquiries belong in an index.
+        disallow: ["/dashboard/", "/trainer/", "/trainee/", "/enquiry/"],
       },
     ],
     sitemap: `${site}/sitemap.xml`,

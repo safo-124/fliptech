@@ -19,6 +19,8 @@ rather than to whatever happened to be easy to count:
                 reconstructed later
   Coverage      Section 04: which generated pages have enough inventory to be
                 worth indexing, and where the field team should go next
+  People        trainee accounts, owner self-onboarding and staff support
+                sessions, so the super admin sees everyone the platform serves
 
 Charts are inline SVG rendered here on the server — see core/charts.py for why.
 Money and subscription figures are shown to superusers only.
@@ -108,6 +110,83 @@ class SkillsHubAdminSite(AdminSite):
 
         labels = [datetime(y, m, 1).strftime("%b") for y, m in buckets]
         return list(buckets.values()), labels
+
+    # -- people --------------------------------------------------------------
+
+    def build_people(self, request, now, last_30, work, all_providers):
+        """Trainees, workshop owners and support access, for the People row.
+
+        Each block is included only for staff allowed to open what it counts,
+        the same rule the sidebar follows.
+        """
+        from django.urls import reverse
+
+        from enquiries.models import Enquiry, Enrolment
+        from providers.models import TrainerAccount
+        from trainees.models import SupportSession, TraineeAccount
+
+        user = request.user
+        people = {}
+
+        if user.has_perm("trainees.view_traineeaccount"):
+            accounts = TraineeAccount.objects.all()
+            series, labels = self._weekly(accounts, "created_at")
+            with_enquiry = accounts.filter(enquiries__isnull=False).distinct().count()
+            repeat = (
+                Enquiry.objects.filter(trainee__isnull=False)
+                .values("trainee")
+                .annotate(n=Count("id"))
+                .filter(n__gte=2)
+                .count()
+            )
+            people["trainees"] = {
+                "total": accounts.count(),
+                "new_30": accounts.filter(created_at__gte=last_30).count(),
+                "active_30": accounts.filter(last_seen_at__gte=last_30).count(),
+                "switched_off": accounts.filter(is_active=False).count(),
+                "with_enquiry": with_enquiry,
+                "repeat": repeat,
+                "linked_enrolments": Enrolment.objects.filter(trainee__isnull=False).count(),
+                "chart": charts.column_chart(series, labels),
+                "url": reverse("admin:trainees_traineeaccount_changelist"),
+            }
+
+        if user.has_perm("providers.view_traineraccount") or user.has_perm(
+            "providers.view_provider"
+        ):
+            owners = TrainerAccount.objects.all()
+            people["owners"] = {
+                "to_confirm": owners.filter(
+                    approval_status=TrainerAccount.Approval.PENDING, is_active=True
+                ).count(),
+                "can_confirm": user.has_perm("providers.confirm_trainer"),
+                "confirm_url": (
+                    reverse("admin:providers_traineraccount_changelist")
+                    + "?approval_status__exact=pending"
+                ),
+                "total": owners.count(),
+                "with_profile": owners.filter(memberships__isnull=False).distinct().count(),
+                "awaiting": work.submitted_by_owner(all_providers).count(),
+                "switched_off": owners.filter(is_active=False).count(),
+                "queue_url": (
+                    reverse("admin:providers_provider_changelist") + "?queue=submitted_by_owner"
+                ),
+            }
+
+        if user.has_perm("trainees.view_supportsession"):
+            sessions = SupportSession.objects.all()
+            people["support"] = {
+                "live": sessions.live().count(),
+                "last_30": sessions.filter(started_at__gte=last_30).count(),
+                "with_edit": sessions.filter(started_at__gte=last_30, can_edit=True).count(),
+                "staff_30": sessions.filter(started_at__gte=last_30)
+                .values("staff_user")
+                .distinct()
+                .count(),
+                "url": reverse("admin:trainees_supportsession_changelist"),
+            }
+
+        return people
 
     # -- the panel ---------------------------------------------------------
 
@@ -316,6 +395,8 @@ class SkillsHubAdminSite(AdminSite):
             },
             "is_super": request.user.is_superuser,
         }
+
+        panel["people"] = self.build_people(request, now, last_30, work, all_providers)
 
         if request.user.is_superuser:
             active = Subscription.objects.filter(state="active", period_end__gte=today)

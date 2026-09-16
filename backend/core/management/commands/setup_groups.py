@@ -35,8 +35,16 @@ FIELD_OFFICER_PERMISSIONS = [
     ("billing", "subscription", ["view"]),
 ]
 
-# An operations lead additionally publishes, suspends and manages subscriptions.
+# An operations lead additionally publishes, suspends and manages subscriptions,
+# and is the only role that sees trainee accounts. Trainee phone numbers belong
+# to people who are often young, so field officers do not get them by default.
 OPERATIONS_LEAD_EXTRA = [
+    ("trainees", "traineeaccount", ["view", "change"]),
+    ("trainees", "savedprovider", ["view"]),
+    ("trainees", "supportsession", ["view"]),
+    ("trainees", "supportsessionevent", ["view"]),
+    ("providers", "traineraccount", ["view", "change"]),
+    ("enquiries", "phoneverification", ["view"]),
     ("providers", "provider", ["delete"]),
     ("providers", "suspension", ["add", "change", "view"]),
     ("providers", "providerevidence", ["delete"]),
@@ -45,8 +53,13 @@ OPERATIONS_LEAD_EXTRA = [
     ("billing", "subscription", ["add", "change", "view"]),
 ]
 
-# The second pair of eyes. Held only by the operations lead.
-OPERATIONS_LEAD_CUSTOM = [("providers", "publish_provider")]
+# The second pair of eyes, and view-only support access to a trainee's
+# dashboard. Editing in support mode and erasing a trainee stay with
+# superusers unless someone grants them to a named person.
+OPERATIONS_LEAD_CUSTOM = [
+    ("providers", "publish_provider"),
+    ("trainees", "support_access"),
+]
 
 
 class Command(BaseCommand):

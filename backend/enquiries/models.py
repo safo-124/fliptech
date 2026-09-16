@@ -45,6 +45,7 @@ class PhoneVerification(TimeStampedModel):
     class Purpose(models.TextChoices):
         TRAINEE_ENQUIRY = "trainee_enquiry", "Trainee enquiry"
         TRAINER_ACCESS = "trainer_access", "Trainer access"
+        TRAINEE_ACCESS = "trainee_access", "Trainee access"
 
     # A public, unguessable handle lets the verification endpoint consume the
     # exact challenge it issued. Phone plus "latest code" is sufficient for the
@@ -105,6 +106,16 @@ class Enquiry(TimeStampedModel):
     trainee_phone = PhoneNumberField(db_index=True)
     trainee_name = models.CharField(max_length=120, blank=True)
     message = models.TextField(blank=True)
+
+    # Set when the number belongs to a trainee account. Nullable because an
+    # account is optional, and because older enquiries predate accounts.
+    trainee = models.ForeignKey(
+        "trainees.TraineeAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enquiries",
+    )
 
     reference_code = models.CharField(
         max_length=12, unique=True, default=generate_reference, editable=False
@@ -191,6 +202,16 @@ class Enrolment(TimeStampedModel):
 
     trainee_phone = PhoneNumberField(db_index=True)
     trainee_name = models.CharField(max_length=120, blank=True)
+    # Linked automatically when the phone number matches a trainee account, so
+    # an enrolment recorded during the monthly provider call still shows up on
+    # that trainee's own page.
+    trainee = models.ForeignKey(
+        "trainees.TraineeAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrolments",
+    )
     started_on = models.DateField()
 
     # Cedis of course fees. Section 07 calls this the number that decides
@@ -227,6 +248,16 @@ class Enrolment(TimeStampedModel):
 
     def __str__(self):
         return f"{self.trainee_phone} on {self.programme.title}"
+
+    def save(self, *args, **kwargs):
+        if self.trainee_id is None and self.trainee_phone:
+            from trainees.models import TraineeAccount
+
+            self.trainee = TraineeAccount.objects.filter(phone=self.trainee_phone).first()
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None and self.trainee_id:
+                kwargs["update_fields"] = {*update_fields, "trainee"}
+        super().save(*args, **kwargs)
 
     @property
     def is_graduate(self):

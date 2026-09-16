@@ -7,6 +7,7 @@
  * every read goes through `fetchJson`, which retries twice with a short backoff.
  */
 
+import {browserApiUrl} from "./api-origin";
 import type {
   AreaSummary,
   DashboardData,
@@ -29,7 +30,7 @@ import type {
 const API_URL =
   typeof window === "undefined"
     ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
-    : (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000");
+    : browserApiUrl();
 
 /** Search results change when staff edit a listing, not by the second. */
 const LIST_REVALIDATE_SECONDS = 300;
@@ -192,11 +193,27 @@ export function getDashboard(token: string) {
   return fetchJson<DashboardData>(`/api/dashboard/${token}/`, { revalidate: 0 });
 }
 
-/** Client-side, from the enquiry form. */
+function readCsrfCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Client-side, from the enquiry form.
+ *
+ * Verifying a phone number now signs the trainee in, so the next POST carries
+ * a session cookie and Django enforces CSRF on it. The token is echoed from
+ * the readable csrftoken cookie; an anonymous visitor has none and needs none.
+ */
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = readCsrfCookie();
+  if (token) headers["X-CSRFToken"] = token;
   const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
+    credentials: "include",
     body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));

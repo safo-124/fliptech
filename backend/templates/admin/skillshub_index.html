@@ -395,6 +395,76 @@
 
   </div>
 
+  {# ---- People: trainees, workshop owners and support access ---- #}
+  {% if panel.people %}
+  <h2>People</h2>
+  <div class="sh-grid">
+
+    {% if panel.people.trainees %}
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Trainee accounts</div>
+        <div class="sh-title">{{ panel.people.trainees.total }}</div>
+        <div class="sh-action"><span class="sh-badge {% if panel.people.trainees.new_30 %}good{% endif %}">{{ panel.people.trainees.new_30 }} new in 30 days</span></div>
+      </div>
+      {{ panel.people.trainees.chart }}
+      <div class="sh-rows">
+        <div class="sh-row"><span>Signed in, last 30 days</span><span class="sh-n">{{ panel.people.trainees.active_30 }}</span></div>
+        <div class="sh-row"><span>Sent an enquiry</span><span class="sh-n">{{ panel.people.trainees.with_enquiry }}</span></div>
+        <div class="sh-row"><span>Enquired with 2 or more providers</span><span class="sh-n">{{ panel.people.trainees.repeat }}</span></div>
+        <div class="sh-row"><span>Enrolments linked to an account</span><span class="sh-n">{{ panel.people.trainees.linked_enrolments }}</span></div>
+        <div class="sh-row"><span>Sign-in switched off</span><span class="sh-n {% if panel.people.trainees.switched_off %}warn{% endif %}">{{ panel.people.trainees.switched_off }}</span></div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong"><a href="{{ panel.people.trainees.url }}">Open trainee accounts</a></div>
+        <div class="sh-foot-muted">Accounts are created when a phone number is verified. Phone and name only.</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if panel.people.owners %}
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Workshop owner sign-ups</div>
+        <div class="sh-title">{{ panel.people.owners.total }}</div>
+        <div class="sh-action"><span class="sh-badge {% if panel.people.owners.to_confirm %}warn{% endif %}">{{ panel.people.owners.to_confirm }} to confirm</span></div>
+      </div>
+      <div class="sh-rows">
+        <div class="sh-row"><span>Sign-ups waiting for confirmation</span><span class="sh-n {% if panel.people.owners.to_confirm %}warn{% endif %}">{{ panel.people.owners.to_confirm }}</span></div>
+        <div class="sh-row"><span>Started a profile</span><span class="sh-n">{{ panel.people.owners.with_profile }}</span></div>
+        <div class="sh-row"><span>Submitted, awaiting approval</span><span class="sh-n {% if panel.people.owners.awaiting %}warn{% endif %}">{{ panel.people.owners.awaiting }}</span></div>
+        <div class="sh-row"><span>Access switched off</span><span class="sh-n">{{ panel.people.owners.switched_off }}</span></div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">
+          {% if panel.people.owners.can_confirm and panel.people.owners.to_confirm %}<a href="{{ panel.people.owners.confirm_url }}">Confirm trainer sign-ups</a> · {% endif %}<a href="{{ panel.people.owners.queue_url }}">Review owner listings</a>
+        </div>
+        <div class="sh-foot-muted">A listing from an unconfirmed trainer cannot be published. Nobody from the field team has seen these workshops yet.</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if panel.people.support %}
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Support sessions, last 30 days</div>
+        <div class="sh-title">{{ panel.people.support.last_30 }}</div>
+        <div class="sh-action"><span class="sh-badge {% if panel.people.support.live %}warn{% endif %}">{{ panel.people.support.live }} open now</span></div>
+      </div>
+      <div class="sh-rows">
+        <div class="sh-row"><span>Staff who used it</span><span class="sh-n">{{ panel.people.support.staff_30 }}</span></div>
+        <div class="sh-row"><span>With edit access</span><span class="sh-n {% if panel.people.support.with_edit %}warn{% endif %}">{{ panel.people.support.with_edit }}</span></div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong"><a href="{{ panel.people.support.url }}">Open the support log</a></div>
+        <div class="sh-foot-muted">Every time staff open a trainee's dashboard, with the reason and what they viewed.</div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
   {# ---- Outcomes, money and the log ---- #}
   <h2>Outcomes and activity</h2>
   <div class="sh-grid">

@@ -51,6 +51,15 @@ def awaiting_approval(queryset: QuerySet) -> QuerySet:
     return queryset.filter(status=Provider.Status.PENDING_APPROVAL)
 
 
+def submitted_by_owner(queryset: QuerySet) -> QuerySet:
+    """Awaiting approval, and written by the workshop owner rather than staff.
+
+    These need a closer read: nobody from the field team has seen the workshop
+    or typed the fees.
+    """
+    return awaiting_approval(queryset).filter(trainer_memberships__isnull=False).distinct()
+
+
 def never_visited(queryset: QuerySet) -> QuerySet:
     return published(queryset).filter(verifications__isnull=True)
 
@@ -125,6 +134,8 @@ class Queue:
 # weaker listing. The sidebar renders them in this order.
 QUEUES: tuple[Queue, ...] = (
     Queue("awaiting_approval", "Awaiting approval", awaiting_approval),
+    # A subset of the queue above, so a filter rather than a second badge.
+    Queue("submitted_by_owner", "Submitted by owner", submitted_by_owner, sidebar=False),
     Queue("never_visited", "Never visited", never_visited),
     Queue("due_revisit", "Visit over a year old", due_revisit),
     Queue("shown_as_stale", "Shown as unconfirmed", shown_as_stale),

@@ -28,6 +28,7 @@ from simple_history.admin import SimpleHistoryAdmin
 from . import admin_upload, queues
 from .lifecycle import (
     ProviderTransitionError,
+    UnconfirmedTrainerError,
     publish_provider,
     request_provider_changes,
     submit_provider,
@@ -51,6 +52,10 @@ from .models import (
 PROVIDER_QUEUE_DESCRIPTIONS = {
     "awaiting_approval": (
         "Submitted listings waiting for an operations lead to complete the second review."
+    ),
+    "submitted_by_owner": (
+        "Listings the workshop owner wrote and submitted themselves. Nobody from the field "
+        "team has seen the workshop, so check the fees and photographs closely."
     ),
     "never_visited": "Published providers that do not yet have a recorded Fliiptech site visit.",
     "due_revisit": "Published providers whose most recent site visit is more than a year old.",
@@ -444,14 +449,26 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
 
         updated = 0
         skipped = 0
+        unconfirmed = []
         for provider in queryset:
             try:
                 publish_provider(provider, actor=request.user)
+            except UnconfirmedTrainerError:
+                unconfirmed.append(provider.name)
+                continue
             except ProviderTransitionError:
                 skipped += 1
                 continue
             updated += 1
         self.message_user(request, f"{updated} listing(s) published.")
+        if unconfirmed:
+            self.message_user(
+                request,
+                "Not published, because the trainer who submitted it is not confirmed yet: "
+                + ", ".join(unconfirmed)
+                + ". Confirm the trainer under Trainer accounts first.",
+                level=messages.WARNING,
+            )
         if skipped:
             self.message_user(
                 request,
@@ -639,13 +656,109 @@ class TrainerAccountAdmin(admin.ModelAdmin):
     would silently hand someone else's listing to a different number.
     """
 
-    list_display = ("phone", "owned_provider", "is_active", "phone_verified_at", "created_at")
-    list_filter = ("is_active", "phone_verified_at")
+    list_display = (
+        "phone",
+        "approval_summary",
+        "owned_provider",
+        "is_active",
+        "phone_verified_at",
+        "created_at",
+    )
+    list_filter = ("approval_status", "is_active", "phone_verified_at")
     search_fields = ("phone", "memberships__provider__name")
     ordering = ("-created_at",)
-    actions = ("suspend_trainer_access", "restore_trainer_access")
-    readonly_fields = ("user", "phone", "phone_verified_at", "created_at", "updated_at")
-    fields = ("phone", "is_active", "user", "phone_verified_at", "created_at", "updated_at")
+    actions = (
+        "confirm_trainers",
+        "decline_trainers",
+        "suspend_trainer_access",
+        "restore_trainer_access",
+    )
+    readonly_fields = (
+        "user",
+        "phone",
+        "phone_verified_at",
+        "approval_status",
+        "approval_decided_at",
+        "approval_decided_by",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        (None, {"fields": ("phone", "is_active", "user", "phone_verified_at")}),
+        (
+            "Confirmation",
+            {
+                "fields": (
+                    "approval_status",
+                    "approval_note",
+                    "approval_decided_at",
+                    "approval_decided_by",
+                ),
+                "description": (
+                    "Anyone can sign up as a trainer. Use the Confirm or Decline actions on "
+                    "the list to decide. A declined trainer cannot sign in and sees the note."
+                ),
+            },
+        ),
+        ("Record", {"fields": ("created_at", "updated_at")}),
+    )
+
+    @admin.display(description="Sign-up", ordering="approval_status")
+    def approval_summary(self, obj):
+        # Inline colours: this changelist does not load the provider stylesheet.
+        colour = {
+            TrainerAccount.Approval.PENDING: "#b45309",
+            TrainerAccount.Approval.CONFIRMED: "#15803d",
+            TrainerAccount.Approval.DECLINED: "#b91c1c",
+        }[obj.approval_status]
+        return format_html(
+            '<strong style="color:{}">{}</strong>',
+            colour,
+            obj.get_approval_status_display(),
+        )
+
+    def _decide(self, request, queryset, *, status, verb):
+        if not request.user.has_perm("providers.confirm_trainer"):
+            self.message_user(
+                request,
+                "Confirming trainers needs the confirm trainer permission "
+                "(super admin by default).",
+                level=messages.ERROR,
+            )
+            return
+        changed = list(queryset.exclude(approval_status=status))
+        now = timezone.now()
+        for account in changed:
+            account.approval_status = status
+            account.approval_decided_at = now
+            account.approval_decided_by = request.user
+            account.save(
+                update_fields=[
+                    "approval_status",
+                    "approval_decided_at",
+                    "approval_decided_by",
+                    "updated_at",
+                ]
+            )
+            self.log_change(request, account, f"Trainer sign-up {verb}.")
+        self.message_user(request, f"{len(changed)} trainer sign-up(s) {verb}.")
+
+    @admin.action(description="Confirm selected trainers")
+    def confirm_trainers(self, request, queryset):
+        """The super admin's yes. Their submitted listings can then be published."""
+        self._decide(request, queryset, status=TrainerAccount.Approval.CONFIRMED, verb="confirmed")
+
+    @admin.action(description="Decline selected trainers")
+    def decline_trainers(self, request, queryset):
+        """Blocks sign-in. Write the reason in the note on the account first."""
+        self._decide(request, queryset, status=TrainerAccount.Approval.DECLINED, verb="declined")
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not request.user.has_perm("providers.confirm_trainer"):
+            actions.pop("confirm_trainers", None)
+            actions.pop("decline_trainers", None)
+        return actions
 
     def get_queryset(self, request):
         return (

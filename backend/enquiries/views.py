@@ -7,6 +7,8 @@ a paid SMS, and django-axes does not help because it only guards staff login.
 import logging
 
 from django.conf import settings
+from django.contrib.auth import login
+from django.middleware.csrf import get_token
 from django.utils import timezone
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
@@ -15,6 +17,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.network import canonical_client_ip, ratelimit_client_ip
+from trainees.access import own_trainee_account
+from trainees.auth import TraineeAccountDisabled, account_for_verified_phone
+from trainees.models import TraineeAccount
 
 from .models import Enquiry
 from .otp import OTPError, phone_is_trusted, request_code, verify_code
@@ -26,6 +31,12 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _signed_in_as(request, phone):
+    """True when the request is the trainee who owns this number, signed in."""
+    account = own_trainee_account(request)
+    return account is not None and account.phone == phone
 
 
 class OTPRequestView(APIView):
@@ -53,9 +64,9 @@ class OTPRequestView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
-        # Already verified recently: no second SMS for the second and third
-        # provider a trainee enquires with.
-        if phone_is_trusted(phone):
+        # Already verified recently, or signed in with this number: no second
+        # code for the second and third provider a trainee enquires with.
+        if _signed_in_as(request, phone) or phone_is_trusted(phone):
             return Response({"verified": True, "code_sent": False})
 
         try:
@@ -75,11 +86,36 @@ class OTPVerifyView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            verify_code(serializer.validated_data["phone"], serializer.validated_data["code"])
+            verification = verify_code(
+                serializer.validated_data["phone"], serializer.validated_data["code"]
+            )
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"verified": True})
+        # The number is now proven, so it gets a trainee account and its earlier
+        # enquiries are attached. Signing in happens only for an anonymous
+        # visitor: a staff member or trainer testing the form in their own
+        # browser must not be silently signed out of their own session.
+        signed_in = False
+        try:
+            account = account_for_verified_phone(
+                phone=verification.phone, verified_at=verification.verified_at
+            )
+        except TraineeAccountDisabled:
+            account = None
+        if account is not None and not request.user.is_authenticated:
+            login(
+                request._request,
+                account.user,
+                backend="django.contrib.auth.backends.ModelBackend",
+            )
+            request.user = account.user
+            get_token(request._request)
+            signed_in = True
+        elif account is not None and request.user.pk == account.user_id:
+            signed_in = True
+
+        return Response({"verified": True, "signed_in": signed_in})
 
 
 class EnquiryCreateView(APIView):
@@ -91,7 +127,7 @@ class EnquiryCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data.pop("phone")
 
-        if not phone_is_trusted(phone):
+        if not (_signed_in_as(request, phone) or phone_is_trusted(phone)):
             return Response(
                 {"detail": "Verify this phone number before sending an enquiry."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -103,6 +139,7 @@ class EnquiryCreateView(APIView):
             trainee_phone=phone,
             phone_verified_at=timezone.now(),
             state=Enquiry.State.SENT,
+            trainee=TraineeAccount.objects.filter(phone=phone, is_active=True).first(),
             **serializer.validated_data,
         )
 

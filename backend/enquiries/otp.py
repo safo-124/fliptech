@@ -118,8 +118,13 @@ def phone_is_trusted(phone):
     three.
     """
     cutoff = timezone.now() - timedelta(seconds=settings.OTP_SESSION_TRUST_SECONDS)
+    # A trainee who signed in to their account proved the same thing. A trainer
+    # sign-in does not count: that code was issued for a different purpose.
     return PhoneVerification.objects.filter(
         phone=phone,
-        purpose=PhoneVerification.Purpose.TRAINEE_ENQUIRY,
+        purpose__in=[
+            PhoneVerification.Purpose.TRAINEE_ENQUIRY,
+            PhoneVerification.Purpose.TRAINEE_ACCESS,
+        ],
         verified_at__gte=cutoff,
     ).exists()

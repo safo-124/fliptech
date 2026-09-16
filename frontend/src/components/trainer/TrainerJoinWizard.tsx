@@ -24,6 +24,7 @@ import Link from "next/link";
 import {useEffect, useMemo, useRef, useState, type RefObject} from "react";
 import {useForm, type FieldPath} from "react-hook-form";
 
+import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
 import {LocationPickerField} from "@/components/trainer/LocationPickerField";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
@@ -616,7 +617,12 @@ export function TrainerJoinWizard() {
   }
 
   if (step === "submitted" && profile) {
-    return <ExistingProfile profile={profile} headingRef={stepHeadingRef} />;
+    return (
+      <>
+        <TrainerAccountNotice session={session} />
+        <ExistingProfile profile={profile} headingRef={stepHeadingRef} />
+      </>
+    );
   }
 
   if (step === "phone") {

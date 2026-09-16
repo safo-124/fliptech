@@ -33,6 +33,7 @@ import {
   Wrench,
 } from "lucide-react";
 
+import { SaveProviderButton } from "@/components/trainee/SaveProviderButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -330,6 +331,11 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
             </p>
           </div>
 
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <SaveProviderButton
+            providerId={provider.id}
+            returnTo={`/${provider.area_slug}/${provider.slug}`}
+          />
           <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
             <Sparkles className="size-5 text-[var(--color-brand)]" aria-hidden="true" />
             <div>
@@ -338,6 +344,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
                 {provider.programmes.length} {provider.programmes.length === 1 ? "course" : "courses"}
               </p>
             </div>
+          </div>
           </div>
         </div>
       </header>

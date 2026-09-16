@@ -14,6 +14,8 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  Building2,
+  GraduationCap,
   List,
   Map,
   MapPin,
@@ -246,6 +248,55 @@ export default async function SearchPage({
             )}
           </>
         )}
+      </section>
+
+      {/* Sign-up band. Plain links, so the search page still ships no client JS. */}
+      <section
+        aria-labelledby="join-heading"
+        className="app-shell pb-10 sm:pb-14"
+      >
+        <div className="grid gap-4 rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-[var(--shadow-card)] sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
+              Join Skills Hub
+            </p>
+            <h2 id="join-heading" className="mt-1 text-2xl font-bold tracking-tight">
+              Sign up with just your phone number
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
+              No password. Trainees keep their enquiries in one place. Workshops are confirmed by
+              Fliptech before they appear here.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link
+              href="/trainee/sign-in"
+              className="group flex items-center gap-3 rounded-2xl border border-[var(--color-border)] p-4 transition hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand-soft)]/40"
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+                <GraduationCap aria-hidden="true" className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">I want to learn</span>
+                <span className="block text-xs text-[var(--color-muted-foreground)]">Sign up as a trainee</span>
+              </span>
+              <ArrowRight aria-hidden="true" className="size-4 text-[var(--color-muted-foreground)] group-hover:text-[var(--color-brand-strong)]" />
+            </Link>
+            <Link
+              href="/trainer/join"
+              className="group flex items-center gap-3 rounded-2xl border border-[var(--color-border)] p-4 transition hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand-soft)]/40"
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+                <Building2 aria-hidden="true" className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">I train people</span>
+                <span className="block text-xs text-[var(--color-muted-foreground)]">Sign up as a trainer</span>
+              </span>
+              <ArrowRight aria-hidden="true" className="size-4 text-[var(--color-muted-foreground)] group-hover:text-[var(--color-brand-strong)]" />
+            </Link>
+          </div>
+        </div>
       </section>
     </>
   );

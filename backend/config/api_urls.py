@@ -48,6 +48,9 @@ urlpatterns = [
         name="trainer-profile-submit",
     ),
     path("trainer/logout/", TrainerLogoutView.as_view(), name="trainer-logout"),
+    # Trainee accounts: phone sign-in, own enquiries and saved providers. Staff
+    # in a support session reach the same endpoints read-only.
+    path("trainee/", include("trainees.urls")),
     # Public page data. Registered before the router so the two-segment provider
     # address does not collide with the router's detail route.
     path("pages/summary/", TradeAreaSummaryView.as_view(), name="trade-area-summary"),

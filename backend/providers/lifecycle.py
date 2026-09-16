@@ -3,11 +3,15 @@
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Provider
+from .models import Provider, TrainerAccount
 
 
 class ProviderTransitionError(ValueError):
     """Raised when a provider cannot move from its current lifecycle state."""
+
+
+class UnconfirmedTrainerError(ProviderTransitionError):
+    """A self-submitted listing whose owner has not been confirmed yet."""
 
 
 def _save_transition(provider, *, actor, reason, fields):
@@ -42,6 +46,12 @@ def publish_provider(provider, *, actor):
     provider = Provider.objects.select_for_update().get(pk=provider.pk)
     if provider.status != Provider.Status.PENDING_APPROVAL:
         raise ProviderTransitionError("Only a provider pending approval can be published.")
+    if provider.trainer_memberships.exclude(
+        trainer__approval_status=TrainerAccount.Approval.CONFIRMED
+    ).exists():
+        raise UnconfirmedTrainerError(
+            "The trainer who submitted this listing has not been confirmed yet."
+        )
 
     now = timezone.now()
     provider.status = Provider.Status.PUBLISHED

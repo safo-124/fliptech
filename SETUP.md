@@ -375,7 +375,12 @@ step; an uploaded photograph carrying a camera make and a rotate-90 flag comes
 back with empty EXIF and its pixels transposed from 20x10 to 10x20; suspension
 records the reason and hides the listing; and every back-office page loads.
 
-### Known gap: background photo upload
+### Background photo upload (done)
+
+Built after this section was first written: `providers/admin_upload.py` and
+`providers/static/providers/photo_uploader.js` upload each photograph on its
+own as soon as it is chosen, with retries. The original note is kept below for
+the reasoning.
 
 Section 09 calls working on a phone over a mobile connection "a specific
 requirement, not a general aspiration", with photographs uploading in the
@@ -712,6 +717,128 @@ that is the point to revisit this properly rather than component by component.
   once the field team uploads through the back office.
 - **No component tests.** Vitest and Playwright are installed but unused; the
   verification above is a live smoke test, not a suite.
+
+---
+
+## Trainee accounts and staff support access
+
+Added 15 September 2026. App: `backend/trainees/`.
+
+### What a trainee can do
+
+A trainee signs in with their phone number and a one-time code, the same
+passwordless pattern as trainers. Verifying a number in the enquiry form also
+creates the account and signs an anonymous visitor in, so nobody has to
+"register". Earlier enquiries and enrolments on that number are attached on
+first sign-in, and an enrolment recorded later during the monthly provider call
+links itself.
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/trainee/session/me/` | Who is signed in, and whether this is a staff support view |
+| `POST /api/trainee/auth/request-code/`, `verify-code/` | Sign in |
+| `POST /api/trainee/logout/` | Sign out, or for staff, leave support mode only |
+| `GET, PATCH /api/trainee/account/` | Name and preferred channel (WhatsApp or Telegram). The phone is the account and cannot change |
+| `POST /api/trainee/account/close/` | Close the account (`{"confirm": true}`); never available in support mode |
+| `GET /api/trainee/enquiries/` | Own enquiries with the furthest recorded status and the WhatsApp link |
+| `GET /api/trainee/enrolments/` | Own enrolments. The provider's attestation is deliberately not shown |
+| `GET, POST /api/trainee/saved/`, `DELETE /api/trainee/saved/<provider_id>/` | Saved providers (published only) |
+
+Data kept is the phone number, an optional name the trainee typed, and the
+channel preference. Nothing else, per Section 10.
+
+A signed-in trainee skips the code step when enquiring with their own number.
+Because verification now creates a session, `postJson` in `frontend/src/lib/api.ts`
+sends the CSRF token and the session cookie.
+
+### Support access: an admin opening a trainee's dashboard
+
+On a trainee's page in the back office, **Open dashboard** asks for a reason
+and then opens the trainee's dashboard as they see it. The staff login is not
+replaced; the session carries a `SupportSession` id instead.
+
+- Ends by itself after 30 minutes (`SUPPORT_SESSION_SECONDS`), when staff sign
+  out, when a new session starts, or with **End support session**.
+- View only unless the staff member holds `trainees.support_edit`.
+- Closing the account is never possible in support mode.
+- Permission is re-checked on every request, so revoking it cuts access at once.
+- Every request is logged as a `SupportSessionEvent`. The log is read-only in
+  the back office under Trainees, Support sessions.
+- `PUBLIC_SITE_URL` decides where staff land. Leave it empty in production
+  (same origin behind Caddy); in development it defaults to
+  `http://127.0.0.1:3000`, the same host as the API, so the staff cookie is sent.
+- `CSRF_TRUSTED_ORIGINS` now applies in development too and defaults to the
+  Next.js dev server, so signed-in POSTs from `127.0.0.1:3000` pass. In
+  production set it to the public https origin.
+
+### Erasure
+
+**Erase data** on a trainee's page (permission `trainees.erase_trainee`)
+deletes the account, its history and saved list, removes the name and message
+from every enquiry and enrolment on that number, deletes the code log for the
+number, and relabels admin log entries. The phone number stays on enquiry and
+enrolment rows as the provider's business record. Confirm that position when
+registering with the Data Protection Commission.
+
+### Roles
+
+`python manage.py setup_groups` now gives the operations lead view and change
+on trainee accounts, trainer accounts, the support log and the code log, plus
+`support_access`. Field officers get no trainee data. `support_edit` and
+`erase_trainee` are not in any group; grant them to named people.
+
+### Back office additions
+
+- A **People** row on the overview: trainee accounts, owner sign-ups awaiting
+  review, and support sessions.
+- A **Submitted by owner** filter on providers for self-submitted listings.
+- A trainee account link on enquiry and enrolment pages.
+- A read-only **Phone verifications** log for "I never got my code".
+
+### Verified
+
+260 backend tests pass (49 new), `makemigrations --check` clean, ruff clean.
+Frontend: `tsc`, `eslint`, 39 Vitest tests and `next build` pass. Walked
+through in a real browser: sign up as trainee, save a workshop, trainer sign-up
+showing "waiting for confirmation", super admin confirming it, support view and
+leaving it, and signing in on `localhost:3000`.
+
+### Sign-up and trainer confirmation
+
+Added the same day.
+
+- **Sign up** in the header and a sign-up band at the bottom of the home page
+  lead to `/join`, which asks "trainee or trainer". Both are plain links, so
+  the search page still ships no client JavaScript.
+- Trainees continue at `/trainee/sign-in` (sign-up and sign-in are the same
+  phone step) and land on `/trainee`: enquiries, training, saved workshops and
+  settings. A **Save** button on each workshop page fills the saved list.
+- Trainers continue at `/trainer/join` as before. Every new trainer account
+  starts as **waiting for confirmation** (`TrainerAccount.approval_status`).
+  They can draft and submit their listing while they wait, but
+  `publish_provider` refuses a listing whose owner is not confirmed, and the
+  publish action says why.
+- Confirming or declining is an action on **Trainer accounts** and needs
+  `providers.confirm_trainer`, which no group has: superusers only unless you
+  grant it. A declined trainer cannot sign in and sees the note written on the
+  account. The sidebar shows **Trainers to confirm** to people who can act on
+  it, and the People row counts them.
+- Migration `providers.0005` marks trainers whose listing is already public as
+  confirmed; everyone else starts as waiting.
+
+**Local development: `localhost` and `127.0.0.1`.** Browsers treat the two as
+different sites and will not send the Django session cookie from one to the
+other. The frontend now points its API calls at whichever of the two names the
+page was opened with (`src/lib/api-origin.ts`), and "Open dashboard" keeps the
+name staff used for the back office. For this to work, `backend/.env` must
+allow both: `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1` and
+`CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`.
+
+### Not done yet
+
+- Support access for trainer dashboards (same pattern).
+- Codes are still delivered by the console backend; WhatsApp and Telegram
+  delivery is the messaging layer.
 
 ---
 

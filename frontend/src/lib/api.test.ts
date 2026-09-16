@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 
-import {searchAllProviders} from "./api";
+import {postJson, searchAllProviders} from "./api";
 import type {ProviderCard} from "./types";
 
 function provider(id: number): ProviderCard {
@@ -107,5 +107,36 @@ describe("searchAllProviders", () => {
       message: "API returned duplicate providers across pages",
       status: 502,
     });
+  });
+});
+
+describe("postJson", () => {
+  it("sends the session cookie and echoes the CSRF token when one exists", async () => {
+    const fetchMock = vi.fn(() => jsonPage({verified: true}));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("document", {cookie: "theme=dark; csrftoken=abc%3D123"});
+
+    await postJson("/api/enquiries/", {phone: "+233241112222"});
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/enquiries/",
+      expect.objectContaining({
+        credentials: "include",
+        headers: {"Content-Type": "application/json", "X-CSRFToken": "abc=123"},
+      }),
+    );
+  });
+
+  it("sends no token for an anonymous visitor", async () => {
+    const fetchMock = vi.fn(() => jsonPage({verified: false}));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("document", {cookie: ""});
+
+    await postJson("/api/enquiries/request-code/", {phone: "+233241112222"});
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({headers: {"Content-Type": "application/json"}}),
+    );
   });
 });

@@ -17,13 +17,24 @@ from decimal import Decimal
 from django.contrib import admin, messages
 from django.db.models import Case, CharField, Count, DecimalField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.timesince import timesince
 from import_export.admin import ExportActionMixin
 
 from . import queues
-from .models import Enquiry, EnquiryOutcome, Enrolment
+from .models import Enquiry, EnquiryOutcome, Enrolment, PhoneVerification
+
+
+def trainee_account_link(obj):
+    """A link to the trainee account. The account page checks its own permission."""
+    if not obj or not obj.trainee_id:
+        return "No account"
+    return format_html(
+        '<a href="{}">Open trainee account</a>',
+        reverse("admin:trainees_traineeaccount_change", args=[obj.trainee_id]),
+    )
 
 
 class EnquiryOutcomeInline(admin.StackedInline):
@@ -122,6 +133,7 @@ class EnquiryAdmin(admin.ModelAdmin):
         "trainee_name",
         "message",
         "phone_verified_at",
+        "trainee_account",
         "created_at",
         "updated_at",
     )
@@ -148,11 +160,16 @@ class EnquiryAdmin(admin.ModelAdmin):
                     "trainee_name",
                     "message",
                     "phone_verified_at",
+                    "trainee_account",
                 )
             },
         ),
         ("Delivery", {"fields": ("state",)}),
     )
+
+    @admin.display(description="Trainee account")
+    def trainee_account(self, obj):
+        return trainee_account_link(obj)
 
     def get_queryset(self, request):
         """Annotate the furthest honest outcome for fast display and sorting."""
@@ -426,13 +443,27 @@ class EnrolmentAdmin(ExportActionMixin, admin.ModelAdmin):
         "enquiry",
         "recorded_by",
     )
-    readonly_fields = ("recorded_by", "created_at", "updated_at")
+    readonly_fields = ("trainee_account", "recorded_by", "created_at", "updated_at")
     change_list_template = "admin/enquiries/enrolment/change_list.html"
     change_form_template = "admin/enquiries/enrolment/change_form.html"
 
     fieldsets = (
         ("Who and what", {"fields": ("provider", "programme", "intake", "enquiry")}),
-        ("Trainee", {"fields": ("trainee_phone", "trainee_name", "started_on", "fee_paid")}),
+        (
+            "Trainee",
+            {
+                "fields": (
+                    "trainee_phone",
+                    "trainee_name",
+                    "trainee_account",
+                    "started_on",
+                    "fee_paid",
+                ),
+                "description": (
+                    "The trainee account is linked automatically when the phone number matches one."
+                ),
+            },
+        ),
         (
             "Asked during the monthly visit",
             {
@@ -529,7 +560,44 @@ class EnrolmentAdmin(ExportActionMixin, admin.ModelAdmin):
             '<span class="er-source er-source--neutral">{}</span>', "Provider reported"
         )
 
+    @admin.display(description="Trainee account")
+    def trainee_account(self, obj):
+        return trainee_account_link(obj)
+
     def save_model(self, request, obj, form, change):
         if not obj.recorded_by_id:
             obj.recorded_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(PhoneVerification)
+class PhoneVerificationAdmin(admin.ModelAdmin):
+    """The code log, for answering "I never got my code".
+
+    Read-only, and the code hash is never shown. Held by the operations lead and
+    superusers only: it is a list of phone numbers and when they were active.
+    """
+
+    list_display = ("phone", "purpose", "created_at", "expires_at", "attempts", "verified_at")
+    list_filter = ("purpose", "created_at")
+    search_fields = ("phone",)
+    date_hierarchy = "created_at"
+    fields = (
+        "phone",
+        "purpose",
+        "created_at",
+        "expires_at",
+        "attempts",
+        "verified_at",
+        "ip_address",
+    )
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

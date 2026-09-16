@@ -1,3 +1,4 @@
+import {browserApiUrl} from "./api-origin";
 import type {
   Paginated,
   Trade,
@@ -9,7 +10,7 @@ import type {
 const API_URL =
   typeof window === "undefined"
     ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
-    : (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000");
+    : browserApiUrl();
 
 const MAX_REFERENCE_PAGES = 100;
 

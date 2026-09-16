@@ -1,4 +1,4 @@
-import {ArrowRight, BookOpenCheck, Building2} from "lucide-react";
+import {ArrowRight, BookOpenCheck, Building2, UserPlus, UserRound} from "lucide-react";
 import Link from "next/link";
 
 import {Button} from "@/components/ui/button";
@@ -32,11 +32,23 @@ export function SiteHeader() {
               <ArrowRight aria-hidden />
             </Link>
           </Button>
-          <Button asChild variant="outline" size="default" className="px-3 sm:px-4">
-            <Link href="/trainer/join" aria-label="List your workshop">
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+            <Link href="/trainer/join">
               <Building2 aria-hidden />
-              <span className="sm:hidden">For trainers</span>
-              <span className="hidden sm:inline">List your workshop</span>
+              List your workshop
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="default" className="px-3 sm:px-4">
+            <Link href="/trainee">
+              <UserRound aria-hidden />
+              <span className="hidden sm:inline">My account</span>
+              <span className="sm:hidden">Account</span>
+            </Link>
+          </Button>
+          <Button asChild variant="brand" size="default" className="px-3 sm:px-4">
+            <Link href="/join">
+              <UserPlus aria-hidden />
+              Sign up
             </Link>
           </Button>
         </nav>

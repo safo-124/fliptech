@@ -1,0 +1,169 @@
+"""Trainer sign-ups are confirmed by the super admin before a listing goes live."""
+
+import pytest
+from django.contrib.auth.models import Group
+from django.contrib.gis.geos import Point
+from django.core.management import call_command
+from django.urls import reverse
+from django.utils import timezone
+
+from geography.models import Area, Region
+from providers.lifecycle import UnconfirmedTrainerError, publish_provider
+from providers.models import Provider, ProviderMembership, TrainerAccount
+from providers.trainer_auth import TrainerAccountDisabled, account_for_verified_phone
+
+ACCRA = Point(-0.1870, 5.6037, srid=4326)
+PHONE = "+233241112222"
+
+
+@pytest.fixture
+def owner_listing(db):
+    region = Region.objects.create(name="Greater Accra", slug="greater-accra")
+    area = Area.objects.create(region=region, name="Accra", slug="accra", centroid=ACCRA)
+    trainer = account_for_verified_phone(phone=PHONE, verified_at=timezone.now())
+    provider = Provider.objects.create(
+        name="Owner Academy",
+        slug="owner-academy",
+        area=area,
+        location=ACCRA,
+        contact_phone=PHONE,
+        status=Provider.Status.PENDING_APPROVAL,
+    )
+    ProviderMembership.objects.create(trainer=trainer, provider=provider)
+    return trainer, provider
+
+
+@pytest.fixture
+def groups(db):
+    call_command("setup_groups", verbosity=0)
+    return {
+        "officer": Group.objects.get(name="Field officer"),
+        "lead": Group.objects.get(name="Operations lead"),
+    }
+
+
+def staff(django_user_model, name, group=None, superuser=False):
+    user = django_user_model.objects.create_user(
+        name, password="pw", is_staff=True, is_superuser=superuser
+    )
+    if group:
+        user.groups.add(group)
+    return user
+
+
+@pytest.mark.django_db
+def test_new_trainer_waits_for_confirmation(owner_listing):
+    trainer, _ = owner_listing
+    assert trainer.approval_status == TrainerAccount.Approval.PENDING
+    assert not trainer.is_confirmed
+
+
+@pytest.mark.django_db
+def test_listing_from_unconfirmed_trainer_cannot_be_published(owner_listing, django_user_model):
+    trainer, provider = owner_listing
+    boss = staff(django_user_model, "boss", superuser=True)
+
+    with pytest.raises(UnconfirmedTrainerError):
+        publish_provider(provider, actor=boss)
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+
+    trainer.approval_status = TrainerAccount.Approval.CONFIRMED
+    trainer.save()
+    publish_provider(provider, actor=boss)
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PUBLISHED
+
+
+@pytest.mark.django_db
+def test_publish_action_explains_why_it_was_skipped(
+    client, owner_listing, django_user_model, groups
+):
+    _, provider = owner_listing
+    lead = staff(django_user_model, "lead", groups["lead"])
+    client.force_login(lead)
+    response = client.post(
+        reverse("admin:providers_provider_changelist"),
+        {"action": "publish_listings", "_selected_action": [provider.pk]},
+        follow=True,
+    )
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+    assert "not confirmed yet: Owner Academy" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_super_admin_confirms_and_it_is_recorded(client, owner_listing, django_user_model):
+    trainer, _ = owner_listing
+    boss = staff(django_user_model, "boss", superuser=True)
+    client.force_login(boss)
+    client.post(
+        reverse("admin:providers_traineraccount_changelist"),
+        {"action": "confirm_trainers", "_selected_action": [trainer.pk]},
+    )
+    trainer.refresh_from_db()
+    assert trainer.approval_status == TrainerAccount.Approval.CONFIRMED
+    assert trainer.approval_decided_by == boss
+    assert trainer.approval_decided_at is not None
+
+
+@pytest.mark.django_db
+def test_operations_lead_cannot_confirm(client, owner_listing, django_user_model, groups):
+    trainer, _ = owner_listing
+    lead = staff(django_user_model, "lead", groups["lead"])
+    client.force_login(lead)
+    changelist = client.get(reverse("admin:providers_traineraccount_changelist"))
+    assert changelist.status_code == 200
+    assert b"confirm_trainers" not in changelist.content
+    client.post(
+        reverse("admin:providers_traineraccount_changelist"),
+        {"action": "confirm_trainers", "_selected_action": [trainer.pk]},
+    )
+    trainer.refresh_from_db()
+    assert trainer.approval_status == TrainerAccount.Approval.PENDING
+
+
+@pytest.mark.django_db
+def test_declined_trainer_cannot_sign_in(owner_listing):
+    trainer, _ = owner_listing
+    trainer.approval_status = TrainerAccount.Approval.DECLINED
+    trainer.save()
+    with pytest.raises(TrainerAccountDisabled, match="not approved"):
+        account_for_verified_phone(phone=PHONE, verified_at=timezone.now())
+
+
+@pytest.mark.django_db
+def test_session_reports_account_status(client, owner_listing):
+    trainer, _ = owner_listing
+    trainer.approval_note = ""
+    trainer.save()
+    client.force_login(trainer.user)
+    body = client.get(reverse("trainer-session-me")).json()
+    assert body["account_status"] == "pending"
+
+
+@pytest.mark.django_db
+def test_sidebar_and_dashboard_show_sign_ups_to_super_admin_only(
+    client, owner_listing, django_user_model, groups
+):
+    from django.core.cache import cache
+
+    boss = staff(django_user_model, "boss", superuser=True)
+    lead = staff(django_user_model, "lead", groups["lead"])
+
+    cache.clear()
+    client.force_login(boss)
+    page = client.get(reverse("admin:index")).content.decode()
+    assert "Trainers to confirm" in page
+    assert "Confirm trainer sign-ups" in page
+
+    client.force_login(lead)
+    page = client.get(reverse("admin:index")).content.decode()
+    assert "Trainers to confirm" not in page
+    assert "Confirm trainer sign-ups" not in page
+
+
+@pytest.mark.django_db
+def test_setup_groups_does_not_hand_out_confirmation(groups):
+    for group in groups.values():
+        assert not group.permissions.filter(codename="confirm_trainer").exists()
