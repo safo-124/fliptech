@@ -17,11 +17,17 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.gis.admin import GISModelAdmin
+from django.core.exceptions import PermissionDenied
 from django.db.models import Prefetch
+from django.http import HttpResponseRedirect
+from django.middleware.csrf import get_token
+from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.utils.html import format_html
+from django.views.decorators.http import require_POST
 from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -683,14 +689,17 @@ class TrainerAccountAdmin(admin.ModelAdmin):
     would silently hand someone else's listing to a different number.
     """
 
+    # Six columns, not eight. The previous set overflowed the table on a
+    # laptop, so the right-hand columns sat behind a horizontal scrollbar —
+    # which on a queue you are meant to act from is the same as not being
+    # there. Role and ID type moved to the detail page; they inform the
+    # decision but are not how you find the row.
     list_display = (
         "phone",
         "full_name",
-        "role",
-        "identity_summary",
         "approval_summary",
+        "decide",
         "owned_provider",
-        "is_active",
         "created_at",
     )
     list_filter = ("approval_status", "is_active", "role", "id_document_type")
@@ -753,6 +762,72 @@ class TrainerAccountAdmin(admin.ModelAdmin):
     )
 
     @admin.display(description="Sign-up", ordering="approval_status")
+    @admin.display(description="Decision")
+    def decide(self, obj):
+        """One click to confirm, from the row.
+
+        Confirm only. Declining blocks someone from listing the workshop they
+        make a living from, and the note explaining why is on the detail page —
+        a one-click decline from a list is how that note ends up empty. So yes
+        is one click and no is a deliberate trip to the record.
+
+        A form rather than a link because this changes state: a GET that
+        confirms an account would be followed by every crawler and prefetcher
+        that ever sees the page.
+        """
+        if obj.approval_status == TrainerAccount.Approval.CONFIRMED:
+            return format_html('<span class="row-decided">Confirmed</span>')
+
+        return format_html(
+            '<form method="post" action="{}" class="row-decide">'
+            '<input type="hidden" name="csrfmiddlewaretoken" value="{}">'
+            '<button type="submit" class="row-confirm">Confirm</button>'
+            "</form>"
+            '<a class="row-review" href="{}">Review</a>',
+            reverse("admin:providers_traineraccount_confirm", args=[obj.pk]),
+            get_token(self._request) if self._request else "",
+            reverse("admin:providers_traineraccount_change", args=[obj.pk]),
+        )
+
+    def changelist_view(self, request, extra_context=None):
+        # The row buttons need a CSRF token, and admin.display gets no request.
+        self._request = request
+        return super().changelist_view(request, extra_context=extra_context)
+
+    _request = None
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:pk>/confirm/",
+                self.admin_site.admin_view(self.confirm_one),
+                name="providers_traineraccount_confirm",
+            ),
+            *super().get_urls(),
+        ]
+
+    @method_decorator(require_POST)
+    def confirm_one(self, request, pk):
+        """Confirm a single trainer from the list.
+
+        Permission-checked here as well as in get_actions: a URL is reachable
+        by anyone who can guess it, and the bulk action being hidden from the
+        menu does not stop a POST.
+        """
+        if not request.user.has_perm("providers.confirm_trainer"):
+            raise PermissionDenied
+
+        account = get_object_or_404(TrainerAccount, pk=pk)
+        self._decide(
+            request,
+            TrainerAccount.objects.filter(pk=account.pk),
+            status=TrainerAccount.Approval.CONFIRMED,
+            verb="confirmed",
+        )
+        return HttpResponseRedirect(
+            request.META.get("HTTP_REFERER") or reverse("admin:providers_traineraccount_changelist")
+        )
+
     @admin.display(description="ID on file")
     def identity_summary(self, obj):
         """Whether an identity document exists, without linking to it here.

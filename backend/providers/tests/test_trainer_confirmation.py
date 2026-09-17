@@ -167,3 +167,71 @@ def test_sidebar_and_dashboard_show_sign_ups_to_super_admin_only(
 def test_setup_groups_does_not_hand_out_confirmation(groups):
     for group in groups.values():
         assert not group.permissions.filter(codename="confirm_trainer").exists()
+
+
+# --------------------------------------------------------------------------
+# Confirming from the row rather than the bulk action
+
+
+def confirm_url(account):
+    from django.urls import reverse
+
+    return reverse("admin:providers_traineraccount_confirm", args=[account.pk])
+
+
+@pytest.mark.django_db
+def test_a_superuser_can_confirm_from_the_list_in_one_click(client, django_user_model):
+    from django.utils import timezone
+
+    from providers.trainer_auth import account_for_verified_phone
+
+    account = account_for_verified_phone(phone="+233240000501", verified_at=timezone.now())
+    admin = django_user_model.objects.create_superuser("rowadmin", password="x")
+    client.force_login(admin)
+
+    response = client.post(confirm_url(account))
+
+    account.refresh_from_db()
+    assert response.status_code == 302
+    assert account.approval_status == TrainerAccount.Approval.CONFIRMED
+    assert account.approval_decided_by == admin
+    assert account.approval_decided_at is not None
+
+
+@pytest.mark.django_db
+def test_the_row_endpoint_refuses_a_get(client, django_user_model):
+    """It changes state.
+
+    A GET that confirms an account is followed by every crawler, prefetcher and
+    link-preview bot that ever sees the page.
+    """
+    from django.utils import timezone
+
+    from providers.trainer_auth import account_for_verified_phone
+
+    account = account_for_verified_phone(phone="+233240000502", verified_at=timezone.now())
+    client.force_login(django_user_model.objects.create_superuser("getadmin", password="x"))
+
+    response = client.get(confirm_url(account))
+
+    account.refresh_from_db()
+    assert response.status_code == 405
+    assert account.approval_status == TrainerAccount.Approval.PENDING
+
+
+@pytest.mark.django_db
+def test_staff_without_the_permission_cannot_confirm_from_the_row(client, django_user_model):
+    """Hiding the bulk action does not protect a URL anyone can POST to."""
+    from django.utils import timezone
+
+    from providers.trainer_auth import account_for_verified_phone
+
+    account = account_for_verified_phone(phone="+233240000503", verified_at=timezone.now())
+    plain = django_user_model.objects.create_user("plainstaff", password="x", is_staff=True)
+    client.force_login(plain)
+
+    response = client.post(confirm_url(account))
+
+    account.refresh_from_db()
+    assert response.status_code in (302, 403)
+    assert account.approval_status == TrainerAccount.Approval.PENDING

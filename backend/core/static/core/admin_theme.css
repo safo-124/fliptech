@@ -818,13 +818,43 @@ input:focus, textarea:focus, select:focus, .vTextField:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
   min-height: 28px;
   padding: 6px 8px 5px;
   color: var(--muted-foreground);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.025em;
+  /* A summary, so it has to look and behave like a control. */
+  cursor: pointer;
+  border-radius: 6px;
+  list-style: none;
 }
+.sb-group-label::-webkit-details-marker { display: none; }
+.sb-group-label::marker { content: ""; }
+.sb-group-label:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.sb-group-label:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* Points down when open, right when closed — the same grammar as the app
+   groups below, which rotate from right to down. */
+.sb-group-chevron {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-left: -2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.15s ease;
+}
+.sb-group:not([open]) > .sb-group-label .sb-group-chevron { transform: rotate(-90deg); }
+.sb-label-count { order: 1; }
+.sb-group-chevron { order: 2; }
 .sb-label-count {
   min-width: 18px;
   padding: 0 5px;
@@ -1314,4 +1344,37 @@ body.sb-drawer-open { overflow: hidden; }
   #toggle-nav-sidebar,
   .sb-app-chevron,
   .sb-toggle-chevron { transition: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   Row-level decisions on the trainer queue
+
+   Confirming a sign-up was: tick a checkbox, pick from a dropdown, press Go.
+   Three interactions, two of which fail silently if you skip them — for the
+   single most common job in the back office. The bulk action is still there
+   for a batch; this is the one-click path for the usual case of deciding one
+   at a time.
+--------------------------------------------------------------------------- */
+.row-decide { display: inline; margin: 0; }
+.row-confirm {
+  padding: 4px 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--primary, #4f46e5);
+  color: var(--primary-foreground, #fff);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+}
+.row-confirm:hover { filter: brightness(1.08); }
+.row-confirm:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.row-review {
+  margin-left: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.row-decided {
+  color: var(--muted-foreground);
+  font-size: 12px;
 }
