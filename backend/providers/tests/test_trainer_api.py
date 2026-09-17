@@ -96,11 +96,14 @@ def profile_payload(catalogue, **overrides):
 def attach_review_files(provider, user):
     """The photographs and identity document a submission cannot go without.
 
-    submission_blockers requires two workshop photographs and one identity
-    document before a listing reaches the review queue, because an admin
-    looking at a name and a pin has nothing to decide on. Uploading them
-    through the API in every test would be six extra requests of setup, so
-    they are created directly.
+    submission_blockers requires one photograph of the workshop, one of the
+    work and one identity document before a listing reaches the review queue,
+    because an admin looking at a name and a pin has nothing to decide on.
+    Uploading them through the API in every test would be six extra requests of
+    setup, so they are created directly.
+
+    One of each kind, not two of either: "is this a real place" and "is the
+    work any good" are the two questions, and the check asks for both.
     """
     from io import BytesIO
 
@@ -114,9 +117,14 @@ def attach_review_files(provider, user):
         Image.new("RGB", (40, 30), colour).save(buffer, format="JPEG")
         return ContentFile(buffer.getvalue())
 
-    for index, colour in enumerate(("red", "blue")):
-        photo = ProviderPhoto(provider=provider, uploaded_by=user, display_order=index)
-        photo.image.save(f"workshop-{index}.jpg", jpeg(colour), save=True)
+    for index, (kind, colour) in enumerate(
+        (
+            (ProviderPhoto.Kind.WORKSHOP, "red"),
+            (ProviderPhoto.Kind.WORK, "blue"),
+        )
+    ):
+        photo = ProviderPhoto(provider=provider, kind=kind, uploaded_by=user, display_order=index)
+        photo.image.save(f"{kind}-{index}.jpg", jpeg(colour), save=True)
 
     evidence = ProviderEvidence(
         provider=provider,
