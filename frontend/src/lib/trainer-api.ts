@@ -113,6 +113,41 @@ export function verifyTrainerCode(challengeId: string, phone: string, code: stri
   });
 }
 
+/**
+ * Email is a second door into an existing trainer account.
+ *
+ * Section 03 names being asked to log in as what makes a workshop owner give
+ * up, so the phone route stays the default. This is the way back in for an
+ * owner whose SMS is not arriving.
+ */
+export function requestTrainerEmailCode(email: string) {
+  return trainerFetch<{challenge_id: string; expires_in_seconds: number}>(
+    "/api/trainer/auth/email/request-code/",
+    {method: "POST", body: JSON.stringify({email})},
+  );
+}
+
+export function verifyTrainerEmailCode(challengeId: string, email: string, code: string) {
+  return trainerFetch<TrainerSession>("/api/trainer/auth/email/verify-code/", {
+    method: "POST",
+    body: JSON.stringify({challenge_id: challengeId, email, code}),
+  });
+}
+
+export function requestTrainerAddEmailCode(email: string) {
+  return trainerFetch<{challenge_id: string; expires_in_seconds: number}>(
+    "/api/trainer/account/email/request-code/",
+    {method: "POST", body: JSON.stringify({email})},
+  );
+}
+
+export function confirmTrainerAddEmail(challengeId: string, email: string, code: string) {
+  return trainerFetch<TrainerSession>("/api/trainer/account/email/confirm/", {
+    method: "POST",
+    body: JSON.stringify({challenge_id: challengeId, email, code}),
+  });
+}
+
 export async function getTrainerProfile() {
   const response = await trainerFetch<{profile: TrainerProfile}>("/api/trainer/profile/");
   return response.profile;

@@ -239,6 +239,8 @@ export type TrainerSession =
   | {
       authenticated: true;
       phone: string;
+      /** A second way in, or null until the trainer verifies one. */
+      email?: string | null;
       /** Whether the super admin has confirmed this trainer sign-up. */
       account_status?: TrainerAccountStatus;
       account_note?: string;
@@ -261,6 +263,12 @@ export type TraineeEducationStatus = "in_progress" | "completed" | "left";
 
 export type TraineeAccount = {
   phone: string;
+  /**
+   * A second way to sign in, or null. The phone stays the identity — it is
+   * what a workshop replies to on WhatsApp. Claimed by proving the address
+   * with a one-time code, so it is read-only on the settings endpoint.
+   */
+  email: string | null;
   display_name: string;
   preferred_channel: TraineeChannel;
   /** All of the background is optional: registration never blocks on it. */

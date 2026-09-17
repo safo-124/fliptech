@@ -9,6 +9,8 @@ import {
   GraduationCap,
   Headset,
   Loader2,
+  Mail,
+  MailCheck,
   LogOut,
   MessageCircle,
   Send,
@@ -31,12 +33,14 @@ import {browserApiUrl} from "@/lib/api-origin";
 import {formatDate, formatFee} from "@/lib/format";
 import {
   closeTraineeAccount,
+  confirmAddEmail,
   getSavedProviders,
   getTraineeEnquiries,
   getTraineeEnrolments,
   getTraineeSession,
   logoutTrainee,
   removeSavedProvider,
+  requestAddEmailCode,
   updateTraineeAccount,
 } from "@/lib/trainee-api";
 import type {
@@ -159,6 +163,16 @@ export function TraineeDashboard() {
   const [channel, setChannel] = useState<TraineeChannel>("whatsapp");
   // One object rather than five useStates: it is saved and reset as a unit,
   // and five setters in the load effect is five chances to forget one.
+  // Adding an address is its own two-step flow: type it, then prove it with a
+  // code. It is not part of saveSettings, because an address is claimed by
+  // proving it and not by typing it into a form the server would have to take
+  // on trust.
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [emailChallenge, setEmailChallenge] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const [background, setBackground] = useState<TraineeBackground>({
     education_level: "",
     institution_name: "",
@@ -259,6 +273,45 @@ export function TraineeDashboard() {
       setNotice("Saved.");
     });
   };
+
+  async function sendEmailCode(event: React.FormEvent) {
+    event.preventDefault();
+    const address = emailDraft.trim();
+    if (!address.includes("@")) {
+      setEmailError("Enter your email address.");
+      return;
+    }
+    setEmailBusy(true);
+    setEmailError(null);
+    try {
+      const challenge = await requestAddEmailCode(address);
+      setEmailChallenge(challenge.challenge_id);
+      setEmailCode("");
+    } catch (reason) {
+      setEmailError(reason instanceof Error ? reason.message : "Could not send a code.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function confirmEmail(event: React.FormEvent) {
+    event.preventDefault();
+    if (!emailChallenge) return;
+    setEmailBusy(true);
+    setEmailError(null);
+    try {
+      const account = await confirmAddEmail(emailChallenge, emailDraft.trim(), emailCode);
+      setSession((current) => (current ? {...current, account} : current));
+      setEmailChallenge(null);
+      setEmailDraft("");
+      setEmailCode("");
+      setNotice("Email added. You can sign in with it now.");
+    } catch (reason) {
+      setEmailError(reason instanceof Error ? reason.message : "That code did not work.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
 
   const closeAccount = () =>
     run(async () => {
@@ -650,6 +703,96 @@ export function TraineeDashboard() {
                   <p className="text-xs text-[var(--color-muted-foreground)]">Support view is read-only.</p>
                 ) : null}
               </form>
+
+              {/* Adding an address is deliberately outside the settings form.
+                  An address is claimed by proving it with a code, not by
+                  typing it into a field the server takes on trust — so it
+                  cannot share a Save button with the name and the channel. */}
+              <div className="mt-6 space-y-3 border-t border-[var(--color-border)] pt-5">
+                <div>
+                  <p className="text-sm font-semibold">Signing in with email</p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                    Your phone number stays how workshops reach you. An email is a second
+                    way to sign in, useful when text messages do not arrive.
+                  </p>
+                </div>
+
+                {session.account.email ? (
+                  <p className="flex items-center gap-2 rounded-xl bg-[var(--color-muted)]/65 p-3 text-sm">
+                    <MailCheck aria-hidden="true" className="size-4 shrink-0 text-[var(--color-visit)]" />
+                    <span>
+                      <strong>{session.account.email}</strong> is on your account.
+                    </span>
+                  </p>
+                ) : emailChallenge ? (
+                  <form onSubmit={confirmEmail} className="space-y-2">
+                    <Label htmlFor="trainee-email-code">
+                      Code sent to {emailDraft.trim()}
+                    </Label>
+                    <Input
+                      id="trainee-email-code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={8}
+                      value={emailCode}
+                      onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, ""))}
+                      className="text-center text-lg font-semibold tabular-nums tracking-[0.3em]"
+                      autoFocus
+                    />
+                    {emailError ? (
+                      <p role="alert" className="text-sm text-[var(--color-destructive)]">
+                        {emailError}
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="submit" variant="brand" disabled={emailBusy}>
+                        {emailBusy ? (
+                          <Loader2 aria-hidden="true" className="animate-spin" />
+                        ) : null}
+                        Confirm email
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setEmailChallenge(null);
+                          setEmailError(null);
+                        }}
+                      >
+                        Use a different address
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={sendEmailCode} className="space-y-2">
+                    <fieldset disabled={readOnly} className="space-y-2">
+                      <Label htmlFor="trainee-new-email">Email address</Label>
+                      <Input
+                        id="trainee-new-email"
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        placeholder="you@example.com"
+                        value={emailDraft}
+                        onChange={(event) => setEmailDraft(event.target.value)}
+                      />
+                      {emailError ? (
+                        <p role="alert" className="text-sm text-[var(--color-destructive)]">
+                          {emailError}
+                        </p>
+                      ) : null}
+                      <Button type="submit" variant="outline" disabled={emailBusy}>
+                        {emailBusy ? (
+                          <Loader2 aria-hidden="true" className="animate-spin" />
+                        ) : (
+                          <Mail aria-hidden="true" />
+                        )}
+                        Send me a code
+                      </Button>
+                    </fieldset>
+                  </form>
+                )}
+              </div>
             </CardContent>
           </Card>
 

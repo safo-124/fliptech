@@ -18,6 +18,7 @@ import {
   Pencil,
   RefreshCw,
   ShieldCheck,
+  Mail,
   Smartphone,
 } from "lucide-react";
 import Link from "next/link";
@@ -48,6 +49,7 @@ import {
   getTrainerReferenceData,
   getTrainerSession,
   requestTrainerCode,
+  requestTrainerEmailCode,
   deleteTrainerPhoto,
   getTrainerProfileBlockers,
   saveTrainerProfile,
@@ -56,6 +58,7 @@ import {
   uploadTrainerPhoto,
   TrainerApiError,
   verifyTrainerCode,
+  verifyTrainerEmailCode,
 } from "@/lib/trainer-api";
 import {
   draftFromTrainerProfile,
@@ -348,6 +351,15 @@ function LoadingCard() {
 
 export function TrainerJoinWizard() {
   const [step, setStep] = useState<Step>("phone");
+  /**
+   * Which identifier the sign-in step is using.
+   *
+   * Phone is the default and stays the default: it is the account's identity,
+   * the number a site visit is arranged on, and the only route that works for
+   * a trainer who has not added an address yet.
+   */
+  const [authMethod, setAuthMethod] = useState<"phone" | "email">("phone");
+  const [authEmail, setAuthEmail] = useState("");
   const [photos, setPhotos] = useState<TrainerPhoto[]>([]);
   const [hasIdDocument, setHasIdDocument] = useState(false);
   const [blockers, setBlockers] = useState<string[]>([]);
@@ -481,6 +493,32 @@ export function TrainerJoinWizard() {
 
   async function requestCode(event: React.FormEvent) {
     event.preventDefault();
+
+    if (authMethod === "email") {
+      const address = authEmail.trim();
+      // Shallow on purpose: the server validates, and a clever regex rejects
+      // real addresses.
+      if (!address.includes("@")) {
+        setError("Enter your email address.");
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await requestTrainerEmailCode(address);
+        setChallengeId(result.challenge_id);
+        setExpiresIn(result.expires_in_seconds);
+        setResendIn(RESEND_COOLDOWN_SECONDS);
+        setResent(false);
+        setStep("code");
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Could not send the code.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     const parsed = ghanaPhoneSchema.safeParse(phone);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid phone number.");
@@ -520,7 +558,12 @@ export function TrainerJoinWizard() {
     setBusy(true);
     setError(null);
     try {
-      const result = await requestTrainerCode(phone);
+      // Resend has to follow the method the first code went out on, or an
+      // email sign-in silently sends the replacement as an SMS.
+      const result =
+        authMethod === "email"
+          ? await requestTrainerEmailCode(authEmail.trim())
+          : await requestTrainerCode(phone);
       setChallengeId(result.challenge_id);
       setExpiresIn(result.expires_in_seconds);
       setResendIn(RESEND_COOLDOWN_SECONDS);
@@ -536,13 +579,20 @@ export function TrainerJoinWizard() {
   async function verifyCode(event: React.FormEvent) {
     event.preventDefault();
     if (!/^\d{4,8}$/.test(code)) {
-      setError("Enter the code we sent to your phone.");
+      setError(
+        authMethod === "email"
+          ? "Enter the code we sent to your email."
+          : "Enter the code we sent to your phone.",
+      );
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const nextSession = await verifyTrainerCode(challengeId, phone, code);
+      const nextSession =
+        authMethod === "email"
+          ? await verifyTrainerEmailCode(challengeId, authEmail.trim(), code)
+          : await verifyTrainerCode(challengeId, phone, code);
       if (!nextSession.authenticated) throw new Error("The sign-in session was not created.");
       setSession(nextSession);
       setProfile(nextSession.profile);
@@ -755,41 +805,81 @@ export function TrainerJoinWizard() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-4 sm:px-6 sm:pt-6">
           <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
-            <Smartphone aria-hidden="true" className="size-5" />
+            {authMethod === "email" ? (
+              <Mail aria-hidden="true" className="size-5" />
+            ) : (
+              <Smartphone aria-hidden="true" className="size-5" />
+            )}
           </div>
           <h2
             ref={stepHeadingRef}
             tabIndex={-1}
             className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
           >
-            Sign in with your phone
+            {authMethod === "email" ? "Sign in with your email" : "Sign in with your phone"}
           </h2>
-          <CardDescription>We will text you a one-time code. No password is needed.</CardDescription>
+          <CardDescription>
+            {authMethod === "email"
+              ? "For an address already on your account. We email a one-time code."
+              : "We will text you a one-time code. No password is needed."}
+          </CardDescription>
         </CardHeader>
         <form onSubmit={requestCode} noValidate aria-busy={busy}>
           <CardContent className="space-y-4 sm:px-6">
-            <div className="space-y-2">
-              <Label htmlFor="trainer-phone">
-                Mobile number
-                <RequiredCue />
-              </Label>
-              <Input
-                id="trainer-phone"
-                name="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="024 123 4567"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-                aria-invalid={Boolean(error)}
-                aria-describedby={describedBy("trainer-phone-help", error && "trainer-phone-error")}
-              />
-              <p id="trainer-phone-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                This private number is used to sign in. It is not shown to trainees unless you later choose it as the public contact number.
-              </p>
-            </div>
+            {authMethod === "email" ? (
+              <div className="space-y-2">
+                <Label htmlFor="trainer-email">
+                  Email address
+                  <RequiredCue />
+                </Label>
+                <Input
+                  id="trainer-email"
+                  name="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  required
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={describedBy(
+                    "trainer-email-help",
+                    error && "trainer-phone-error",
+                  )}
+                />
+                <p
+                  id="trainer-email-help"
+                  className="text-xs leading-5 text-[var(--color-muted-foreground)]"
+                >
+                  This works only for an address you already added to your account. If you
+                  have not added one, sign in with your phone number.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="trainer-phone">
+                  Mobile number
+                  <RequiredCue />
+                </Label>
+                <Input
+                  id="trainer-phone"
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="024 123 4567"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  required
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={describedBy("trainer-phone-help", error && "trainer-phone-error")}
+                />
+                <p id="trainer-phone-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  This private number is used to sign in. It is not shown to trainees unless you later choose it as the public contact number.
+                </p>
+              </div>
+            )}
             {error ? <FormError id="trainer-phone-error" message={error} /> : null}
             <div className="flex items-start gap-2.5 rounded-xl bg-[var(--color-muted)]/65 p-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
               <LockKeyhole
@@ -799,11 +889,32 @@ export function TrainerJoinWizard() {
               <p>Your sign-in number and verification code stay private.</p>
             </div>
           </CardContent>
-          <CardFooter className="sm:px-6">
+          <CardFooter className="flex-col gap-2 sm:px-6">
             <Button type="submit" variant="brand" disabled={busy} className="w-full">
               {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
               {busy ? "Sending code…" : "Continue"}
               {!busy ? <ArrowRight aria-hidden="true" /> : null}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setAuthMethod(authMethod === "email" ? "phone" : "email");
+                setError(null);
+              }}
+            >
+              {authMethod === "email" ? (
+                <>
+                  <Smartphone aria-hidden="true" />
+                  Use my phone number instead
+                </>
+              ) : (
+                <>
+                  <Mail aria-hidden="true" />
+                  Use my email instead
+                </>
+              )}
             </Button>
           </CardFooter>
         </form>
@@ -823,7 +934,7 @@ export function TrainerJoinWizard() {
             tabIndex={-1}
             className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
           >
-            Check your messages
+            {authMethod === "email" ? "Check your email" : "Check your messages"}
           </h2>
           <CardDescription>Enter the code to securely continue your profile.</CardDescription>
         </CardHeader>
@@ -850,7 +961,7 @@ export function TrainerJoinWizard() {
                 className="text-center text-xl font-semibold tabular-nums tracking-[0.3em] sm:text-xl"
               />
               <p id="trainer-code-help" className="text-center text-xs leading-5 text-[var(--color-muted-foreground)]">
-                Sent to {phone}
+                Sent to {authMethod === "email" ? authEmail.trim() : phone}
                 {expiresIn === null ? null : expiresIn > 0 ? (
                   <>
                     {" · expires in "}

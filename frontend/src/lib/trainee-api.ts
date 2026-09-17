@@ -39,6 +39,42 @@ export function verifyTraineeCode(challengeId: string, phone: string, code: stri
   });
 }
 
+/**
+ * Email is a second door into an account that already exists.
+ *
+ * Requesting a code answers the same way whether or not the address is on an
+ * account, so nothing here can be used to work out who is registered. An
+ * address with no account is refused at the verify step.
+ */
+export function requestTraineeEmailCode(email: string) {
+  return sessionFetch<{challenge_id: string; expires_in_seconds: number}>(
+    "/api/trainee/auth/email/request-code/",
+    {method: "POST", body: JSON.stringify({email})},
+  );
+}
+
+export function verifyTraineeEmailCode(challengeId: string, email: string, code: string) {
+  return sessionFetch<TraineeSession>("/api/trainee/auth/email/verify-code/", {
+    method: "POST",
+    body: JSON.stringify({challenge_id: challengeId, email, code}),
+  });
+}
+
+/** Attach an address to the signed-in account. Two steps, like signing in. */
+export function requestAddEmailCode(email: string) {
+  return sessionFetch<{challenge_id: string; expires_in_seconds: number}>(
+    "/api/trainee/account/email/request-code/",
+    {method: "POST", body: JSON.stringify({email})},
+  );
+}
+
+export function confirmAddEmail(challengeId: string, email: string, code: string) {
+  return sessionFetch<TraineeAccount>("/api/trainee/account/email/confirm/", {
+    method: "POST",
+    body: JSON.stringify({challenge_id: challengeId, email, code}),
+  });
+}
+
 /** Signs a trainee out, or ends a staff support session. */
 export function logoutTrainee() {
   return sessionFetch<TraineeSession & {back_office_url?: string}>("/api/trainee/logout/", {
