@@ -41,9 +41,12 @@ from .trainer_serializers import (
 
 logger = logging.getLogger(__name__)
 
-# Enough for a workshop: outside, inside, and the equipment. The cap is here so
-# a review queue stays reviewable and one trainer cannot fill the bucket.
-MAX_PHOTOS_PER_PROVIDER = 8
+# Per kind, not per provider. The workshop and the work are asked for
+# separately, and a single shared cap lets a trainer who photographed eight
+# angles of the yard have no room left for the work — which is the half the
+# submission check actually cares about. The cap is here so a review queue
+# stays reviewable and one trainer cannot fill the bucket.
+MAX_PHOTOS_PER_KIND = 8
 
 
 def _editable_provider_or_error(account):
@@ -98,12 +101,6 @@ class TrainerPhotoUploadView(APIView):
         if error is not None:
             return error
 
-        if provider.photos.count() >= MAX_PHOTOS_PER_PROVIDER:
-            return Response(
-                {"detail": f"You can add up to {MAX_PHOTOS_PER_PROVIDER} photographs."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         upload = request.FILES.get("image")
         refusal = validate_image_upload(upload)
         if refusal is not None:
@@ -116,6 +113,13 @@ class TrainerPhotoUploadView(APIView):
         kind = request.data.get("kind")
         if kind not in ProviderPhoto.Kind.values:
             kind = ProviderPhoto.Kind.WORKSHOP
+
+        if provider.photos.filter(kind=kind).count() >= MAX_PHOTOS_PER_KIND:
+            label = ProviderPhoto.Kind(kind).label.lower()
+            return Response(
+                {"detail": f"You can add up to {MAX_PHOTOS_PER_KIND} photos of {label}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         photo = ProviderPhoto(
             provider=provider,

@@ -40,6 +40,8 @@ export type ProviderCard = {
   site_visit: SiteVisit;
   government_status: GovernmentStatusBadge;
   primary_photo: string | null;
+  /** The workshop's own mark. Null for most: few have one. */
+  logo: string | null;
   /** Screen 2 plots these. */
   lat: number;
   lng: number;
@@ -91,7 +93,7 @@ export type GovernmentStatusDetail = {
 export type ProviderDetail = ProviderCard & {
   address: string;
   owner_name: string;
-  photos: { id: number; image: string; caption: string }[];
+  photos: { id: number; kind: ProviderPhotoKind; image: string; caption: string }[];
   programmes: Programme[];
   verifications: Verification[];
   government_status_detail: GovernmentStatusDetail;
@@ -202,6 +204,7 @@ export type TrainerProfile = {
   review_note: string;
   submitted_at: string | null;
   editable: boolean;
+  logo: string | null;
   photos: TrainerPhoto[];
   identity: TrainerIdentity | null;
   programme: TrainerProgramme | null;
@@ -214,7 +217,15 @@ export type TrainerRole = "owner" | "manager" | "lead_trainer";
 export type TrainerIdDocument = "ghana_card" | "passport" | "voter_id";
 
 /** A public workshop photograph. */
-export type TrainerPhoto = { id: number; url: string; caption: string };
+/** What a photograph shows. Mirrors ProviderPhoto.Kind on the server. */
+export type ProviderPhotoKind = "workshop" | "work";
+
+export type TrainerPhoto = {
+  id: number;
+  kind: ProviderPhotoKind;
+  url: string;
+  caption: string;
+};
 
 /**
  * Who the trainer says they are.

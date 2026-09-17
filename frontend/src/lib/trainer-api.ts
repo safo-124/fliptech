@@ -2,8 +2,10 @@ import {SSR_HEADERS} from "./api";
 import {browserApiUrl} from "./api-origin";
 import type {
   Paginated,
+  ProviderPhotoKind,
   Trade,
   TrainerArea,
+  TrainerPhoto,
   TrainerProfile,
   TrainerSession,
 } from "./types";
@@ -176,14 +178,33 @@ export async function getTrainerProfileBlockers() {
  * alone for a FormData body — the browser has to set it itself so the
  * multipart boundary matches.
  */
-export async function uploadTrainerPhoto(file: File, caption = "") {
+export async function uploadTrainerPhoto(
+  file: File,
+  kind: ProviderPhotoKind = "workshop",
+  caption = "",
+) {
   const form = new FormData();
   form.append("image", file);
+  form.append("kind", kind);
   if (caption) form.append("caption", caption);
-  return trainerFetch<{id: number; url: string; caption: string}>(
-    "/api/trainer/profile/photos/",
-    {method: "POST", body: form},
-  );
+  return trainerFetch<TrainerPhoto>("/api/trainer/profile/photos/", {
+    method: "POST",
+    body: form,
+  });
+}
+
+/** The workshop's logo. Replace-only: a provider has one. */
+export async function uploadTrainerLogo(file: File) {
+  const form = new FormData();
+  form.append("logo", file);
+  return trainerFetch<{url: string}>("/api/trainer/profile/logo/", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export function deleteTrainerLogo() {
+  return trainerFetch<null>("/api/trainer/profile/logo/", {method: "DELETE"});
 }
 
 export function deleteTrainerPhoto(photoId: number) {

@@ -60,6 +60,35 @@ function Fact({
   );
 }
 
+/**
+ * Up to two initials from a workshop name, for a card with no imagery.
+ *
+ * Skips the words that are on almost every listing — "Works", "Enterprise",
+ * "Ventures" and so on — because "AW" for "Accra Welding Works" identifies the
+ * provider and "WW" does not.
+ */
+const SKIP_WORDS = new Set([
+  "works",
+  "workshop",
+  "enterprise",
+  "enterprises",
+  "ventures",
+  "limited",
+  "ltd",
+  "and",
+  "the",
+]);
+
+function initials(name: string): string {
+  const words = name
+    .split(/\s+/)
+    .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+  const meaningful = words.filter((word) => !SKIP_WORDS.has(word.toLowerCase()));
+  const chosen = (meaningful.length ? meaningful : words).slice(0, 2);
+  return chosen.map((word) => word[0]!.toUpperCase()).join("");
+}
+
 export function ProviderCard({ provider }: { provider: ProviderCardData }) {
   const distance = formatDistance(provider.distance_m);
 
@@ -85,12 +114,28 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
                 loading="lazy"
                 sizes="84px"
               />
+            ) : provider.logo ? (
+              /* No workshop photo but a logo: better than a grey placeholder,
+                 and it is the mark the owner chose to be known by. object-contain
+                 because a logo cropped to fill is a logo nobody recognises. */
+              <Image
+                src={provider.logo}
+                alt=""
+                width={84}
+                height={84}
+                className="size-[5.25rem] flex-none rounded-xl border border-[var(--color-border)] bg-white object-contain p-2"
+                loading="lazy"
+                sizes="84px"
+              />
             ) : (
+              /* Neither. The initials beat a generic icon: they are different
+                 for every provider, so a column of cards stops looking like a
+                 column of identical empty boxes. */
               <div
                 aria-hidden="true"
-                className="surface-grid grid size-[5.25rem] flex-none place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)]/80 text-[var(--color-muted-foreground)]"
+                className="surface-grid grid size-[5.25rem] flex-none place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)]/80 text-lg font-bold tracking-tight text-[var(--color-muted-foreground)]"
               >
-                <ImageIcon className="size-5" strokeWidth={1.7} />
+                {initials(provider.name) || <ImageIcon className="size-5" strokeWidth={1.7} />}
               </div>
             )}
 

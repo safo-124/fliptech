@@ -282,14 +282,74 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
   );
 }
 
+/**
+ * A row of photographs of one kind.
+ *
+ * The work gets its own heading rather than being mixed into a single gallery.
+ * "Is this a real place" and "is the work any good" are different questions,
+ * and a trainee deciding whether a fee is worth paying is asking the second
+ * one — which a picture of a tidy yard does not answer.
+ */
+function PhotoStrip({
+  photos,
+  title,
+  caption,
+  headingId,
+}: {
+  photos: ProviderDetail["photos"];
+  title: string;
+  caption: string;
+  headingId: string;
+}) {
+  if (photos.length === 0) return null;
+
+  return (
+    <section aria-labelledby={headingId} className="lg:order-1">
+      <h2 id={headingId} className="text-2xl font-bold tracking-tight">
+        {title}
+      </h2>
+      <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">{caption}</p>
+
+      <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {photos.map((photo) => (
+          <li key={photo.id}>
+            <Image
+              src={photo.image}
+              alt={photo.caption || title}
+              width={520}
+              height={390}
+              className="aspect-4/3 w-full rounded-xl border border-[var(--color-border)] object-cover"
+              // Below the fold, and prepaid data is a real cost to this user.
+              loading="lazy"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 260px"
+            />
+            {photo.caption ? (
+              <p className="mt-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                {photo.caption}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
+  // The hero should show the place, not a close-up of a gate: someone landing
+  // here is still deciding whether this is a real workshop they can get to.
+  // Falls back to whatever exists when there is no premises shot.
+  const workshopPhotos = provider.photos.filter((photo) => photo.kind === "workshop");
+  const workPhotos = provider.photos.filter((photo) => photo.kind === "work");
+  const heroPhoto = workshopPhotos[0] ?? provider.photos[0] ?? null;
+
   return (
     <article>
       <div className="relative overflow-hidden bg-[var(--color-muted)]">
-        {provider.photos.length > 0 ? (
+        {heroPhoto ? (
           <Image
-            src={provider.photos[0].image}
-            alt={provider.photos[0].caption || `The workshop at ${provider.name}`}
+            src={heroPhoto.image}
+            alt={heroPhoto.caption || `The workshop at ${provider.name}`}
             width={1400}
             height={620}
             className="aspect-[4/3] w-full object-cover sm:aspect-video lg:aspect-[21/8]"
@@ -310,7 +370,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
         {provider.photos.length > 1 ? (
           <Badge className="absolute bottom-3 right-3 border-white/30 bg-black/70 text-white sm:bottom-5 sm:right-5">
             <Camera aria-hidden="true" />
-            {provider.photos.length} workshop photos
+            {provider.photos.length} photos
           </Badge>
         ) : null}
       </div>
@@ -322,9 +382,24 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
               <MapPin aria-hidden="true" />
               {provider.area}, {provider.region}
             </Badge>
-            <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-tight tracking-[-0.04em] sm:text-4xl lg:text-5xl">
-              {provider.name}
-            </h1>
+            <div className="mt-3 flex items-start gap-4">
+              {provider.logo ? (
+                /* object-contain, not cover: a logo cropped to fill is a logo
+                   nobody recognises. White behind it because most are drawn for
+                   a light background. */
+                <Image
+                  src={provider.logo}
+                  alt={`${provider.name} logo`}
+                  width={72}
+                  height={72}
+                  className="size-16 shrink-0 rounded-2xl border border-[var(--color-border)] bg-white object-contain p-1.5 sm:size-[4.5rem]"
+                  sizes="72px"
+                />
+              ) : null}
+              <h1 className="max-w-3xl text-3xl font-bold leading-tight tracking-[-0.04em] sm:text-4xl lg:text-5xl">
+                {provider.name}
+              </h1>
+            </div>
             <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-base">
               <MapPin className="mt-1 size-4 shrink-0" aria-hidden="true" />
               <span>{provider.address ? `${provider.address}, ` : ""}{provider.area}</span>
@@ -357,7 +432,27 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
           </div>
         </aside>
 
-        <Programmes provider={provider} />
+        <div className="space-y-9 lg:order-1">
+          <Programmes provider={provider} />
+
+          <PhotoStrip
+            photos={workPhotos}
+            title="Their work"
+            caption="Made or repaired by this workshop and its trainees."
+            headingId="their-work-heading"
+          />
+
+          {/* The hero already shows one, so this only earns its place when
+              there are others. */}
+          {workshopPhotos.length > 1 ? (
+            <PhotoStrip
+              photos={workshopPhotos.slice(1)}
+              title="The workshop"
+              caption="Where the training happens."
+              headingId="the-workshop-heading"
+            />
+          ) : null}
+        </div>
       </div>
 
       {provider.is_stale && (

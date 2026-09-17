@@ -54,7 +54,9 @@ import {
   getTrainerProfileBlockers,
   saveTrainerProfile,
   submitTrainerProfile,
+  deleteTrainerLogo,
   uploadTrainerIdentityDocument,
+  uploadTrainerLogo,
   uploadTrainerPhoto,
   TrainerApiError,
   verifyTrainerCode,
@@ -69,6 +71,7 @@ import {
   type TrainerDraftForm,
 } from "@/lib/trainer-profile";
 import type {
+  ProviderPhotoKind,
   Trade,
   TrainerArea,
   TrainerPhoto,
@@ -182,6 +185,104 @@ function RequiredCue() {
 
 function OptionalCue() {
   return <span className="font-normal text-[var(--color-muted-foreground)]">(optional)</span>;
+}
+
+/** Eight per kind, so the two groups cannot crowd each other out. */
+const MAX_PHOTOS_PER_KIND = 8;
+
+/**
+ * One labelled group of photographs.
+ *
+ * The workshop and the work are asked for separately because they answer
+ * different questions, and a single "add photos" box gets two pictures of a
+ * yard and nothing of the work. Filtering by kind here rather than keeping two
+ * arrays means one upload response updates the right group without the caller
+ * having to know which.
+ */
+function PhotoGroup({
+  kind,
+  title,
+  hint,
+  photos,
+  uploading,
+  onAdd,
+  onRemove,
+}: {
+  kind: ProviderPhotoKind;
+  title: string;
+  hint: string;
+  photos: TrainerPhoto[];
+  uploading: boolean;
+  onAdd: (file: File, kind: ProviderPhotoKind) => void;
+  onRemove: (photoId: number) => void;
+}) {
+  const mine = photos.filter((photo) => photo.kind === kind);
+  const inputId = `photo-input-${kind}`;
+
+  return (
+    <fieldset disabled={uploading} className="space-y-3">
+      <legend className="text-sm font-semibold">
+        {title}
+        <RequiredCue />
+      </legend>
+      <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">{hint}</p>
+
+      {mine.length ? (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {mine.map((photo) => (
+            <li key={photo.id} className="relative">
+              {/* A plain img, not next/image: these are just-uploaded files on
+                  an origin the optimiser is not configured for, and the trainer
+                  only needs a thumbnail to confirm the right photo landed. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt={photo.caption || title}
+                className="aspect-4/3 w-full rounded-xl border border-[var(--color-border)] object-cover"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onRemove(photo.id)}
+                className="absolute right-1.5 top-1.5 h-8 min-h-0 bg-[var(--color-card)] px-2 text-xs"
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {mine.length < MAX_PHOTOS_PER_KIND ? (
+        <div className="space-y-2">
+          <Label htmlFor={inputId} className="sr-only">
+            Add a photo: {title}
+          </Label>
+          <Input
+            id={inputId}
+            type="file"
+            accept="image/*"
+            // capture hints the camera on a phone, which is where these are
+            // actually taken.
+            capture="environment"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              // Cleared straight away so the same file can be picked again
+              // after a failed upload — without this, choosing it a second
+              // time fires no change event at all.
+              event.target.value = "";
+              if (file) onAdd(file, kind);
+            }}
+          />
+          <p className="text-xs text-[var(--color-muted-foreground)]">
+            {mine.length} of {MAX_PHOTOS_PER_KIND} added. Each uploads on its own, so a
+            dropped connection only costs you that one.
+          </p>
+        </div>
+      ) : null}
+    </fieldset>
+  );
 }
 
 function FieldError({id, message}: {id: string; message?: string}) {
@@ -362,6 +463,7 @@ export function TrainerJoinWizard() {
   const [authEmail, setAuthEmail] = useState("");
   const [photos, setPhotos] = useState<TrainerPhoto[]>([]);
   const [hasIdDocument, setHasIdDocument] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<string[]>([]);
   // Upload failures are kept apart from `error`, which drives the whole-form
   // banner. A photo that was too large should not read like the profile failed
@@ -643,6 +745,7 @@ export function TrainerJoinWizard() {
       const saved = await saveTrainerProfile(trainerProfilePayload(getValues()));
       setProfile(saved);
       setPhotos(saved.photos);
+      setLogoUrl(saved.logo);
       setHasIdDocument(saved.identity?.has_document ?? false);
       if (next === "review") {
         // Ask the server what it would still refuse on, so the checklist on
@@ -660,11 +763,11 @@ export function TrainerJoinWizard() {
     }
   }
 
-  async function addPhoto(file: File) {
+  async function addPhoto(file: File, kind: ProviderPhotoKind) {
     setUploadError(null);
     setUploading(true);
     try {
-      const photo = await uploadTrainerPhoto(file);
+      const photo = await uploadTrainerPhoto(file, kind);
       setPhotos((current) => [...current, photo]);
     } catch (reason) {
       setUploadError(
@@ -682,6 +785,31 @@ export function TrainerJoinWizard() {
       setPhotos((current) => current.filter((photo) => photo.id !== photoId));
     } catch (reason) {
       setUploadError(reason instanceof Error ? reason.message : "Could not remove that photo.");
+    }
+  }
+
+  async function setLogo(file: File) {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const result = await uploadTrainerLogo(file);
+      setLogoUrl(result.url);
+    } catch (reason) {
+      setUploadError(
+        reason instanceof Error ? reason.message : "That logo could not be uploaded.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    setUploadError(null);
+    try {
+      await deleteTrainerLogo();
+      setLogoUrl(null);
+    } catch (reason) {
+      setUploadError(reason instanceof Error ? reason.message : "Could not remove the logo.");
     }
   }
 
@@ -1491,72 +1619,72 @@ export function TrainerJoinWizard() {
             <CardContent className="space-y-6 sm:px-6">
               {uploadError ? <FormError id="upload-error" message={uploadError} /> : null}
 
-              <fieldset disabled={uploading} className="space-y-4">
+              {/* The logo first, because it is one file and optional, so it
+                  does not stand between the trainer and the photographs the
+                  listing actually needs. */}
+              <fieldset disabled={uploading} className="space-y-3">
                 <legend className="text-sm font-semibold">
-                  Workshop photos
-                  <RequiredCue />
+                  Your logo <OptionalCue />
                 </legend>
                 <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  At least two: one of the outside with your sign, one of the inside or your
-                  equipment. Up to eight.
+                  If your workshop has one. Most do not, and that is fine — we show your
+                  workshop&apos;s initials instead.
                 </p>
 
-                {photos.length ? (
-                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {photos.map((photo) => (
-                      <li key={photo.id} className="group relative">
-                        {/* A plain img, not next/image: these are just-uploaded
-                            files on an origin the optimiser is not configured
-                            for, and the trainer only needs a thumbnail to
-                            confirm the right photo landed. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={photo.url}
-                          alt={photo.caption || "Workshop photo"}
-                          className="aspect-4/3 w-full rounded-xl border border-[var(--color-border)] object-cover"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removePhoto(photo.id)}
-                          className="absolute right-1.5 top-1.5 h-8 min-h-0 bg-[var(--color-card)] px-2 text-xs"
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {photos.length < 8 ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="photo-input" className="sr-only">
-                      Add a workshop photo
+                {logoUrl ? (
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={logoUrl}
+                      alt="Your logo"
+                      className="size-16 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] object-contain p-1"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={removeLogo}>
+                      Remove logo
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Label htmlFor="logo-input" className="sr-only">
+                      Upload your logo
                     </Label>
                     <Input
-                      id="photo-input"
+                      id="logo-input"
                       type="file"
                       accept="image/*"
-                      // capture hints the camera on a phone, which is where
-                      // these are actually taken.
-                      capture="environment"
                       onChange={(event) => {
                         const file = event.target.files?.[0];
-                        // Cleared straight away so the same file can be picked
-                        // again after a failed upload — without this, choosing
-                        // it a second time fires no change event at all.
                         event.target.value = "";
-                        if (file) void addPhoto(file);
+                        if (file) void setLogo(file);
                       }}
                     />
-                    <p className="text-xs text-[var(--color-muted-foreground)]">
-                      {photos.length} of 8 added. Each photo uploads on its own, so a dropped
-                      connection only costs you that one.
-                    </p>
-                  </div>
-                ) : null}
+                  </>
+                )}
               </fieldset>
+
+              <Separator />
+
+              <PhotoGroup
+                kind="workshop"
+                title="Photos of the workshop"
+                hint="The outside with your sign so people can find you, and the inside or your equipment."
+                photos={photos}
+                uploading={uploading}
+                onAdd={addPhoto}
+                onRemove={removePhoto}
+              />
+
+              <Separator />
+
+              <PhotoGroup
+                kind="work"
+                title="Photos of your work"
+                hint="Things you or your trainees have made or repaired. This is what convinces someone your training is worth paying for."
+                photos={photos}
+                uploading={uploading}
+                onAdd={addPhoto}
+                onRemove={removePhoto}
+              />
 
               <Separator />
 
