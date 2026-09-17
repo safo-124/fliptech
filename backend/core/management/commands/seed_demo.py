@@ -13,14 +13,21 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import Point
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from billing.models import Subscription
 from catalog.models import Intake, Programme, Trade
+from core import demo_images
 from enquiries.models import Enquiry, EnquiryOutcome, Enrolment
 from geography.models import Area, Region
-from providers.models import GovernmentStatus, Provider, Verification
+from providers.models import (
+    GovernmentStatus,
+    Provider,
+    ProviderPhoto,
+    Verification,
+)
 
 TRADES = [
     ("Welding", "welding", ["welder", "fabrication", "arc welding"]),
@@ -46,8 +53,67 @@ WORKSHOP_SUFFIXES = ["Works", "Centre", "Institute", "Training School", "Enterpr
 class Command(BaseCommand):
     help = "Create illustrative providers, programmes and intakes for development."
 
+    # ----------------------------------------------------------------
+    # Illustrative imagery
+
+    @staticmethod
+    def _initials(name):
+        skip = {"works", "centre", "institute", "training", "school", "enterprise"}
+        words = [word for word in name.split() if word.lower() not in skip]
+        return "".join(word[0] for word in (words or name.split())[:2]).upper()
+
+    def _attach_images(self, provider, trade, *, index):
+        """Two workshop panels, two of the work, and sometimes a logo.
+
+        Idempotent by kind: a provider that already has photographs of a kind
+        is left alone, so re-running the seeder does not pile up duplicates or
+        re-encode what is already there.
+
+        The logo is given to roughly two providers in three. That is not
+        laziness — the result card falls back logo, then initials, and leaving
+        some providers without one is the only way to see both paths on a real
+        page. It also matches the market: most small workshops have no logo.
+        """
+        for kind, count in (
+            (ProviderPhoto.Kind.WORKSHOP, 2),
+            (ProviderPhoto.Kind.WORK, 2),
+        ):
+            existing = provider.photos.filter(kind=kind).count()
+            for n in range(existing, count):
+                content = demo_images.panel(
+                    provider_name=provider.name,
+                    trade_name=trade.name,
+                    kind=kind,
+                    index=n,
+                )
+                photo = ProviderPhoto(provider=provider, kind=kind, display_order=n)
+                photo.image.save(
+                    f"{provider.slug}-{kind}-{n}.jpg",
+                    ContentFile(content),
+                    save=True,
+                )
+
+        # Every third provider goes without, so the initials fallback is
+        # visible on a seeded site rather than only in a test.
+        if index % 3 != 2 and not provider.logo:
+            provider.logo.save(
+                f"{provider.slug}-logo.png",
+                ContentFile(
+                    demo_images.logo(
+                        provider_name=provider.name,
+                        initials=self._initials(provider.name),
+                    )
+                ),
+                save=True,
+            )
+
     def add_arguments(self, parser):
         parser.add_argument("--providers", type=int, default=24)
+        parser.add_argument(
+            "--no-images",
+            action="store_true",
+            help="Skip the illustrative photographs and logos.",
+        )
 
     def handle(self, *args, **options):
         random.seed(20260817)  # reproducible demo data
@@ -107,6 +173,9 @@ class Command(BaseCommand):
                     "last_confirmed_at": timezone.now() - timedelta(days=random.randint(0, 100)),
                 },
             )
+
+            if not options["no_images"]:
+                self._attach_images(provider, trade, index=i)
 
             fee = Decimal(random.choice([600, 750, 900, 1200, 1500, 1800, 2400]))
             programme, _ = Programme.objects.update_or_create(
