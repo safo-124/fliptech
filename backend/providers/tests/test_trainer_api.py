@@ -268,6 +268,9 @@ def test_trainer_login_rotates_to_httponly_revocable_session(csrf_client, monkey
     assert body == {
         "authenticated": True,
         "phone": PHONE,
+        # None until the trainer verifies an address. Email is a second door
+        # into the same account, so a fresh phone sign-up has none.
+        "email": None,
         "account_status": "pending",
         "account_note": "",
         "profile": None,
