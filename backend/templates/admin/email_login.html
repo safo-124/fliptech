@@ -1,0 +1,72 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% comment %}
+  Signing in to the back office with an emailed code.
+
+  Extends base_site so it inherits the back-office theme, exactly as the
+  password login screen does. Two steps in one template and one URL: the
+  address, then the code. Keeping them on one URL means a refresh or a back
+  button lands somewhere sensible rather than on a dead POST target.
+{% endcomment %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+{% block usertools %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+  {% if error %}
+    <p class="errornote" role="alert">{{ error }}</p>
+  {% endif %}
+
+  {% if step == "email" %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="step" value="email">
+
+      <div class="form-row">
+        <label for="id_email">Your work email address</label>
+        <input type="email" name="email" id="id_email" value="{{ email }}"
+               autocomplete="email" autofocus required>
+      </div>
+
+      <p class="help">
+        We will send a {{ code_length }}-digit code to this address. It works only
+        for addresses that already have back-office access.
+      </p>
+
+      <div class="submit-row">
+        <input type="submit" value="Send me a code">
+      </div>
+    </form>
+  {% else %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="step" value="code">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="challenge_id" value="{{ challenge_id }}">
+
+      <p class="help">
+        If <strong>{{ email }}</strong> has back-office access, a code is on its way.
+        It expires in a few minutes and works once.
+      </p>
+
+      <div class="form-row">
+        <label for="id_code">Code</label>
+        {# inputmode numeric so a phone shows the number pad. #}
+        <input type="text" name="code" id="id_code" inputmode="numeric"
+               autocomplete="one-time-code" pattern="[0-9]*" autofocus required>
+      </div>
+
+      <div class="submit-row">
+        <input type="submit" value="Sign in">
+      </div>
+    </form>
+  {% endif %}
+
+  <p class="help" style="margin-top:1.5rem">
+    <a href="{% url 'admin:login' %}">Sign in with a password instead</a>
+  </p>
+{% endblock %}

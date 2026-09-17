@@ -49,3 +49,42 @@ def account_for_verified_phone(*, phone, verified_at):
     account.phone_verified_at = verified_at
     account.save(update_fields=["phone_verified_at", "updated_at"])
     return account
+
+
+def account_for_verified_email(*, email, verified_at):
+    """The trainer account that owns an address which just proved itself.
+
+    Never creates an account. Email is a second door into one that exists, and
+    the phone remains the identity: it is the number trainees are handed on
+    WhatsApp and the one a site visit is arranged on, so an account without one
+    would be a listing nobody can reach.
+
+    The refusal is deliberately the same shape whether the address is on no
+    account, a declined one or a disabled one, so this endpoint cannot be used
+    to work out which addresses belong to trainers.
+    """
+    from enquiries.email_otp import normalise_email
+
+    account = (
+        TrainerAccount.objects.select_for_update()
+        .select_related("user")
+        .filter(email=normalise_email(email))
+        .first()
+    )
+    if account is None:
+        raise TrainerAccountDisabled(
+            "That address is not on a trainer account. Sign in with your phone number, "
+            "then add your email from your dashboard."
+        )
+
+    if account.approval_status == TrainerAccount.Approval.DECLINED:
+        raise TrainerAccountDisabled(
+            "This trainer sign-up was not approved. Contact Fliiptech if you think this "
+            "is a mistake."
+        )
+    if not account.is_active or not user_is_unprivileged(account.user):
+        raise TrainerAccountDisabled("This trainer account has been disabled.")
+
+    account.email_verified_at = verified_at
+    account.save(update_fields=["email_verified_at", "updated_at"])
+    return account

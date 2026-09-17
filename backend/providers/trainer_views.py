@@ -74,6 +74,9 @@ def _session_payload(request):
     return {
         "authenticated": True,
         "phone": str(account.phone),
+        # Null until the trainer verifies one. The dashboard uses this to show
+        # "add an email" or the address already on file.
+        "email": account.email or None,
         "account_status": account.approval_status,
         "account_note": account.approval_note,
         "profile": serialize_profile(_profile_for(account), account),

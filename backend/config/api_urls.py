@@ -11,6 +11,12 @@ from catalog.views import TradeViewSet
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
+from providers.trainer_email_views import (
+    TrainerAddEmailConfirmView,
+    TrainerAddEmailRequestView,
+    TrainerEmailCodeRequestView,
+    TrainerEmailCodeVerifyView,
+)
 from providers.trainer_uploads import (
     TrainerIdentityDocumentView,
     TrainerPhotoDeleteView,
@@ -45,6 +51,28 @@ urlpatterns = [
         "trainer/auth/verify-code/",
         TrainerOTPVerifyView.as_view(),
         name="trainer-otp-verify",
+    ),
+    # Email is a second door into the same trainer account. The phone route
+    # above is untouched and remains the default.
+    path(
+        "trainer/auth/email/request-code/",
+        TrainerEmailCodeRequestView.as_view(),
+        name="trainer-email-otp-request",
+    ),
+    path(
+        "trainer/auth/email/verify-code/",
+        TrainerEmailCodeVerifyView.as_view(),
+        name="trainer-email-otp-verify",
+    ),
+    path(
+        "trainer/account/email/request-code/",
+        TrainerAddEmailRequestView.as_view(),
+        name="trainer-add-email-request",
+    ),
+    path(
+        "trainer/account/email/confirm/",
+        TrainerAddEmailConfirmView.as_view(),
+        name="trainer-add-email-confirm",
     ),
     path("trainer/profile/", TrainerProfileView.as_view(), name="trainer-profile"),
     path(

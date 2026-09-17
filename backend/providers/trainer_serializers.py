@@ -29,6 +29,16 @@ class TrainerOTPVerifySerializer(RejectUnknownFieldsMixin, serializers.Serialize
     code = serializers.CharField(min_length=4, max_length=8, trim_whitespace=True)
 
 
+class TrainerEmailCodeRequestSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class TrainerEmailCodeVerifySerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    challenge_id = serializers.UUIDField()
+    email = serializers.EmailField()
+    code = serializers.CharField(min_length=4, max_length=8, trim_whitespace=True)
+
+
 class TrainerIntakeInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     """The intake a trainer offers.
 

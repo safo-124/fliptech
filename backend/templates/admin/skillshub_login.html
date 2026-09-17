@@ -1,0 +1,27 @@
+{% extends "admin/login.html" %}
+
+{% comment %}
+  The password login form, plus the "email me a code" route beneath it.
+
+  A distinct filename, and SkillsHubAdminSite.login_template points at it.
+  Naming this file admin/login.html and extending "admin/login.html" would
+  resolve to itself and recurse, because the loader restarts its search from
+  the first directory and finds this file again.
+
+  Extending rather than copying keeps the whole password form, its errors and
+  its django-axes lockout behaviour exactly as Django ships them. This adds a
+  link and nothing else.
+
+  The link appears only when the alternative is enabled, so nobody is sent to a
+  page that redirects them straight back with an error.
+{% endcomment %}
+
+{% block content %}
+  {{ block.super }}
+
+  {% if staff_email_login_enabled %}
+    <div style="text-align:center; border-top:1px solid var(--hairline-color); margin-top:1.25rem; padding-top:1.25rem">
+      <a href="{% url 'staff-email-login' %}">Email me a sign-in code instead</a>
+    </div>
+  {% endif %}
+{% endblock %}

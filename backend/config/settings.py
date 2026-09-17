@@ -397,6 +397,18 @@ SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
 # 587. Nothing above core/mail.py changes either way.
 EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="console")
 
+# Back-office sign-in by emailed code, as an alternative to the password form.
+#
+# Off by default, and that default is the point. It makes back-office access
+# exactly as strong as the staff member's mailbox: a password plus django-axes
+# means an attacker needs the password, this means they need the inbox. For a
+# field officer on a phone that is usually a fair trade. For a superuser who
+# can publish listings and open trainee records it is a real reduction.
+#
+# Turn it on once mail actually delivers, and prefer addresses on a mailbox
+# with its own second factor. See core/staff_email_login.py.
+STAFF_EMAIL_LOGIN_ENABLED = env.bool("STAFF_EMAIL_LOGIN_ENABLED", default=False)
+
 EMAIL_HOST = env("EMAIL_HOST", default="")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")

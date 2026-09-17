@@ -46,6 +46,23 @@ TREND_MONTHS = 6
 
 class SkillsHubAdminSite(AdminSite):
     index_template = "admin/skillshub_index.html"
+    # Django's login page plus a link to the emailed-code route. A separate
+    # filename because a template called admin/login.html cannot extend
+    # admin/login.html — the loader would find itself and recurse.
+    login_template = "admin/skillshub_login.html"
+
+    def each_context(self, request):
+        """Adds the flag the login template needs.
+
+        each_context rather than a context processor: this is one boolean used
+        by one template inside the admin, and a processor would compute it on
+        every render of every page in the project.
+        """
+        from django.conf import settings
+
+        context = super().each_context(request)
+        context["staff_email_login_enabled"] = getattr(settings, "STAFF_EMAIL_LOGIN_ENABLED", False)
+        return context
 
     def index(self, request, extra_context=None):
         context = {**(extra_context or {}), "panel": self.build_panel(request)}
