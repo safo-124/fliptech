@@ -7,7 +7,7 @@ from rest_framework import serializers
 from catalog.models import Trade
 from geography.models import Area
 
-from .models import PremisesTenure, TrainerAccount
+from .models import PremisesTenure, ProviderPhoto, TrainerAccount
 
 
 class RejectUnknownFieldsMixin:
@@ -193,13 +193,25 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
 
 class TrainerPhotoUploadSerializer(serializers.Serializer):
     image = serializers.ImageField()
+    kind = serializers.ChoiceField(
+        choices=ProviderPhoto.Kind.choices, required=False, allow_blank=True
+    )
     caption = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
 class TrainerPhotoSerializer(serializers.Serializer):
     id = serializers.IntegerField()
+    kind = serializers.CharField()
     url = serializers.CharField()
     caption = serializers.CharField()
+
+
+class TrainerLogoUploadSerializer(serializers.Serializer):
+    logo = serializers.ImageField()
+
+
+class TrainerLogoSerializer(serializers.Serializer):
+    url = serializers.CharField()
 
 
 class TrainerIdentityDocumentSerializer(serializers.Serializer):

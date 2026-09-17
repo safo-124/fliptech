@@ -61,6 +61,7 @@ def validate_image_upload(upload):
 def _photo_payload(photo):
     return {
         "id": photo.pk,
+        "kind": photo.kind,
         "url": photo.image.url,
         "caption": photo.caption,
         "exif_stripped": photo.exif_stripped,
@@ -84,7 +85,16 @@ def upload_photo(request, provider_id):
     if refusal is not None:
         return JsonResponse({"detail": refusal}, status=400)
 
-    photo = ProviderPhoto(provider=provider, uploaded_by=request.user)
+    # A field officer photographs both the premises and finished work on the
+    # same visit, so the staff uploader has to be able to say which this is.
+    # Anything unrecognised falls back to the workshop: a work photo labelled
+    # as premises is cosmetic, while the reverse would let a picture of a yard
+    # satisfy "show me the work".
+    kind = request.POST.get("kind")
+    if kind not in ProviderPhoto.Kind.values:
+        kind = ProviderPhoto.Kind.WORKSHOP
+
+    photo = ProviderPhoto(provider=provider, kind=kind, uploaded_by=request.user)
     photo.image = upload
     try:
         photo.save()

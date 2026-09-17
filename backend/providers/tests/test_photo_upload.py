@@ -15,7 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from PIL import Image
 
-from core.images import MAX_STORED_EDGE
+from core.images import MAX_LOGO_EDGE, MAX_STORED_EDGE
 from geography.models import Area, Region
 from providers.admin_upload import MAX_UPLOAD_BYTES
 from providers.models import Provider, ProviderPhoto
@@ -311,3 +311,94 @@ def test_a_small_photograph_is_left_at_its_own_size(client, officer, provider, s
     photo = ProviderPhoto.objects.get()
     with Image.open(photo.image.path) as stored:
         assert stored.size == (640, 480)
+
+
+# --------------------------------------------------------------------------
+# Logos
+
+
+def png_with_transparency(name="logo.png", size=(900, 900)):
+    """A logo as a design tool exports one: RGBA, with real transparency."""
+    image = Image.new("RGBA", size, (255, 0, 0, 0))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return SimpleUploadedFile(name, buffer.read(), content_type="image/png")
+
+
+def test_a_transparent_logo_stays_transparent(provider, settings, tmp_path):
+    """JPEG cannot store an alpha channel.
+
+    Flattening a logo onto white puts a white box around the mark on every
+    coloured surface it is placed on, which on this site is the indigo header.
+    """
+    settings.MEDIA_ROOT = tmp_path
+
+    provider.logo = png_with_transparency()
+    provider.save()
+
+    assert provider.logo.name.endswith(".png")
+    with Image.open(provider.logo.path) as stored:
+        assert stored.mode == "RGBA"
+
+
+def test_a_logo_is_scaled_down_harder_than_a_photograph(provider, settings, tmp_path):
+    """It renders at about 40px on a card. 2048 would be absurd."""
+    settings.MEDIA_ROOT = tmp_path
+
+    provider.logo = png_with_transparency(size=(900, 900))
+    provider.save()
+
+    with Image.open(provider.logo.path) as stored:
+        assert max(stored.size) == MAX_LOGO_EDGE
+
+
+def test_an_opaque_logo_is_stored_as_jpeg(provider, settings, tmp_path):
+    """PNG would be several times larger for no benefit."""
+    settings.MEDIA_ROOT = tmp_path
+
+    provider.logo = photo_file("logo.jpg", size=(600, 600), exif=False)
+    provider.save()
+
+    assert provider.logo.name.endswith(".jpg")
+
+
+def test_saving_again_does_not_re_encode_the_logo(provider, settings, tmp_path):
+    """`_committed` guards this, exactly as it does for photographs."""
+    settings.MEDIA_ROOT = tmp_path
+
+    provider.logo = png_with_transparency()
+    provider.save()
+    stored_name = provider.logo.name
+
+    provider.name = "Renamed Works"
+    provider.save()
+
+    assert provider.logo.name == stored_name
+
+
+# --------------------------------------------------------------------------
+# What a photograph shows
+
+
+def test_a_photograph_records_what_it_shows(client, officer, provider, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+
+    client.post(upload_url(provider), {"image": photo_file(), "kind": "work"})
+
+    assert ProviderPhoto.objects.get().kind == ProviderPhoto.Kind.WORK
+
+
+def test_an_unrecognised_kind_falls_back_to_the_workshop(
+    client, officer, provider, settings, tmp_path
+):
+    """The safer default.
+
+    A work photo mislabelled as premises is cosmetic. The reverse would let a
+    picture of a yard satisfy the "show me the work" requirement.
+    """
+    settings.MEDIA_ROOT = tmp_path
+
+    client.post(upload_url(provider), {"image": photo_file(), "kind": "nonsense"})
+
+    assert ProviderPhoto.objects.get().kind == ProviderPhoto.Kind.WORKSHOP

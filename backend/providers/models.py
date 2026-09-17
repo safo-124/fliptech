@@ -22,7 +22,7 @@ from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 
-from core.images import strip_exif, stripped_name
+from core.images import prepare_logo, strip_exif, stripped_name
 from core.models import TimeStampedModel
 
 
@@ -133,6 +133,15 @@ class Provider(TimeStampedModel):
     # from a phone can be tens of metres out. The landmark is what the field
     # officer actually navigates by on the site visit, so it is asked for
     # separately rather than hoped for inside `address`.
+    # The workshop's own mark, if it has one.
+    #
+    # Optional, and that is a product decision rather than laziness: the target
+    # provider is a master craft person in the informal sector, and most have
+    # no logo at all. Requiring one would keep real workshops off the site,
+    # which Section 03 names as the failure that matters. The card falls back
+    # to the provider's initials.
+    logo = models.ImageField(upload_to="logos/%Y/%m/", blank=True)
+
     landmark = models.CharField(
         max_length=200,
         blank=True,
@@ -197,6 +206,16 @@ class Provider(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Same contract as ProviderPhoto: `_committed` is False only for a
+        # freshly assigned upload, so an ordinary edit does not re-encode the
+        # logo on every save.
+        if self.logo and not self.logo._committed:
+            content, is_png = prepare_logo(self.logo)
+            if content is not None:
+                self.logo.save(stripped_name(self.logo.name, png=is_png), content, save=False)
+        super().save(*args, **kwargs)
 
     @property
     def is_listing_stale(self):
@@ -345,9 +364,29 @@ class ProviderMembership(TimeStampedModel):
 
 
 class ProviderPhoto(TimeStampedModel):
-    """A public photograph of the workshop, served from the public bucket."""
+    """A public photograph, served from the public bucket."""
+
+    class Kind(models.TextChoices):
+        """What the photograph shows.
+
+        Two questions a trainee asks are different: "is this a real place I can
+        get to" and "is the work any good". A picture of a tidy yard answers
+        the first and says nothing about the second, and a close-up of a welded
+        gate answers the second and says nothing about the first. Storing which
+        is which lets the profile show both rather than a single undifferentiated
+        gallery, and lets the submission check ask for one of each.
+        """
+
+        WORKSHOP = "workshop", "The workshop"
+        WORK = "work", "Work they have done"
 
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="photos")
+    kind = models.CharField(
+        max_length=20,
+        choices=Kind.choices,
+        default=Kind.WORKSHOP,
+        db_index=True,
+    )
     image = models.ImageField(upload_to="providers/%Y/%m/")
     caption = models.CharField(max_length=200, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)

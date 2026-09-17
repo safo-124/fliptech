@@ -33,6 +33,8 @@ from .models import ProviderEvidence, ProviderPhoto
 from .trainer_serializers import (
     TrainerIdentityDocumentSerializer,
     TrainerIdentityStoredSerializer,
+    TrainerLogoSerializer,
+    TrainerLogoUploadSerializer,
     TrainerPhotoSerializer,
     TrainerPhotoUploadSerializer,
 )
@@ -107,8 +109,17 @@ class TrainerPhotoUploadView(APIView):
         if refusal is not None:
             return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Anything unrecognised falls back to "the workshop", which is the
+        # safer default: a work photo mislabelled as premises is a cosmetic
+        # error, while the reverse would satisfy the submission check with a
+        # picture that does not show the work.
+        kind = request.data.get("kind")
+        if kind not in ProviderPhoto.Kind.values:
+            kind = ProviderPhoto.Kind.WORKSHOP
+
         photo = ProviderPhoto(
             provider=provider,
+            kind=kind,
             uploaded_by=request.user,
             caption=(request.data.get("caption") or "")[:200],
         )
@@ -134,7 +145,12 @@ class TrainerPhotoUploadView(APIView):
             )
 
         return Response(
-            {"id": photo.pk, "caption": photo.caption, "url": photo.image.url},
+            {
+                "id": photo.pk,
+                "kind": photo.kind,
+                "caption": photo.caption,
+                "url": photo.image.url,
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -222,3 +238,77 @@ class TrainerIdentityDocumentView(APIView):
         # Deliberately no URL in the response. The trainer needs to know it is
         # on file; nobody outside the back office needs a link to it.
         return Response({"stored": True}, status=status.HTTP_201_CREATED)
+
+
+class TrainerLogoView(APIView):
+    """The workshop's own logo. Replace-only, and optional.
+
+    Optional because most workshops in this market do not have one, and
+    requiring it would keep real providers off the site. Replace rather than
+    append for the same reason the identity document is: a provider has one
+    logo, and a gallery of four attempts helps nobody.
+
+    DELETE removes it, because a workshop that uploaded the wrong file needs a
+    way back that is not "ask support".
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(
+        request={"multipart/form-data": TrainerLogoUploadSerializer},
+        responses={201: TrainerLogoSerializer},
+    )
+    def post(self, request):
+        from .trainer_views import IsActiveTrainer, _account
+
+        if not IsActiveTrainer().has_permission(request, self):
+            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+
+        provider, error = _editable_provider_or_error(_account(request))
+        if error is not None:
+            return error
+
+        upload = request.FILES.get("logo")
+        refusal = validate_image_upload(upload)
+        if refusal is not None:
+            return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
+
+        provider.logo = upload
+        try:
+            provider.save(update_fields=["logo", "updated_at"])
+        except Exception:
+            logger.exception("Logo upload failed for provider %s", provider.pk)
+            return Response(
+                {"detail": "That image could not be read. Try another."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # prepare_logo returns None for anything Pillow cannot decode, which
+        # leaves the original bytes stored unprocessed. That must not be kept:
+        # it would be served from the public bucket carrying whatever metadata
+        # it arrived with.
+        if not provider.logo.name.lower().endswith((".jpg", ".png")):
+            provider.logo.delete(save=True)
+            return Response(
+                {"detail": "That file is not a readable image."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({"url": provider.logo.url}, status=status.HTTP_201_CREATED)
+
+    @extend_schema(request=None, responses={204: None})
+    def delete(self, request):
+        from .trainer_views import IsActiveTrainer, _account
+
+        if not IsActiveTrainer().has_permission(request, self):
+            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+
+        provider, error = _editable_provider_or_error(_account(request))
+        if error is not None:
+            return error
+
+        if provider.logo:
+            provider.logo.delete(save=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)

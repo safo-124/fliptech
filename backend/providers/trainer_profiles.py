@@ -279,6 +279,11 @@ def save_owned_profile(*, account, actor, validated_data):
 # Returned as a list rather than raised as one error so the wizard can show a
 # checklist. A trainer on a prepaid connection who is told only "not ready"
 # submits four more times to find out why.
+# One of the workshop, one of the work. Still two photographs, so this asks no
+# more of a trainer on prepaid data than before — it just asks for the two that
+# answer different questions. "Is this a real place I can get to" and "is the
+# work any good" are not the same question, and two pictures of a tidy yard
+# answer only the first.
 MIN_PHOTOS_TO_SUBMIT = 2
 
 
@@ -303,12 +308,13 @@ def submission_blockers(provider, account):
     if not has_id:
         blockers.append("Upload a photo of your ID.")
 
-    photo_count = provider.photos.count()
-    if photo_count < MIN_PHOTOS_TO_SUBMIT:
-        blockers.append(
-            f"Add at least {MIN_PHOTOS_TO_SUBMIT} photographs — the outside of the "
-            "workshop and the inside."
-        )
+    from .models import ProviderPhoto
+
+    kinds = set(provider.photos.values_list("kind", flat=True))
+    if ProviderPhoto.Kind.WORKSHOP not in kinds:
+        blockers.append("Add at least one photo of the workshop itself.")
+    if ProviderPhoto.Kind.WORK not in kinds:
+        blockers.append("Add at least one photo of work you have done.")
 
     if not provider.programmes.exists():
         blockers.append("Add at least one course.")
@@ -430,8 +436,14 @@ def serialize_profile(provider, account=None):
         # Public workshop photographs. Safe to hand back a URL: these are the
         # gallery on the provider profile. The identity document below is not,
         # and deliberately has no URL anywhere in this payload.
+        "logo": provider.logo.url if provider.logo else None,
         "photos": [
-            {"id": photo.pk, "url": photo.image.url, "caption": photo.caption}
+            {
+                "id": photo.pk,
+                "kind": photo.kind,
+                "url": photo.image.url,
+                "caption": photo.caption,
+            }
             for photo in provider.photos.all()
         ],
         "identity": _identity_payload(provider, account),

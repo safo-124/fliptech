@@ -33,7 +33,10 @@ class AreaSerializer(serializers.ModelSerializer):
 class ProviderPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProviderPhoto
-        fields = ["id", "image", "caption"]
+        # kind lets the profile show the workshop and the work as two groups.
+        # A picture of a tidy yard and a picture of a finished gate answer
+        # different questions, and one undifferentiated gallery loses that.
+        fields = ["id", "kind", "image", "caption"]
 
 
 class VerificationBadgeSerializer(serializers.ModelSerializer):
@@ -142,6 +145,7 @@ class ProviderListSerializer(serializers.ModelSerializer):
     government_status = serializers.SerializerMethodField()
 
     primary_photo = serializers.SerializerMethodField()
+    logo = serializers.SerializerMethodField()
     # Screen 2 plots these. Without them the map has nothing to draw, which is
     # why they are on the list serializer rather than only on the detail one.
     lat = serializers.SerializerMethodField()
@@ -165,6 +169,7 @@ class ProviderListSerializer(serializers.ModelSerializer):
             "site_visit",
             "government_status",
             "primary_photo",
+            "logo",
             "lat",
             "lng",
             "listing_confirmed_on",
@@ -201,6 +206,20 @@ class ProviderListSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.FloatField())
     def get_lng(self, obj):
         return obj.location.x
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_logo(self, obj):
+        """Absolute, like primary_photo, and null when the workshop has none.
+
+        Most will have none: the target provider is a master craft person in
+        the informal sector. The card falls back to initials rather than
+        leaving a hole.
+        """
+        if not obj.logo:
+            return None
+        request = self.context.get("request")
+        url = obj.logo.url
+        return request.build_absolute_uri(url) if request else url
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_primary_photo(self, obj):

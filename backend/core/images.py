@@ -15,6 +15,7 @@ by reading the stored original for every size it emits, so an oversized
 original is a cost paid on disk and on every optimiser pass, not just once.
 """
 
+import contextlib
 import logging
 from io import BytesIO
 
@@ -41,12 +42,25 @@ STRIPPABLE_FORMATS = {"JPEG", "PNG", "WEBP", "TIFF", "HEIF", "HEIC"}
 # left alone — upscaling would only invent detail.
 MAX_STORED_EDGE = 2048
 
+# Logos are a different job from photographs.
+#
+# They render at about 40px on a result card and 64px on a profile, never as a
+# hero. 512 is generous for that and keeps a file a workshop owner uploads from
+# a phone down to a few tens of kilobytes.
+MAX_LOGO_EDGE = 512
 
-def strip_exif(django_file):
+
+def strip_exif(django_file, *, max_edge=MAX_STORED_EDGE, keep_transparency=False):
     """Return a ContentFile with orientation applied and metadata removed.
 
     Returns None when the upload is not an image Pillow can read — a scanned
     PDF of a CTVET certificate, for example — so callers can store it as-is.
+
+    `keep_transparency` writes PNG instead of JPEG when the source actually has
+    an alpha channel. It exists for logos: JPEG cannot store transparency, so
+    flattening one onto white puts a white box around the mark on every
+    coloured surface it is placed on. Photographs never need it, and PNG would
+    make them several times larger, so it is off by default.
     """
     try:
         django_file.seek(0)
@@ -62,25 +76,73 @@ def strip_exif(django_file):
     # Rotate the pixels to match the EXIF orientation flag, then drop the flag.
     image = ImageOps.exif_transpose(image)
 
-    if image.mode in ("RGBA", "P", "LA"):
+    # "P" mode can carry transparency in a palette entry rather than a channel,
+    # which `image.mode in ("RGBA", "LA")` alone would miss.
+    has_alpha = image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
+    as_png = keep_transparency and has_alpha
+
+    if as_png:
+        image = image.convert("RGBA")
+    elif image.mode in ("RGBA", "P", "LA"):
         image = image.convert("RGB")
 
-    # thumbnail() is in-place, keeps the aspect ratio, and never enlarges, so a
-    # photograph already under the limit passes through untouched.
-    if max(image.size) > MAX_STORED_EDGE:
-        image.thumbnail((MAX_STORED_EDGE, MAX_STORED_EDGE), Image.LANCZOS)
+    # thumbnail() is in-place, keeps the aspect ratio, and never enlarges, so an
+    # image already under the limit passes through untouched.
+    if max(image.size) > max_edge:
+        image.thumbnail((max_edge, max_edge), Image.LANCZOS)
 
     buffer = BytesIO()
     # Pillow does not carry EXIF into the output unless it is passed explicitly,
     # so simply not passing it is the strip.
-    image.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+    if as_png:
+        image.save(buffer, format="PNG", optimize=True)
+    else:
+        image.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
     buffer.seek(0)
 
     return ContentFile(buffer.read())
 
 
-def stripped_name(original_name):
-    """Uploads are re-encoded as JPEG, so the extension has to follow."""
+def stripped_name(original_name, *, png=False):
+    """Uploads are re-encoded, so the extension has to follow what was written."""
     from pathlib import Path
 
-    return f"{Path(original_name).stem}.jpg"
+    return f"{Path(original_name).stem}.{'png' if png else 'jpg'}"
+
+
+def has_transparency(django_file):
+    """True when the upload carries an alpha channel Pillow can see.
+
+    "P" mode stores transparency in a palette entry rather than a channel, so
+    checking the mode alone misses palette PNGs — which is most logos exported
+    from a design tool.
+    """
+    try:
+        django_file.seek(0)
+        with Image.open(django_file) as image:
+            return image.mode in ("RGBA", "LA") or (
+                image.mode == "P" and "transparency" in image.info
+            )
+    except (UnidentifiedImageError, OSError, ValueError):
+        return False
+    finally:
+        # A file already closed or not seekable is not a failure here: the
+        # caller only needs the answer, and strip_exif seeks again itself.
+        with contextlib.suppress(OSError, ValueError):
+            django_file.seek(0)
+
+
+def prepare_logo(django_file):
+    """A logo, sized for a card and with any transparency kept.
+
+    Returns (content, is_png). is_png tells the caller which extension to store
+    it under, because a PNG saved as .jpg is served with the wrong content type
+    and some browsers refuse it.
+
+    Returns (None, False) when Pillow cannot read the upload.
+    """
+    as_png = has_transparency(django_file)
+    content = strip_exif(django_file, max_edge=MAX_LOGO_EDGE, keep_transparency=True)
+    if content is None:
+        return None, False
+    return content, as_png

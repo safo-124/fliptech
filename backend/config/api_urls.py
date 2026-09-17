@@ -19,6 +19,7 @@ from providers.trainer_email_views import (
 )
 from providers.trainer_uploads import (
     TrainerIdentityDocumentView,
+    TrainerLogoView,
     TrainerPhotoDeleteView,
     TrainerPhotoUploadView,
 )
@@ -92,6 +93,11 @@ urlpatterns = [
         "trainer/profile/photos/<int:photo_id>/",
         TrainerPhotoDeleteView.as_view(),
         name="trainer-photo-delete",
+    ),
+    path(
+        "trainer/profile/logo/",
+        TrainerLogoView.as_view(),
+        name="trainer-logo",
     ),
     path(
         "trainer/profile/identity/",
