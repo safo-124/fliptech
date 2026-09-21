@@ -3,18 +3,16 @@
 import {
   AlertCircle,
   ArrowRight,
-  Bookmark,
   CalendarDays,
   CheckCircle2,
-  GraduationCap,
   Headset,
   Loader2,
   Mail,
   MailCheck,
   LogOut,
   MessageCircle,
-  Send,
-  Settings,
+  MessageSquareOff,
+  Search,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -22,6 +20,9 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useEffect, useState} from "react";
 
+import type {TraineeTab} from "@/components/trainee/TraineeNav";
+import {TraineeBottomBar, TraineeSidebar} from "@/components/trainee/TraineeNav";
+import {TraineeOverview} from "@/components/trainee/TraineeOverview";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
@@ -31,6 +32,8 @@ import {NativeSelect} from "@/components/ui/native-select";
 import {Skeleton} from "@/components/ui/skeleton";
 import {browserApiUrl} from "@/lib/api-origin";
 import {formatDate, formatFee} from "@/lib/format";
+import {awaitingReply, matchesQuery} from "@/lib/trainee-progress";
+import {cn} from "@/lib/utils";
 import {
   closeTraineeAccount,
   confirmAddEmail,
@@ -55,15 +58,6 @@ import type {
   TraineeSession,
 } from "@/lib/types";
 
-type Tab = "enquiries" | "training" | "saved" | "settings";
-
-const TABS: Array<{key: Tab; label: string; Icon: typeof Send}> = [
-  {key: "enquiries", label: "Enquiries", Icon: Send},
-  {key: "training", label: "My training", Icon: GraduationCap},
-  {key: "saved", label: "Saved", Icon: Bookmark},
-  {key: "settings", label: "Settings", Icon: Settings},
-];
-
 const STATUS: Record<TraineeEnquiryStatus, {label: string; variant: "secondary" | "warning" | "default"}> = {
   sent: {label: "Sent to the workshop", variant: "secondary"},
   replied: {label: "Workshop replied", variant: "default"},
@@ -71,6 +65,76 @@ const STATUS: Record<TraineeEnquiryStatus, {label: string; variant: "secondary" 
   enrolled: {label: "Enrolled", variant: "default"},
   not_delivered: {label: "Not delivered", variant: "warning"},
 };
+
+/** Short enough to sit in a row of chips on a phone. */
+const FILTERS: Array<{key: TraineeEnquiryStatus | "all"; label: string}> = [
+  {key: "all", label: "All"},
+  {key: "sent", label: "Waiting" },
+  {key: "replied", label: "Replied"},
+  {key: "visited", label: "Visited"},
+  {key: "enrolled", label: "Enrolled"},
+  {key: "not_delivered", label: "Not delivered"},
+];
+
+/**
+ * The tab the URL asks for, so a refresh and a back button land where the
+ * trainee was. A hash rather than a query parameter: it needs no Suspense
+ * boundary and never reaches the server, which has no business knowing which
+ * tab of their own account someone is reading.
+ */
+function tabFromHash(): TraineeTab | null {
+  if (typeof window === "undefined") return null;
+  const value = window.location.hash.replace(/^#/, "");
+  const allowed: TraineeTab[] = ["overview", "enquiries", "training", "saved", "settings"];
+  return (allowed as string[]).includes(value) ? (value as TraineeTab) : null;
+}
+
+function SearchBox({
+  value,
+  onChange,
+  label,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative">
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-foreground)]"
+      />
+      <Input
+        type="search"
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="pl-9"
+      />
+    </div>
+  );
+}
+
+/** Shown when a filter or a search matches nothing, which is not the same
+ *  thing as having nothing — that case keeps the Empty card and its call to
+ *  go and find training. */
+function NoMatches({onClear}: {onClear: () => void}) {
+  return (
+    <Card className="border-dashed p-6 text-center">
+      <MessageSquareOff aria-hidden="true" className="mx-auto size-5 text-[var(--color-muted-foreground)]" />
+      <p className="mt-3 font-semibold">Nothing matches</p>
+      <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+        Try a different word, or clear the filter.
+      </p>
+      <Button type="button" variant="outline" className="mx-auto mt-4" onClick={onClear}>
+        Clear filters
+      </Button>
+    </Card>
+  );
+}
 
 
 function ProviderName({provider}: {provider: TraineeProviderLink}) {
@@ -154,7 +218,10 @@ export function TraineeDashboard() {
   const [enquiries, setEnquiries] = useState<TraineeEnquiry[]>([]);
   const [enrolments, setEnrolments] = useState<TraineeEnrolment[]>([]);
   const [saved, setSaved] = useState<SavedProvider[]>([]);
-  const [tab, setTab] = useState<Tab>("enquiries");
+  const [tab, setTab] = useState<TraineeTab>("overview");
+  const [statusFilter, setStatusFilter] = useState<TraineeEnquiryStatus | "all">("all");
+  const [enquiryQuery, setEnquiryQuery] = useState("");
+  const [savedQuery, setSavedQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +248,25 @@ export function TraineeDashboard() {
     education_year: null,
   });
   const [confirmClose, setConfirmClose] = useState(false);
+
+  // Deep links, both ways: read the hash on arrival, and keep it in step when
+  // a tab is chosen so the address bar can be shared or reloaded.
+  useEffect(() => {
+    const apply = () => {
+      const wanted = tabFromHash();
+      if (wanted) setTab(wanted);
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
+
+  function goTo(next: TraineeTab) {
+    setTab(next);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${next}`);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -347,54 +433,117 @@ export function TraineeDashboard() {
     );
   }
 
-  const greeting = session.account.display_name || session.account.phone;
+  // The phone is the account, so it is what we have before someone types a
+  // name. Greeting a person by their own phone number reads like a receipt,
+  // so the number moves to the line below and the greeting stays warm.
+  const named = Boolean(session.account.display_name.trim());
+  const greeting = named ? session.account.display_name : "there";
+  const counts = {
+    enquiries: awaitingReply(enquiries),
+    saved: saved.length,
+  };
+
+  const visibleEnquiries = enquiries.filter(
+    (enquiry) =>
+      (statusFilter === "all" || enquiry.status === statusFilter) &&
+      matchesQuery(enquiryQuery, enquiry.provider.name, enquiry.programme_title, enquiry.reference_code),
+  );
+  const visibleSaved = saved.filter((item) =>
+    matchesQuery(savedQuery, item.provider.name, item.provider.area),
+  );
+  const clearEnquiryFilters = () => {
+    setStatusFilter("all");
+    setEnquiryQuery("");
+  };
+
+  const enquiryControls = (
+    <div className="space-y-3">
+      <SearchBox
+        value={enquiryQuery}
+        onChange={setEnquiryQuery}
+        label="Search your enquiries"
+        placeholder="Search by workshop, course or reference"
+      />
+      {/* Horizontal scroll rather than a wrap: six chips wrapping to three
+          rows pushes the first card off a phone screen. */}
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Filter by status">
+        {FILTERS.map(({key, label}) => {
+          const active = statusFilter === key;
+          const n = key === "all" ? enquiries.length : enquiries.filter((e) => e.status === key).length;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStatusFilter(key)}
+              aria-pressed={active}
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                active
+                  ? "border-transparent bg-[var(--color-brand)] text-white"
+                  : "border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] hover:border-[var(--color-border-strong)]",
+              )}
+            >
+              {label}
+              <span className="ml-1.5 tabular-nums opacity-70">{n}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const identity = (
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-[var(--shadow-card)]">
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+        <UserRound aria-hidden="true" className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold leading-5">
+          {named ? session.account.display_name : "Your account"}
+        </p>
+        <p className="truncate text-xs text-[var(--color-muted-foreground)]">{session.account.phone}</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div data-trainee-dashboard>
+    /* pb-20 on a phone clears the fixed bottom bar; the sidebar replaces it
+       from lg up, where the padding is no longer needed. */
+    <div data-trainee-dashboard className="pb-20 lg:pb-0">
       {session.support ? <SupportBanner support={session.support} onLeave={signOut} busy={busy} /> : null}
 
-      <header className="mb-5 flex flex-col gap-4 rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-[var(--shadow-card)] sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div className="flex items-center gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
-            <UserRound aria-hidden="true" className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
-              Your account
-            </p>
-            <h1 className="truncate text-2xl font-bold tracking-tight">Hello, {greeting}</h1>
-            <p className="text-sm text-[var(--color-muted-foreground)]">
-              {enquiries.length} {enquiries.length === 1 ? "enquiry" : "enquiries"} · {saved.length} saved
-            </p>
-          </div>
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
+            Your account
+          </p>
+          <h1 className="truncate text-2xl font-bold tracking-[-0.03em] sm:text-3xl">Hello, {greeting}</h1>
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+            {enquiries.length} {enquiries.length === 1 ? "enquiry" : "enquiries"} · {enrolments.length}{" "}
+            {enrolments.length === 1 ? "course" : "courses"} · {saved.length} saved
+          </p>
         </div>
         {session.support ? null : (
-          <Button type="button" variant="outline" onClick={signOut} disabled={busy}>
+          <Button type="button" variant="outline" onClick={signOut} disabled={busy} className="lg:hidden">
             <LogOut aria-hidden="true" />
             Sign out
           </Button>
         )}
       </header>
 
-      <nav
-        aria-label="Account sections"
-        className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-1 sm:grid-cols-4"
-      >
-        {TABS.map(({key, label, Icon}) => (
-          <Button
-            key={key}
-            type="button"
-            variant={tab === key ? "default" : "ghost"}
-            aria-pressed={tab === key}
-            onClick={() => setTab(key)}
-            className="rounded-lg"
-          >
-            <Icon aria-hidden="true" />
-            {label}
-          </Button>
-        ))}
-      </nav>
+      <div className="gap-7 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <TraineeSidebar
+          tab={tab}
+          onSelect={goTo}
+          counts={counts}
+          onSignOut={signOut}
+          busy={busy}
+          canSignOut={!session.support}
+        >
+          {identity}
+        </TraineeSidebar>
 
+        <div className="min-w-0">
       {error ? (
         <p role="alert" className="mb-4 rounded-xl bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
           {error}
@@ -406,15 +555,32 @@ export function TraineeDashboard() {
         </p>
       ) : null}
 
+      {tab === "overview" ? (
+        <TraineeOverview
+          account={session.account}
+          enquiries={enquiries}
+          enrolments={enrolments}
+          saved={saved}
+          onGo={goTo}
+        />
+      ) : null}
+
       {tab === "enquiries" ? (
         enquiries.length === 0 ? (
           <Empty
             title="No enquiries yet"
             text="When you enquire with a workshop using this number, it appears here with its reference."
           />
+        ) : visibleEnquiries.length === 0 ? (
+          <div className="space-y-4">
+            {enquiryControls}
+            <NoMatches onClear={clearEnquiryFilters} />
+          </div>
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2">
-            {enquiries.map((enquiry) => (
+          <div className="space-y-4">
+            {enquiryControls}
+          <ul className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {visibleEnquiries.map((enquiry) => (
               <li key={enquiry.reference_code}>
                 <Card className="h-full">
                   <CardHeader className="pb-3">
@@ -451,6 +617,7 @@ export function TraineeDashboard() {
               </li>
             ))}
           </ul>
+          </div>
         )
       ) : null}
 
@@ -510,8 +677,16 @@ export function TraineeDashboard() {
         saved.length === 0 ? (
           <Empty title="Nothing saved yet" text="Use Save on a workshop page to keep it here for later." />
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {saved.map((item) => (
+          <div className="space-y-4">
+            <SearchBox
+              value={savedQuery}
+              onChange={setSavedQuery}
+              label="Search saved workshops"
+              placeholder="Search by name or area"
+            />
+            {visibleSaved.length === 0 ? <NoMatches onClear={() => setSavedQuery("")} /> : null}
+          <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {visibleSaved.map((item) => (
               <li key={item.provider.id}>
                 <Card className="flex-row items-center justify-between gap-3 p-4">
                   <div className="min-w-0">
@@ -533,6 +708,7 @@ export function TraineeDashboard() {
               </li>
             ))}
           </ul>
+          </div>
         )
       ) : null}
 
@@ -824,6 +1000,10 @@ export function TraineeDashboard() {
           )}
         </div>
       ) : null}
+        </div>
+      </div>
+
+      <TraineeBottomBar tab={tab} onSelect={goTo} counts={counts} />
     </div>
   );
 }
