@@ -204,6 +204,11 @@ export type TrainerProfile = {
   review_note: string;
   submitted_at: string | null;
   editable: boolean;
+  /** Shown as unconfirmed on the public listing. Drives the confirm prompt. */
+  is_stale: boolean;
+  last_confirmed_at: string | null;
+  /** Only a published listing has anything that can go out of date. */
+  can_confirm: boolean;
   logo: string | null;
   photos: TrainerPhoto[];
   identity: TrainerIdentity | null;
@@ -356,4 +361,41 @@ export type EnquiryConfirmation = {
   whatsapp_url: string;
   expect_reply_within_hours: number;
   created_at: string;
+};
+
+/**
+ * Screen 5, as the server computes it.
+ *
+ * `profile_views` is null rather than 0 on purpose: there is no analytics
+ * source yet, and a zero reads as "nobody looked" — a claim the software
+ * cannot make. `response_rate` is null when there were no enquiries to
+ * measure, which is not the same as a rate of zero.
+ */
+export type TrainerDashboard = {
+  provider: {name: string; slug: string};
+  period_days: number;
+  enquiries: number;
+  profile_views: number | null;
+  response_rate: number | null;
+  response_rate_basis: string;
+  enrolments: number;
+  enrolment_fees_cedis: string | null;
+  average_fee_cedis: string | null;
+  enrolments_basis: string;
+  listing: {
+    status: string;
+    last_confirmed_at: string | null;
+    is_stale: boolean;
+  };
+  subscription: {tier: string; price: string; period_end: string} | null;
+};
+
+export type TrainerEnquiry = {
+  reference_code: string;
+  programme: string | null;
+  trainee_name: string;
+  trainee_phone: string;
+  message: string;
+  created_at: string;
+  replied: boolean;
 };

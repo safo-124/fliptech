@@ -12,7 +12,6 @@ import {
   FilePenLine,
   LayoutDashboard,
   Loader2,
-  LockKeyhole,
   LogOut,
   MapPin,
   MessageCircle,
@@ -38,8 +37,16 @@ import {
 import {Separator} from "@/components/ui/separator";
 import {Skeleton} from "@/components/ui/skeleton";
 import {formatDate, formatFee} from "@/lib/format";
-import {getTrainerSession, logoutTrainer} from "@/lib/trainer-api";
-import type {TrainerSession} from "@/lib/types";
+import {
+  confirmListingIsCurrent,
+  getTrainerDashboard,
+  getTrainerSession,
+  logoutTrainer,
+} from "@/lib/trainer-api";
+import type {
+  TrainerDashboard as TrainerDashboardData,
+  TrainerSession,
+} from "@/lib/types";
 
 function statusMessage(status: string) {
   if (status === "draft") return "Your profile is saved as a draft and is not public.";
@@ -179,17 +186,184 @@ function EmptyState({
   );
 }
 
+/**
+ * One figure, with the caveat attached to it rather than in a footnote.
+ *
+ * Every number on this screen is qualified: the response rate only counts
+ * replies somebody recorded, and enrolments are collected by asking. Printing
+ * a bare figure and burying the definition is how an owner concludes the
+ * platform is lying to them the first time it disagrees with their own books.
+ */
+function Figure({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-muted-foreground)]">
+        {label}
+      </p>
+      <p className="mt-1.5 text-3xl font-bold tabular-nums tracking-tight">{value}</p>
+      <p className="mt-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">{note}</p>
+    </div>
+  );
+}
+
+/**
+ * Screen 5, on the page the owner is already looking at.
+ *
+ * Section 05: a subscription renews when the owner can see what it bought. It
+ * used to say the performance dashboard was "available through the signed
+ * WhatsApp link", which for an owner who deleted that message meant it was
+ * available nowhere.
+ */
+function PerformancePanel({
+  figures,
+  isStale,
+  lastConfirmed,
+  canConfirm,
+  confirming,
+  confirmNote,
+  onConfirm,
+}: {
+  figures: TrainerDashboardData | null;
+  isStale: boolean;
+  lastConfirmed: string | null;
+  canConfirm: boolean;
+  confirming: boolean;
+  confirmNote: string | null;
+  onConfirm: () => void;
+}) {
+  return (
+    <section aria-labelledby="performance-heading" className="space-y-4">
+      <div>
+        <h2 id="performance-heading" className="text-xl font-bold tracking-tight">
+          Your last 30 days
+        </h2>
+        <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+          What your listing brought in.
+        </p>
+      </div>
+
+      {figures ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Figure
+            label="Enquiries"
+            value={String(figures.enquiries)}
+            note="People who asked about your courses."
+          />
+          <Figure
+            label="Replied in 48h"
+            value={
+              figures.response_rate === null
+                ? "—"
+                : `${Math.round(figures.response_rate * 100)}%`
+            }
+            note={
+              figures.response_rate === null
+                ? "No enquiries yet to measure."
+                : figures.response_rate_basis
+            }
+          />
+          <Figure
+            label="Enrolments"
+            value={String(figures.enrolments)}
+            note={figures.enrolments_basis}
+          />
+          <Figure
+            label="Fees from enrolments"
+            value={
+              // formatFee, not a hand-rolled prefix: it is the same Intl
+              // formatter the public listing uses, so an owner comparing
+              // the two sees one currency style rather than two.
+              figures.enrolment_fees_cedis ? formatFee(figures.enrolment_fees_cedis) : "—"
+            }
+            note="Recorded by staff, not collected by Skills Hub."
+          />
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((n) => (
+            <Skeleton key={n} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+      )}
+
+      {/* Profile views is null, not zero, and the reason is worth a sentence:
+          a zero here would read as "nobody looked", which is a claim the
+          software cannot make without an analytics source. */}
+      <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
+        Profile views are not counted yet, so they are left blank rather than shown as zero.
+      </p>
+
+      {canConfirm ? (
+        <div
+          className={
+            isStale
+              ? "rounded-2xl border border-[var(--color-warn)]/30 bg-[var(--color-warn-bg)] p-4"
+              : "rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/50 p-4"
+          }
+        >
+          <p className="text-sm font-semibold">
+            {isStale
+              ? "Your listing is showing as unconfirmed"
+              : "Are your fees and dates still right?"}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
+            {isStale
+              ? "Trainees see a note asking them to check before they travel. Confirm to remove it."
+              : lastConfirmed
+                ? `Last confirmed ${formatDate(lastConfirmed)}.`
+                : "Confirming keeps the unconfirmed note off your listing."}
+          </p>
+          {confirmNote ? (
+            <p className="mt-2 text-sm text-[var(--color-visit)]">{confirmNote}</p>
+          ) : null}
+          <Button
+            type="button"
+            variant={isStale ? "brand" : "outline"}
+            className="mt-3"
+            disabled={confirming}
+            onClick={onConfirm}
+          >
+            {confirming ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+            Yes, everything is still correct
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function TrainerDashboard() {
   const [session, setSession] = useState<TrainerSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [figures, setFigures] = useState<TrainerDashboardData | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmNote, setConfirmNote] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     getTrainerSession()
       .then((next) => {
         if (active) setSession(next);
+        // Only a listing that exists has numbers. A failure here is not worth
+        // an error banner over the whole page: the status card above is still
+        // useful, and the figures are the part that can be missing.
+        if (next.authenticated && next.profile) {
+          getTrainerDashboard()
+            .then((data) => {
+              if (active) setFigures(data);
+            })
+            .catch(() => undefined);
+        }
       })
       .catch((reason) => {
         if (active) setError(reason instanceof Error ? reason.message : "Could not load the dashboard.");
@@ -201,6 +375,24 @@ export function TrainerDashboard() {
       active = false;
     };
   }, []);
+
+  async function confirmStillCurrent() {
+    setConfirming(true);
+    setError(null);
+    try {
+      const profile = await confirmListingIsCurrent();
+      setSession((current) =>
+        current && current.authenticated ? {...current, profile} : current,
+      );
+      const refreshed = await getTrainerDashboard().catch(() => null);
+      if (refreshed) setFigures(refreshed);
+      setConfirmNote("Thank you. Your listing shows as up to date.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not confirm the listing.");
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   async function signOut() {
     setBusy(true);
@@ -446,18 +638,15 @@ export function TrainerDashboard() {
       </div>
 
       {profile.status === "published" ? (
-        <section
-          aria-label="Private performance dashboard"
-          className="flex items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/50 p-4 text-sm leading-6"
-        >
-          <LockKeyhole
-            aria-hidden="true"
-            className="mt-1 size-4 shrink-0 text-[var(--color-brand-strong)]"
-          />
-          <p>
-            Your private performance and enquiry dashboard remains available through the signed WhatsApp link sent by Skills Hub.
-          </p>
-        </section>
+        <PerformancePanel
+          figures={figures}
+          isStale={profile.is_stale}
+          lastConfirmed={profile.last_confirmed_at}
+          canConfirm={profile.can_confirm}
+          confirming={confirming}
+          confirmNote={confirmNote}
+          onConfirm={confirmStillCurrent}
+        />
       ) : null}
 
       {error ? (

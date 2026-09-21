@@ -11,6 +11,10 @@ from catalog.views import TradeViewSet
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
+from providers.trainer_dashboard_views import (
+    TrainerOwnDashboardView,
+    TrainerOwnEnquiriesView,
+)
 from providers.trainer_email_views import (
     TrainerAddEmailConfirmView,
     TrainerAddEmailRequestView,
@@ -104,6 +108,18 @@ urlpatterns = [
         "trainer/profile/identity/",
         TrainerIdentityDocumentView.as_view(),
         name="trainer-identity-document",
+    ),
+    # Screen 5 for a signed-in trainer. The tokenised route below still works
+    # for a provider staff onboarded who has never signed in.
+    path(
+        "trainer/dashboard/",
+        TrainerOwnDashboardView.as_view(),
+        name="trainer-own-dashboard",
+    ),
+    path(
+        "trainer/dashboard/enquiries/",
+        TrainerOwnEnquiriesView.as_view(),
+        name="trainer-own-enquiries",
     ),
     path(
         "trainer/profile/confirm/",

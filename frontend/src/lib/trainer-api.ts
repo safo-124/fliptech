@@ -5,6 +5,8 @@ import type {
   ProviderPhotoKind,
   Trade,
   TrainerArea,
+  TrainerDashboard,
+  TrainerEnquiry,
   TrainerPhoto,
   TrainerProfile,
   TrainerSession,
@@ -148,6 +150,30 @@ export function confirmTrainerAddEmail(challengeId: string, email: string, code:
     method: "POST",
     body: JSON.stringify({challenge_id: challengeId, email, code}),
   });
+}
+
+/**
+ * Screen 5 for the signed-in trainer.
+ *
+ * The same figures the tokenised WhatsApp link shows — both call one function
+ * on the server, so an owner cannot see one number in a link and a different
+ * one here.
+ */
+export function getTrainerDashboard() {
+  return trainerFetch<TrainerDashboard>("/api/trainer/dashboard/");
+}
+
+export function getTrainerOwnEnquiries() {
+  return trainerFetch<TrainerEnquiry[]>("/api/trainer/dashboard/enquiries/");
+}
+
+/** "The fees and dates on this listing are still right." */
+export async function confirmListingIsCurrent() {
+  const response = await trainerFetch<{profile: TrainerProfile}>(
+    "/api/trainer/profile/confirm/",
+    {method: "POST", body: JSON.stringify({})},
+  );
+  return response.profile;
 }
 
 export async function getTrainerProfile() {
