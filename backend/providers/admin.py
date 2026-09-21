@@ -26,7 +26,7 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from django.views.decorators.http import require_POST
 from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
@@ -716,6 +716,7 @@ class TrainerAccountAdmin(admin.ModelAdmin):
         "phone",
         "phone_verified_at",
         "identity_document_link",
+        "listing_review",
         "data_consent_at",
         "approval_status",
         "approval_decided_at",
@@ -740,6 +741,17 @@ class TrainerAccountAdmin(admin.ModelAdmin):
                     "A verified phone proves someone holds a SIM, not that they are who "
                     "they say or that they speak for this workshop. Check the name and "
                     "the document against each other before confirming."
+                ),
+            },
+        ),
+        (
+            "Their listing",
+            {
+                "fields": ("listing_review",),
+                "description": (
+                    "Read-only. Confirming this account says a real person runs a real "
+                    "workshop — it is not a Fliiptech site visit, and only a visit "
+                    "creates one of those."
                 ),
             },
         ),
@@ -846,6 +858,97 @@ class TrainerAccountAdmin(admin.ModelAdmin):
             return format_html('<span style="color:#b45309">Not uploaded</span>')
         label = obj.get_id_document_type_display() or "Document"
         return format_html('<span style="color:#15803d">{}</span>', label)
+
+    @admin.display(description="What they submitted")
+    def listing_review(self, obj):
+        """The listing itself, on the page where the decision is made.
+
+        Confirming a trainer asks one question: is this a real person running
+        a real workshop. The evidence for it lived on the provider record —
+        a different page, reached by a link, in another app section. So the
+        decision was either made without looking, or made across three tabs.
+
+        Read-only and deliberately not an inline. An inline invites editing
+        someone else's listing from the approval screen, which is a different
+        job with a different audit trail.
+        """
+        provider = self._owned_provider_object(obj)
+        if provider is None:
+            return format_html(
+                '<p class="review-empty">No listing yet. '
+                "Nothing has been submitted for this account.</p>"
+            )
+
+        photos = list(provider.photos.all())
+        by_kind = {
+            ProviderPhoto.Kind.WORKSHOP: [
+                p for p in photos if p.kind == ProviderPhoto.Kind.WORKSHOP
+            ],
+            ProviderPhoto.Kind.WORK: [p for p in photos if p.kind == ProviderPhoto.Kind.WORK],
+        }
+
+        facts = format_html_join(
+            "",
+            '<div class="review-fact"><dt>{}</dt><dd>{}</dd></div>',
+            (
+                ("Workshop", provider.name),
+                ("Area", provider.area.name),
+                ("Address", provider.address or "—"),
+                # The landmark is how a field officer finds the place, so it
+                # belongs next to the address rather than buried on the record.
+                ("Landmark", provider.landmark or "— none given —"),
+                ("Contact", str(provider.contact_phone)),
+                ("Status", provider.get_status_display()),
+            ),
+        )
+
+        programmes = provider.programmes.all()
+        courses = format_html_join(
+            "",
+            "<li>{} · GHS {} · {} weeks</li>",
+            ((p.trade.name, p.fee, p.duration_weeks) for p in programmes),
+        ) or format_html("<li>No course added yet.</li>")
+
+        return format_html(
+            '<div class="review-panel">'
+            '<div class="review-head">{logo}<dl class="review-facts">{facts}</dl></div>'
+            '<p class="review-label">The workshop ({n_workshop})</p>{workshop}'
+            '<p class="review-label">Their work ({n_work})</p>{work}'
+            '<p class="review-label">Courses</p><ul class="review-courses">{courses}</ul>'
+            '<p class="review-open"><a href="{url}">Open the full listing</a></p>'
+            "</div>",
+            logo=(
+                format_html('<img class="review-logo" src="{}" alt="">', provider.logo.url)
+                if provider.logo
+                else format_html('<span class="review-nologo">No logo</span>')
+            ),
+            facts=facts,
+            n_workshop=len(by_kind[ProviderPhoto.Kind.WORKSHOP]),
+            workshop=self._thumbs(by_kind[ProviderPhoto.Kind.WORKSHOP]),
+            n_work=len(by_kind[ProviderPhoto.Kind.WORK]),
+            work=self._thumbs(by_kind[ProviderPhoto.Kind.WORK]),
+            courses=courses,
+            url=reverse("admin:providers_provider_change", args=[provider.pk]),
+        )
+
+    @staticmethod
+    def _thumbs(photos):
+        """Thumbnails, or a plain statement that there are none.
+
+        Saying "none" matters as much as showing them: a submission with no
+        photograph of the work is one the reviewer should push back on, and an
+        empty row reads as a rendering fault rather than an answer.
+        """
+        if not photos:
+            return format_html('<p class="review-empty">None uploaded.</p>')
+        return format_html(
+            '<div class="review-thumbs">{}</div>',
+            format_html_join(
+                "",
+                '<a href="{}" target="_blank" rel="noopener"><img src="{}" alt="{}"></a>',
+                ((p.image.url, p.image.url, p.caption or "Uploaded photo") for p in photos),
+            ),
+        )
 
     @admin.display(description="Identity document")
     def identity_document_link(self, obj):

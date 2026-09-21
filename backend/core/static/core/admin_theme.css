@@ -1378,3 +1378,103 @@ body.sb-drawer-open { overflow: hidden; }
   color: var(--muted-foreground);
   font-size: 12px;
 }
+
+/* ---------------------------------------------------------------------------
+   The submitted listing, on the trainer approval screen
+
+   Confirming a trainer asks whether a real person runs a real workshop, and
+   the evidence for that used to live on the provider record — a different
+   page in a different app section. The decision was either made without
+   looking or made across three tabs. This is that evidence, inline and
+   read-only.
+--------------------------------------------------------------------------- */
+.review-panel {
+  max-width: 46rem;
+}
+.review-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.review-logo {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--hairline-color, #e5e7eb);
+  border-radius: 10px;
+  /* contain, never cover: a logo cropped to fill is a logo nobody recognises. */
+  object-fit: contain;
+  background: #fff;
+  padding: 4px;
+}
+.review-nologo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px dashed var(--hairline-color, #e5e7eb);
+  border-radius: 10px;
+  font-size: 10px;
+  color: var(--muted-foreground, #6b7280);
+  text-align: center;
+}
+.review-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 6px 18px;
+  margin: 0;
+  flex: 1;
+}
+.review-fact {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.review-fact dt {
+  flex: none;
+  min-width: 5.5rem;
+  color: var(--muted-foreground, #6b7280);
+}
+.review-fact dd {
+  margin: 0;
+  font-weight: 600;
+}
+.review-label {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground, #6b7280);
+}
+.review-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.review-thumbs img {
+  width: 116px;
+  height: 87px;
+  border: 1px solid var(--hairline-color, #e5e7eb);
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+.review-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground, #6b7280);
+}
+.review-courses {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 20px;
+}
+.review-open {
+  margin: 14px 0 0;
+  font-size: 12px;
+}
