@@ -8,6 +8,7 @@ that needs a test rather than a comment.
 """
 
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 from django.contrib.gis.geos import Point
@@ -50,10 +51,13 @@ def make_listing(area, *, phone, name, slug):
 
 
 def add_enquiry(provider, *, replied_within_48h):
+    # reference_code is unique across the table, so it cannot be derived from
+    # the provider and the reply flag — two enquiries to one workshop with the
+    # same outcome is the ordinary case, not an edge one.
     enquiry = Enquiry.objects.create(
         provider=provider,
         trainee_phone="+233245550000",
-        reference_code=f"REF{provider.pk}{replied_within_48h}",
+        reference_code=uuid4().hex[:12].upper(),
     )
     if replied_within_48h:
         EnquiryOutcome.objects.create(
@@ -166,10 +170,11 @@ def test_the_enquiry_list_is_scoped_to_the_signed_in_trainer(client, area):
     add_enquiry(mine, replied_within_48h=False)
     client.force_login(intruder.user)
 
+    mine_codes = {enquiry.reference_code for enquiry in Enquiry.objects.filter(provider=mine)}
     body = client.get(reverse("trainer-own-enquiries")).json()
 
     assert len(body) == 1
-    assert body[0]["reference_code"] == f"REF{mine.pk}False"
+    assert body[0]["reference_code"] in mine_codes
 
 
 @pytest.mark.django_db
