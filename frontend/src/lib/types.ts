@@ -399,3 +399,14 @@ export type TrainerEnquiry = {
   created_at: string;
   replied: boolean;
 };
+
+/**
+ * Which of the two public account areas the visitor is signed into.
+ *
+ * Both are nullable and both can be null at once: a member of staff is signed
+ * into the back office, which is neither of these.
+ */
+export type Whoami = {
+  trainer: {name: string} | null;
+  trainee: {name: string} | null;
+};

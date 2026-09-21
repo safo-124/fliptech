@@ -8,6 +8,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from catalog.views import TradeViewSet
+from core.whoami import WhoAmIView
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
@@ -45,6 +46,9 @@ router.register("areas", AreaViewSet, basename="area")
 router.register("regions", RegionViewSet, basename="region")
 
 urlpatterns = [
+    # Which account area the caller is signed into, for the site header. Kept
+    # deliberately small: it is requested on every page, including search.
+    path("session/whoami/", WhoAmIView.as_view(), name="session-whoami"),
     # Passwordless trainer onboarding. Session bootstrap is first so the
     # frontend can obtain a CSRF cookie before any unsafe request.
     path("trainer/session/me/", TrainerSessionView.as_view(), name="trainer-session-me"),

@@ -1,6 +1,7 @@
-import {ArrowRight, Building2, UserPlus, UserRound} from "lucide-react";
+import {ArrowRight, Building2} from "lucide-react";
 import Link from "next/link";
 
+import {AccountNav} from "@/components/AccountNav";
 import {BrandMark} from "@/components/BrandMark";
 import {BrandShards} from "@/components/BrandShards";
 import {Button} from "@/components/ui/button";
@@ -62,19 +63,7 @@ export function SiteHeader() {
               List your workshop
             </Link>
           </Button>
-          <Button asChild variant="onBand" size="default" className="px-3 sm:px-4">
-            <Link href="/trainee">
-              <UserRound aria-hidden />
-              <span className="hidden sm:inline">My account</span>
-              <span className="sm:hidden">Account</span>
-            </Link>
-          </Button>
-          <Button asChild variant="warm" size="default" className="px-3 sm:px-4">
-            <Link href="/join">
-              <UserPlus aria-hidden />
-              Sign up
-            </Link>
-          </Button>
+          <AccountNav />
         </nav>
       </div>
     </header>
