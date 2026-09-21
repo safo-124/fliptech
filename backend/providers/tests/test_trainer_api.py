@@ -1106,3 +1106,185 @@ def test_a_validation_error_that_is_not_a_slug_clash_is_not_retried_away(catalog
         )
     assert "name" in raised.value.error_dict
     assert Provider.objects.count() == 0
+
+
+# --------------------------------------------------------------------------
+# Maintaining a listing after it is published
+
+
+def published_listing(csrf_client, monkeypatch, catalogue, django_user_model):
+    """A live listing owned by a confirmed trainer."""
+    from providers.lifecycle import publish_provider
+
+    login_trainer(csrf_client, monkeypatch)
+    headers = authenticated_csrf(csrf_client)
+    csrf_client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue),
+        content_type="application/json",
+        **headers,
+    )
+    provider = Provider.objects.get()
+    attach_review_files(provider, TrainerAccount.objects.get().user)
+    csrf_client.post(reverse("trainer-profile-submit"), content_type="application/json", **headers)
+
+    account = TrainerAccount.objects.get()
+    account.approval_status = TrainerAccount.Approval.CONFIRMED
+    account.save(update_fields=["approval_status"])
+
+    lead = django_user_model.objects.create_user("publisher", is_staff=True)
+    publish_provider(Provider.objects.get(), actor=lead)
+    return csrf_client, headers, Provider.objects.get()
+
+
+@pytest.mark.django_db
+def test_a_published_listing_can_have_its_fee_corrected_without_review(
+    csrf_client, monkeypatch, catalogue, django_user_model
+):
+    """The whole point.
+
+    Locking published listings made every fee correction staff work, which is
+    how a directory goes stale.
+    """
+    client, headers, provider = published_listing(
+        csrf_client, monkeypatch, catalogue, django_user_model
+    )
+
+    payload = profile_payload(catalogue)
+    payload["programme"]["fee"] = "1500.00"
+    response = client.put(
+        reverse("trainer-profile"), payload, content_type="application/json", **headers
+    )
+
+    provider.refresh_from_db()
+    assert response.status_code == 200
+    assert provider.status == Provider.Status.PUBLISHED
+    assert str(Programme.objects.get().fee) == "1500.00"
+
+
+@pytest.mark.django_db
+def test_renaming_a_published_workshop_sends_it_back_for_review(
+    csrf_client, monkeypatch, catalogue, django_user_model
+):
+    """A verified listing must not quietly become a different business."""
+    client, headers, provider = published_listing(
+        csrf_client, monkeypatch, catalogue, django_user_model
+    )
+
+    payload = profile_payload(catalogue, name="Completely Different Works")
+    client.put(reverse("trainer-profile"), payload, content_type="application/json", **headers)
+
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+    assert "workshop name" in provider.review_note
+
+
+@pytest.mark.django_db
+def test_redirecting_the_contact_number_sends_it_back_for_review(
+    csrf_client, monkeypatch, catalogue, django_user_model
+):
+    """The attack this guards: get verified, then point enquiries elsewhere."""
+    client, headers, provider = published_listing(
+        csrf_client, monkeypatch, catalogue, django_user_model
+    )
+
+    payload = profile_payload(catalogue, contact_phone="+233240000999")
+    client.put(reverse("trainer-profile"), payload, content_type="application/json", **headers)
+
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+    assert "contact number" in provider.review_note
+
+
+@pytest.mark.django_db
+def test_resaving_an_unchanged_listing_does_not_send_it_back(
+    csrf_client, monkeypatch, catalogue, django_user_model
+):
+    """Guards the comparison itself.
+
+    A PointField compares by identity, not coordinates, so a naive check marks
+    every save as a move and quietly unpublishes a listing nobody edited.
+    """
+    client, headers, provider = published_listing(
+        csrf_client, monkeypatch, catalogue, django_user_model
+    )
+
+    client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue),
+        content_type="application/json",
+        **headers,
+    )
+
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PUBLISHED
+
+
+@pytest.mark.django_db
+def test_a_suspended_listing_stays_locked(csrf_client, monkeypatch, catalogue, django_user_model):
+    client, headers, provider = published_listing(
+        csrf_client, monkeypatch, catalogue, django_user_model
+    )
+    provider.status = Provider.Status.SUSPENDED
+    provider.save(update_fields=["status"])
+
+    response = client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue, name="Sneaky rename"),
+        content_type="application/json",
+        **headers,
+    )
+
+    provider.refresh_from_db()
+    assert response.status_code == 409
+    assert provider.status == Provider.Status.SUSPENDED
+    assert provider.name != "Sneaky rename"
+
+
+# --------------------------------------------------------------------------
+# Confirming a listing is current
+
+
+@pytest.mark.django_db
+def test_the_owner_can_confirm_fees_and_dates_are_current(
+    csrf_client, monkeypatch, catalogue, django_user_model
+):
+    from providers.models import ListingConfirmation
+
+    client, headers, provider = published_listing(
+        csrf_client, monkeypatch, catalogue, django_user_model
+    )
+    provider.last_confirmed_at = None
+    provider.save(update_fields=["last_confirmed_at"])
+
+    response = client.post(
+        reverse("trainer-confirm-listing"), content_type="application/json", **headers
+    )
+
+    provider.refresh_from_db()
+    assert response.status_code == 200
+    assert provider.last_confirmed_at is not None
+    assert provider.is_listing_stale is False
+    # The row answers "who said so and when", which the flag cannot.
+    row = ListingConfirmation.objects.get()
+    assert row.fees_confirmed and row.intakes_confirmed
+    assert row.confirmed_by == TrainerAccount.objects.get().user
+
+
+@pytest.mark.django_db
+def test_a_draft_cannot_be_confirmed(csrf_client, monkeypatch, catalogue):
+    """Nothing has gone out of date on a listing that was never live."""
+    login_trainer(csrf_client, monkeypatch)
+    headers = authenticated_csrf(csrf_client)
+    csrf_client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue),
+        content_type="application/json",
+        **headers,
+    )
+
+    response = csrf_client.post(
+        reverse("trainer-confirm-listing"), content_type="application/json", **headers
+    )
+
+    assert response.status_code == 409

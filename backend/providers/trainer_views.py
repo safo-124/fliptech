@@ -24,6 +24,7 @@ from .models import TrainerAccount
 from .trainer_auth import TrainerAccountDisabled, account_for_verified_phone
 from .trainer_profiles import (
     TrainerProfileConflict,
+    confirm_listing_is_current,
     current_intake_start_date,
     get_owned_profile,
     save_owned_profile,
@@ -260,6 +261,33 @@ class TrainerProfileSubmitView(APIView):
             submit_provider(provider, actor=request.user)
         except ProviderTransitionError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        return Response({"profile": serialize_profile(_profile_for(account), account)})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class TrainerConfirmListingView(APIView):
+    """One tap: the fees and dates on this listing are still right.
+
+    The other half of Section 09. The prompt and the unconfirmed flag existed
+    with nothing that could answer them, so every published listing drifted to
+    "unconfirmed" and only staff could clear it.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveTrainer]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request):
+        account = _account(request)
+        provider = _profile_for(account)
+        if provider is None:
+            raise NotFound("No trainer profile exists.")
+
+        try:
+            confirm_listing_is_current(provider, actor=request.user)
+        except TrainerProfileConflict as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+
         return Response({"profile": serialize_profile(_profile_for(account), account)})
 
 

@@ -24,6 +24,7 @@ from providers.trainer_uploads import (
     TrainerPhotoUploadView,
 )
 from providers.trainer_views import (
+    TrainerConfirmListingView,
     TrainerLogoutView,
     TrainerOTPRequestView,
     TrainerOTPVerifyView,
@@ -103,6 +104,11 @@ urlpatterns = [
         "trainer/profile/identity/",
         TrainerIdentityDocumentView.as_view(),
         name="trainer-identity-document",
+    ),
+    path(
+        "trainer/profile/confirm/",
+        TrainerConfirmListingView.as_view(),
+        name="trainer-confirm-listing",
     ),
     path("trainer/logout/", TrainerLogoutView.as_view(), name="trainer-logout"),
     # Trainee accounts: phone sign-in, own enquiries and saved providers. Staff

@@ -17,9 +17,41 @@ class TrainerProfileConflict(ValueError):
     """The singular trainer profile cannot be safely read or changed."""
 
 
+# Fields whose change makes a published listing a different business.
+#
+# The split is "who and where" against "what it costs and when". A verified
+# listing carries a badge saying Fliiptech visited this workshop; if the owner
+# can then rename it, move it, or point the enquiry number somewhere else, the
+# badge is attached to something nobody checked. Those edits go back through
+# review.
+#
+# contact_phone is on this list and that is the least obvious one. A new SIM is
+# a real and ordinary thing, so this costs an honest trainer a wait. But it is
+# also the whole attack: get verified, then redirect every enquiry to a number
+# that was never visited, with the badge still showing. Waiting is the cheaper
+# mistake.
+#
+# Fees, durations, schedules, intakes and photographs are none of that. They
+# are what goes out of date, and Section 12 calls staleness the largest
+# ongoing operating cost — so they publish immediately.
+REVIEW_TRIGGERING_FIELDS = (
+    "name",
+    "owner_name",
+    "contact_phone",
+    "area",
+    "address",
+    "location",
+)
+
 EDITABLE_STATUSES = {
     Provider.Status.DRAFT,
     Provider.Status.CHANGES_REQUESTED,
+    # A published listing is editable by the trainer who owns it. Locking it
+    # meant every fee correction and new intake was staff work, which is how a
+    # directory goes stale — the failure Section 12 names as the largest
+    # ongoing cost. PENDING_APPROVAL stays locked because someone is reading
+    # it, and SUSPENDED stays locked because that is the point of suspending.
+    Provider.Status.PUBLISHED,
 }
 
 
@@ -134,6 +166,32 @@ def current_intake_start_date(provider):
 
 
 @transaction.atomic
+def _same(before, after):
+    """Compare two field values for "did the owner actually change this".
+
+    PointField needs `equals` rather than `==`: two Points at the same
+    coordinates are different objects, so a plain comparison marks every save
+    as a move and sends an untouched listing back for review.
+
+    PhoneNumber and Decimal compare fine, but both arrive as strings from the
+    form, so the string form is compared where either side is not a geometry.
+    """
+    if hasattr(before, "equals") and hasattr(after, "equals"):
+        return before.equals(after)
+    return str(before or "") == str(after or "")
+
+
+def _field_label(field):
+    return {
+        "name": "the workshop name",
+        "owner_name": "the owner's name",
+        "contact_phone": "the contact number",
+        "area": "the area",
+        "address": "the address",
+        "location": "the map location",
+    }.get(field, field)
+
+
 def save_owned_profile(*, account, actor, validated_data):
     # Serialise profile creation for one trainer so two mobile retries cannot
     # both pass the "no membership yet" check.
@@ -151,7 +209,9 @@ def save_owned_profile(*, account, actor, validated_data):
         provider = Provider.objects.select_for_update().get(pk=provider.pk)
         if provider.status not in EDITABLE_STATUSES:
             raise TrainerProfileConflict(
-                "This profile is locked while it is being reviewed or is published."
+                "This listing is locked while it is being reviewed."
+                if provider.status == Provider.Status.PENDING_APPROVAL
+                else "This listing has been suspended. Contact Fliiptech."
             )
 
     programme_data = validated_data.pop("programme")
@@ -215,13 +275,41 @@ def save_owned_profile(*, account, actor, validated_data):
             role=ProviderMembership.Role.OWNER,
         )
     else:
+        was_published = provider.status == Provider.Status.PUBLISHED
+        # Read before the assignment loop overwrites them.
+        before = {field: getattr(provider, field) for field in REVIEW_TRIGGERING_FIELDS}
+
         for field, value in provider_values.items():
             setattr(provider, field, value)
+
+        changed = [
+            field
+            for field in REVIEW_TRIGGERING_FIELDS
+            if not _same(before[field], getattr(provider, field))
+        ]
+
+        if was_published and changed:
+            # Back to the queue, with the reason visible to whoever picks it
+            # up: a reviewer seeing a listing they already approved needs to
+            # know what moved without diffing history.
+            provider.status = Provider.Status.PENDING_APPROVAL
+            provider.submitted_at = timezone.now()
+            provider.review_note = (
+                "Re-submitted automatically: the owner changed "
+                + ", ".join(_field_label(field) for field in changed)
+                + "."
+            )
+            reason = "Owner changed identifying details; returned for review"
+        elif was_published:
+            reason = "Owner updated a published listing"
+        else:
+            reason = "Trainer updated profile draft"
+
         _save_with_unique_slug(
             provider,
             area=area,
             actor=actor,
-            reason="Trainer updated profile draft",
+            reason=reason,
         )
 
     programmes = list(Programme.objects.select_for_update().filter(provider=provider)[:2])
@@ -433,6 +521,11 @@ def serialize_profile(provider, account=None):
         "review_note": provider.review_note,
         "submitted_at": provider.submitted_at,
         "editable": provider.status in EDITABLE_STATUSES,
+        "is_stale": provider.is_listing_stale,
+        "last_confirmed_at": provider.last_confirmed_at,
+        # Only a published listing can be confirmed, and only that state shows
+        # the prompt — a draft has nothing to go out of date yet.
+        "can_confirm": provider.status == Provider.Status.PUBLISHED,
         # Public workshop photographs. Safe to hand back a URL: these are the
         # gallery on the provider profile. The identity document below is not,
         # and deliberately has no URL anywhere in this payload.
@@ -449,3 +542,39 @@ def serialize_profile(provider, account=None):
         "identity": _identity_payload(provider, account),
         "programme": programme_payload,
     }
+
+
+@transaction.atomic
+def confirm_listing_is_current(provider, *, actor):
+    """The trainer's "yes, these fees and dates are still right".
+
+    Section 09 prompts every 90 days and marks a listing unconfirmed 30 days
+    after that. Both the prompt and the flag existed; the answer did not — the
+    only thing that could clear it was a staff member editing the record, so
+    in practice every listing drifted to unconfirmed and stayed there.
+
+    Writes a ListingConfirmation as well as stamping the provider, because the
+    flag answers "is this current" and the row answers "who said so and when",
+    which is the question asked when a trainee disputes a fee.
+    """
+    from .models import ListingConfirmation
+
+    if provider.status != Provider.Status.PUBLISHED:
+        raise TrainerProfileConflict("Only a published listing can be confirmed.")
+
+    now = timezone.now()
+    ListingConfirmation.objects.create(
+        provider=provider,
+        responded_at=now,
+        channel=ListingConfirmation.Channel.WHATSAPP,
+        fees_confirmed=True,
+        intakes_confirmed=True,
+        confirmed_by=actor,
+        note="Confirmed by the owner from their dashboard.",
+    )
+
+    provider.last_confirmed_at = now
+    provider._history_user = actor
+    provider._change_reason = "Owner confirmed fees and dates are current"
+    provider.save(update_fields=["last_confirmed_at", "updated_at"])
+    return provider
