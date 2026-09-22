@@ -138,9 +138,13 @@ class Command(BaseCommand):
             Enrolment.objects.filter(provider_id__in=ids).delete()
             Provider.objects.filter(pk__in=ids).delete()
 
+        # "1 providers remain" is the line an operator reads to decide whether
+        # this did what they meant, and on a site with one real listing that is
+        # exactly the number they will see.
+        remaining = Provider.objects.count()
         self.stdout.write(
             self.style.SUCCESS(
                 f"\nDeleted {len(providers)} demo providers and {files} image files. "
-                f"{Provider.objects.count()} providers remain."
+                f"{remaining} {'provider remains' if remaining == 1 else 'providers remain'}."
             )
         )
