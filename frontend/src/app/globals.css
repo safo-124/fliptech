@@ -1,6 +1,35 @@
 @import "tailwindcss";
 
 /*
+ * The Ghana cedi sign, on its own.
+ *
+ * U+20B5 lives in Inter's latin-ext subset, and measuring the live search page
+ * showed it is the ONLY character on the site that does — 48 occurrences, one
+ * per price. Every visitor was therefore downloading 83 KB of Central and
+ * Eastern European glyphs to draw one symbol: a quarter of the whole page,
+ * against a 200 KB budget meant for a mid-range Android on 3G.
+ *
+ * This face covers that single codepoint in 1.3 KB. globals.css is imported
+ * after @fontsource-variable/inter in layout.tsx, so where the two overlap
+ * this one wins and latin-ext is never requested. Nothing is lost: a workshop
+ * genuinely named with an Eastern European character still pulls the full
+ * subset, exactly as before. Dropping latin-ext outright was the alternative,
+ * and it would have left the cedi to a system font — a different typeface in
+ * the middle of every price.
+ *
+ * Regenerate after upgrading the font package:
+ *   pyftsubset node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2  *     --unicodes=U+20B5 --flavor=woff2 --layout-features='*'  *     --output-file=public/fonts/inter-cedi-wght-normal.woff2
+ */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/inter-cedi-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+20B5;
+}
+
+/*
  * Public site theme, in the same shadcn/ui language as the back office.
  *
  * Tailwind v4 is CSS-first: the theme lives here, not in tailwind.config.js.
