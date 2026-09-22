@@ -13,6 +13,8 @@ from pathlib import Path
 
 import environ
 
+from core.media import derive_public_origin
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
@@ -364,6 +366,20 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env(
     "CSRF_TRUSTED_ORIGINS",
     default=["http://127.0.0.1:3000", "http://localhost:3000"] if DEBUG else [],
+)
+
+
+# The origin the public site is served from, used to address public media.
+#
+# It cannot be taken from the request: server-rendered pages reach Django over
+# loopback and build_absolute_uri() then answers https://127.0.0.1:8000/...
+# See core/media.py for the full account and for how this is derived.
+#
+# Derived from configuration a deployment already has, so an existing install
+# needs no new environment variable. Set DJANGO_PUBLIC_ORIGIN to override, or
+# when media moves to its own hostname.
+PUBLIC_ORIGIN = env("DJANGO_PUBLIC_ORIGIN", default="") or derive_public_origin(
+    CSRF_TRUSTED_ORIGINS, ALLOWED_HOSTS, debug=DEBUG
 )
 
 # Caddy is the sole public peer. In Docker it reaches Django over a private

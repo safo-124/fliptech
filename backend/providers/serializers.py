@@ -11,6 +11,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from catalog.models import Intake, Programme
+from core.media import public_url
 from geography.models import Area, Region
 
 from .models import GovernmentStatus, Provider, ProviderPhoto, Verification
@@ -31,12 +32,20 @@ class AreaSerializer(serializers.ModelSerializer):
 
 
 class ProviderPhotoSerializer(serializers.ModelSerializer):
+    # Not the plain ImageField: DRF would build the URL from the request, and
+    # a server-rendered request arrives on loopback. See core/media.py.
+    image = serializers.SerializerMethodField()
+
     class Meta:
         model = ProviderPhoto
         # kind lets the profile show the workshop and the work as two groups.
         # A picture of a tidy yard and a picture of a finished gate answer
         # different questions, and one undifferentiated gallery loses that.
         fields = ["id", "kind", "image", "caption"]
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_image(self, obj):
+        return public_url(obj.image.url, self.context.get("request")) if obj.image else None
 
 
 class VerificationBadgeSerializer(serializers.ModelSerializer):
@@ -217,18 +226,14 @@ class ProviderListSerializer(serializers.ModelSerializer):
         """
         if not obj.logo:
             return None
-        request = self.context.get("request")
-        url = obj.logo.url
-        return request.build_absolute_uri(url) if request else url
+        return public_url(obj.logo.url, self.context.get("request"))
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_primary_photo(self, obj):
         photo = next(iter(obj.photos.all()), None)
         if photo is None:
             return None
-        request = self.context.get("request")
-        url = photo.image.url
-        return request.build_absolute_uri(url) if request else url
+        return public_url(photo.image.url, self.context.get("request"))
 
 
 class ProviderDetailSerializer(ProviderListSerializer):
