@@ -62,12 +62,26 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         providers = list(demo_providers())
+
+        # Reported before the early return, not after it. When the only match
+        # is a claimed listing this said "no demo providers found", which reads
+        # as "nothing matched" — when in fact something matched and was
+        # deliberately left alone. Those are different facts, and an operator
+        # deciding whether the purge worked needs the second one.
+        claimed = Provider.objects.filter(slug__in=demo_slugs(), trainer_memberships__isnull=False)
+        if claimed.exists():
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Leaving {claimed.count()} matching listing(s) alone: a trainer has "
+                    "signed in and claimed them, so they are not demo data."
+                )
+            )
+
         if not providers:
             self.stdout.write("No demo providers found. Nothing to do.")
             return
 
         ids = [p.pk for p in providers]
-        claimed = Provider.objects.filter(slug__in=demo_slugs(), trainer_memberships__isnull=False)
 
         enquiries = Enquiry.objects.filter(provider_id__in=ids)
         counts = {
@@ -98,13 +112,6 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(
                     f"\n  {real} of those enquiries came from a signed-in trainee account."
-                )
-            )
-        if claimed.exists():
-            self.stdout.write(
-                self.style.WARNING(
-                    f"\nLeaving {claimed.count()} matching listing(s) alone: a trainer has "
-                    "signed in and claimed them, so they are not demo data."
                 )
             )
 
