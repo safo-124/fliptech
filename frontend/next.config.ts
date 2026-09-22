@@ -62,6 +62,18 @@ const nextConfig: NextConfig = {
     // a 10 MB file for every size it emits.
     remotePatterns: mediaPatterns(),
     formats: ["image/webp"],
+    /*
+     * Next 16 refuses to fetch a source image whose hostname resolves to a
+     * private address, as SSRF protection, and answers 400 instead. In
+     * development the API genuinely is on 127.0.0.1:8000, so every workshop
+     * photograph broke and the two loopback entries in mediaPatterns above
+     * had quietly become dead letters.
+     *
+     * Development only. In production the API is a public origin, nothing
+     * should be resolving to a private address, and the protection is doing
+     * exactly the job its name says.
+     */
+    dangerouslyAllowLocalIP: process.env.NODE_ENV !== "production",
   },
   // Standalone output is only needed for the Docker image, and the file tracing
   // it performs walks the whole of node_modules. On the Windows/exFAT dev

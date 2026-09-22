@@ -47,3 +47,8 @@ playwright-report/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Demo photographs fetched from Wikimedia Commons. Freely licensed, but they
+# are illustrative seed data for one machine, not source, and committing a
+# dozen 1600px JPEGs would sit in the history for ever.
+backend/.trade-photos/

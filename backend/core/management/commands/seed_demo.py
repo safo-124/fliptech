@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from billing.models import Subscription
 from catalog.models import Intake, Programme, Trade
-from core import demo_images
+from core import demo_images, trade_photos
 from enquiries.models import Enquiry, EnquiryOutcome, Enrolment
 from geography.models import Area, Region
 from providers.models import (
@@ -62,6 +62,28 @@ class Command(BaseCommand):
         words = [word for word in name.split() if word.lower() not in skip]
         return "".join(word[0] for word in (words or name.split())[:2]).upper()
 
+    def _attach_real_photos(self, provider, trade):
+        """Photographs from Wikimedia Commons, credited in the caption.
+
+        The credit is not decoration. These are CC BY-SA and CC BY files, and
+        the caption is where the profile renders attribution, so a photograph
+        saved without one is a licence breach rather than an untidy card.
+
+        Returns False when nothing is cached for this trade, so the caller can
+        fall back rather than leave a provider with no imagery at all.
+        """
+        photos = trade_photos.for_trade(trade.slug)
+        if not photos:
+            return False
+        for order, (kind, content, caption) in enumerate(photos):
+            if provider.photos.filter(kind=kind).exists():
+                continue
+            photo = ProviderPhoto(
+                provider=provider, kind=kind, display_order=order, caption=caption
+            )
+            photo.image.save(f"{provider.slug}-{kind}.jpg", ContentFile(content), save=True)
+        return True
+
     def _attach_images(self, provider, trade, *, index):
         """Two workshop panels, two of the work, and sometimes a logo.
 
@@ -74,6 +96,10 @@ class Command(BaseCommand):
         some providers without one is the only way to see both paths on a real
         page. It also matches the market: most small workshops have no logo.
         """
+        if self.real_photos and self._attach_real_photos(provider, trade):
+            self._attach_logo(provider, index)
+            return
+
         for kind, count in (
             (ProviderPhoto.Kind.WORKSHOP, 2),
             (ProviderPhoto.Kind.WORK, 2),
@@ -93,6 +119,9 @@ class Command(BaseCommand):
                     save=True,
                 )
 
+        self._attach_logo(provider, index)
+
+    def _attach_logo(self, provider, index):
         # Every third provider goes without, so the initials fallback is
         # visible on a seeded site rather than only in a test.
         if index % 3 != 2 and not provider.logo:
@@ -110,6 +139,14 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--providers", type=int, default=24)
         parser.add_argument(
+            "--real-photos",
+            action="store_true",
+            help=(
+                "Use the Wikimedia Commons photographs cached by "
+                "fetch_trade_photos instead of the generated panels."
+            ),
+        )
+        parser.add_argument(
             "--no-images",
             action="store_true",
             help="Skip the illustrative photographs and logos.",
@@ -117,6 +154,15 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         random.seed(20260817)  # reproducible demo data
+        self.real_photos = options["real_photos"]
+        if self.real_photos and not trade_photos.available():
+            self.stdout.write(
+                self.style.WARNING(
+                    "Not every trade has a cached photograph. Run "
+                    "`manage.py fetch_trade_photos` first; trades without one "
+                    "fall back to the generated panels."
+                )
+            )
         User = get_user_model()
 
         officer, _ = User.objects.get_or_create(
