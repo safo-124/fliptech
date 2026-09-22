@@ -26,10 +26,10 @@ import {
   Camera,
   Clock3,
   FileCheck2,
+  GraduationCap,
   Info,
   MapPin,
   ShieldCheck,
-  Sparkles,
   Wrench,
 } from "lucide-react";
 
@@ -412,7 +412,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
             returnTo={`/${provider.area_slug}/${provider.slug}`}
           />
           <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
-            <Sparkles className="size-5 text-[var(--color-brand)]" aria-hidden="true" />
+            <GraduationCap className="size-5 text-[var(--color-brand)]" aria-hidden="true" />
             <div>
               <p className="text-xs text-[var(--color-muted-foreground)]">Training choices</p>
               <p className="text-sm font-bold">

@@ -20,7 +20,6 @@ import {
   Map,
   MapPin,
   SearchX,
-  Sparkles,
   TriangleAlert,
 } from "lucide-react";
 
@@ -273,11 +272,7 @@ export default async function SearchPage({
                   </nav>
                 ) : null}
 
-                <Card className="mt-6 flex-row items-start gap-3 border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-4 shadow-none lg:mr-[29.25rem] xl:mr-[35.25rem]">
-                  <Sparkles
-                    className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-strong)]"
-                    aria-hidden="true"
-                  />
+                <Card className="mt-6 border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-4 shadow-none lg:mr-[29.25rem] xl:mr-[35.25rem]">
                   <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
                     Enquire with three providers before you decide. Comparing is free and is the
                     best way to understand what a fair fee looks like.

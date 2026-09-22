@@ -6,8 +6,8 @@ import {
   CheckCircle2,
   Clock3,
   GraduationCap,
+  Search,
   Send,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -167,7 +167,7 @@ export function TraineeOverview({
       {nothingYet ? (
         <Card className="border-dashed p-6 text-center sm:p-8">
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
-            <Sparkles aria-hidden="true" className="size-5" />
+            <Search aria-hidden="true" className="size-5" />
           </span>
           <p className="mt-4 text-lg font-semibold">Your account is ready</p>
           <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-[var(--color-muted-foreground)]">
