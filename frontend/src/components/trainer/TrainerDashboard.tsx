@@ -23,6 +23,7 @@ import Link from "next/link";
 import {Fragment, useEffect, useState} from "react";
 
 import {DashboardBottomBar, DashboardSidebar} from "@/components/dashboard/DashboardNav";
+import {TrainerAccount} from "@/components/trainer/TrainerAccount";
 import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
 import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
 import type {TrainerTab} from "@/components/trainer/TrainerNav";
@@ -364,7 +365,7 @@ export function TrainerDashboard() {
   useEffect(() => {
     const apply = () => {
       const wanted = window.location.hash.replace(/^#/, "");
-      if ((["overview", "enquiries", "listing"] as string[]).includes(wanted)) {
+      if ((["overview", "enquiries", "listing", "account"] as string[]).includes(wanted)) {
         setTab(wanted as TrainerTab);
       }
     };
@@ -596,6 +597,13 @@ export function TrainerDashboard() {
 
       {tab === "enquiries" ? (
         <TrainerEnquiries enquiries={enquiries} loading={enquiriesLoading} />
+      ) : null}
+
+      {tab === "account" ? (
+        <TrainerAccount
+          session={session}
+          onSession={(next) => setSession(next)}
+        />
       ) : null}
 
       {tab === "listing" ? (
