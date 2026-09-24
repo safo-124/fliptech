@@ -167,6 +167,21 @@ export function getTrainerOwnEnquiries() {
   return trainerFetch<TrainerEnquiry[]>("/api/trainer/dashboard/enquiries/");
 }
 
+/**
+ * The owner saying they have answered someone.
+ *
+ * Self-reported, like every field on the outcome it writes to: the
+ * conversation happens on WhatsApp and the platform cannot observe any of it.
+ * Reversible, because a mis-tap that permanently mislabelled an enquiry would
+ * make the list worth less than no list.
+ */
+export function setTrainerEnquiryReplied(referenceCode: string, replied: boolean) {
+  return trainerFetch<{reference_code: string; replied: boolean}>(
+    `/api/trainer/dashboard/enquiries/${encodeURIComponent(referenceCode)}/replied/`,
+    {method: "POST", body: JSON.stringify({replied})},
+  );
+}
+
 /** "The fees and dates on this listing are still right." */
 export async function confirmListingIsCurrent() {
   const response = await trainerFetch<{profile: TrainerProfile}>(

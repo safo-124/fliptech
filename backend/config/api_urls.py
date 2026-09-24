@@ -13,6 +13,7 @@ from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
 from providers.trainer_dashboard_views import (
+    TrainerEnquiryRepliedView,
     TrainerOwnDashboardView,
     TrainerOwnEnquiriesView,
 )
@@ -124,6 +125,11 @@ urlpatterns = [
         "trainer/dashboard/enquiries/",
         TrainerOwnEnquiriesView.as_view(),
         name="trainer-own-enquiries",
+    ),
+    path(
+        "trainer/dashboard/enquiries/<str:reference_code>/replied/",
+        TrainerEnquiryRepliedView.as_view(),
+        name="trainer-enquiry-replied",
     ),
     path(
         "trainer/profile/confirm/",

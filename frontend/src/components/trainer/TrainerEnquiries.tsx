@@ -1,6 +1,6 @@
 "use client";
 
-import {Clock3, MessageCircle, Phone, Search, Send} from "lucide-react";
+import {Check, Clock3, Loader2, MessageCircle, Phone, RotateCcw, Search, Send} from "lucide-react";
 import {useState} from "react";
 
 import {Badge} from "@/components/ui/badge";
@@ -31,12 +31,30 @@ type Filter = "all" | "waiting" | "replied";
 export function TrainerEnquiries({
   enquiries,
   loading,
+  onToggleReplied,
 }: {
   enquiries: TrainerEnquiry[];
   loading: boolean;
+  onToggleReplied: (referenceCode: string, replied: boolean) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  // Per row, not one flag for the list: marking one enquiry should not freeze
+  // the buttons on every other one.
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  async function toggle(enquiry: TrainerEnquiry) {
+    setBusy(enquiry.reference_code);
+    setFailed(null);
+    try {
+      await onToggleReplied(enquiry.reference_code, !enquiry.replied);
+    } catch {
+      setFailed(enquiry.reference_code);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -187,12 +205,40 @@ export function TrainerEnquiries({
                     <Phone aria-hidden="true" className="size-4" />
                     {enquiry.trainee_phone}
                   </p>
-                  <Button asChild variant="brand" className="w-full">
-                    <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
-                      <MessageCircle aria-hidden="true" />
-                      Reply on WhatsApp
-                    </a>
-                  </Button>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button asChild variant="brand" className="flex-1">
+                      <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle aria-hidden="true" />
+                        Reply on WhatsApp
+                      </a>
+                    </Button>
+                    {/* Separate from the link on purpose. Opening WhatsApp is
+                        not evidence of having answered, and a button that
+                        marked it for you would quietly make the figure a
+                        count of clicks. */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={busy === enquiry.reference_code}
+                      aria-pressed={enquiry.replied}
+                      onClick={() => toggle(enquiry)}
+                    >
+                      {busy === enquiry.reference_code ? (
+                        <Loader2 aria-hidden="true" className="animate-spin" />
+                      ) : enquiry.replied ? (
+                        <RotateCcw aria-hidden="true" />
+                      ) : (
+                        <Check aria-hidden="true" />
+                      )}
+                      {enquiry.replied ? "Not replied yet" : "Mark as replied"}
+                    </Button>
+                  </div>
+                  {failed === enquiry.reference_code ? (
+                    <p role="alert" className="text-sm text-[var(--color-warn)]">
+                      Could not save that. Check your connection and try again.
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
             </li>

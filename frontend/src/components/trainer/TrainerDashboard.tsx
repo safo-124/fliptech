@@ -48,6 +48,7 @@ import {
   getTrainerOwnEnquiries,
   getTrainerSession,
   logoutTrainer,
+  setTrainerEnquiryReplied,
 } from "@/lib/trainer-api";
 import type {
   TrainerDashboard as TrainerDashboardData,
@@ -419,6 +420,22 @@ export function TrainerDashboard() {
     };
   }, []);
 
+  async function markReplied(referenceCode: string, replied: boolean) {
+    const saved = await setTrainerEnquiryReplied(referenceCode, replied);
+    // The server's answer, not the optimistic guess: if it disagreed, the row
+    // should show what was actually stored.
+    setEnquiries((current) =>
+      current.map((enquiry) =>
+        enquiry.reference_code === referenceCode
+          ? {...enquiry, replied: saved.replied}
+          : enquiry,
+      ),
+    );
+    // The response rate on the overview counts replies, so it is now stale.
+    const refreshed = await getTrainerDashboard().catch(() => null);
+    if (refreshed) setFigures(refreshed);
+  }
+
   async function confirmStillCurrent() {
     setConfirming(true);
     setError(null);
@@ -596,7 +613,11 @@ export function TrainerDashboard() {
       </section>
 
       {tab === "enquiries" ? (
-        <TrainerEnquiries enquiries={enquiries} loading={enquiriesLoading} />
+        <TrainerEnquiries
+          enquiries={enquiries}
+          loading={enquiriesLoading}
+          onToggleReplied={markReplied}
+        />
       ) : null}
 
       {tab === "account" ? (
