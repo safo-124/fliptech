@@ -108,20 +108,35 @@ def test_it_says_out_loud_that_these_are_not_this_workshop(cached):
 
 
 @pytest.mark.django_db
-def test_replace_clears_the_demo_panels_and_their_files(cached, settings):
+def test_replace_swaps_the_rows(cached):
     """Without --replace the existing panels stay and nothing changes, because
     a workshop photograph already exists for that kind."""
     old = ProviderPhoto(provider=cached, kind=ProviderPhoto.Kind.WORKSHOP)
     old.image.save("demo.jpg", ContentFile(b"old"), save=True)
-    path = settings.MEDIA_ROOT / old.image.name
-
-    assert path.exists()
 
     run("accra-central/test-1", "--replace")
 
-    assert not path.exists()
     assert cached.photos.count() == 2
+    assert not cached.photos.filter(pk=old.pk).exists()
     assert not cached.photos.filter(caption="").exists()
+
+
+@pytest.mark.django_db
+def test_replace_leaves_the_old_files_on_disk(cached, settings):
+    """Deleting them here is what broke the live site the first time this ran.
+
+    Pages are cached for five minutes, so a file removed the moment its row
+    goes is a 404 on a page that is still being served. prune_media clears
+    them later, once nothing can still be pointing at them.
+    """
+    old = ProviderPhoto(provider=cached, kind=ProviderPhoto.Kind.WORKSHOP)
+    old.image.save("demo.jpg", ContentFile(b"old"), save=True)
+    path = settings.MEDIA_ROOT / old.image.name
+
+    output = run("accra-central/test-1", "--replace")
+
+    assert path.exists()
+    assert "prune_media" in output
 
 
 @pytest.mark.django_db

@@ -67,13 +67,18 @@ class Command(BaseCommand):
             )
 
         if options["replace"]:
-            removed = 0
-            for photo in provider.photos.all():
-                if photo.image:
-                    photo.image.delete(save=False)
-                photo.delete()
-                removed += 1
-            self.stdout.write(f"Removed {removed} existing photograph(s).")
+            # The rows go; the files stay. Pages are cached for five minutes,
+            # so deleting a file the moment its row goes leaves a live page
+            # pointing at a 404 until that cache turns over — which is exactly
+            # what happened the first time this ran. `manage.py prune_media`
+            # clears them once nothing can still be referencing them.
+            removed = provider.photos.count()
+            provider.photos.all().delete()
+            self.stdout.write(
+                f"Removed {removed} existing photograph(s). Their files stay on disk "
+                "until `manage.py prune_media` clears them, so pages cached with the "
+                "old addresses keep working."
+            )
 
         added = 0
         for order, (kind, content, caption) in enumerate(photos):
