@@ -26,6 +26,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.money import money
+from enquiries import whatsapp
 from enquiries.models import Enquiry, Enrolment
 
 from .models import Provider
@@ -126,7 +127,10 @@ def enquiry_payload(provider, *, limit=100):
     """The enquiries themselves, so the numbers above can be acted on."""
     enquiries = (
         Enquiry.objects.filter(provider=provider)
-        .select_related("programme")
+        # provider as well as programme: the reply link names the workshop, and
+        # without this that is one extra query per enquiry on a page that shows
+        # a hundred of them.
+        .select_related("programme", "provider")
         .order_by("-created_at")[:limit]
     )
     return [
@@ -138,6 +142,10 @@ def enquiry_payload(provider, *, limit=100):
             "message": enquiry.message,
             "created_at": enquiry.created_at,
             "replied": getattr(enquiry, "outcome", None) is not None and enquiry.outcome.replied,
+            # Counting enquiries and then giving the owner no way to answer one
+            # is most of a feature. This is the same free click-to-chat link
+            # the trainee gets, pointed the other way.
+            "whatsapp_url": whatsapp.provider_to_trainee(enquiry),
         }
         for enquiry in enquiries
     ]

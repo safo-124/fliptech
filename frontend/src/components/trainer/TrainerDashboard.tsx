@@ -22,7 +22,11 @@ import {
 import Link from "next/link";
 import {Fragment, useEffect, useState} from "react";
 
+import {DashboardBottomBar, DashboardSidebar} from "@/components/dashboard/DashboardNav";
 import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
+import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
+import type {TrainerTab} from "@/components/trainer/TrainerNav";
+import {TRAINER_TABS} from "@/components/trainer/TrainerNav";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
 import {Button} from "@/components/ui/button";
@@ -40,11 +44,13 @@ import {formatDate, formatFee} from "@/lib/format";
 import {
   confirmListingIsCurrent,
   getTrainerDashboard,
+  getTrainerOwnEnquiries,
   getTrainerSession,
   logoutTrainer,
 } from "@/lib/trainer-api";
 import type {
   TrainerDashboard as TrainerDashboardData,
+  TrainerEnquiry,
   TrainerSession,
 } from "@/lib/types";
 
@@ -348,6 +354,29 @@ export function TrainerDashboard() {
   const [figures, setFigures] = useState<TrainerDashboardData | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmNote, setConfirmNote] = useState<string | null>(null);
+  const [enquiries, setEnquiries] = useState<TrainerEnquiry[]>([]);
+  const [enquiriesLoading, setEnquiriesLoading] = useState(true);
+  const [tab, setTab] = useState<TrainerTab>("overview");
+
+  // Deep links, both ways, so a reload comes back to the tab you were on. A
+  // hash rather than a query: no Suspense boundary, and the server has no
+  // business knowing which tab of their own workspace someone is reading.
+  useEffect(() => {
+    const apply = () => {
+      const wanted = window.location.hash.replace(/^#/, "");
+      if ((["overview", "enquiries", "listing"] as string[]).includes(wanted)) {
+        setTab(wanted as TrainerTab);
+      }
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
+
+  function goTo(next: TrainerTab) {
+    setTab(next);
+    if (typeof window !== "undefined") window.history.replaceState(null, "", `#${next}`);
+  }
 
   useEffect(() => {
     let active = true;
@@ -363,6 +392,19 @@ export function TrainerDashboard() {
               if (active) setFigures(data);
             })
             .catch(() => undefined);
+          // Same reasoning: an owner with no enquiries yet and an owner whose
+          // enquiries failed to load both see the empty state rather than the
+          // whole page turning into an error.
+          getTrainerOwnEnquiries()
+            .then((rows) => {
+              if (active) setEnquiries(rows);
+            })
+            .catch(() => undefined)
+            .finally(() => {
+              if (active) setEnquiriesLoading(false);
+            });
+        } else if (active) {
+          setEnquiriesLoading(false);
         }
       })
       .catch((reason) => {
@@ -455,10 +497,43 @@ export function TrainerDashboard() {
 
   const appearance = statusAppearance(profile.status);
   const StatusIcon = appearance.Icon;
+  // What the badge counts. Answering is the job; how many have arrived is not
+  // the number an owner needs on a tab.
+  const waitingForReply = enquiries.filter((enquiry) => !enquiry.replied).length;
 
   return (
-    <div className="space-y-5" data-trainer-dashboard>
+    /* pb-20 on a phone clears the fixed bottom bar; the sidebar replaces it
+       from lg up, where the padding is no longer wanted. */
+    <div className="pb-20 lg:pb-0" data-trainer-dashboard>
       <TrainerAccountNotice session={session} />
+
+      <div className="gap-7 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <DashboardSidebar
+          tabs={TRAINER_TABS}
+          tab={tab}
+          onSelect={goTo}
+          counts={{enquiries: waitingForReply}}
+          onSignOut={signOut}
+          busy={busy}
+          canSignOut
+        >
+          <div className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-[var(--shadow-card)]">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+              <Building2 aria-hidden="true" className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold leading-5">{profile.name}</p>
+              <p className="truncate text-xs text-[var(--color-muted-foreground)]">
+                {profile.status_label}
+              </p>
+            </div>
+          </div>
+        </DashboardSidebar>
+
+        <div className="min-w-0 space-y-5">
+      {/* The status card sits on every tab. It is the answer to "is my listing
+          live", which is the question an owner opens this page with, and
+          burying it behind a tab would make them hunt for it. */}
       <section aria-labelledby="profile-status-heading" aria-live="polite">
         <Card className="relative overflow-hidden">
           <div
@@ -519,6 +594,11 @@ export function TrainerDashboard() {
         </Card>
       </section>
 
+      {tab === "enquiries" ? (
+        <TrainerEnquiries enquiries={enquiries} loading={enquiriesLoading} />
+      ) : null}
+
+      {tab === "listing" ? (
       <div className="grid items-stretch gap-5 lg:grid-cols-2">
         <section aria-labelledby="workshop-details-heading">
           <Card className="h-full">
@@ -636,8 +716,9 @@ export function TrainerDashboard() {
           </section>
         )}
       </div>
+      ) : null}
 
-      {profile.status === "published" ? (
+      {tab === "overview" && profile.status === "published" ? (
         <PerformancePanel
           figures={figures}
           isStale={profile.is_stale}
@@ -658,7 +739,7 @@ export function TrainerDashboard() {
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-3 border-t border-[var(--color-border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t border-[var(--color-border)] pt-5 sm:flex-row sm:items-center sm:justify-between lg:hidden">
         <p className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
           <CalendarDays aria-hidden="true" className="size-3.5" />
           Your draft is saved on this device while you are signed in.
@@ -674,6 +755,15 @@ export function TrainerDashboard() {
           {busy ? "Signing out…" : "Sign out"}
         </Button>
       </div>
+        </div>
+      </div>
+
+      <DashboardBottomBar
+        tabs={TRAINER_TABS}
+        tab={tab}
+        onSelect={goTo}
+        counts={{enquiries: waitingForReply}}
+      />
     </div>
   );
 }

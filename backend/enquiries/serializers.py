@@ -6,15 +6,13 @@ the most expensive mistake available in this project, so the response carries a
 wa.me handover link and nothing more.
 """
 
-from urllib.parse import quote
-
-from django.conf import settings
 from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
 from catalog.models import Intake, Programme
 
+from . import whatsapp
 from .models import Enquiry
 
 
@@ -79,13 +77,7 @@ class EnquiryConfirmationSerializer(serializers.ModelSerializer):
         Only the provider-alert side needs the paid Cloud API, because a
         business-initiated template message is billed per send.
         """
-        number = str(obj.provider.contact_phone).lstrip("+")
-        text = (
-            f"Hello, I found you on {settings.BRAND_NAME} Skills Hub. "
-            f"My reference is {obj.reference_code}. "
-            f"I am interested in {obj.programme.title if obj.programme else 'your training'}."
-        )
-        return f"https://wa.me/{number}?text={quote(text)}"
+        return whatsapp.trainee_to_provider(obj)
 
     @extend_schema_field(serializers.IntegerField())
     def get_expect_reply_within_hours(self, obj):

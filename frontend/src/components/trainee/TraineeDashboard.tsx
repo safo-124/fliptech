@@ -20,8 +20,9 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useEffect, useState} from "react";
 
+import {DashboardBottomBar, DashboardSidebar} from "@/components/dashboard/DashboardNav";
 import type {TraineeTab} from "@/components/trainee/TraineeNav";
-import {TraineeBottomBar, TraineeSidebar} from "@/components/trainee/TraineeNav";
+import {TRAINEE_TABS} from "@/components/trainee/TraineeNav";
 import {TraineeOverview} from "@/components/trainee/TraineeOverview";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
@@ -532,7 +533,8 @@ export function TraineeDashboard() {
       </header>
 
       <div className="gap-7 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <TraineeSidebar
+        <DashboardSidebar
+          tabs={TRAINEE_TABS}
           tab={tab}
           onSelect={goTo}
           counts={counts}
@@ -541,7 +543,7 @@ export function TraineeDashboard() {
           canSignOut={!session.support}
         >
           {identity}
-        </TraineeSidebar>
+        </DashboardSidebar>
 
         <div className="min-w-0">
       {error ? (
@@ -1003,7 +1005,7 @@ export function TraineeDashboard() {
         </div>
       </div>
 
-      <TraineeBottomBar tab={tab} onSelect={goTo} counts={counts} />
+      <DashboardBottomBar tabs={TRAINEE_TABS} tab={tab} onSelect={goTo} counts={counts} />
     </div>
   );
 }

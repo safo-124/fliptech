@@ -398,6 +398,9 @@ export type TrainerEnquiry = {
   message: string;
   created_at: string;
   replied: boolean;
+  /** Click-to-chat with the trainee, quoting the reference. Free — only a
+   *  business-initiated template costs anything. */
+  whatsapp_url: string;
 };
 
 /**
