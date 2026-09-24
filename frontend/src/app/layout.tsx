@@ -11,8 +11,12 @@ export const metadata: Metadata = {
     default: `${BRAND} Skills Hub — find practical skills training in Ghana`,
     template: `%s | ${BRAND} Skills Hub`,
   },
+  // Ghana, not Accra. This and the title are what search engines index, so
+  // between them they decide whether somebody in Kumasi believes the site is
+  // for them. Where the workshops actually are today is the hero's job, on the
+  // page, where it can be specific without narrowing the whole product.
   description:
-    "Compare fees, duration and start dates for welding, tailoring, plumbing and other trades training in Greater Accra.",
+    "Compare fees, duration and start dates for welding, tailoring, plumbing and other trades training in Ghana.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"),
 };
 

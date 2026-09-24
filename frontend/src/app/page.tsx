@@ -30,10 +30,14 @@ import { SearchMapPanel } from "@/components/SearchMapPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { buildQuery, getTrades, searchProviders, type SearchParams } from "@/lib/api";
+import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
 import { titleCase } from "@/lib/format";
 
 export const metadata = {
-  title: "Find skills training near you in Greater Accra",
+  // Deliberately not region-aware. A title that changed as regions launched
+  // would churn the one string search engines have indexed longest, and the
+  // product is national whichever regions happen to be live this month.
+  title: "Find skills training near you in Ghana",
 };
 
 function withoutPage(params: SearchParams): SearchParams {
@@ -77,10 +81,14 @@ export default async function SearchPage({
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
 
-  const [trades, results] = await Promise.all([
+  const [trades, results, regionNames] = await Promise.all([
     getTrades().catch(() => ({ results: [] })),
     searchProviders(params).catch(() => null),
+    launchedRegionNames(),
   ]);
+  // "in Greater Accra" while that is the only live region, "across Ghana"
+  // once naming them stops being readable.
+  const coverage = coverageSuffix(regionNames);
 
   const mapHref = `/map${buildQuery(withoutPage(params))}`;
   const listHref = `/${buildQuery(params)}`;
@@ -107,7 +115,7 @@ export default async function SearchPage({
           <div className="max-w-3xl">
             <span className="badge border-white/20 bg-white/10 text-white/80 backdrop-blur-sm">
               <MapPin aria-hidden="true" className="size-3.5" />
-              Practical training across Greater Accra
+              Practical training {coverage}
             </span>
             <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.05] tracking-[-0.035em] text-white sm:text-4xl lg:text-[3.25rem]">
               Find training that fits your plans and{" "}

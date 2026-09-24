@@ -4,8 +4,13 @@ import Link from "next/link";
 import {BrandMark} from "@/components/BrandMark";
 import {BrandShards} from "@/components/BrandShards";
 import {BRAND} from "@/lib/brand";
+import {coveragePhrase, launchedRegionNames} from "@/lib/coverage";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  // Named while there are a few regions, the country once there are many.
+  // Read from the API rather than written here, so it follows the rollout.
+  const coverage = coveragePhrase(await launchedRegionNames());
+
   return (
     // Closes the page on the same indigo the header opens it with.
     <footer className="band relative isolate mt-14 overflow-hidden">
@@ -25,7 +30,7 @@ export function SiteFooter() {
           </p>
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-white/60">
             <span className="inline-flex items-center gap-1.5">
-              <MapPin className="size-3.5" aria-hidden /> Greater Accra
+              <MapPin className="size-3.5" aria-hidden /> {coverage}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="size-3.5" aria-hidden /> Honest verification labels
