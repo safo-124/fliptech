@@ -170,8 +170,7 @@ def test_a_field_officer_does_not_see_trainee_sign_ups(area, django_user_model):
 
 @pytest.mark.django_db
 def test_the_dashboard_renders_it(client, area, django_user_model):
-    django_user_model.objects.create_superuser("boss", password="pw")
-    client.login(username="boss", password="pw")
+    client.force_login(django_user_model.objects.create_superuser("boss"))
     Provider.objects.create(
         name="Accra Welding",
         slug="accra-welding",
@@ -189,8 +188,7 @@ def test_the_dashboard_renders_it(client, area, django_user_model):
 
 @pytest.mark.django_db
 def test_an_empty_feed_says_so_rather_than_rendering_nothing(client, django_user_model):
-    django_user_model.objects.create_superuser("boss", password="pw")
-    client.login(username="boss", password="pw")
+    client.force_login(django_user_model.objects.create_superuser("boss"))
 
     body = client.get(reverse("admin:index")).content.decode()
 
