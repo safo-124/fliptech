@@ -65,7 +65,16 @@ class SkillsHubAdminSite(AdminSite):
         return context
 
     def index(self, request, extra_context=None):
-        context = {**(extra_context or {}), "panel": self.build_panel(request)}
+        from core import activity, delivery
+
+        context = {
+            **(extra_context or {}),
+            "panel": self.build_panel(request),
+            # What is reaching anyone, first: the response rate two cards down
+            # is meaningless while workshops are never told an enquiry arrived.
+            "delivery": delivery.status(),
+            "activity": activity.recent(request.user),
+        }
         return super().index(request, extra_context=context)
 
     # -- helpers -----------------------------------------------------------

@@ -227,11 +227,112 @@
   }
   .sh .actionlist li:last-child { border-bottom: none; }
   .sh .actionlist .mini { color: var(--muted-foreground); font-size: 12px; }
+
+  /* Delivery strip. Deliberately the loudest thing on the page while it is
+     warning: every number below it is about messages that are not arriving. */
+  .sh-delivery {
+    border: 1px solid var(--hairline-color, #e5e7eb);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    background: var(--color-card, #fff);
+  }
+  .sh-delivery.warn {
+    border-color: color-mix(in oklab, #b45309 40%, transparent);
+    background: color-mix(in oklab, #fef3c7 55%, #fff);
+  }
+  .sh-delivery h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .sh-delivery p { margin: 0; font-size: 12px; line-height: 20px; color: var(--muted-foreground); }
+  .sh-channels { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .sh-channel {
+    display: flex; gap: 8px; align-items: baseline;
+    border: 1px solid var(--hairline-color, #e5e7eb);
+    border-radius: 999px; padding: 4px 12px; font-size: 12px;
+    background: var(--color-card, #fff);
+  }
+  .sh-channel b { font-weight: 700; }
+  .sh-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+  .sh-dot.on { background: #15803d; }
+  .sh-dot.off { background: #b45309; }
+
+  /* Activity feed */
+  .sh-feed { list-style: none; margin: 0; padding: 0; }
+  .sh-feed li {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 0; border-bottom: 1px solid var(--hairline-color, #e5e7eb);
+    font-size: 13px; line-height: 20px;
+  }
+  .sh-feed li:last-child { border-bottom: none; }
+  .sh-feed time { flex: none; width: 5.5rem; color: var(--muted-foreground); font-size: 12px; }
+  .sh-feed .who { color: var(--muted-foreground); font-size: 12px; }
+  .sh-kind {
+    flex: none; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700;
+    background: var(--color-muted, #f3f4f6); color: var(--muted-foreground);
+  }
+  .sh-kind.published { background: #dcfce7; color: #166534; }
+  .sh-kind.submitted, .sh-kind.decision { background: #fef3c7; color: #92400e; }
 </style>
 
 <div class="sh">
   <h1>Overview</h1>
   <p class="sh-lede">Onboarding, verification and moderation for {{ panel.pipeline.published }} published provider{{ panel.pipeline.published|pluralize }}.</p>
+
+  {# ---- What is actually reaching anyone ----
+     First on the page on purpose. While workshop alerts are not sent, the
+     response rate three cards down is not a measure of how quickly providers
+     answer — it is a measure of how many were told at all, which is none. #}
+  <div class="sh-delivery{% if not delivery.all_live %} warn{% endif %}" role="status">
+    {% if delivery.all_live %}
+      <h3>Messages are being delivered</h3>
+      <p>Sign-in codes and workshop alerts are going out through live providers.</p>
+    {% else %}
+      <h3>Some messages are not being delivered</h3>
+      <p>
+        {% if delivery.response_rate_is_misleading %}
+          Workshops are <strong>not</strong> told when an enquiry arrives, so the reply rate below
+          measures how many answered a message nobody sent them. Do not read it as provider
+          slowness, and do not chase a workshop over it.
+        {% else %}
+          The channels marked below are writing to the server log rather than sending.
+        {% endif %}
+      </p>
+    {% endif %}
+    <div class="sh-channels">
+      {% for channel in delivery.channels %}
+        <span class="sh-channel" title="{{ channel.carries }}">
+          <span class="sh-dot {% if channel.live %}on{% else %}off{% endif %}"></span>
+          <b>{{ channel.name }}</b>
+          <span>{{ channel.provider }}</span>
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ---- What happened lately ----
+     Django's "recent actions" card further down covers only changes made
+     through the admin. Everything a trainer or a trainee did themselves was
+     invisible until this. #}
+  <h2>Lately</h2>
+  <div class="sh-grid">
+    <div class="sh-card" style="grid-column: span 12;">
+      {% if activity %}
+        <ul class="sh-feed">
+          {% for event in activity %}
+            <li>
+              <time datetime="{{ event.at|date:'c' }}" title="{{ event.at }}">{{ event.at|timesince }} ago</time>
+              <span class="sh-kind {{ event.kind }}">{{ event.kind }}</span>
+              <span>
+                {% if event.url %}<a href="{{ event.url }}">{{ event.what }}</a>{% else %}{{ event.what }}{% endif %}
+                {% if event.who %}<span class="who">— {{ event.who }}</span>{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="sh-foot-muted">Nothing has happened in the last two weeks.</p>
+      {% endif %}
+    </div>
+  </div>
 
   {# ---- Section cards: the four numbers the business is judged on ---- #}
   <div class="sh-grid">
