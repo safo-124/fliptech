@@ -88,3 +88,17 @@ def account_for_verified_email(*, email, verified_at):
     account.email_verified_at = verified_at
     account.save(update_fields=["email_verified_at", "updated_at"])
     return account
+
+
+def verified_email_for(phone):
+    """The address to copy a phone sign-in code to, or None.
+
+    The trainer mirror of trainees.auth.verified_email_for, and verified for
+    the same reason: an unproven address is not somewhere a sign-in code may
+    be sent.
+    """
+    return (
+        TrainerAccount.objects.filter(phone=phone, is_active=True, email_verified_at__isnull=False)
+        .values_list("email", flat=True)
+        .first()
+    )

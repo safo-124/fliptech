@@ -21,7 +21,11 @@ from enquiries.serializers import OTPRequestSerializer
 
 from .lifecycle import ProviderTransitionError, submit_provider
 from .models import TrainerAccount
-from .trainer_auth import TrainerAccountDisabled, account_for_verified_phone
+from .trainer_auth import (
+    TrainerAccountDisabled,
+    account_for_verified_phone,
+    verified_email_for,
+)
 from .trainer_profiles import (
     TrainerProfileConflict,
     confirm_listing_is_current,
@@ -125,6 +129,10 @@ class TrainerOTPRequestView(APIView):
                 phone,
                 ip_address=canonical_client_ip(request),
                 purpose=PhoneVerification.Purpose.TRAINER_ACCESS,
+                # See the trainee view: the same code, also delivered to the
+                # verified address on the account, and the response is
+                # unchanged so it reveals nothing about whether one exists.
+                email=verified_email_for(phone),
             )
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)

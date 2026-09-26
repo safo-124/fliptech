@@ -203,7 +203,7 @@ export function TraineeSignIn() {
         <CardDescription>
           {method === "email"
             ? "For an address you already added to your account. We send a one-time code."
-            : "New or returning, it is the same step. We send a one-time code. No password."}
+            : "New or returning, it is the same step. We send a one-time code by text, and to your email as well if you have added one. No password."}
         </CardDescription>
       </CardHeader>
       <form onSubmit={sendCode} noValidate aria-busy={busy}>

@@ -493,7 +493,7 @@ export function TrainerDashboard() {
     return (
       <EmptyState
         title="Sign in to your trainer profile"
-        description="We will send a one-time code to your private phone number."
+        description="We will send a one-time code to your private phone number, and to your email as well if you have added one."
         action="Sign in"
       />
     );

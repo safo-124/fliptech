@@ -115,3 +115,19 @@ def account_for_verified_email(*, email, verified_at):
     link_history(account)
     account._just_created = False
     return account
+
+
+def verified_email_for(phone):
+    """The address to copy a phone sign-in code to, or None.
+
+    Verified only. An address someone typed but never proved is not theirs to
+    receive a sign-in code at — that is the whole point of the two-step claim
+    on the settings screen.
+
+    Inactive accounts are excluded for the same reason they cannot sign in.
+    """
+    return (
+        TraineeAccount.objects.filter(phone=phone, is_active=True, email_verified_at__isnull=False)
+        .values_list("email", flat=True)
+        .first()
+    )

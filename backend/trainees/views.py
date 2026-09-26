@@ -25,7 +25,7 @@ from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 
 from .access import IsTraineeOrSupport, context_for, forget_context
-from .auth import TraineeAccountDisabled, account_for_verified_phone
+from .auth import TraineeAccountDisabled, account_for_verified_phone, verified_email_for
 from .erasure import close_account
 from .models import SavedProvider
 from .serializers import (
@@ -104,11 +104,18 @@ class TraineeCodeRequestView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
+        phone = serializer.validated_data["phone"]
         try:
             challenge = request_code(
-                serializer.validated_data["phone"],
+                phone,
                 ip_address=canonical_client_ip(request),
                 purpose=PhoneVerification.Purpose.TRAINEE_ACCESS,
+                # Copied to the address on the account, when there is a
+                # verified one. An SMS on a prepaid network is not reliable,
+                # and the response below says nothing about whether a copy
+                # went — otherwise anyone holding a phone number could learn
+                # whether it has an address attached.
+                email=verified_email_for(phone),
             )
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
