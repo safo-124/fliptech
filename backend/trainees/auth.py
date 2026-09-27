@@ -176,17 +176,32 @@ def account_for_verified_email(*, email, verified_at):
     return account
 
 
-def verified_email_for(phone):
-    """The address to copy a phone sign-in code to, or None.
+def code_address_for(phone):
+    """(address, is_verified) for copying a sign-in code to, or (None, False).
 
-    Verified only. An address someone typed but never proved is not theirs to
-    receive a sign-in code at — that is the whole point of the two-step claim
-    on the settings screen.
+    Any address on the account, not only a proven one. Requiring proof read
+    well until you follow it through: somebody signs up giving their email,
+    gets the code both ways, and on their next sign-in it goes to the phone
+    alone — which on a prepaid network may be exactly the message that does
+    not arrive, and on this deployment is not sent at all. Being asked to
+    prove an address you cannot receive the proof for is a locked door.
+
+    The risk this accepts is bounded and worth naming. Somebody could sign up
+    with their own phone and a stranger's address, and that stranger would
+    then get a code every time they signed in. It is a nuisance rather than a
+    way in — the code is useless without the phone it was issued for — and the
+    caller caps unverified addresses at the same few per day as the email door
+    itself, so it cannot become a flood.
 
     Inactive accounts are excluded for the same reason they cannot sign in.
     """
-    return (
-        TraineeAccount.objects.filter(phone=phone, is_active=True, email_verified_at__isnull=False)
-        .values_list("email", flat=True)
+    row = (
+        TraineeAccount.objects.filter(phone=phone, is_active=True)
+        .exclude(email=None)
+        .values_list("email", "email_verified_at")
         .first()
     )
+    if not row:
+        return None, False
+    email, verified_at = row
+    return email, verified_at is not None

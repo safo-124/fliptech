@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.network import canonical_client_ip, ratelimit_client_ip
+from enquiries.email_otp import may_copy_code_to
 from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 from enquiries.serializers import OTPRequestSerializer
@@ -24,7 +25,7 @@ from .models import TrainerAccount
 from .trainer_auth import (
     TrainerAccountDisabled,
     account_for_verified_phone,
-    verified_email_for,
+    code_address_for,
 )
 from .trainer_profiles import (
     TrainerProfileConflict,
@@ -124,15 +125,18 @@ class TrainerOTPRequestView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
+        copy_to, proven = code_address_for(phone)
+        if copy_to and not proven and not may_copy_code_to(copy_to):
+            copy_to = None
         try:
             challenge = request_code(
                 phone,
                 ip_address=canonical_client_ip(request),
                 purpose=PhoneVerification.Purpose.TRAINER_ACCESS,
                 # See the trainee view: the same code, also delivered to the
-                # verified address on the account, and the response is
-                # unchanged so it reveals nothing about whether one exists.
-                email=verified_email_for(phone),
+                # address on the account, and the response is unchanged so it
+                # reveals nothing about whether one exists.
+                email=copy_to,
             )
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)

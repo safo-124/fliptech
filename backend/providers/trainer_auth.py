@@ -90,15 +90,21 @@ def account_for_verified_email(*, email, verified_at):
     return account
 
 
-def verified_email_for(phone):
-    """The address to copy a phone sign-in code to, or None.
+def code_address_for(phone):
+    """(address, is_verified) for copying a sign-in code to, or (None, False).
 
-    The trainer mirror of trainees.auth.verified_email_for, and verified for
-    the same reason: an unproven address is not somewhere a sign-in code may
-    be sent.
+    The trainer mirror of trainees.auth.code_address_for, relaxed for the same
+    reason: an owner who gave an address and cannot receive an SMS should not
+    be told to prove the address using a message that never arrives. The
+    caller caps unproven ones.
     """
-    return (
-        TrainerAccount.objects.filter(phone=phone, is_active=True, email_verified_at__isnull=False)
-        .values_list("email", flat=True)
+    row = (
+        TrainerAccount.objects.filter(phone=phone, is_active=True)
+        .exclude(email=None)
+        .values_list("email", "email_verified_at")
         .first()
     )
+    if not row:
+        return None, False
+    email, verified_at = row
+    return email, verified_at is not None

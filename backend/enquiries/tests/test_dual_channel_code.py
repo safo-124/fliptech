@@ -163,11 +163,33 @@ def test_a_trainer_signing_in_is_copied_in(client, trainer, sent):
 
 
 @pytest.mark.django_db
-def test_an_unproven_address_gets_nothing(client, trainee, sent):
-    """Typing an address is not proving it. Sending a sign-in code to an
-    unverified one would hand the account to whoever typed it."""
+def test_an_unproven_address_still_gets_the_copy(client, trainee, sent):
+    """Requiring proof first reads well and locks people out: the proof is a
+    code sent to the address, and somebody whose SMS never arrives cannot
+    reach it. The risk is a stranger being sent a code they cannot use, and
+    the daily cap below bounds it."""
     trainee.email_verified_at = None
     trainee.save(update_fields=["email_verified_at"])
+
+    client.post(
+        reverse("trainee-otp-request"),
+        {"phone": TRAINEE_PHONE},
+        content_type="application/json",
+    )
+
+    assert [to for to, _, _ in sent["email"]] == ["ama@example.com"]
+
+
+@pytest.mark.django_db
+def test_an_unproven_address_is_capped(client, trainee, sent):
+    """A proven address needs no cap; an unproven one does, or an account
+    holding a stranger's address becomes a way to mail them daily."""
+    from enquiries.email_otp import MAX_PER_EMAIL_PER_DAY, may_copy_code_to
+
+    trainee.email_verified_at = None
+    trainee.save(update_fields=["email_verified_at"])
+    for _ in range(MAX_PER_EMAIL_PER_DAY):
+        may_copy_code_to("ama@example.com")
 
     client.post(
         reverse("trainee-otp-request"),

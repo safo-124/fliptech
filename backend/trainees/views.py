@@ -30,7 +30,7 @@ from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 
 from .access import IsTraineeOrSupport, context_for, forget_context
-from .auth import TraineeAccountDisabled, account_for_verified_phone, verified_email_for
+from .auth import TraineeAccountDisabled, account_for_verified_phone, code_address_for
 from .erasure import close_account
 from .models import SavedProvider
 from .serializers import (
@@ -112,13 +112,16 @@ class TraineeCodeRequestView(APIView):
             )
 
         phone = serializer.validated_data["phone"]
-        # A proven address needs no extra cap: the phone allowance already
-        # governs how often it can be asked for. A typed one does, or sign-up
-        # becomes a way to post mail into a stranger's inbox.
-        copy_to = verified_email_for(phone)
+        # A proven address needs no extra cap: its owner asked for it, and the
+        # phone allowance already governs how often it can be requested.
+        # Anything else — an address typed at sign-up, or one sitting on the
+        # account unproven — is capped, so this cannot become a way to post
+        # mail into a stranger's inbox.
+        copy_to, proven = code_address_for(phone)
         if not copy_to:
-            typed = serializer.validated_data.get("email")
-            copy_to = typed if typed and may_copy_code_to(typed) else None
+            copy_to, proven = serializer.validated_data.get("email"), False
+        if copy_to and not proven and not may_copy_code_to(copy_to):
+            copy_to = None
         try:
             challenge = request_code(
                 phone,
