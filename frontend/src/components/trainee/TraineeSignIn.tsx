@@ -1,6 +1,15 @@
 "use client";
 
-import {ArrowLeft, ArrowRight, Loader2, LockKeyhole, Mail, ShieldCheck, Smartphone} from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+  Smartphone,
+  UserRound,
+} from "lucide-react";
 import {useRouter, useSearchParams} from "next/navigation";
 import {useEffect, useState} from "react";
 
@@ -8,17 +17,33 @@ import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardFooter, CardHeader} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
+import {NativeSelect} from "@/components/ui/native-select";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {
   getTraineeSession,
   requestTraineeCode,
   requestTraineeEmailCode,
   safeNextPath,
+  uploadTraineeAvatar,
   verifyTraineeCode,
   verifyTraineeEmailCode,
 } from "@/lib/trainee-api";
+import type {TraineeSignUpProfile} from "@/lib/trainee-api";
 
 type Step = "phone" | "code";
+
+/** Mirrors TraineeAccount.EducationLevel in backend/trainees/models.py. The
+ *  split that matters is SHS general against SHS technical: someone leaving a
+ *  technical SHS has already done workshop hours. */
+const EDUCATION_LEVELS: Array<[string, string]> = [
+  ["not_in_school", "Not in school"],
+  ["jhs", "JHS"],
+  ["shs_general", "SHS — general"],
+  ["shs_technical", "SHS — technical or vocational"],
+  ["tvet", "CTVET or other TVET institution"],
+  ["university", "University or other tertiary"],
+  ["other", "Something else"],
+];
 
 /**
  * Which identifier is being used.
@@ -48,6 +73,33 @@ export function TraineeSignIn() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  // Everything below is optional and only shown to somebody signing up. It
+  // travels with the code, so there is no second screen to abandon.
+  const [profile, setProfile] = useState<TraineeSignUpProfile>({});
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  function field<K extends keyof TraineeSignUpProfile>(key: K, value: TraineeSignUpProfile[K]) {
+    setProfile((current) => ({...current, [key]: value}));
+  }
+
+  function choosePhoto(file: File | null) {
+    setPhotoError(null);
+    if (!file) {
+      setPhoto(null);
+      setPhotoPreview(null);
+      return;
+    }
+    // Checked here as well as on the server, so somebody on a slow connection
+    // is told before they spend the upload rather than after.
+    if (file.size > 15 * 1024 * 1024) {
+      setPhotoError("That picture is larger than 15 MB. Try a smaller one.");
+      return;
+    }
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +151,11 @@ export function TraineeSignIn() {
     setBusy(true);
     setError(null);
     try {
-      const challenge = await requestTraineeCode(toGhanaE164(parsed.data));
+      const challenge = await requestTraineeCode(
+        toGhanaE164(parsed.data),
+        // So the code arrives by email too, for anyone whose text does not.
+        signingUp ? profile.email?.trim() || undefined : undefined,
+      );
       setChallengeId(challenge.challenge_id);
       setCode("");
       setStep("code");
@@ -123,7 +179,18 @@ export function TraineeSignIn() {
         await verifyTraineeEmailCode(challengeId, email.trim(), code);
       } else {
         const parsed = ghanaPhoneSchema.parse(phone);
-        await verifyTraineeCode(challengeId, toGhanaE164(parsed), code);
+        await verifyTraineeCode(
+          challengeId,
+          toGhanaE164(parsed),
+          code,
+          signingUp ? profile : undefined,
+        );
+      }
+      // Only now does an account exist to attach it to. A picture that fails
+      // to upload must not strand somebody who is already signed in, so it is
+      // stepped over — the account screen can take another.
+      if (signingUp && photo) {
+        await uploadTraineeAvatar(photo).catch(() => undefined);
       }
       router.replace(next);
     } catch (reason) {
@@ -286,6 +353,152 @@ export function TraineeSignIn() {
               )}
             </>
           )}
+
+          {signingUp && method === "phone" ? (
+            <div className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
+              <div>
+                <p className="text-sm font-semibold">A bit about you</p>
+                <p className="mt-0.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  All optional, and you can change any of it later. Workshops answer better when
+                  they know what you have already done.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {photoPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoPreview}
+                    alt=""
+                    className="size-14 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">
+                    <UserRound aria-hidden="true" className="size-6" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="trainee-photo" className="text-sm">
+                    Profile picture
+                  </Label>
+                  <Input
+                    id="trainee-photo"
+                    type="file"
+                    accept="image/*"
+                    className="mt-1 text-xs"
+                    onChange={(event) => choosePhoto(event.target.files?.[0] ?? null)}
+                  />
+                  {photoError ? (
+                    <p role="alert" className="mt-1 text-xs text-[var(--color-destructive)]">
+                      {photoError}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs leading-4 text-[var(--color-muted-foreground)]">
+                      Only you and Skills Hub staff see it. It is never shown to a workshop.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trainee-name">Your name</Label>
+                <Input
+                  id="trainee-name"
+                  value={profile.display_name ?? ""}
+                  maxLength={120}
+                  onChange={(event) => field("display_name", event.target.value)}
+                  placeholder="How workshops should address you"
+                  autoComplete="name"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trainee-signup-email">Email address</Label>
+                <Input
+                  id="trainee-signup-email"
+                  type="email"
+                  value={profile.email ?? ""}
+                  onChange={(event) => field("email", event.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                />
+                <p className="text-xs leading-4 text-[var(--color-muted-foreground)]">
+                  We send your code here as well as by text. Confirm it later from your account to
+                  use it for signing in.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trainee-education">Education so far</Label>
+                <NativeSelect
+                  id="trainee-education"
+                  value={profile.education_level ?? ""}
+                  onChange={(event) => field("education_level", event.target.value)}
+                >
+                  <option value="">Prefer not to say</option>
+                  {EDUCATION_LEVELS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+
+              {profile.education_level && profile.education_level !== "not_in_school" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="trainee-institution">School or institution</Label>
+                    <Input
+                      id="trainee-institution"
+                      value={profile.institution_name ?? ""}
+                      maxLength={200}
+                      onChange={(event) => field("institution_name", event.target.value)}
+                      placeholder="For example: Accra Technical Training Centre"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trainee-field">What you studied</Label>
+                    <Input
+                      id="trainee-field"
+                      value={profile.field_of_study ?? ""}
+                      maxLength={200}
+                      onChange={(event) => field("field_of_study", event.target.value)}
+                      placeholder="For example: building construction"
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="trainee-status">How it went</Label>
+                      <NativeSelect
+                        id="trainee-status"
+                        value={profile.education_status ?? ""}
+                        onChange={(event) => field("education_status", event.target.value)}
+                      >
+                        <option value="">Prefer not to say</option>
+                        <option value="in_progress">Still studying</option>
+                        <option value="completed">Completed</option>
+                        <option value="left">Left before finishing</option>
+                      </NativeSelect>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="trainee-year">Year</Label>
+                      <Input
+                        id="trainee-year"
+                        inputMode="numeric"
+                        value={profile.education_year ?? ""}
+                        onChange={(event) => {
+                          const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
+                          field("education_year", digits ? Number(digits) : null);
+                        }}
+                        placeholder="2024"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="flex items-start gap-2.5 rounded-xl bg-[var(--color-muted)]/65 p-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
             <LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-strong)]" />
             <p>

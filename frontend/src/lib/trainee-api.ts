@@ -25,18 +25,61 @@ export function getTraineeSession() {
   return sessionFetch<TraineeSession>("/api/trainee/session/me/");
 }
 
-export function requestTraineeCode(phone: string) {
+/**
+ * Everything the sign-up form may collect beyond the number. All optional:
+ * an account is created whether or not any of it is filled in.
+ */
+export type TraineeSignUpProfile = {
+  display_name?: string;
+  email?: string;
+  education_level?: string;
+  institution_name?: string;
+  field_of_study?: string;
+  education_status?: string;
+  education_year?: number | null;
+};
+
+export function requestTraineeCode(phone: string, email?: string) {
+  // The address goes with the request, not to be stored, but so the code can
+  // be sent there as well — at sign-up there is no account to look one up on.
   return sessionFetch<{challenge_id: string; expires_in_seconds: number}>(
     "/api/trainee/auth/request-code/",
-    {method: "POST", body: JSON.stringify({phone})},
+    {method: "POST", body: JSON.stringify(email ? {phone, email} : {phone})},
   );
 }
 
-export function verifyTraineeCode(challengeId: string, phone: string, code: string) {
+export function verifyTraineeCode(
+  challengeId: string,
+  phone: string,
+  code: string,
+  profile?: TraineeSignUpProfile,
+) {
   return sessionFetch<TraineeSession>("/api/trainee/auth/verify-code/", {
     method: "POST",
-    body: JSON.stringify({challenge_id: challengeId, phone, code}),
+    body: JSON.stringify({
+      challenge_id: challengeId,
+      phone,
+      code,
+      ...(profile ? {profile} : {}),
+    }),
   });
+}
+
+/**
+ * The profile picture, uploaded once the account exists.
+ *
+ * It cannot go with the sign-up request: there is nothing to attach it to
+ * until the code is verified. The form holds the file and sends it straight
+ * afterwards, so the person only chooses it once.
+ */
+export function uploadTraineeAvatar(file: File) {
+  const body = new FormData();
+  body.append("avatar", file);
+  return sessionFetch<TraineeSession>("/api/trainee/account/avatar/", {method: "POST", body});
+}
+
+export function removeTraineeAvatar() {
+  return sessionFetch<TraineeSession>("/api/trainee/account/avatar/", {method: "DELETE"});
 }
 
 /**
