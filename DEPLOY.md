@@ -110,6 +110,54 @@ Sign in at `https://your-domain.com/back-office/`.
 
 ---
 
+## Turning on email
+
+Until this is done, sign-in codes are written to the journal and nobody
+receives one. The back office says so on its own front page.
+
+The settings are already there and env-driven, so this is `.env` and a
+restart — no deploy.
+
+**Gmail, for pilot volume and without a domain.** Roughly 500 recipients a day.
+
+1. Google Account → Security → turn on **2-Step Verification**. App passwords
+   do not exist without it.
+2. Same page → **App passwords** → create one. Google shows it once.
+3. Add to `/opt/fliptech/backend/.env`:
+
+   ```
+   EMAIL_PROVIDER=smtp
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USE_TLS=True
+   EMAIL_HOST_USER=you@gmail.com
+   EMAIL_HOST_PASSWORD=the-16-character-app-password
+   DEFAULT_FROM_EMAIL=Fliiptech Skills Hub <you@gmail.com>
+   ```
+
+   `DEFAULT_FROM_EMAIL` has to be the same account. Gmail rejects a From
+   address it does not own, and the failure looks like a refused message
+   rather than an authentication error, which is confusing enough to be worth
+   knowing in advance.
+
+4. Restart and check:
+
+   ```bash
+   sudo systemctl restart fliptech-api
+   cd /opt/fliptech/backend && sudo -u fliptech .venv/bin/python manage.py check_email you@example.com
+   ```
+
+   `check_email` reports the host, the user and whether a password is set —
+   never the password itself — then sends one message and says what the server
+   answered. A first message often lands in spam before the sender is trusted.
+
+**A transactional provider** (Brevo, Resend, Postmark, SES) is the production
+answer and the same four settings, with their host and credentials. Every one
+of them wants DNS records proving a domain you own, so buying the domain is
+the prerequisite, not the signup.
+
+---
+
 ## How it fits together
 
 | Piece | Where |
