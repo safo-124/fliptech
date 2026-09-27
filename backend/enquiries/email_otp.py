@@ -115,6 +115,12 @@ def verify_code(
     verification = candidates.order_by("-created_at").first()
 
     if verification is None:
+        # See otp.verify_code: the same distinction, for the same reason.
+        spent = EmailVerification.objects.filter(email=email, purpose=purpose)
+        if challenge_id is not None:
+            spent = spent.filter(challenge_id=challenge_id)
+        if spent.filter(verified_at__isnull=False).exists():
+            raise OTPError("That code has already been used. Request a new one.")
         raise OTPError("No code was requested for this address.")
     if verification.is_expired:
         raise OTPError("That code has expired. Request a new one.")

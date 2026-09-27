@@ -135,6 +135,15 @@ def verify_code(
     verification = candidates.order_by("-created_at").first()
 
     if verification is None:
+        # Distinguish "never asked" from "already spent". Both find nothing
+        # unverified, and telling somebody who just signed in that they never
+        # requested a code sends them round the loop again looking for a
+        # message they already read.
+        spent = PhoneVerification.objects.filter(phone=phone, purpose=purpose)
+        if challenge_id is not None:
+            spent = spent.filter(challenge_id=challenge_id)
+        if spent.filter(verified_at__isnull=False).exists():
+            raise OTPError("That code has already been used. Request a new one.")
         raise OTPError("No code was requested for this number.")
     if verification.is_expired:
         raise OTPError("That code has expired. Request a new one.")
