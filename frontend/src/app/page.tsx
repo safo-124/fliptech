@@ -312,7 +312,7 @@ export default async function SearchPage({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Link
-              href="/trainee/sign-in"
+              href="/trainee/sign-in?new=1"
               className="group flex items-center gap-3 rounded-2xl border border-[var(--color-border)] p-4 transition hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand-soft)]/40"
             >
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">

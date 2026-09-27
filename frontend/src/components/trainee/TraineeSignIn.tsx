@@ -36,7 +36,13 @@ type Method = "phone" | "email";
  */
 export function TraineeSignIn() {
   const router = useRouter();
-  const next = safeNextPath(useSearchParams().get("next"));
+  const params = useSearchParams();
+  const next = safeNextPath(params.get("next"));
+  // Which door they came through. There is only one flow — passwordless means
+  // signing up and signing in are the same act — but somebody who clicked
+  // "Sign up" and landed on a page headed "Continue" reasonably concludes
+  // they are in the wrong place. The flow does not change; the framing does.
+  const signingUp = params.get("new") === "1";
   const [step, setStep] = useState<Step>("phone");
   const [method, setMethod] = useState<Method>("phone");
   const [phone, setPhone] = useState("");
@@ -198,12 +204,18 @@ export function TraineeSignIn() {
           )}
         </div>
         <h2 className="text-xl font-bold tracking-tight">
-          {method === "email" ? "Continue with your email" : "Continue with your phone"}
+          {method === "email"
+            ? "Continue with your email"
+            : signingUp
+              ? "Create your account"
+              : "Continue with your phone"}
         </h2>
         <CardDescription>
           {method === "email"
             ? "For an address you already added to your account. We send a one-time code."
-            : "New or returning, it is the same step. We send a one-time code by text, and to your email as well if you have added one. No password."}
+            : signingUp
+              ? "This is the whole sign-up: your number, then the code we text you. No password, and no form. If you already have an account, this signs you into it."
+              : "New or returning, it is the same step. We send a one-time code by text, and to your email as well if you have added one. No password."}
         </CardDescription>
       </CardHeader>
       <form onSubmit={sendCode} noValidate aria-busy={busy}>

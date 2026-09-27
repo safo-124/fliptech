@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 const CHOICES = [
   {
-    href: "/trainee/sign-in",
+    href: "/trainee/sign-in?new=1",
     Icon: GraduationCap,
     eyebrow: "I want to learn a trade",
     title: "Sign up as a trainee",
