@@ -30,8 +30,64 @@ def link_history(account):
     return enquiries, enrolments
 
 
+# What the sign-up form may fill in, beyond the number. Every one is optional,
+# and none of them is ever a condition of having an account: Section 03 names
+# extra steps as what makes people give up, so the form collects while the
+# account is created regardless.
+SIGN_UP_FIELDS = (
+    "display_name",
+    "education_level",
+    "institution_name",
+    "field_of_study",
+    "education_status",
+    "education_year",
+)
+
+
+def _fill_blanks(account, profile):
+    """Write the optional details, without overwriting anything already there.
+
+    Someone signing in through the sign-up form — which is the same form, and
+    says so — must not lose what they filled in last time because the boxes
+    happened to be empty in this browser.
+    """
+    changed = []
+    for field in SIGN_UP_FIELDS:
+        value = profile.get(field)
+        if value in (None, ""):
+            continue
+        if getattr(account, field):
+            continue
+        setattr(account, field, value)
+        changed.append(field)
+    return changed
+
+
+def _claim_email(account, email):
+    """Attach a typed address, unverified, if no other account holds it.
+
+    Deliberately not marked verified. One code goes to the phone and to this
+    address, so entering it proves control of one of them and not both — and
+    treating that as proof would let somebody attach a stranger's address by
+    reading their own text message.
+
+    Skipped rather than reported when the address is taken, because saying
+    "that address is already registered" to an unauthenticated caller is an
+    account-enumeration oracle. The trainee can claim it properly from their
+    account, where proving it is a step of its own.
+    """
+    from .models import TraineeAccount
+
+    if not email or account.email:
+        return []
+    if TraineeAccount.objects.filter(email=email).exclude(pk=account.pk).exists():
+        return []
+    account.email = email
+    return ["email"]
+
+
 @transaction.atomic
-def account_for_verified_phone(*, phone, verified_at, display_name=""):
+def account_for_verified_phone(*, phone, verified_at, display_name="", profile=None):
     """Return the trainee account for a phone that has just proved ownership.
 
     Creates the account on first use. Raises TraineeAccountDisabled for an
@@ -71,6 +127,9 @@ def account_for_verified_phone(*, phone, verified_at, display_name=""):
     if display_name and not account.display_name:
         account.display_name = display_name[:120]
         fields.append("display_name")
+    if profile:
+        fields += _fill_blanks(account, profile)
+        fields += _claim_email(account, profile.get("email"))
     account.save(update_fields=fields)
 
     link_history(account)

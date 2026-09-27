@@ -5,6 +5,8 @@ trainee themselves or a member of staff in a live support session. See
 trainees/access.py and trainees/support.py.
 """
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.middleware.csrf import get_token
@@ -16,11 +18,14 @@ from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.images import validate_image_upload
 from core.network import canonical_client_ip, ratelimit_client_ip
+from enquiries.email_otp import may_copy_code_to
 from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 
@@ -37,6 +42,8 @@ from .serializers import (
     TraineeEnrolmentSerializer,
 )
 from .support import end_support_session, record
+
+logger = logging.getLogger(__name__)
 
 
 def session_payload(request):
@@ -105,17 +112,25 @@ class TraineeCodeRequestView(APIView):
             )
 
         phone = serializer.validated_data["phone"]
+        # A proven address needs no extra cap: the phone allowance already
+        # governs how often it can be asked for. A typed one does, or sign-up
+        # becomes a way to post mail into a stranger's inbox.
+        copy_to = verified_email_for(phone)
+        if not copy_to:
+            typed = serializer.validated_data.get("email")
+            copy_to = typed if typed and may_copy_code_to(typed) else None
         try:
             challenge = request_code(
                 phone,
                 ip_address=canonical_client_ip(request),
                 purpose=PhoneVerification.Purpose.TRAINEE_ACCESS,
-                # Copied to the address on the account, when there is a
-                # verified one. An SMS on a prepaid network is not reliable,
-                # and the response below says nothing about whether a copy
-                # went — otherwise anyone holding a phone number could learn
-                # whether it has an address attached.
-                email=verified_email_for(phone),
+                # Copied to the address on the account when there is a
+                # verified one, and otherwise to whatever the sign-up form
+                # typed. An SMS on a prepaid network is not reliable, and the
+                # response below says nothing about whether a copy went —
+                # otherwise anyone holding a phone number could learn whether
+                # it has an address attached.
+                email=copy_to,
             )
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
@@ -160,6 +175,9 @@ class TraineeCodeVerifyView(APIView):
             account = account_for_verified_phone(
                 phone=verification.phone,
                 verified_at=verification.verified_at,
+                # Only ever fills fields that are still empty, so signing in
+                # through the sign-up form cannot wipe what is already there.
+                profile=serializer.validated_data.get("profile"),
             )
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -286,3 +304,76 @@ class SavedProviderDetailView(TraineeView):
         if self.ctx.is_support:
             record(self.ctx.support, "removed_saved_provider", provider_id=provider_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class TraineeAvatarView(TraineeView):
+    """The trainee's own profile picture.
+
+    Replace-only, and optional. A trainee has one picture, and a gallery of
+    four attempts helps nobody — the same reasoning as a workshop logo.
+
+    DELETE removes it, because someone who uploaded the wrong file needs a way
+    back that is not "ask support". That matters more here than it does for a
+    workshop: this is a photograph of a person, and being unable to take it
+    down would be its own problem.
+
+    Nothing public shows it. It appears in the trainee's own account and to a
+    member of staff in a support session, and never on a listing or to a
+    workshop, so uploading one gives nothing away to anybody.
+    """
+
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        ctx = self.ctx
+        if not ctx.can_write:
+            return Response(
+                {"detail": "Support view is read-only. Nothing was changed."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        upload = request.FILES.get("avatar")
+        refusal = validate_image_upload(upload)
+        if refusal is not None:
+            return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
+
+        account = ctx.account
+        account.avatar = upload
+        try:
+            account.save(update_fields=["avatar", "updated_at"])
+        except Exception:
+            logger.exception("Avatar upload failed for trainee %s", account.pk)
+            return Response(
+                {"detail": "That image could not be read. Try another."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # strip_exif returns None for anything Pillow cannot decode, which
+        # leaves the original bytes stored unprocessed. Those must not be kept:
+        # they would sit in the public media directory carrying whatever
+        # metadata — including GPS — they arrived with.
+        if not account.avatar.name.lower().endswith(".jpg"):
+            account.avatar.delete(save=True)
+            return Response(
+                {"detail": "That file is not a readable image."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(session_payload(request), status=status.HTTP_201_CREATED)
+
+    @extend_schema(request=None, responses={200: None})
+    def delete(self, request):
+        ctx = self.ctx
+        if not ctx.can_write:
+            return Response(
+                {"detail": "Support view is read-only. Nothing was changed."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if ctx.account.avatar:
+            # The row is cleared; the file is left for prune_media, so a page
+            # cached with the old address does not start serving a 404.
+            ctx.account.avatar = ""
+            ctx.account.save(update_fields=["avatar", "updated_at"])
+        return Response(session_payload(request))

@@ -49,6 +49,11 @@ MAX_STORED_EDGE = 2048
 # a phone down to a few tens of kilobytes.
 MAX_LOGO_EDGE = 512
 
+# A trainee's profile picture. Shown at about 48px in their own account and in
+# a support session, so 512 is already generous — and this is the one image on
+# the site uploaded from a phone by someone paying for the data to send it.
+MAX_AVATAR_EDGE = 512
+
 
 def strip_exif(django_file, *, max_edge=MAX_STORED_EDGE, keep_transparency=False):
     """Return a ContentFile with orientation applied and metadata removed.
@@ -146,3 +151,33 @@ def prepare_logo(django_file):
     if content is None:
         return None, False
     return content, as_png
+
+
+# A modern phone photograph is 2-6 MB. The ceiling is generous enough not to
+# reject real evidence and low enough that one bad file cannot fill the disk.
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+
+
+def validate_image_upload(upload):
+    """Return a human-readable refusal, or None when the file may be accepted.
+
+    One rule for every upload: a field officer photographing a workshop, a
+    trainer uploading their own, and a trainee choosing a profile picture all
+    clear the same limits, because the files end up in the same public
+    directory served by the same web server.
+    """
+    if upload is None:
+        return "No file was received."
+    if upload.size > MAX_UPLOAD_BYTES:
+        return (
+            f"That image is {upload.size // (1024 * 1024)} MB. "
+            f"The limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+        )
+    # content_type is client-supplied and therefore a hint, not proof. The real
+    # check is Pillow: strip_exif re-encodes the image on save and returns None
+    # for anything it cannot read, so a mislabelled file cannot become a photo.
+    if upload.content_type and upload.content_type not in ALLOWED_CONTENT_TYPES:
+        return f"{upload.content_type} is not an image we can accept."
+    return None

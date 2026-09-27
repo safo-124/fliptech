@@ -10,6 +10,7 @@ from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
+from core.media import public_url
 from enquiries.models import Enquiry, Enrolment
 from enquiries.serializers import EnquiryConfirmationSerializer
 from providers.models import Provider
@@ -19,12 +20,43 @@ from .models import SavedProvider, TraineeAccount
 
 class TraineeCodeRequestSerializer(serializers.Serializer):
     phone = PhoneNumberField()
+    # Typed on the sign-up form, before any account exists to look one up on.
+    # The code goes to it as well as to the phone. Not stored by this request.
+    email = serializers.EmailField(required=False, allow_blank=True)
+
+
+class TraineeSignUpProfileSerializer(serializers.Serializer):
+    """What the sign-up form may send alongside the code.
+
+    Every field is optional and blanks are allowed, because the form shows
+    them all and requires only the number. A trainee who fills nothing in
+    still gets an account, which is the whole point of a passwordless
+    sign-up on a phone with a slow connection.
+    """
+
+    display_name = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    # Stored unverified. See trainees.auth._claim_email for why proving the
+    # code cannot prove the address.
+    email = serializers.EmailField(required=False, allow_blank=True)
+    education_level = serializers.ChoiceField(
+        choices=TraineeAccount.EducationLevel.choices, required=False, allow_blank=True
+    )
+    institution_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    field_of_study = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    education_status = serializers.ChoiceField(
+        choices=TraineeAccount.EducationStatus.choices, required=False, allow_blank=True
+    )
+    education_year = serializers.IntegerField(
+        min_value=1950, max_value=2100, required=False, allow_null=True
+    )
 
 
 class TraineeCodeVerifySerializer(serializers.Serializer):
     challenge_id = serializers.UUIDField()
     phone = PhoneNumberField()
     code = serializers.RegexField(r"^\d{4,8}$")
+    # Absent for a returning trainee signing in; present from the sign-up form.
+    profile = TraineeSignUpProfileSerializer(required=False)
 
 
 class TraineeEmailCodeRequestSerializer(serializers.Serializer):
@@ -39,6 +71,13 @@ class TraineeEmailCodeVerifySerializer(serializers.Serializer):
 
 class TraineeAccountSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(read_only=True)
+    avatar = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_avatar(self, obj):
+        # Not the plain ImageField: DRF would build the URL from the request,
+        # and a server-rendered request arrives on loopback. See core/media.py.
+        return public_url(obj.avatar.url, self.context.get("request")) if obj.avatar else None
 
     class Meta:
         model = TraineeAccount
@@ -55,12 +94,16 @@ class TraineeAccountSerializer(serializers.ModelSerializer):
             "education_status",
             "education_year",
             "email",
+            "avatar",
             "created_at",
         ]
         # email is read-only here on purpose. It is claimed by proving the
         # address with a one-time code, not by typing it into the settings
         # form — otherwise an account could assert any address it liked.
-        read_only_fields = ["phone", "email", "created_at"]
+        # avatar is read-only here too: it arrives as a file on its own
+        # endpoint, where it can be stripped of EXIF and downscaled, not as a
+        # URL somebody could type into this form.
+        read_only_fields = ["phone", "email", "avatar", "created_at"]
 
 
 class ProviderLinkSerializer(serializers.ModelSerializer):

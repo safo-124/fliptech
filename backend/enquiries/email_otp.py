@@ -152,3 +152,36 @@ def verify_code(
     verification.verified_at = verified_at
     verification.attempts += 1
     return verification
+
+
+def may_copy_code_to(email) -> bool:
+    """Whether a code may also be sent to an address the caller just typed.
+
+    The account-lookup path needs no cap: that address is already proven on
+    the account, and the phone cap governs how often it can be asked for.
+
+    A typed address is different. Without a cap, anybody could use sign-up as
+    a way to post mail into a stranger's inbox, limited only by how many phone
+    numbers they had. So typed copies count against the same per-address daily
+    allowance as the email door itself.
+
+    Counted in the cache rather than the database, because no challenge row is
+    created for a copy and inventing one would mean two live codes for one
+    sign-in. Cache eviction can only forget a count and let one extra message
+    through, which is the failure worth having here.
+    """
+    from django.core.cache import cache
+
+    address = normalise_email(email)
+    if not address:
+        return False
+    key = f"otp-copy:{address}:{timezone.now():%Y-%m-%d}"
+    # add() only sets when absent, so the first caller of the day starts the
+    # count rather than two racing ones both starting it at one.
+    cache.add(key, 0, 60 * 60 * 26)
+    try:
+        used = cache.incr(key)
+    except ValueError:
+        # Evicted between add and incr. Treat as the first of the day.
+        return True
+    return used <= MAX_PER_EMAIL_PER_DAY

@@ -18,6 +18,7 @@ from django.utils import timezone
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 
+from core.images import MAX_AVATAR_EDGE, strip_exif, stripped_name
 from core.models import TimeStampedModel
 
 
@@ -78,6 +79,15 @@ class TraineeAccount(TimeStampedModel):
         blank=True,
         help_text="Typed by the trainee. Optional.",
     )
+
+    # Optional, like everything else a trainee gives beyond their number.
+    #
+    # Stripped of EXIF on the way in by core.images, for the same reason a
+    # workshop photograph is: a phone picture carries GPS, and Section 10
+    # commits to collecting the minimum. Nothing public displays this — it is
+    # the trainee's own view of their account and what staff see in a support
+    # session — so it is never served to another trainee or to a workshop.
+    avatar = models.ImageField(upload_to="trainees/%Y/%m/", blank=True)
     preferred_channel = models.CharField(
         max_length=20,
         choices=Channel.choices,
@@ -129,6 +139,21 @@ class TraineeAccount(TimeStampedModel):
     last_seen_at = models.DateTimeField(null=True, blank=True)
 
     history = HistoricalRecords()
+
+    def save(self, *args, **kwargs):
+        # Same contract as Provider.logo: `_committed` is False only for a
+        # freshly assigned upload, so changing a display name does not
+        # re-encode the picture every time.
+        #
+        # A phone photograph carries GPS. Stripping it here rather than in the
+        # view means it happens however the file arrives — including from the
+        # admin, where a staff member correcting an account would otherwise
+        # store the original untouched.
+        if self.avatar and not self.avatar._committed:
+            content = strip_exif(self.avatar, max_edge=MAX_AVATAR_EDGE)
+            if content is not None:
+                self.avatar.save(stripped_name(self.avatar.name), content, save=False)
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["-created_at"]

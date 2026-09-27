@@ -25,37 +25,20 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
+from core.images import (  # noqa: F401  (re-exported for existing callers)
+    ALLOWED_CONTENT_TYPES,
+    MAX_UPLOAD_BYTES,
+    validate_image_upload,
+)
+
 from .models import Provider, ProviderPhoto
 
 logger = logging.getLogger(__name__)
 
-# A modern phone photograph is 2-6 MB. The ceiling is generous enough not to
-# reject real evidence and low enough that one bad file cannot fill the disk.
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024
-
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
-
-
-def validate_image_upload(upload):
-    """Return a human-readable refusal, or None when the file may be accepted.
-
-    Shared with the trainer-facing upload endpoint so the two cannot drift.
-    A trainer uploading their own workshop photograph has to clear exactly the
-    limits a field officer does — the file ends up in the same public bucket.
-    """
-    if upload is None:
-        return "No file was received."
-    if upload.size > MAX_UPLOAD_BYTES:
-        return (
-            f"That image is {upload.size // (1024 * 1024)} MB. "
-            f"The limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
-        )
-    # content_type is client-supplied and therefore a hint, not proof. The real
-    # check is Pillow: strip_exif re-encodes the image on save and returns None
-    # for anything it cannot read, so a mislabelled file cannot become a photo.
-    if upload.content_type and upload.content_type not in ALLOWED_CONTENT_TYPES:
-        return f"{upload.content_type} is not an image we can accept."
-    return None
+# Moved to core/images.py, where the rest of the image policy lives, once a
+# third caller appeared: a trainee uploading a profile picture has to clear
+# the same limits as a field officer, and the docstring there already said
+# these must not drift. Re-exported so existing imports keep working.
 
 
 def _photo_payload(photo):

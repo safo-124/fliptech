@@ -42,4 +42,5 @@ urlpatterns = [
         views.SavedProviderDetailView.as_view(),
         name="trainee-saved-detail",
     ),
+    path("account/avatar/", views.TraineeAvatarView.as_view(), name="trainee-avatar"),
 ]
