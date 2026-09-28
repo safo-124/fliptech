@@ -72,7 +72,39 @@ def test_a_signed_in_trainee_is_named(client, trainee):
     body = whoami(client)
 
     assert body["trainer"] is None
-    assert body["trainee"] == {"name": "Kofi Owusu"}
+    assert body["trainee"] == {"name": "Kofi Owusu", "avatar": None}
+
+
+@pytest.mark.django_db
+def test_the_trainee_picture_comes_back_absolute(client, trainee, settings, tmp_path):
+    """The header draws it, and the header is server-rendered on every page.
+
+    A relative URL would work there and break nowhere until someone opened the
+    site through a different origin, so it is pinned here rather than left to
+    whichever request happened to ask.
+    """
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    settings.MEDIA_ROOT = tmp_path
+    buffer = BytesIO()
+    Image.new("RGB", (80, 80), "red").save(buffer, format="JPEG")
+    trainee.avatar = SimpleUploadedFile("me.jpg", buffer.getvalue(), content_type="image/jpeg")
+    trainee.save()
+    client.force_login(trainee.user)
+
+    assert whoami(client)["trainee"]["avatar"].startswith("http")
+
+
+@pytest.mark.django_db
+def test_a_trainee_with_no_picture_says_so(client, trainee):
+    """Null, not an empty string: the header tests for a picture and would
+    otherwise try to render one that is not there."""
+    client.force_login(trainee.user)
+
+    assert whoami(client)["trainee"]["avatar"] is None
 
 
 @pytest.mark.django_db
@@ -125,4 +157,4 @@ def test_a_trainee_survives_the_trainer_session_endpoint(client, trainee):
     assert client.get(reverse("trainer-session-me")).json()["authenticated"] is False
 
     assert client.get(reverse("trainee-session-me")).json()["authenticated"] is True
-    assert whoami(client)["trainee"] == {"name": "Kofi Owusu"}
+    assert whoami(client)["trainee"]["name"] == "Kofi Owusu"

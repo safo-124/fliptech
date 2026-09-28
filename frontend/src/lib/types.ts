@@ -414,5 +414,7 @@ export type TrainerEnquiry = {
  */
 export type Whoami = {
   trainer: {name: string} | null;
-  trainee: {name: string} | null;
+  // Only the trainee has a picture — a workshop is represented by its listing
+  // photos, not a portrait.
+  trainee: {name: string; avatar: string | null} | null;
 };

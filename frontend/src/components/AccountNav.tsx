@@ -22,7 +22,12 @@ import {getWhoami} from "@/lib/session-api";
  * no JavaScript to be correct. The swap costs one small request per page load.
  */
 export function AccountNav() {
-  const [account, setAccount] = useState<{href: string; name: string} | null>(null);
+  const [account, setAccount] = useState<{
+    href: string;
+    name: string;
+    avatar?: string | null;
+  } | null>(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -32,7 +37,8 @@ export function AccountNav() {
         // A trainer first: holding both is not something the sign-up flows can
         // produce, and the workshop is the one with work waiting on it.
         if (who.trainer) setAccount({href: "/trainer/dashboard", name: who.trainer.name});
-        else if (who.trainee) setAccount({href: "/trainee", name: who.trainee.name});
+        else if (who.trainee)
+          setAccount({href: "/trainee", name: who.trainee.name, avatar: who.trainee.avatar});
       })
       // Signed out is the safe answer: it offers a way in rather than a link
       // to a dashboard that would bounce them.
@@ -43,10 +49,35 @@ export function AccountNav() {
   }, []);
 
   if (account) {
+    // Their own face, at both widths. The button is the same element on a
+    // phone as on a desktop — only its padding changes — so the picture needs
+    // no separate mobile treatment. It is inset by the same amount it adds, so
+    // the pill keeps the width it had with the icon.
+    const showPhoto = account.avatar && !photoFailed;
     return (
-      <Button asChild variant="onBand" size="default" className="px-3 sm:px-4">
+      <Button
+        asChild
+        variant="onBand"
+        size="default"
+        className={showPhoto ? "pl-2 pr-3 sm:pr-4" : "px-3 sm:px-4"}
+      >
         <Link href={account.href} title={account.name}>
-          <UserRound aria-hidden />
+          {showPhoto ? (
+            // Not next/image: at 28px there is nothing for the optimiser to
+            // save, and this avoids a second origin in remotePatterns for a
+            // file that is only ever this size.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={account.avatar as string}
+              alt=""
+              className="size-7 rounded-full object-cover ring-1 ring-white/40"
+              // A picture that 404s would leave a broken-image glyph in the
+              // header of every page. Fall back to the icon instead.
+              onError={() => setPhotoFailed(true)}
+            />
+          ) : (
+            <UserRound aria-hidden />
+          )}
           <span className="max-w-[9rem] truncate">{firstName(account.name)}</span>
         </Link>
       </Button>

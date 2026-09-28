@@ -18,6 +18,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.media import public_url
 from providers.models import TrainerAccount
 from trainees.access import own_trainee_account
 
@@ -46,7 +47,21 @@ def whoami_payload(request):
     trainee = own_trainee_account(request)
     return {
         "trainer": ({"name": trainer.full_name or str(trainer.phone)} if trainer else None),
-        "trainee": ({"name": str(trainee)} if trainee else None),
+        # Only the trainee carries a picture, because only the trainee has one
+        # to carry. A workshop's identity on this site is its listing photos,
+        # not a portrait, so there is no TrainerAccount.avatar to report and an
+        # always-null key here would only promise one.
+        "trainee": (
+            {
+                "name": str(trainee),
+                # Built the same way as the account serializer's: the URL a
+                # browser can fetch, not one derived from a loopback request.
+                # See core/media.py.
+                "avatar": public_url(trainee.avatar.url, request) if trainee.avatar else None,
+            }
+            if trainee
+            else None
+        ),
     }
 
 
