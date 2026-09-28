@@ -281,7 +281,7 @@ export function TraineeSignIn() {
           {method === "email"
             ? "For an address you already added to your account. We send a one-time code."
             : signingUp
-              ? "This is the whole sign-up: your number, then the code we text you. No password, and no form. If you already have an account, this signs you into it."
+              ? "This is the whole sign-up: your number, then the code we send you. No password. Add your email below and the code goes there too, in case the text is slow. If you already have an account, this signs you into it."
               : "New or returning, it is the same step. We send a one-time code by text, and to your email as well if you have added one. No password."}
         </CardDescription>
       </CardHeader>
@@ -517,7 +517,16 @@ export function TraineeSignIn() {
           {/* Phone stays first and stays the default. Email is offered as the
               way out for someone whose SMS is not arriving, which on a prepaid
               network is common — but it only works once an address has been
-              added, so it must not look like the main route. */}
+              added, so it must not look like the main route.
+
+              Hidden entirely for somebody joining. account_for_verified_email
+              never creates an account: email is a second door into one that
+              exists. Offering it to a first-time visitor is offering a door
+              that cannot open — they would type their address, receive a code,
+              and be told to sign in with their phone instead. Their address is
+              already on the form above, and the code goes there as well as to
+              the phone, which is what they actually wanted from it. */}
+          {signingUp ? null : (
           <Button
             type="button"
             variant="ghost"
@@ -539,6 +548,7 @@ export function TraineeSignIn() {
               </>
             )}
           </Button>
+          )}
         </CardFooter>
       </form>
     </Card>
