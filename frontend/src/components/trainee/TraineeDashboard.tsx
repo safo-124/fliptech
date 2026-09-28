@@ -44,8 +44,10 @@ import {
   getTraineeSession,
   logoutTrainee,
   removeSavedProvider,
+  removeTraineeAvatar,
   requestAddEmailCode,
   updateTraineeAccount,
+  uploadTraineeAvatar,
 } from "@/lib/trainee-api";
 import type {
   SavedProvider,
@@ -249,6 +251,44 @@ export function TraineeDashboard() {
     education_year: null,
   });
   const [confirmClose, setConfirmClose] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  async function changePhoto(file: File | null) {
+    if (!file) return;
+    // Checked here as well as on the server so somebody on a slow connection
+    // is told before they spend the upload rather than after it.
+    if (file.size > 15 * 1024 * 1024) {
+      setError("That picture is larger than 15 MB. Try a smaller one.");
+      return;
+    }
+    setPhotoBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const next = await uploadTraineeAvatar(file);
+      if (next.authenticated) setSession(next);
+      setNotice("Picture updated.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "That picture could not be saved.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function dropPhoto() {
+    setPhotoBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const next = await removeTraineeAvatar();
+      if (next.authenticated) setSession(next);
+      setNotice("Picture removed.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "That could not be removed.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   // Deep links, both ways: read the hash on arrival, and keep it in step when
   // a tab is chosen so the address bar can be shared or reloaded.
@@ -495,9 +535,20 @@ export function TraineeDashboard() {
 
   const identity = (
     <div className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-[var(--shadow-card)]">
-      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
-        <UserRound aria-hidden="true" className="size-5" />
-      </span>
+      {session.account.avatar ? (
+        /* A plain img, not next/image: it is 44px, so there is nothing for the
+           optimiser to save, and one fewer round trip on a slow connection. */
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={session.account.avatar}
+          alt=""
+          className="size-11 shrink-0 rounded-xl object-cover"
+        />
+      ) : (
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+          <UserRound aria-hidden="true" className="size-5" />
+        </span>
+      )}
       <div className="min-w-0">
         <p className="truncate text-sm font-bold leading-5">
           {named ? session.account.display_name : "Your account"}
@@ -716,6 +767,59 @@ export function TraineeDashboard() {
 
       {tab === "settings" ? (
         <div className="grid gap-5 lg:grid-cols-2">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Your picture</CardTitle>
+              <CardDescription>
+                Only you and Skills Hub staff see it. It is never shown to a workshop or on a
+                listing.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center gap-4">
+                {session.account.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={session.account.avatar}
+                    alt=""
+                    className="size-20 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="grid size-20 shrink-0 place-items-center rounded-full bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">
+                    <UserRound aria-hidden="true" className="size-8" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Label htmlFor="trainee-avatar">
+                    {session.account.avatar ? "Choose a different picture" : "Add a picture"}
+                  </Label>
+                  <Input
+                    id="trainee-avatar"
+                    type="file"
+                    accept="image/*"
+                    disabled={photoBusy || readOnly}
+                    onChange={(event) => changePhoto(event.target.files?.[0] ?? null)}
+                  />
+                  {session.account.avatar ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={photoBusy || readOnly}
+                      onClick={dropPhoto}
+                    >
+                      {photoBusy ? (
+                        <Loader2 aria-hidden="true" className="animate-spin" />
+                      ) : (
+                        <Trash2 aria-hidden="true" />
+                      )}
+                      Remove it
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Your details</CardTitle>

@@ -26,6 +26,7 @@ function account(overrides: Partial<TraineeAccount> = {}): TraineeAccount {
     field_of_study: "",
     education_status: "",
     education_year: null,
+    avatar: null,
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };

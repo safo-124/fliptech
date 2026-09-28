@@ -293,6 +293,9 @@ export type TraineeAccount = {
   field_of_study: string;
   education_status: TraineeEducationStatus | "";
   education_year: number | null;
+  /** The trainee's own picture, or null. Shown to them and to staff in a
+   *  support session; never to a workshop. */
+  avatar: string | null;
   created_at: string;
 };
 
