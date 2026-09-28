@@ -79,6 +79,9 @@ export function TraineeSignIn() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  // Shown instead of going straight through, and only when there is something
+  // the person would otherwise never learn. A clean join is not interrupted.
+  const [outcome, setOutcome] = useState<string | null>(null);
 
   function field<K extends keyof TraineeSignUpProfile>(key: K, value: TraineeSignUpProfile[K]) {
     setProfile((current) => ({...current, [key]: value}));
@@ -175,16 +178,27 @@ export function TraineeSignIn() {
     setBusy(true);
     setError(null);
     try {
+      let held: string | null = null;
       if (method === "email") {
         await verifyTraineeEmailCode(challengeId, email.trim(), code);
       } else {
         const parsed = ghanaPhoneSchema.parse(phone);
-        await verifyTraineeCode(
+        const result = await verifyTraineeCode(
           challengeId,
           toGhanaE164(parsed),
           code,
           signingUp ? profile : undefined,
         );
+        // Only the address is worth stopping for. A number that already had an
+        // account is not a problem to report — it just signed them in, which
+        // is what they wanted.
+        if (result.email_outcome === "taken") {
+          held =
+            "You are signed in, but that email address is already used by another account, so we did not add it. You can add a different one from your account.";
+        } else if (result.email_outcome === "already_set") {
+          held =
+            "You are signed in. This account already has an email address, so we kept the one that was there.";
+        }
       }
       // Only now does an account exist to attach it to. A picture that fails
       // to upload must not strand somebody who is already signed in, so it is
@@ -192,11 +206,41 @@ export function TraineeSignIn() {
       if (signingUp && photo) {
         await uploadTraineeAvatar(photo).catch(() => undefined);
       }
+      if (held) {
+        setOutcome(held);
+        setBusy(false);
+        return;
+      }
       router.replace(next);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "That code did not work.");
       setBusy(false);
     }
+  }
+
+  if (outcome) {
+    return (
+      <Card>
+        <CardHeader className="sm:px-6 sm:pt-6">
+          <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
+            <Mail aria-hidden="true" className="size-5" />
+          </div>
+          <h2 className="text-xl font-bold tracking-tight">One thing to know</h2>
+          <CardDescription>{outcome}</CardDescription>
+        </CardHeader>
+        <CardFooter className="sm:px-6">
+          <Button
+            type="button"
+            variant="brand"
+            className="w-full"
+            onClick={() => router.replace(next)}
+          >
+            Go to my account
+            <ArrowRight aria-hidden="true" />
+          </Button>
+        </CardFooter>
+      </Card>
+    );
   }
 
   if (step === "code") {

@@ -258,3 +258,63 @@ def test_a_stranger_cannot_upload(client, db):
     response = client.post(reverse("trainee-avatar"), {"avatar": jpeg_upload()})
 
     assert response.status_code in (401, 403)
+
+
+# --------------------------------------------------------------------------
+# Saying what happened
+
+
+@pytest.mark.django_db
+def test_a_new_account_says_it_joined(client, sent):
+    body = sign_up(client, email="fresh@example.com").json()
+
+    assert body["joined"] is True
+    assert body["email_outcome"] == "added"
+
+
+@pytest.mark.django_db
+def test_a_returning_number_is_signed_in_not_refused(client, sent):
+    """Signing up and signing in are one act. A number that already has an
+    account is not an error to report — it is simply signed in, and the form
+    says so rather than leaving somebody wondering."""
+    account_for_verified_phone(phone=PHONE, verified_at=timezone.now())
+
+    body = sign_up(client).json()
+
+    assert body["authenticated"] is True
+    assert body["joined"] is False
+
+
+@pytest.mark.django_db
+def test_a_taken_address_is_named_after_the_phone_is_proved(client, sent):
+    """Told here and not on the request: saying "already registered" to an
+    unauthenticated caller lets anybody test addresses for free. Behind a
+    verified code it costs a working phone and a code per guess."""
+    other = account_for_verified_phone(phone="+233201110777", verified_at=timezone.now())
+    other.email = "taken@example.com"
+    other.save()
+
+    body = sign_up(client, email="taken@example.com").json()
+
+    assert body["email_outcome"] == "taken"
+    assert TraineeAccount.objects.get(phone=PHONE).email is None
+
+
+@pytest.mark.django_db
+def test_an_account_that_already_has_an_address_keeps_it(client, sent):
+    account = account_for_verified_phone(phone=PHONE, verified_at=timezone.now())
+    account.email = "mine@example.com"
+    account.save()
+
+    body = sign_up(client, email="another@example.com").json()
+
+    assert body["email_outcome"] == "already_set"
+    account.refresh_from_db()
+    assert account.email == "mine@example.com"
+
+
+@pytest.mark.django_db
+def test_no_address_means_nothing_to_report(client, sent):
+    body = sign_up(client).json()
+
+    assert body["email_outcome"] is None

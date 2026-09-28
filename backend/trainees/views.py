@@ -197,7 +197,20 @@ class TraineeCodeVerifyView(APIView):
         request.user = account.user
         forget_context(request)
         get_token(request._request)
-        return Response(session_payload(request))
+        return Response(
+            {
+                **session_payload(request),
+                # Whether this number had an account already. Not an error:
+                # signing up and signing in are one act here, so a returning
+                # trainee is simply signed in — the form can say so rather
+                # than leaving them wondering what happened.
+                "joined": getattr(account, "_just_created", False),
+                # Why a typed address was or was not attached. Dropping it
+                # silently left people believing they had given us an email
+                # and wondering later why no code ever reached it.
+                "email_outcome": getattr(account, "_email_outcome", None),
+            }
+        )
 
 
 @method_decorator(csrf_protect, name="dispatch")

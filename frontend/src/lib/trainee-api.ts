@@ -48,21 +48,39 @@ export function requestTraineeCode(phone: string, email?: string) {
   );
 }
 
+/**
+ * What the verify step has to say for itself.
+ *
+ * `joined` is false for a number that already had an account — not an error,
+ * since signing up and signing in are one act here, but worth saying so
+ * nobody wonders why no new account appeared.
+ *
+ * `email_outcome` explains a typed address that was not attached, which used
+ * to happen silently and left people expecting codes that never came.
+ */
+export type TraineeJoinOutcome = {
+  joined?: boolean;
+  email_outcome?: "added" | "already_set" | "taken" | null;
+};
+
 export function verifyTraineeCode(
   challengeId: string,
   phone: string,
   code: string,
   profile?: TraineeSignUpProfile,
 ) {
-  return sessionFetch<TraineeSession>("/api/trainee/auth/verify-code/", {
-    method: "POST",
-    body: JSON.stringify({
-      challenge_id: challengeId,
-      phone,
-      code,
-      ...(profile ? {profile} : {}),
-    }),
-  });
+  return sessionFetch<TraineeSession & TraineeJoinOutcome>(
+    "/api/trainee/auth/verify-code/",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        challenge_id: challengeId,
+        phone,
+        code,
+        ...(profile ? {profile} : {}),
+      }),
+    },
+  );
 }
 
 /**

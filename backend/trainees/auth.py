@@ -63,27 +63,41 @@ def _fill_blanks(account, profile):
     return changed
 
 
+# Why a typed address was or was not attached, for telling the person.
+EMAIL_ADDED = "added"
+EMAIL_ALREADY_SET = "already_set"
+EMAIL_TAKEN = "taken"
+
+
 def _claim_email(account, email):
     """Attach a typed address, unverified, if no other account holds it.
+
+    Returns (changed fields, outcome). The outcome is reported to the caller
+    rather than swallowed: silently dropping the address leaves somebody
+    believing they gave us an email, then wondering later why sign-in codes
+    never reach it.
+
+    It is told to them only after they have proved the phone. Saying "that
+    address is already registered" to an unauthenticated caller would be an
+    account-enumeration oracle — anybody could test addresses for free.
+    Behind a verified code it costs a working phone and a code per guess, and
+    tells the one person who actually needs to know.
 
     Deliberately not marked verified. One code goes to the phone and to this
     address, so entering it proves control of one of them and not both — and
     treating that as proof would let somebody attach a stranger's address by
     reading their own text message.
-
-    Skipped rather than reported when the address is taken, because saying
-    "that address is already registered" to an unauthenticated caller is an
-    account-enumeration oracle. The trainee can claim it properly from their
-    account, where proving it is a step of its own.
     """
     from .models import TraineeAccount
 
-    if not email or account.email:
-        return []
+    if not email:
+        return [], None
+    if account.email:
+        return [], EMAIL_ALREADY_SET
     if TraineeAccount.objects.filter(email=email).exclude(pk=account.pk).exists():
-        return []
+        return [], EMAIL_TAKEN
     account.email = email
-    return ["email"]
+    return ["email"], EMAIL_ADDED
 
 
 @transaction.atomic
@@ -127,13 +141,18 @@ def account_for_verified_phone(*, phone, verified_at, display_name="", profile=N
     if display_name and not account.display_name:
         account.display_name = display_name[:120]
         fields.append("display_name")
+    email_outcome = None
     if profile:
         fields += _fill_blanks(account, profile)
-        fields += _claim_email(account, profile.get("email"))
+        changed, email_outcome = _claim_email(account, profile.get("email"))
+        fields += changed
     account.save(update_fields=fields)
 
     link_history(account)
     account._just_created = created
+    # Read by the view, which is the only place that knows whether there is
+    # anybody to tell.
+    account._email_outcome = email_outcome
     return account
 
 
