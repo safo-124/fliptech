@@ -86,6 +86,20 @@ def test_lat_without_lng_is_rejected(client, world):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("radius", ["abc", "", "nan", "0", "-5", "101", "inf"])
+def test_bad_radius_is_rejected_rather_than_crashing(client, world, radius):
+    response = client.get("/api/providers/", {"lat": 5.6037, "lng": -0.1870, "radius_km": radius})
+    assert response.status_code == 400
+    assert "radius_km" in response.json()["detail"]
+
+
+@pytest.mark.django_db
+def test_largest_allowed_radius_is_accepted(client, world):
+    response = client.get("/api/providers/", {"lat": 5.6037, "lng": -0.1870, "radius_km": 100})
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
 def test_bbox_filter_powers_the_map_view(client, world):
     # A rectangle around Accra and Madina but excluding Tema.
     response = client.get("/api/providers/", {"bbox": "-0.30,5.50,-0.10,5.75"})
@@ -280,15 +294,16 @@ def test_dashboard_rejects_a_tampered_token(client, world):
 
 @pytest.mark.django_db
 def test_dashboard_reports_unmeasurable_numbers_as_null_not_zero(client, world):
-    """Profile views need an analytics source the stack does not have yet.
+    """A rate with nothing to measure is null, not zero.
 
-    Returning null says "not measured". Returning 0 would say "nobody looked",
-    which is a different and false claim to put in front of a paying provider.
+    With no enquiries there is no response rate, and 0% would tell a paying
+    provider they ignored people who never wrote. Profile views are counted,
+    so a quiet month genuinely is zero.
     """
     body = client.get(
         reverse("provider-dashboard", args=[make_dashboard_token(world["near"])])
     ).json()
 
-    assert body["profile_views"] is None
+    assert body["profile_views"] == 0
     assert body["response_rate"] is None  # no enquiries yet
     assert "monthly visit" in body["enrolments_basis"]

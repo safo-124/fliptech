@@ -1,4 +1,5 @@
-"""Search filters for Screen 1: trade, area, fee ceiling, next intake, verified only.
+"""Search filters for Screen 1: trade, area, fee ceiling, next intake, verified only,
+and places for a group.
 
 Two of these are subtler than they look:
 
@@ -12,7 +13,7 @@ Two of these are subtler than they look:
 """
 
 import django_filters
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from providers.models import Provider
@@ -29,6 +30,7 @@ class ProviderFilter(django_filters.FilterSet):
 
     verified_only = django_filters.BooleanFilter(method="filter_verified_only")
     q = django_filters.CharFilter(method="filter_search")
+    places = django_filters.NumberFilter(method="filter_places")
 
     class Meta:
         model = Provider
@@ -71,6 +73,62 @@ class ProviderFilter(django_filters.FilterSet):
             programmes__intakes__start_date__gte=max(value, timezone.localdate()),
             programmes__intakes__is_open=True,
         ).distinct()
+
+    def filter_places(self, queryset, name, value):
+        """Providers with a course that can seat a group of this size.
+
+        Section 03's NGO programme officer is placing a cohort, and gives up
+        without a way to filter by capacity. "Can seat N" is read from the
+        most specific figure the listing has, per programme:
+
+        * an upcoming open intake with N places remaining, or N places
+          offered when the remaining count was never filled in, or the
+          programme's class capacity when neither was;
+        * a programme with no upcoming intake listed at all, by its class
+          capacity — the workshop can still take the group, it has just not
+          set a date, and leaving it out would shrink a short list further.
+
+        With a trade chosen, the seats must be on a course in that trade: a
+        welding shortlist must not include a workshop whose only large class
+        is tailoring. That is the difference from the other filters, which
+        each match any programme on their own.
+        """
+        from catalog.models import Intake, Programme
+
+        seats = int(value)
+        if seats <= 0:
+            return queryset
+
+        upcoming = Intake.objects.filter(
+            programme=OuterRef("pk"),
+            is_open=True,
+            start_date__gte=timezone.localdate(),
+        )
+        upcoming_with_room = upcoming.filter(
+            Q(places_remaining__gte=seats)
+            | Q(places_remaining__isnull=True, places_offered__gte=seats)
+            | Q(
+                places_remaining__isnull=True,
+                places_offered__isnull=True,
+                programme__capacity__gte=seats,
+            )
+        )
+        programmes = Programme.objects.filter(
+            Exists(upcoming_with_room) | (~Exists(upcoming) & Q(capacity__gte=seats)),
+            provider=OuterRef("pk"),
+            is_active=True,
+            trade__is_active=True,
+        )
+
+        trade = (self.data.get("trade") or "").strip()
+        if trade:
+            programmes = programmes.filter(
+                Q(trade__slug__iexact=trade)
+                | Q(trade__name__iexact=trade)
+                | Q(trade__synonyms__contains=[trade.lower()])
+            )
+
+        return queryset.filter(Exists(programmes))
 
     def filter_verified_only(self, queryset, name, value):
         if not value:

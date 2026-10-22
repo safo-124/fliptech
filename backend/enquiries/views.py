@@ -22,7 +22,7 @@ from trainees.auth import TraineeAccountDisabled, account_for_verified_phone
 from trainees.models import TraineeAccount
 
 from .models import Enquiry
-from .otp import OTPError, phone_is_trusted, request_code, verify_code
+from .otp import OTPError, phone_is_trusted, request_code, trust_phone, verify_code
 from .serializers import (
     EnquiryConfirmationSerializer,
     EnquiryCreateSerializer,
@@ -66,7 +66,7 @@ class OTPRequestView(APIView):
 
         # Already verified recently, or signed in with this number: no second
         # code for the second and third provider a trainee enquires with.
-        if _signed_in_as(request, phone) or phone_is_trusted(phone):
+        if _signed_in_as(request, phone) or phone_is_trusted(request.session, phone):
             return Response({"verified": True, "code_sent": False})
 
         try:
@@ -115,6 +115,9 @@ class OTPVerifyView(APIView):
         elif account is not None and request.user.pk == account.user_id:
             signed_in = True
 
+        # After login(), which may have cycled or flushed the session.
+        trust_phone(request.session, verification.phone, verification.verified_at)
+
         return Response({"verified": True, "signed_in": signed_in})
 
 
@@ -127,7 +130,7 @@ class EnquiryCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data.pop("phone")
 
-        if not (_signed_in_as(request, phone) or phone_is_trusted(phone)):
+        if not (_signed_in_as(request, phone) or phone_is_trusted(request.session, phone)):
             return Response(
                 {"detail": "Verify this phone number before sending an enquiry."},
                 status=status.HTTP_403_FORBIDDEN,

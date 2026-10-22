@@ -10,6 +10,7 @@ import {
   Send,
 } from "lucide-react";
 import Link from "next/link";
+import {useTranslations} from "next-intl";
 
 import type {TraineeTab} from "@/components/trainee/TraineeNav";
 import {Button} from "@/components/ui/button";
@@ -24,6 +25,7 @@ import type {SavedProvider, TraineeAccount, TraineeEnquiry, TraineeEnrolment} fr
  * for, sitting beside the list of what is still outstanding.
  */
 function ProgressRing({percent}: {percent: number}) {
+  const t = useTranslations("TraineeOverview");
   const radius = 26;
   const circumference = 2 * Math.PI * radius;
   return (
@@ -31,7 +33,7 @@ function ProgressRing({percent}: {percent: number}) {
       viewBox="0 0 64 64"
       className="size-16 shrink-0 -rotate-90"
       role="img"
-      aria-label={`Profile ${percent}% complete`}
+      aria-label={t("profileComplete", {percent})}
     >
       <circle cx="32" cy="32" r={radius} fill="none" strokeWidth="6" className="stroke-[var(--color-muted)]" />
       <circle
@@ -95,22 +97,20 @@ function Stat({
   );
 }
 
+/** How each kind of activity is drawn; its verb is in "TraineeOverview.verbs". */
 const ACTIVITY: Record<
   "enquiry" | "started" | "completed",
-  {verb: string; Icon: typeof Send; className: string}
+  {Icon: typeof Send; className: string}
 > = {
   enquiry: {
-    verb: "Enquired about",
     Icon: Send,
     className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]",
   },
   started: {
-    verb: "Started",
     Icon: GraduationCap,
     className: "bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]",
   },
   completed: {
-    verb: "Completed",
     Icon: CheckCircle2,
     className: "bg-[var(--color-visit-bg)] text-[var(--color-visit)]",
   },
@@ -136,6 +136,8 @@ export function TraineeOverview({
   saved: SavedProvider[];
   onGo: (tab: TraineeTab) => void;
 }) {
+  const t = useTranslations("TraineeOverview");
+  const tProgress = useTranslations("TraineeProgress");
   const tasks = profileTasks(account);
   const percent = completeness(tasks);
   const outstanding = tasks.filter((task) => !task.done);
@@ -147,21 +149,21 @@ export function TraineeOverview({
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Enquiries sent" value={enquiries.length} Icon={Send} onClick={() => onGo("enquiries")} />
+        <Stat label={t("enquiriesSent")} value={enquiries.length} Icon={Send} onClick={() => onGo("enquiries")} />
         <Stat
-          label="Awaiting a reply"
+          label={t("awaitingReply")}
           value={waiting}
           Icon={Clock3}
           tone={waiting > 0 ? "brand" : "plain"}
           onClick={() => onGo("enquiries")}
         />
         <Stat
-          label="Courses in progress"
+          label={t("coursesInProgress")}
           value={inTraining}
           Icon={GraduationCap}
           onClick={() => onGo("training")}
         />
-        <Stat label="Saved workshops" value={saved.length} Icon={Bookmark} onClick={() => onGo("saved")} />
+        <Stat label={t("savedWorkshops")} value={saved.length} Icon={Bookmark} onClick={() => onGo("saved")} />
       </div>
 
       {nothingYet ? (
@@ -169,14 +171,13 @@ export function TraineeOverview({
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
             <Search aria-hidden="true" className="size-5" />
           </span>
-          <p className="mt-4 text-lg font-semibold">Your account is ready</p>
+          <p className="mt-4 text-lg font-semibold">{t("readyTitle")}</p>
           <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-[var(--color-muted-foreground)]">
-            Find a workshop near you, compare the fee and the course length, then send an enquiry. Everything
-            you send shows up here with its reference.
+            {t("readyBody")}
           </p>
           <Button asChild variant="brand" className="mx-auto mt-5">
             <Link href="/">
-              Find training
+              {t("findTraining")}
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -186,18 +187,18 @@ export function TraineeOverview({
       <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Recent activity</CardTitle>
-            <CardDescription>Your enquiries and training, newest first.</CardDescription>
+            <CardTitle className="text-base">{t("recentActivity")}</CardTitle>
+            <CardDescription>{t("recentActivityBody")}</CardDescription>
           </CardHeader>
           <CardContent>
             {feed.length === 0 ? (
               <p className="py-2 text-sm text-[var(--color-muted-foreground)]">
-                Nothing has happened on this account yet.
+                {t("nothingYet")}
               </p>
             ) : (
               <ol className="space-y-3">
                 {feed.map((item) => {
-                  const {verb, Icon, className} = ACTIVITY[item.kind];
+                  const {Icon, className} = ACTIVITY[item.kind];
                   return (
                     <li key={item.id} className="flex items-start gap-3">
                       <span
@@ -210,8 +211,10 @@ export function TraineeOverview({
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm leading-5">
-                          <span className="text-[var(--color-muted-foreground)]">{verb} </span>
-                          <span className="font-semibold">{item.title}</span>
+                          <span className="text-[var(--color-muted-foreground)]">
+                            {t(`verbs.${item.kind}`)}{" "}
+                          </span>
+                          <span className="font-semibold">{item.title || t("trainingEnquiry")}</span>
                         </p>
                         <p className="truncate text-xs text-[var(--color-muted-foreground)]">
                           {item.providerName} · {formatDate(item.at)}
@@ -227,27 +230,21 @@ export function TraineeOverview({
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Your profile</CardTitle>
-            <CardDescription>
-              {percent === 100
-                ? "Everything optional is filled in."
-                : "All optional. None of it blocks an enquiry."}
-            </CardDescription>
+            <CardTitle className="text-base">{t("yourProfile")}</CardTitle>
+            <CardDescription>{percent === 100 ? t("allFilledIn") : t("allOptional")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <ProgressRing percent={percent} />
               <p className="text-sm leading-5 text-[var(--color-muted-foreground)]">
-                {percent === 100 ? (
-                  "Workshops get the full picture when you enquire."
-                ) : (
-                  <>
-                    <span className="font-semibold text-[var(--color-foreground)]">
-                      {outstanding.length} {outstanding.length === 1 ? "thing" : "things"} left
-                    </span>{" "}
-                    that would help a workshop answer you well.
-                  </>
-                )}
+                {percent === 100
+                  ? t("fullPicture")
+                  : t.rich("thingsLeft", {
+                      count: outstanding.length,
+                      strong: (chunks) => (
+                        <span className="font-semibold text-[var(--color-foreground)]">{chunks}</span>
+                      ),
+                    })}
               </p>
             </div>
             {outstanding.length > 0 ? (
@@ -255,13 +252,15 @@ export function TraineeOverview({
                 <ul className="space-y-2.5">
                   {outstanding.slice(0, 3).map((task) => (
                     <li key={task.key} className="text-sm leading-5">
-                      <p className="font-semibold">{task.label}</p>
-                      <p className="text-xs text-[var(--color-muted-foreground)]">{task.hint}</p>
+                      <p className="font-semibold">{tProgress(`tasks.${task.key}.label`)}</p>
+                      <p className="text-xs text-[var(--color-muted-foreground)]">
+                        {tProgress(`tasks.${task.key}.hint`)}
+                      </p>
                     </li>
                   ))}
                 </ul>
                 <Button type="button" variant="outline" className="w-full" onClick={() => onGo("settings")}>
-                  Update your details
+                  {t("updateDetails")}
                   <ArrowRight aria-hidden="true" />
                 </Button>
               </>

@@ -13,11 +13,20 @@ import type {
   TraineeEnrolment,
 } from "./types";
 
+/**
+ * One optional detail. Its wording — a label, and a hint saying why it is
+ * worth doing so the list reads as help rather than nagging — is in the
+ * "TraineeProgress.tasks" messages under the same key.
+ */
+export type ProfileTaskKey =
+  | "name"
+  | "email"
+  | "education_level"
+  | "field_of_study"
+  | "institution_name";
+
 export type ProfileTask = {
-  key: string;
-  label: string;
-  /** Why it is worth doing. Shown so the list reads as help, not as nagging. */
-  hint: string;
+  key: ProfileTaskKey;
   done: boolean;
 };
 
@@ -31,42 +40,17 @@ export type ProfileTask = {
  */
 export function profileTasks(account: TraineeAccount): ProfileTask[] {
   const tasks: ProfileTask[] = [
-    {
-      key: "name",
-      label: "Add your name",
-      hint: "Workshops see it when you enquire, so a reply can greet you properly.",
-      done: Boolean(account.display_name.trim()),
-    },
-    {
-      key: "email",
-      label: "Add an email address",
-      hint: "A second way to sign in when an SMS does not arrive.",
-      done: Boolean(account.email),
-    },
-    {
-      key: "education_level",
-      label: "Add your education background",
-      hint: "Helps a workshop pitch a course at the right starting point.",
-      done: Boolean(account.education_level),
-    },
-    {
-      key: "field_of_study",
-      label: "Add your field of study",
-      hint: "Tells a trade workshop what you have already covered.",
-      done: Boolean(account.field_of_study.trim()),
-    },
+    {key: "name", done: Boolean(account.display_name.trim())},
+    {key: "email", done: Boolean(account.email)},
+    {key: "education_level", done: Boolean(account.education_level)},
+    {key: "field_of_study", done: Boolean(account.field_of_study.trim())},
   ];
 
   // Only worth asking of someone who named a school. "Not in school" has no
   // institution to give, and scoring them against a box they cannot tick
   // would leave their profile permanently short of complete.
   if (account.education_level && account.education_level !== "not_in_school") {
-    tasks.push({
-      key: "institution_name",
-      label: "Add your school or institution",
-      hint: "Useful when a workshop recognises the programme you came from.",
-      done: Boolean(account.institution_name.trim()),
-    });
+    tasks.push({key: "institution_name", done: Boolean(account.institution_name.trim())});
   }
 
   return tasks;
@@ -82,6 +66,8 @@ export type ActivityItem = {
   id: string;
   kind: "enquiry" | "started" | "completed";
   at: string;
+  /** The course title. Empty for an enquiry that named no course; the
+   *  overview words that case itself, in the visitor's language. */
   title: string;
   providerName: string;
 };
@@ -104,7 +90,7 @@ export function activityFeed(
       id: `enquiry-${enquiry.reference_code}`,
       kind: "enquiry",
       at: enquiry.created_at,
-      title: enquiry.programme_title || "Training enquiry",
+      title: enquiry.programme_title,
       providerName: enquiry.provider.name,
     });
   }

@@ -11,6 +11,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { List, MapPinned, RefreshCw } from "lucide-react";
 
@@ -29,6 +30,7 @@ const placeholderSize = (fill: boolean) =>
   fill ? "h-full min-h-0" : "h-[70dvh] min-h-[28rem]";
 
 function MapLoadingState() {
+  const t = useTranslations("MapLoader");
   return (
     // next/dynamic's `loading` takes no props, so this one size has to be
     // right in both places. `h-full` fills the phone's full-screen parent;
@@ -48,10 +50,8 @@ function MapLoadingState() {
         >
           <MapPinned className="size-5" />
         </span>
-        <p className="mt-3 text-sm font-medium text-[var(--color-foreground)]">Loading map</p>
-        <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-          Preparing provider locations…
-        </p>
+        <p className="mt-3 text-sm font-medium text-[var(--color-foreground)]">{t("loading")}</p>
+        <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{t("preparing")}</p>
       </div>
     </div>
   );
@@ -61,6 +61,42 @@ const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
   loading: MapLoadingState,
 });
+
+/**
+ * What the error boundary shows. A function component of its own because the
+ * boundary is a class, and classes cannot read translations with a hook.
+ */
+function MapFailed({ listHref, fill }: { listHref: string; fill: boolean }) {
+  const t = useTranslations("MapLoader");
+  return (
+    <div
+      className={`grid ${placeholderSize(fill)} place-items-center bg-[var(--color-muted)]/35 px-6 text-center`}
+      role="alert"
+    >
+      <div className="max-w-sm">
+        <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
+          <MapPinned className="size-5" aria-hidden="true" />
+        </span>
+        <h2 className="mt-3 text-base font-semibold">{t("failedTitle")}</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
+          {t("failedBody")}
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
+          <Button type="button" onClick={() => window.location.reload()}>
+            <RefreshCw aria-hidden="true" />
+            {t("reload")}
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={listHref}>
+              <List aria-hidden="true" />
+              {t("useList")}
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 class MapErrorBoundary extends Component<
   { children: ReactNode; listHref: string; fill?: boolean },
@@ -80,38 +116,7 @@ class MapErrorBoundary extends Component<
 
   render() {
     if (this.state.failed) {
-      return (
-        <div
-          className={`grid ${placeholderSize(Boolean(this.props.fill))} place-items-center bg-[var(--color-muted)]/35 px-6 text-center`}
-          role="alert"
-        >
-          <div className="max-w-sm">
-            <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
-              <MapPinned className="size-5" aria-hidden="true" />
-            </span>
-            <h2 className="mt-3 text-base font-semibold">The interactive map could not start</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
-              Provider details are safe. Reload the page to try the map again, or use the list
-              view to keep browsing.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-3">
-              <Button
-                type="button"
-                onClick={() => window.location.reload()}
-              >
-                <RefreshCw aria-hidden="true" />
-                Reload map
-              </Button>
-              <Button asChild variant="outline">
-                <Link href={this.props.listHref}>
-                  <List aria-hidden="true" />
-                  Use list view
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      );
+      return <MapFailed listHref={this.props.listHref} fill={Boolean(this.props.fill)} />;
     }
 
     return this.props.children;
@@ -131,6 +136,7 @@ export function MapLoader({
   /** Float the map's controls over the tiles. See MapView. */
   immersive?: boolean;
 }) {
+  const t = useTranslations("MapLoader");
   // Avoid downloading Leaflet's client chunk when there is nothing to plot.
   if (providers.length === 0) {
     return (
@@ -142,10 +148,8 @@ export function MapLoader({
           <span className="mx-auto grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] shadow-sm">
             <MapPinned className="size-5" aria-hidden="true" />
           </span>
-          <h2 className="mt-3 text-base font-semibold">No provider locations to map</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
-            Try the list view while provider locations are being added.
-          </p>
+          <h2 className="mt-3 text-base font-semibold">{t("emptyTitle")}</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">{t("emptyBody")}</p>
         </div>
       </div>
     );

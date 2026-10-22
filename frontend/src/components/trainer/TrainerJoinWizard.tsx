@@ -22,6 +22,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import Link from "next/link";
+import {useTranslations} from "next-intl";
 import {useEffect, useMemo, useRef, useState, type RefObject} from "react";
 import {useForm, type FieldPath} from "react-hook-form";
 
@@ -44,6 +45,8 @@ import {NativeSelect} from "@/components/ui/native-select";
 import {Separator} from "@/components/ui/separator";
 import {Skeleton} from "@/components/ui/skeleton";
 import {Textarea} from "@/components/ui/textarea";
+import {validationMessage} from "@/i18n/validation";
+import {BRAND} from "@/lib/brand";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {
   getTrainerReferenceData,
@@ -93,13 +96,8 @@ function countdown(seconds: number): string {
 type Step = "phone" | "code" | "you" | "workshop" | "photos" | "course" | "review" | "submitted";
 type LocationState = "idle" | "loading" | "success" | "error";
 
-const PROFILE_STEPS: {key: Step; label: string}[] = [
-  {key: "you", label: "You"},
-  {key: "workshop", label: "Workshop"},
-  {key: "photos", label: "Photos"},
-  {key: "course", label: "Course"},
-  {key: "review", label: "Review"},
-];
+/** The profile steps in order. Their names are in "TrainerJoinWizard.steps". */
+const PROFILE_STEPS = ["you", "workshop", "photos", "course", "review"] as const satisfies readonly Step[];
 
 // Identity comes first, before the workshop. It is four fields and it is the
 // thing the confirming admin is actually deciding on; asking for it last, after
@@ -184,7 +182,8 @@ function RequiredCue() {
 }
 
 function OptionalCue() {
-  return <span className="font-normal text-[var(--color-muted-foreground)]">(optional)</span>;
+  const t = useTranslations("TrainerJoinWizard");
+  return <span className="font-normal text-[var(--color-muted-foreground)]">{t("optional")}</span>;
 }
 
 /** Eight per kind, so the two groups cannot crowd each other out. */
@@ -216,6 +215,7 @@ function PhotoGroup({
   onAdd: (file: File, kind: ProviderPhotoKind) => void;
   onRemove: (photoId: number) => void;
 }) {
+  const t = useTranslations("TrainerJoinWizard");
   const mine = photos.filter((photo) => photo.kind === kind);
   const inputId = `photo-input-${kind}`;
 
@@ -247,7 +247,7 @@ function PhotoGroup({
                 onClick={() => onRemove(photo.id)}
                 className="absolute right-1.5 top-1.5 h-8 min-h-0 bg-[var(--color-card)] px-2 text-xs"
               >
-                Remove
+                {t("remove")}
               </Button>
             </li>
           ))}
@@ -257,7 +257,7 @@ function PhotoGroup({
       {mine.length < MAX_PHOTOS_PER_KIND ? (
         <div className="space-y-2">
           <Label htmlFor={inputId} className="sr-only">
-            Add a photo: {title}
+            {t("addPhotoLabel", {title})}
           </Label>
           <Input
             id={inputId}
@@ -276,8 +276,7 @@ function PhotoGroup({
             }}
           />
           <p className="text-xs text-[var(--color-muted-foreground)]">
-            {mine.length} of {MAX_PHOTOS_PER_KIND} added. Each uploads on its own, so a
-            dropped connection only costs you that one.
+            {t("photosAdded", {count: mine.length, max: MAX_PHOTOS_PER_KIND})}
           </p>
         </div>
       ) : null}
@@ -285,15 +284,19 @@ function PhotoGroup({
   );
 }
 
+/** A field's error. Schema messages are "Validation" keys, worded here; a
+ *  message the server sent is shown as it came. */
 function FieldError({id, message}: {id: string; message?: string}) {
-  return message ? (
+  const t = useTranslations("Validation");
+  const text = validationMessage(t, message);
+  return text ? (
     <p
       id={id}
       role="alert"
       className="mt-1.5 flex items-start gap-1.5 text-sm text-[var(--color-destructive)]"
     >
       <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-      <span>{message}</span>
+      <span>{text}</span>
     </p>
   ) : null;
 }
@@ -310,20 +313,21 @@ function FormError({id, message}: {id: string; message: string}) {
 }
 
 function Progress({step}: {step: Step}) {
-  const current = PROFILE_STEPS.findIndex((item) => item.key === step);
+  const t = useTranslations("TrainerJoinWizard");
+  const current = (PROFILE_STEPS as readonly Step[]).indexOf(step);
   if (current < 0) return null;
 
   return (
     <nav
-      aria-label="Profile setup progress"
+      aria-label={t("progressLabel")}
       className="mb-5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/85 p-4 shadow-xs sm:p-5"
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-foreground)]">
-          Profile setup
+          {t("profileSetup")}
         </p>
         <Badge variant="secondary">
-          Step {current + 1} of {PROFILE_STEPS.length}
+          {t("stepOf", {current: current + 1, total: PROFILE_STEPS.length})}
         </Badge>
       </div>
       <ol className="mt-4 grid grid-cols-3 gap-2 sm:gap-4">
@@ -331,7 +335,7 @@ function Progress({step}: {step: Step}) {
           const complete = index < current;
           const active = index === current;
           return (
-            <li key={item.key} aria-current={active ? "step" : undefined} className="min-w-0">
+            <li key={item} aria-current={active ? "step" : undefined} className="min-w-0">
               <div
                 aria-hidden="true"
                 className={`mb-2 h-1.5 rounded-full ${
@@ -348,7 +352,7 @@ function Progress({step}: {step: Step}) {
                 }`}
               >
                 {complete ? <Check aria-hidden="true" className="size-3.5 shrink-0" /> : null}
-                {item.label}
+                {t(`steps.${item}`)}
               </span>
             </li>
           );
@@ -374,6 +378,8 @@ function ExistingProfile({
   profile: TrainerProfile;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }) {
+  const t = useTranslations("TrainerJoinWizard");
+  const tStatus = useTranslations("ListingStatus");
   return (
     <section aria-labelledby="existing-profile-heading" data-trainer-existing-profile>
       <Card className="relative overflow-hidden">
@@ -388,7 +394,9 @@ function ExistingProfile({
             ) : (
               <Clock3 aria-hidden="true" />
             )}
-            {profile.status_label}
+            {tStatus.has(profile.status as "draft")
+              ? tStatus(profile.status as "draft")
+              : profile.status_label}
           </Badge>
           <h2
             id="existing-profile-heading"
@@ -399,9 +407,7 @@ function ExistingProfile({
             {profile.name}
           </h2>
           <CardDescription className="max-w-xl">
-            {profile.status === "pending_approval"
-              ? "Your profile is with the Skills Hub team. It is not public until a reviewer approves it."
-              : "Open your trainer dashboard to see the listing status and details."}
+            {profile.status === "pending_approval" ? t("withTeam") : t("openDashboardHint")}
           </CardDescription>
         </CardHeader>
         {profile.review_note ? (
@@ -412,7 +418,7 @@ function ExistingProfile({
                 className="mt-0.5 size-4 shrink-0 text-[var(--color-warn)]"
               />
               <div>
-                <strong className="block font-semibold">Review note</strong>
+                <strong className="block font-semibold">{t("reviewNote")}</strong>
                 <p className="mt-1 text-[var(--color-muted-foreground)]">{profile.review_note}</p>
               </div>
             </div>
@@ -421,7 +427,7 @@ function ExistingProfile({
         <CardFooter className="sm:px-6">
           <Button asChild variant="brand" className="w-full sm:w-auto">
             <Link href="/trainer/dashboard">
-              Open trainer dashboard
+              {t("openDashboard")}
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -432,9 +438,10 @@ function ExistingProfile({
 }
 
 function LoadingCard() {
+  const t = useTranslations("TrainerJoinWizard");
   return (
     <div role="status" aria-live="polite" aria-busy="true">
-      <span className="sr-only">Loading profile setup…</span>
+      <span className="sr-only">{t("loading")}</span>
       <Card aria-hidden="true">
         <CardHeader>
           <Skeleton className="h-5 w-24" />
@@ -451,6 +458,9 @@ function LoadingCard() {
 }
 
 export function TrainerJoinWizard() {
+  const t = useTranslations("TrainerJoinWizard");
+  const tValidation = useTranslations("Validation");
+  const tFormat = useTranslations("Format");
   const [step, setStep] = useState<Step>("phone");
   /**
    * Which identifier the sign-in step is using.
@@ -544,7 +554,7 @@ export function TrainerJoinWizard() {
       })
       .catch((reason) => {
         if (!active) return;
-        setError(reason instanceof Error ? reason.message : "Could not load profile setup.");
+        setError(reason instanceof Error ? reason.message : t("loadFailed"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -552,7 +562,7 @@ export function TrainerJoinWizard() {
     return () => {
       active = false;
     };
-  }, [getValues, reset, setValue]);
+  }, [getValues, reset, setValue, t]);
 
   useEffect(() => {
     if (!session?.authenticated) return;
@@ -601,7 +611,7 @@ export function TrainerJoinWizard() {
       // Shallow on purpose: the server validates, and a clever regex rejects
       // real addresses.
       if (!address.includes("@")) {
-        setError("Enter your email address.");
+        setError(t("enterEmail"));
         return;
       }
       setBusy(true);
@@ -614,7 +624,7 @@ export function TrainerJoinWizard() {
         setResent(false);
         setStep("code");
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "Could not send the code.");
+        setError(reason instanceof Error ? reason.message : t("codeSendFailed"));
       } finally {
         setBusy(false);
       }
@@ -623,7 +633,9 @@ export function TrainerJoinWizard() {
 
     const parsed = ghanaPhoneSchema.safeParse(phone);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Enter a valid phone number.");
+      setError(
+        validationMessage(tValidation, parsed.error.issues[0]?.message) ?? t("enterValidPhone"),
+      );
       return;
     }
     setBusy(true);
@@ -638,7 +650,7 @@ export function TrainerJoinWizard() {
       setResent(false);
       setStep("code");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not send the code.");
+      setError(reason instanceof Error ? reason.message : t("codeSendFailed"));
     } finally {
       setBusy(false);
     }
@@ -672,7 +684,7 @@ export function TrainerJoinWizard() {
       setResent(true);
       setCode("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not send another code.");
+      setError(reason instanceof Error ? reason.message : t("resendFailed"));
     } finally {
       setBusy(false);
     }
@@ -681,11 +693,7 @@ export function TrainerJoinWizard() {
   async function verifyCode(event: React.FormEvent) {
     event.preventDefault();
     if (!/^\d{4,8}$/.test(code)) {
-      setError(
-        authMethod === "email"
-          ? "Enter the code we sent to your email."
-          : "Enter the code we sent to your phone.",
-      );
+      setError(authMethod === "email" ? t("enterEmailCode") : t("enterPhoneCode"));
       return;
     }
     setBusy(true);
@@ -695,7 +703,7 @@ export function TrainerJoinWizard() {
         authMethod === "email"
           ? await verifyTrainerEmailCode(challengeId, authEmail.trim(), code)
           : await verifyTrainerCode(challengeId, phone, code);
-      if (!nextSession.authenticated) throw new Error("The sign-in session was not created.");
+      if (!nextSession.authenticated) throw new Error(t("sessionNotCreated"));
       setSession(nextSession);
       setProfile(nextSession.profile);
       if (nextSession.profile) {
@@ -715,7 +723,7 @@ export function TrainerJoinWizard() {
       }
       setCode("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "That code did not work.");
+      setError(reason instanceof Error ? reason.message : t("codeFailed"));
     } finally {
       setBusy(false);
     }
@@ -757,7 +765,7 @@ export function TrainerJoinWizard() {
       setStep(next);
     } catch (reason) {
       if (reason instanceof TrainerApiError) applyApiErrors(reason);
-      else setError(reason instanceof Error ? reason.message : "Could not save your details.");
+      else setError(reason instanceof Error ? reason.message : t("saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -770,9 +778,7 @@ export function TrainerJoinWizard() {
       const photo = await uploadTrainerPhoto(file, kind);
       setPhotos((current) => [...current, photo]);
     } catch (reason) {
-      setUploadError(
-        reason instanceof Error ? reason.message : "That photo could not be uploaded.",
-      );
+      setUploadError(reason instanceof Error ? reason.message : t("photoUploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -784,7 +790,7 @@ export function TrainerJoinWizard() {
       await deleteTrainerPhoto(photoId);
       setPhotos((current) => current.filter((photo) => photo.id !== photoId));
     } catch (reason) {
-      setUploadError(reason instanceof Error ? reason.message : "Could not remove that photo.");
+      setUploadError(reason instanceof Error ? reason.message : t("photoRemoveFailed"));
     }
   }
 
@@ -795,9 +801,7 @@ export function TrainerJoinWizard() {
       const result = await uploadTrainerLogo(file);
       setLogoUrl(result.url);
     } catch (reason) {
-      setUploadError(
-        reason instanceof Error ? reason.message : "That logo could not be uploaded.",
-      );
+      setUploadError(reason instanceof Error ? reason.message : t("logoUploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -809,7 +813,7 @@ export function TrainerJoinWizard() {
       await deleteTrainerLogo();
       setLogoUrl(null);
     } catch (reason) {
-      setUploadError(reason instanceof Error ? reason.message : "Could not remove the logo.");
+      setUploadError(reason instanceof Error ? reason.message : t("logoRemoveFailed"));
     }
   }
 
@@ -820,9 +824,7 @@ export function TrainerJoinWizard() {
       await uploadTrainerIdentityDocument(file);
       setHasIdDocument(true);
     } catch (reason) {
-      setUploadError(
-        reason instanceof Error ? reason.message : "That document could not be uploaded.",
-      );
+      setUploadError(reason instanceof Error ? reason.message : t("documentUploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -838,22 +840,22 @@ export function TrainerJoinWizard() {
     setLocationMessage(null);
     if (!("geolocation" in navigator)) {
       setLocationState("error");
-      setLocationMessage("This browser cannot read your location. Drag the pin instead.");
+      setLocationMessage(t("locationUnsupported"));
       return;
     }
     setLocationState("loading");
-    setLocationMessage("Finding the workshop location…");
+    setLocationMessage(t("locationFinding"));
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setCoordinates({lat: position.coords.latitude, lng: position.coords.longitude});
         setLocationState("success");
         // GPS indoors is routinely out by the width of a street, so this is
         // where the pin starts, not where it ends.
-        setLocationMessage("Location found. Drag the pin onto the workshop entrance.");
+        setLocationMessage(t("locationFound"));
       },
       () => {
         setLocationState("error");
-        setLocationMessage("Location was not available. Tap the map to place the pin instead.");
+        setLocationMessage(t("locationUnavailable"));
       },
       {enableHighAccuracy: true, timeout: 15_000},
     );
@@ -883,7 +885,7 @@ export function TrainerJoinWizard() {
       setStep("submitted");
     } catch (reason) {
       if (reason instanceof TrainerApiError) applyApiErrors(reason);
-      else setError(reason instanceof Error ? reason.message : "Could not submit the profile.");
+      else setError(reason instanceof Error ? reason.message : t("submitFailed"));
       // A refused submit is nearly always something missing rather than
       // something wrong, so re-read the checklist instead of leaving the
       // trainer with a banner and no next action.
@@ -907,12 +909,12 @@ export function TrainerJoinWizard() {
           <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
             <AlertCircle aria-hidden="true" className="size-5" />
           </div>
-          <CardTitle>Profile setup is unavailable</CardTitle>
+          <CardTitle>{t("unavailableTitle")}</CardTitle>
           <CardDescription>{error}</CardDescription>
         </CardHeader>
         <CardFooter>
           <Button type="button" variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("tryAgain")}
           </Button>
         </CardFooter>
       </Card>
@@ -944,12 +946,10 @@ export function TrainerJoinWizard() {
             tabIndex={-1}
             className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
           >
-            {authMethod === "email" ? "Sign in with your email" : "Sign in with your phone"}
+            {authMethod === "email" ? t("signInEmailTitle") : t("signInPhoneTitle")}
           </h2>
           <CardDescription>
-            {authMethod === "email"
-              ? "For an address already on your account. We email a one-time code."
-              : "We will text you a one-time code. No password is needed."}
+            {authMethod === "email" ? t("signInEmailLead") : t("signInPhoneLead")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={requestCode} noValidate aria-busy={busy}>
@@ -957,7 +957,7 @@ export function TrainerJoinWizard() {
             {authMethod === "email" ? (
               <div className="space-y-2">
                 <Label htmlFor="trainer-email">
-                  Email address
+                  {t("emailLabel")}
                   <RequiredCue />
                 </Label>
                 <Input
@@ -980,14 +980,13 @@ export function TrainerJoinWizard() {
                   id="trainer-email-help"
                   className="text-xs leading-5 text-[var(--color-muted-foreground)]"
                 >
-                  This works only for an address you already added to your account. If you
-                  have not added one, sign in with your phone number.
+                  {t("emailHelp")}
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
                 <Label htmlFor="trainer-phone">
-                  Mobile number
+                  {t("phoneLabel")}
                   <RequiredCue />
                 </Label>
                 <Input
@@ -1004,7 +1003,7 @@ export function TrainerJoinWizard() {
                   aria-describedby={describedBy("trainer-phone-help", error && "trainer-phone-error")}
                 />
                 <p id="trainer-phone-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  This private number is used to sign in. It is not shown to trainees unless you later choose it as the public contact number.
+                  {t("phoneHelp")}
                 </p>
               </div>
             )}
@@ -1014,13 +1013,13 @@ export function TrainerJoinWizard() {
                 aria-hidden="true"
                 className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-strong)]"
               />
-              <p>Your sign-in number and verification code stay private.</p>
+              <p>{t("staysPrivate")}</p>
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-2 sm:px-6">
             <Button type="submit" variant="brand" disabled={busy} className="w-full">
               {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-              {busy ? "Sending code…" : "Continue"}
+              {busy ? t("sendingCode") : t("continue")}
               {!busy ? <ArrowRight aria-hidden="true" /> : null}
             </Button>
             <Button
@@ -1035,12 +1034,12 @@ export function TrainerJoinWizard() {
               {authMethod === "email" ? (
                 <>
                   <Smartphone aria-hidden="true" />
-                  Use my phone number instead
+                  {t("usePhone")}
                 </>
               ) : (
                 <>
                   <Mail aria-hidden="true" />
-                  Use my email instead
+                  {t("useEmail")}
                 </>
               )}
             </Button>
@@ -1062,15 +1061,15 @@ export function TrainerJoinWizard() {
             tabIndex={-1}
             className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
           >
-            {authMethod === "email" ? "Check your email" : "Check your messages"}
+            {authMethod === "email" ? t("checkEmail") : t("checkMessages")}
           </h2>
-          <CardDescription>Enter the code to securely continue your profile.</CardDescription>
+          <CardDescription>{t("codeLead")}</CardDescription>
         </CardHeader>
         <form onSubmit={verifyCode} noValidate aria-busy={busy}>
           <CardContent className="space-y-4 sm:px-6">
             <div className="space-y-2">
               <Label htmlFor="trainer-code">
-                Enter your verification code
+                {t("codeLabel")}
                 <RequiredCue />
               </Label>
               <Input
@@ -1089,18 +1088,21 @@ export function TrainerJoinWizard() {
                 className="text-center text-xl font-semibold tabular-nums tracking-[0.3em] sm:text-xl"
               />
               <p id="trainer-code-help" className="text-center text-xs leading-5 text-[var(--color-muted-foreground)]">
-                Sent to {authMethod === "email" ? authEmail.trim() : phone}
+                {t("sentTo", {destination: authMethod === "email" ? authEmail.trim() : phone})}
                 {expiresIn === null ? null : expiresIn > 0 ? (
                   <>
-                    {" · expires in "}
-                    <span className="tabular-nums">{countdown(expiresIn)}</span>
+                    {" · "}
+                    {t.rich("expiresIn", {
+                      time: countdown(expiresIn),
+                      clock: (chunks) => <span className="tabular-nums">{chunks}</span>,
+                    })}
                   </>
                 ) : (
-                  " · this code has expired"
+                  ` · ${t("codeExpired")}`
                 )}
               </p>
               <p aria-live="polite" className="sr-only">
-                {resent ? "A new code has been sent." : ""}
+                {resent ? t("newCodeSent") : ""}
               </p>
             </div>
             {error ? <FormError id="trainer-code-error" message={error} /> : null}
@@ -1117,7 +1119,7 @@ export function TrainerJoinWizard() {
               ) : (
                 <ShieldCheck aria-hidden="true" />
               )}
-              {busy ? "Checking…" : "Verify and continue"}
+              {busy ? t("checking") : t("verify")}
             </Button>
             <Button
               type="button"
@@ -1127,7 +1129,7 @@ export function TrainerJoinWizard() {
               className="w-full"
             >
               <RefreshCw aria-hidden="true" />
-              {resendIn > 0 ? `Send again in ${countdown(resendIn)}` : "Send another code"}
+              {resendIn > 0 ? t("sendAgainIn", {time: countdown(resendIn)}) : t("sendAnother")}
             </Button>
             <Button
               type="button"
@@ -1139,7 +1141,7 @@ export function TrainerJoinWizard() {
               className="w-full"
             >
               <ArrowLeft aria-hidden="true" />
-              Change phone number
+              {t("changePhone")}
             </Button>
           </CardFooter>
         </form>
@@ -1173,7 +1175,7 @@ export function TrainerJoinWizard() {
                   <ShieldCheck aria-hidden="true" className="size-5" />
                 </div>
                 <p className="text-xs text-[var(--color-muted-foreground)]">
-                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> Required fields
+                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> {t("requiredFields")}
                 </p>
               </div>
               <h2
@@ -1182,18 +1184,15 @@ export function TrainerJoinWizard() {
                 tabIndex={-1}
                 className="text-xl font-bold tracking-tight outline-none sm:text-2xl"
               >
-                About you
+                {t("aboutYouTitle")}
               </h2>
-              <CardDescription>
-                We check that a real person runs a real workshop before a listing goes live.
-                Your ID is never shown on the site and never shared with trainees.
-              </CardDescription>
+              <CardDescription>{t("aboutYouLead")}</CardDescription>
             </CardHeader>
             <CardContent className="sm:px-6">
               <fieldset disabled={busy} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="full_name">
-                    Your full name <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                    {t("fullNameLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
                   </Label>
                   <Input
                     id="full_name"
@@ -1206,13 +1205,13 @@ export function TrainerJoinWizard() {
 
                 <div className="space-y-2">
                   <Label htmlFor="role">
-                    Your role here <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                    {t("roleLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
                   </Label>
                   <NativeSelect id="role" {...register("role")} aria-invalid={errors.role ? true : undefined}>
-                    <option value="">Choose one</option>
-                    <option value="owner">I own this workshop</option>
-                    <option value="manager">I manage it</option>
-                    <option value="lead_trainer">I am the lead trainer</option>
+                    <option value="">{t("chooseOne")}</option>
+                    <option value="owner">{t("roles.owner")}</option>
+                    <option value="manager">{t("roles.manager")}</option>
+                    <option value="lead_trainer">{t("roles.lead_trainer")}</option>
                   </NativeSelect>
                   <FieldError id="role-error" message={errors.role?.message} />
                 </div>
@@ -1220,23 +1219,23 @@ export function TrainerJoinWizard() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="id_document_type">
-                      ID type <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                      {t("idTypeLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
                     </Label>
                     <NativeSelect
                       id="id_document_type"
                       {...register("id_document_type")}
                       aria-invalid={errors.id_document_type ? true : undefined}
                     >
-                      <option value="">Choose one</option>
-                      <option value="ghana_card">Ghana Card</option>
-                      <option value="passport">Passport</option>
-                      <option value="voter_id">Voter ID</option>
+                      <option value="">{t("chooseOne")}</option>
+                      <option value="ghana_card">{t("idTypes.ghana_card")}</option>
+                      <option value="passport">{t("idTypes.passport")}</option>
+                      <option value="voter_id">{t("idTypes.voter_id")}</option>
                     </NativeSelect>
                     <FieldError id="id-type-error" message={errors.id_document_type?.message} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="id_document_number">
-                      ID number <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                      {t("idNumberLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
                     </Label>
                     <Input
                       id="id_document_number"
@@ -1250,9 +1249,7 @@ export function TrainerJoinWizard() {
                 <Alert>
                   <LockKeyhole aria-hidden="true" className="size-4" />
                   <AlertDescription>
-                    You upload a photo of the ID on the next-but-one step. It is stored
-                    privately, is never published, and only the Fliiptech staff reviewing
-                    your listing can open it.
+                    {t("idPhotoNote", {brand: BRAND})}
                   </AlertDescription>
                 </Alert>
               </fieldset>
@@ -1264,7 +1261,7 @@ export function TrainerJoinWizard() {
                 onClick={() => continueFrom(IDENTITY_FIELDS, "workshop")}
                 className="w-full"
               >
-                Continue to workshop
+                {t("continueToWorkshop")}
                 <ArrowRight aria-hidden="true" />
               </Button>
             </CardFooter>
@@ -1281,7 +1278,7 @@ export function TrainerJoinWizard() {
                   <Building2 aria-hidden="true" className="size-5" />
                 </div>
                 <p className="text-xs text-[var(--color-muted-foreground)]">
-                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> Required fields
+                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> {t("requiredFields")}
                 </p>
               </div>
               <h2
@@ -1290,11 +1287,9 @@ export function TrainerJoinWizard() {
                 tabIndex={-1}
                 className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
               >
-                Tell us about the workshop
+                {t("workshopTitle")}
               </h2>
-              <CardDescription>
-                These details become your public listing only after staff approval.
-              </CardDescription>
+              <CardDescription>{t("workshopLead")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5 sm:px-6">
               <div className="flex items-start gap-2.5 rounded-xl border border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-3.5 text-sm leading-6">
@@ -1302,13 +1297,13 @@ export function TrainerJoinWizard() {
                   aria-hidden="true"
                   className="mt-1 size-4 shrink-0 text-[var(--color-brand-strong)]"
                 />
-                <p>Workshop name, trainer, public contact, address, course and location will be visible after approval.</p>
+                <p>{t("visibleAfterApproval")}</p>
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">
-                    Workshop or training centre name
+                    {t("workshopNameLabel")}
                     <RequiredCue />
                   </Label>
                   <Input
@@ -1323,7 +1318,7 @@ export function TrainerJoinWizard() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="owner_name">
-                    Owner or lead trainer name
+                    {t("ownerNameLabel")}
                     <RequiredCue />
                   </Label>
                   <Input
@@ -1341,7 +1336,7 @@ export function TrainerJoinWizard() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="contact_phone">
-                    Public WhatsApp or contact number
+                    {t("contactPhoneLabel")}
                     <RequiredCue />
                   </Label>
                   <Input
@@ -1358,13 +1353,13 @@ export function TrainerJoinWizard() {
                     )}
                   />
                   <p id="contact-phone-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                    Trainees will see this number. It may differ from your private sign-in number.
+                    {t("contactPhoneHelp")}
                   </p>
                   <FieldError id="contact-phone-error" message={errors.contact_phone?.message} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="area_id">
-                    Area
+                    {t("areaLabel")}
                     <RequiredCue />
                   </Label>
                   <NativeSelect
@@ -1375,7 +1370,7 @@ export function TrainerJoinWizard() {
                     aria-describedby={describedBy(errors.area_id && "area-error")}
                     className={invalidControlClassName}
                   >
-                    <option value="">Choose an area</option>
+                    <option value="">{t("chooseArea")}</option>
                     {areas.map((area) => (
                       <option key={area.id} value={area.id}>
                         {area.name}
@@ -1388,7 +1383,7 @@ export function TrainerJoinWizard() {
 
               <div className="space-y-2">
                 <Label htmlFor="address">
-                  Workshop address
+                  {t("addressLabel")}
                   <RequiredCue />
                 </Label>
                 <Textarea
@@ -1396,7 +1391,7 @@ export function TrainerJoinWizard() {
                   rows={3}
                   {...register("address")}
                   required
-                  placeholder="For example: opposite the community market"
+                  placeholder={t("addressPlaceholder")}
                   aria-invalid={Boolean(errors.address)}
                   aria-describedby={describedBy(errors.address && "address-error")}
                 />
@@ -1405,33 +1400,31 @@ export function TrainerJoinWizard() {
 
               <div className="space-y-2">
                 <Label htmlFor="landmark">
-                  Nearest landmark
+                  {t("landmarkLabel")}
                   <RequiredCue />
                 </Label>
                 <Input
                   id="landmark"
                   {...register("landmark")}
                   required
-                  placeholder="For example: behind Tema Community 1 market"
+                  placeholder={t("landmarkPlaceholder")}
                   aria-invalid={Boolean(errors.landmark)}
                   aria-describedby={describedBy("landmark-help", errors.landmark && "landmark-error")}
                 />
                 <p id="landmark-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  A place anyone nearby would know. This is how our officer finds you for
-                  the visit.
+                  {t("landmarkHelp")}
                 </p>
                 <FieldError id="landmark-error" message={errors.landmark?.message} />
               </div>
 
               <fieldset className="grid gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:grid-cols-2 sm:p-5">
-                <legend className="px-1.5 text-sm font-semibold">About the workshop</legend>
+                <legend className="px-1.5 text-sm font-semibold">{t("aboutWorkshop")}</legend>
                 <p className="text-xs leading-5 text-[var(--color-muted-foreground)] sm:col-span-2">
-                  All optional, and none of it appears on your public listing. It helps us
-                  understand the workshop before we visit.
+                  {t("aboutWorkshopBody")}
                 </p>
 
                 <div className="space-y-2">
-                  <Label htmlFor="year_established">Year it started</Label>
+                  <Label htmlFor="year_established">{t("yearLabel")}</Label>
                   <Input
                     id="year_established"
                     inputMode="numeric"
@@ -1443,17 +1436,17 @@ export function TrainerJoinWizard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="premises_tenure">The premises are</Label>
+                  <Label htmlFor="premises_tenure">{t("premisesLabel")}</Label>
                   <NativeSelect id="premises_tenure" {...register("premises_tenure")}>
-                    <option value="">Prefer not to say</option>
-                    <option value="owned">Owned</option>
-                    <option value="rented">Rented</option>
-                    <option value="shared">Shared or family premises</option>
+                    <option value="">{t("preferNotToSay")}</option>
+                    <option value="owned">{t("premises.owned")}</option>
+                    <option value="rented">{t("premises.rented")}</option>
+                    <option value="shared">{t("premises.shared")}</option>
                   </NativeSelect>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="trainer_count">How many people teach here?</Label>
+                  <Label htmlFor="trainer_count">{t("trainerCountLabel")}</Label>
                   <Input
                     id="trainer_count"
                     inputMode="numeric"
@@ -1465,7 +1458,7 @@ export function TrainerJoinWizard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="trainee_count">How many trainees right now?</Label>
+                  <Label htmlFor="trainee_count">{t("traineeCountLabel")}</Label>
                   <Input
                     id="trainee_count"
                     inputMode="numeric"
@@ -1479,12 +1472,11 @@ export function TrainerJoinWizard() {
 
               <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">
                 <legend className="px-1.5 text-sm font-semibold">
-                  Exact workshop location
+                  {t("locationLegend")}
                   <RequiredCue />
                 </legend>
                 <p id="workshop-location-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  Stand at the workshop and use your phone location, then drag the pin onto the
-                  entrance. Staff will confirm it before publication.
+                  {t("locationHelp")}
                 </p>
 
                 <div className="mt-4">
@@ -1495,9 +1487,7 @@ export function TrainerJoinWizard() {
                     onChange={setCoordinates}
                   />
                   <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
-                    {watch("latitude") && watch("longitude")
-                      ? "Drag the pin, or tap the map, to correct the position."
-                      : "Tap the map to place the pin, or use your phone location below."}
+                    {watch("latitude") && watch("longitude") ? t("dragPin") : t("tapMap")}
                   </p>
                 </div>
                 <Button
@@ -1512,7 +1502,7 @@ export function TrainerJoinWizard() {
                   ) : (
                     <LocateFixed aria-hidden="true" />
                   )}
-                  {locationState === "loading" ? "Finding location…" : "Use my current location"}
+                  {locationState === "loading" ? t("findingLocation") : t("useLocation")}
                 </Button>
                 {locationMessage ? (
                   <div
@@ -1538,12 +1528,12 @@ export function TrainerJoinWizard() {
                 <div className="mt-4">
                   <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted-foreground)]">
                     <MapPin aria-hidden="true" className="size-3.5" />
-                    These follow the pin. Type them only if you already know them.
+                    {t("coordinatesHelp")}
                   </p>
                   <div className="mt-3 grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="latitude" className="text-xs">
-                        Latitude
+                        {t("latitudeLabel")}
                         <RequiredCue />
                       </Label>
                       <Input
@@ -1561,7 +1551,7 @@ export function TrainerJoinWizard() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="longitude" className="text-xs">
-                        Longitude
+                        {t("longitudeLabel")}
                         <RequiredCue />
                       </Label>
                       <Input
@@ -1588,7 +1578,7 @@ export function TrainerJoinWizard() {
                 onClick={() => saveThenContinue(WORKSHOP_FIELDS, "photos")}
                 className="w-full"
               >
-                Continue to photos
+                {t("continueToPhotos")}
                 <ArrowRight aria-hidden="true" />
               </Button>
             </CardFooter>
@@ -1609,12 +1599,9 @@ export function TrainerJoinWizard() {
                 tabIndex={-1}
                 className="text-xl font-bold tracking-tight outline-none sm:text-2xl"
               >
-                Photos and ID
+                {t("photosTitle")}
               </h2>
-              <CardDescription>
-                Trainees choose with their eyes. Show the outside so people can find you,
-                and the inside so they can see what they will learn on.
-              </CardDescription>
+              <CardDescription>{t("photosLead")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 sm:px-6">
               {uploadError ? <FormError id="upload-error" message={uploadError} /> : null}
@@ -1624,11 +1611,10 @@ export function TrainerJoinWizard() {
                   listing actually needs. */}
               <fieldset disabled={uploading} className="space-y-3">
                 <legend className="text-sm font-semibold">
-                  Your logo <OptionalCue />
+                  {t("logoLegend")} <OptionalCue />
                 </legend>
                 <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  If your workshop has one. Most do not, and that is fine — we show your
-                  workshop&apos;s initials instead.
+                  {t("logoHelp")}
                 </p>
 
                 {logoUrl ? (
@@ -1636,17 +1622,17 @@ export function TrainerJoinWizard() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={logoUrl}
-                      alt="Your logo"
+                      alt={t("logoAlt")}
                       className="size-16 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] object-contain p-1"
                     />
                     <Button type="button" variant="outline" size="sm" onClick={removeLogo}>
-                      Remove logo
+                      {t("removeLogo")}
                     </Button>
                   </div>
                 ) : (
                   <>
                     <Label htmlFor="logo-input" className="sr-only">
-                      Upload your logo
+                      {t("uploadLogo")}
                     </Label>
                     <Input
                       id="logo-input"
@@ -1666,8 +1652,8 @@ export function TrainerJoinWizard() {
 
               <PhotoGroup
                 kind="workshop"
-                title="Photos of the workshop"
-                hint="The outside with your sign so people can find you, and the inside or your equipment."
+                title={t("workshopPhotosTitle")}
+                hint={t("workshopPhotosHint")}
                 photos={photos}
                 uploading={uploading}
                 onAdd={addPhoto}
@@ -1678,8 +1664,8 @@ export function TrainerJoinWizard() {
 
               <PhotoGroup
                 kind="work"
-                title="Photos of your work"
-                hint="Things you or your trainees have made or repaired. This is what convinces someone your training is worth paying for."
+                title={t("workPhotosTitle")}
+                hint={t("workPhotosHint")}
                 photos={photos}
                 uploading={uploading}
                 onAdd={addPhoto}
@@ -1690,19 +1676,19 @@ export function TrainerJoinWizard() {
 
               <fieldset disabled={uploading} className="space-y-3">
                 <legend className="text-sm font-semibold">
-                  Photo of your ID
+                  {t("idPhotoLegend")}
                   <RequiredCue />
                 </legend>
                 {hasIdDocument ? (
                   <Alert>
                     <CheckCircle2 aria-hidden="true" className="size-4" />
                     <AlertDescription>
-                      Your ID is on file. Upload again only if you need to replace it.
+                      {t("idOnFile")}
                     </AlertDescription>
                   </Alert>
                 ) : null}
                 <Label htmlFor="id-input" className="sr-only">
-                  Upload a photo of your ID
+                  {t("uploadId")}
                 </Label>
                 <Input
                   id="id-input"
@@ -1718,8 +1704,7 @@ export function TrainerJoinWizard() {
                 <p className="flex items-start gap-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
                   <LockKeyhole aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
                   <span>
-                    Stored privately and never published. Only the staff reviewing your
-                    listing can open it, and it is never shown to trainees.
+                    {t("idPrivate")}
                   </span>
                 </p>
               </fieldset>
@@ -1727,7 +1712,7 @@ export function TrainerJoinWizard() {
               {uploading ? (
                 <p role="status" className="flex items-center gap-2 text-sm">
                   <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                  Uploading…
+                  {t("uploading")}
                 </p>
               ) : null}
             </CardContent>
@@ -1739,7 +1724,7 @@ export function TrainerJoinWizard() {
                 className="w-full sm:w-auto"
               >
                 <ArrowLeft aria-hidden="true" />
-                Back
+                {t("back")}
               </Button>
               <Button
                 type="button"
@@ -1747,7 +1732,7 @@ export function TrainerJoinWizard() {
                 onClick={() => setStep("course")}
                 className="w-full sm:flex-1"
               >
-                Continue to course
+                {t("continueToCourse")}
                 <ArrowRight aria-hidden="true" />
               </Button>
             </CardFooter>
@@ -1764,7 +1749,7 @@ export function TrainerJoinWizard() {
                   <BookOpen aria-hidden="true" className="size-5" />
                 </div>
                 <p className="text-xs text-[var(--color-muted-foreground)]">
-                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> Required fields
+                  <span aria-hidden="true" className="text-[var(--color-brand)]">*</span> {t("requiredFields")}
                 </p>
               </div>
               <h2
@@ -1773,17 +1758,15 @@ export function TrainerJoinWizard() {
                 tabIndex={-1}
                 className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
               >
-                Add your first course
+                {t("courseTitle")}
               </h2>
-              <CardDescription>
-                A course, fee and duration help trainees compare your workshop fairly.
-              </CardDescription>
+              <CardDescription>{t("courseLead")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5 sm:px-6">
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="trade_id">
-                    Trade
+                    {t("tradeLabel")}
                     <RequiredCue />
                   </Label>
                   <NativeSelect
@@ -1794,7 +1777,7 @@ export function TrainerJoinWizard() {
                     aria-describedby={describedBy(errors.trade_id && "trade-error")}
                     className={invalidControlClassName}
                   >
-                    <option value="">Choose a trade</option>
+                    <option value="">{t("chooseTrade")}</option>
                     {trades.map((trade) => (
                       <option key={trade.id} value={trade.id}>
                         {trade.name}
@@ -1805,14 +1788,14 @@ export function TrainerJoinWizard() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="programme_title">
-                    Course title
+                    {t("courseTitleLabel")}
                     <RequiredCue />
                   </Label>
                   <Input
                     id="programme_title"
                     {...register("programme_title")}
                     required
-                    placeholder="For example: Beginner arc welding"
+                    placeholder={t("courseTitlePlaceholder")}
                     aria-invalid={Boolean(errors.programme_title)}
                     aria-describedby={describedBy(errors.programme_title && "programme-title-error")}
                   />
@@ -1823,7 +1806,7 @@ export function TrainerJoinWizard() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="fee">
-                    Full fee (GH₵)
+                    {t("feeLabel")}
                     <RequiredCue />
                   </Label>
                   <Input
@@ -1838,7 +1821,7 @@ export function TrainerJoinWizard() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="duration_weeks">
-                    Duration in weeks
+                    {t("durationLabel")}
                     <RequiredCue />
                   </Label>
                   <Input
@@ -1860,19 +1843,19 @@ export function TrainerJoinWizard() {
                     {...register("instalments_allowed")}
                     className="size-5 shrink-0 accent-[var(--color-brand)]"
                   />
-                  Trainees may pay in instalments
+                  {t("instalmentsLabel")}
                 </Label>
                 {instalmentsAllowed ? (
                   <div className="mt-3 space-y-2 border-t border-[var(--color-border)] pt-4">
                     <Label htmlFor="instalment_note">
-                      Instalment arrangement
+                      {t("instalmentNoteLabel")}
                       <RequiredCue />
                     </Label>
                     <Input
                       id="instalment_note"
                       {...register("instalment_note")}
                       required
-                      placeholder="For example: 50% before starting"
+                      placeholder={t("instalmentNotePlaceholder")}
                       aria-invalid={Boolean(errors.instalment_note)}
                       aria-describedby={describedBy(errors.instalment_note && "instalment-note-error")}
                     />
@@ -1884,20 +1867,20 @@ export function TrainerJoinWizard() {
               <Separator />
 
               <div>
-                <p className="text-sm font-semibold">Extra course details</p>
+                <p className="text-sm font-semibold">{t("extraDetails")}</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  Optional details help trainees understand what to expect.
+                  {t("extraDetailsBody")}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="weekly_schedule" className="flex flex-wrap items-baseline gap-1.5">
-                  Weekly schedule <OptionalCue />
+                  {t("scheduleLabel")} <OptionalCue />
                 </Label>
                 <Input
                   id="weekly_schedule"
                   {...register("weekly_schedule")}
-                  placeholder="Mon–Thu, 8am to 2pm"
+                  placeholder={t("schedulePlaceholder")}
                   aria-invalid={Boolean(errors.weekly_schedule)}
                   aria-describedby={describedBy(errors.weekly_schedule && "weekly-schedule-error")}
                 />
@@ -1907,7 +1890,7 @@ export function TrainerJoinWizard() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="hours_per_week" className="flex flex-wrap items-baseline gap-1.5">
-                    Hours per week <OptionalCue />
+                    {t("hoursLabel")} <OptionalCue />
                   </Label>
                   <Input
                     id="hours_per_week"
@@ -1920,7 +1903,7 @@ export function TrainerJoinWizard() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="capacity" className="flex flex-wrap items-baseline gap-1.5">
-                    Class capacity <OptionalCue />
+                    {t("capacityLabel")} <OptionalCue />
                   </Label>
                   <Input
                     id="capacity"
@@ -1934,26 +1917,25 @@ export function TrainerJoinWizard() {
               </div>
 
               <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">
-                <legend className="px-1.5 text-sm font-semibold">What does the fee cover?</legend>
+                <legend className="px-1.5 text-sm font-semibold">{t("feeCoversLegend")}</legend>
                 <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  Trainees compare fees side by side. Saying what yours includes is how a
-                  higher fee stops looking expensive.
+                  {t("feeCoversBody")}
                 </p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {(
                     [
-                      ["fee_includes_tools", "Tools"],
-                      ["fee_includes_materials", "Materials"],
-                      ["fee_includes_ppe", "Safety gear"],
-                      ["fee_includes_certificate", "A certificate"],
+                      "fee_includes_tools",
+                      "fee_includes_materials",
+                      "fee_includes_ppe",
+                      "fee_includes_certificate",
                     ] as const
-                  ).map(([field, label]) => (
+                  ).map((field) => (
                     <label
                       key={field}
                       className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3"
                     >
                       <input type="checkbox" {...register(field)} />
-                      <span className="text-sm">{label}</span>
+                      <span className="text-sm">{t(`feeCovers.${field}`)}</span>
                     </label>
                   ))}
                 </div>
@@ -1961,13 +1943,13 @@ export function TrainerJoinWizard() {
                 {feeIncludesCertificate ? (
                   <div className="mt-3 space-y-2">
                     <Label htmlFor="certificate_awarded">
-                      What is the certificate called?
+                      {t("certificateLabel")}
                       <RequiredCue />
                     </Label>
                     <Input
                       id="certificate_awarded"
                       {...register("certificate_awarded")}
-                      placeholder="For example: Fliiptech workshop certificate"
+                      placeholder={t("certificatePlaceholder", {brand: BRAND})}
                       aria-invalid={Boolean(errors.certificate_awarded)}
                       aria-describedby={describedBy(
                         errors.certificate_awarded && "certificate-error",
@@ -1983,14 +1965,14 @@ export function TrainerJoinWizard() {
 
               <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">
                 <legend className="px-1.5 text-sm font-semibold">
-                  Next intake <OptionalCue />
+                  {t("nextIntakeLegend")} <OptionalCue />
                 </legend>
                 <p id="next-intake-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  Leave this blank if you do not know the next date yet. Trainees will be told to ask you.
+                  {t("nextIntakeHelp")}
                 </p>
                 <div className="mt-4 grid gap-5 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="intake_start_date">Start date</Label>
+                    <Label htmlFor="intake_start_date">{t("startDateLabel")}</Label>
                     <Input
                       id="intake_start_date"
                       type="date"
@@ -2004,7 +1986,7 @@ export function TrainerJoinWizard() {
                     <FieldError id="intake-date-error" message={errors.intake_start_date?.message} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="places_offered">Places offered</Label>
+                    <Label htmlFor="places_offered">{t("placesOfferedLabel")}</Label>
                     <Input
                       id="places_offered"
                       inputMode="numeric"
@@ -2029,7 +2011,7 @@ export function TrainerJoinWizard() {
                 className="w-full sm:w-auto"
               >
                 <ArrowLeft aria-hidden="true" />
-                Back
+                {t("back")}
               </Button>
               <Button
                 type="button"
@@ -2037,7 +2019,7 @@ export function TrainerJoinWizard() {
                 onClick={() => saveThenContinue(COURSE_FIELDS, "review")}
                 className="w-full sm:w-auto"
               >
-                Review profile
+                {t("reviewProfile")}
                 <ArrowRight aria-hidden="true" />
               </Button>
             </CardFooter>
@@ -2050,7 +2032,7 @@ export function TrainerJoinWizard() {
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/75 p-5 shadow-xs">
             <Badge variant="secondary">
               <Eye aria-hidden="true" />
-              Ready to review
+              {t("readyToReview")}
             </Badge>
             <h2
               id="review-heading"
@@ -2058,10 +2040,10 @@ export function TrainerJoinWizard() {
               tabIndex={-1}
               className="scroll-mt-24 mt-3 text-xl font-bold tracking-tight outline-none"
             >
-              Review the public profile
+              {t("reviewTitle")}
             </h2>
             <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
-              Nothing is public yet. Skills Hub staff will check these details before approval.
+              {t("reviewLead")}
             </p>
           </div>
 
@@ -2071,30 +2053,30 @@ export function TrainerJoinWizard() {
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
                   <Building2 aria-hidden="true" className="size-4" />
                 </div>
-                <CardTitle>Workshop</CardTitle>
+                <CardTitle>{t("reviewWorkshop")}</CardTitle>
               </div>
               <Button type="button" variant="ghost" size="sm" onClick={() => setStep("workshop")}>
                 <Pencil aria-hidden="true" />
-                Edit
+                {t("edit")}
               </Button>
             </CardHeader>
             <Separator />
             <CardContent className="pt-5 sm:px-6">
               <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Name</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewName")}</dt>
                   <dd className="mt-1 break-words font-medium">{values.name}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Owner or trainer</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewOwner")}</dt>
                   <dd className="mt-1 break-words font-medium">{values.owner_name}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Public contact</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewContact")}</dt>
                   <dd className="mt-1 break-words font-medium">{values.contact_phone}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Location</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewLocation")}</dt>
                   <dd className="mt-1 break-words font-medium">
                     {values.address}
                     {selectedArea ? `, ${selectedArea.name}` : ""}
@@ -2110,36 +2092,40 @@ export function TrainerJoinWizard() {
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
                   <BookOpen aria-hidden="true" className="size-4" />
                 </div>
-                <CardTitle>First course</CardTitle>
+                <CardTitle>{t("reviewFirstCourse")}</CardTitle>
               </div>
               <Button type="button" variant="ghost" size="sm" onClick={() => setStep("course")}>
                 <Pencil aria-hidden="true" />
-                Edit
+                {t("edit")}
               </Button>
             </CardHeader>
             <Separator />
             <CardContent className="pt-5 sm:px-6">
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Course</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewCourse")}</dt>
                   <dd className="mt-1 break-words font-medium">{values.programme_title}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Trade</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewTrade")}</dt>
                   <dd className="mt-1 break-words font-medium">{selectedTrade?.name}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Fee</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewFee")}</dt>
                   <dd className="mt-1 break-words font-medium">GH₵{values.fee}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Duration</dt>
-                  <dd className="mt-1 break-words font-medium">{values.duration_weeks} weeks</dd>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewDuration")}</dt>
+                  <dd className="mt-1 break-words font-medium">
+                    {values.duration_weeks
+                      ? tFormat("weeks", {count: Number(values.duration_weeks)})
+                      : null}
+                  </dd>
                 </div>
                 <div className="min-w-0 sm:col-span-2">
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">Next intake</dt>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewNextIntake")}</dt>
                   <dd className="mt-1 break-words font-medium">
-                    {values.intake_start_date || "Date not known yet"}
+                    {values.intake_start_date || t("dateNotKnown")}
                   </dd>
                 </div>
               </dl>
@@ -2154,35 +2140,19 @@ export function TrainerJoinWizard() {
             disabled={busy}
             className="space-y-3 rounded-2xl border border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-4"
           >
-            <legend className="px-1.5 text-sm font-semibold">Before you send</legend>
+            <legend className="px-1.5 text-sm font-semibold">{t("beforeYouSend")}</legend>
 
-            {(
-              [
-                [
-                  "declared_accurate",
-                  "The fees, dates and course details above are correct today.",
-                ],
-                [
-                  "site_visit_consent",
-                  "A Fliiptech officer may visit the workshop to check the listing.",
-                ],
-                [
-                  "data_consent",
-                  "Fliiptech may hold my name, phone number and ID to verify this listing.",
-                ],
-              ] as const
-            ).map(([field, label]) => (
+            {(["declared_accurate", "site_visit_consent", "data_consent"] as const).map((field) => (
               <label key={field} className="flex cursor-pointer items-start gap-3 text-sm leading-6">
                 <input type="checkbox" className="mt-1.5 shrink-0" {...register(field)} />
-                <span>{label}</span>
+                <span>{t(`declarations.${field}`, {brand: BRAND})}</span>
               </label>
             ))}
 
             <p className="flex items-start gap-1.5 border-t border-[var(--color-brand)]/10 pt-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
               <ShieldCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
               <span>
-                The workshop name, contact details, location and course go public only after
-                staff approval. Your sign-in phone and your ID never appear on the site.
+                {t("goesPublic")}
               </span>
             </p>
           </fieldset>
@@ -2197,7 +2167,7 @@ export function TrainerJoinWizard() {
             >
               <p className="flex items-center gap-2 text-sm font-semibold text-[var(--color-warn)]">
                 <AlertCircle aria-hidden="true" className="size-4" />
-                Still needed before you can send
+                {t("stillNeeded")}
               </p>
               <ul className="mt-2 space-y-1.5 text-sm leading-6">
                 {blockers.map((item) => (
@@ -2220,7 +2190,7 @@ export function TrainerJoinWizard() {
               className="w-full sm:w-auto"
             >
               <ArrowLeft aria-hidden="true" />
-              Back
+              {t("back")}
             </Button>
             <Button type="submit" variant="brand" disabled={busy} className="w-full sm:w-auto">
               {busy ? (
@@ -2228,7 +2198,7 @@ export function TrainerJoinWizard() {
               ) : (
                 <ShieldCheck aria-hidden="true" />
               )}
-              {busy ? "Submitting…" : "Submit for review"}
+              {busy ? t("submitting") : t("submit")}
             </Button>
           </div>
         </section>

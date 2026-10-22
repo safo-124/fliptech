@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { EnquiryForm } from "@/components/EnquiryForm";
@@ -49,6 +50,7 @@ function EnquiryPageFrame({ children }: { children: ReactNode }) {
 }
 
 function EnquiryFlow() {
+  const t = useTranslations("EnquiryPage");
   const params = useSearchParams();
   const programmeId = Number(params.get("programme"));
   const intakeId = params.get("intake") ? Number(params.get("intake")) : undefined;
@@ -65,7 +67,7 @@ function EnquiryFlow() {
         <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
           <Link href="/">
             <ArrowLeft aria-hidden="true" />
-            Back to search
+            {t("backToSearch")}
           </Link>
         </Button>
         <Card className="border-dashed text-center">
@@ -73,14 +75,13 @@ function EnquiryFlow() {
             <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
               <Search aria-hidden="true" />
             </div>
-            <h1 className="mt-5 text-2xl font-bold tracking-tight">Choose a course first</h1>
+            <h1 className="mt-5 text-2xl font-bold tracking-tight">{t("chooseCourseTitle")}</h1>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--color-muted-foreground)]">
-              Open a provider, compare the available courses, then choose the one you want to
-              ask about.
+              {t("chooseCourseBody")}
             </p>
             <Button asChild variant="brand" className="mt-6">
               <Link href="/">
-                Find training
+                {t("findTraining")}
                 <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
@@ -100,41 +101,43 @@ function EnquiryFlow() {
               <Check className="size-7" strokeWidth={2.5} aria-hidden="true" />
             </div>
             <Badge variant="visit" className="mt-5">
-              Message ready
+              {t("messageReady")}
             </Badge>
             <h1
               ref={confirmationHeadingRef}
               tabIndex={-1}
               className="mt-3 text-3xl font-bold tracking-[-0.03em] outline-none sm:text-4xl"
             >
-              Enquiry sent
+              {t("sentTitle")}
             </h1>
             <p className="mt-3 max-w-lg text-base leading-7 text-[var(--color-muted-foreground)]">
-              <span className="font-semibold text-[var(--color-foreground)]">
-                {sent.provider_name}
-              </span>{" "}
-              has your enquiry. Expect a reply within about {sent.expect_reply_within_hours}{" "}
-              hours.
+              {t.rich("sentBody", {
+                provider: sent.provider_name,
+                hours: sent.expect_reply_within_hours,
+                strong: (chunks) => (
+                  <span className="font-semibold text-[var(--color-foreground)]">{chunks}</span>
+                ),
+              })}
             </p>
 
             <div className="mt-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/70 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-                  Your reference
+                  {t("yourReference")}
                 </p>
                 <strong className="mt-1 block text-2xl tracking-[0.08em]">
                   {sent.reference_code}
                 </strong>
               </div>
               <p className="mt-2 max-w-52 text-xs leading-5 text-[var(--color-muted-foreground)] sm:mt-0 sm:text-right">
-                Quote this reference if you call the workshop.
+                {t("quoteReference")}
               </p>
             </div>
 
             <Button asChild variant="brand" size="lg" className="mt-5 w-full">
               <a href={sent.whatsapp_url}>
                 <MessageCircle aria-hidden="true" />
-                Continue on WhatsApp
+                {t("continueWhatsApp")}
               </a>
             </Button>
 
@@ -151,17 +154,14 @@ function EnquiryFlow() {
                   aria-hidden="true"
                 />
                 <p className="text-sm leading-6">
-                  <strong>Compare before you decide.</strong>{" "}
-                  <span className="text-[var(--color-muted-foreground)]">
-                    Enquire with two more providers. Fees and start dates vary, and comparing
-                    costs you nothing.
-                  </span>
+                  <strong>{t("compareTitle")}</strong>{" "}
+                  <span className="text-[var(--color-muted-foreground)]">{t("compareBody")}</span>
                 </p>
               </div>
             </div>
             <Button asChild variant="ghost" className="mt-3 w-full">
               <Link href="/">
-                Compare more providers
+                {t("compareMore")}
                 <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
@@ -176,21 +176,20 @@ function EnquiryFlow() {
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
         <Link href="/">
           <ArrowLeft aria-hidden="true" />
-          Back to search
+          {t("backToSearch")}
         </Link>
       </Button>
 
       <div className="mb-5 sm:mb-7">
         <Badge variant="secondary">
           <LockKeyhole aria-hidden="true" />
-          Private and secure
+          {t("privateBadge")}
         </Badge>
         <h1 className="mt-3 text-3xl font-bold tracking-[-0.035em] sm:text-4xl">
-          Send an enquiry
+          {t("formTitle")}
         </h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-base">
-          Ask the workshop about availability, fees or anything else you need to know. We’ll
-          confirm your phone number before sending.
+          {t("formLead")}
         </p>
       </div>
 
@@ -202,27 +201,30 @@ function EnquiryFlow() {
 
       <p className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-[var(--color-muted-foreground)]">
         <LockKeyhole className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        Your number is shared only so the selected provider can reply to this enquiry.
+        {t("numberSharedOnly")}
       </p>
+    </EnquiryPageFrame>
+  );
+}
+
+function EnquiryLoading() {
+  const t = useTranslations("EnquiryPage");
+  return (
+    <EnquiryPageFrame>
+      <div role="status" className="space-y-4" aria-label={t("loading")}>
+        <Skeleton className="h-6 w-36" aria-hidden="true" />
+        <Skeleton className="h-11 w-3/4" aria-hidden="true" />
+        <Skeleton className="h-20 w-full" aria-hidden="true" />
+        <Skeleton className="h-96 w-full" aria-hidden="true" />
+        <span className="sr-only">{t("loadingEllipsis")}</span>
+      </div>
     </EnquiryPageFrame>
   );
 }
 
 export default function EnquiryPage() {
   return (
-    <Suspense
-      fallback={
-        <EnquiryPageFrame>
-          <div role="status" className="space-y-4" aria-label="Loading enquiry form">
-            <Skeleton className="h-6 w-36" aria-hidden="true" />
-            <Skeleton className="h-11 w-3/4" aria-hidden="true" />
-            <Skeleton className="h-20 w-full" aria-hidden="true" />
-            <Skeleton className="h-96 w-full" aria-hidden="true" />
-            <span className="sr-only">Loading enquiry form…</span>
-          </div>
-        </EnquiryPageFrame>
-      }
-    >
+    <Suspense fallback={<EnquiryLoading />}>
       <EnquiryFlow />
     </Suspense>
   );

@@ -14,6 +14,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { ProviderCard } from "@/components/ProviderCard";
+import { ProfileViewBeacon } from "@/components/ProfileViewBeacon";
 import { ProviderProfile } from "@/components/ProviderProfile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -50,13 +52,14 @@ export async function generateMetadata({
   const { area, slug } = await params;
   const trade = tradeFromSlug(slug);
   const place = titleCase(area);
+  const t = await getTranslations("AreaPages");
 
   if (trade) {
     const loaded = await loadGeneratedTradePage(area, trade);
     const tradeName = titleCase(trade);
     return {
-      title: `${tradeName} training in ${place}`,
-      description: `Compare ${tradeName.toLowerCase()} training providers in ${place}: fees, duration and start dates.`,
+      title: t("tradeTitle", { trade: tradeName, place }),
+      description: t("tradeDescription", { trade: tradeName.toLowerCase(), place }),
       // Section 04 warns against thin templates with a place name swapped in.
       // A page with no inventory behind it is excluded from the index rather
       // than published and hoped for.
@@ -68,10 +71,10 @@ export async function generateMetadata({
   }
 
   const provider = await getProvider(area, slug).catch(() => null);
-  if (!provider) return { title: "Not found" };
+  if (!provider) return { title: t("notFound") };
   return {
     title: provider.name,
-    description: `${provider.name} in ${provider.area}. Fees, duration and intake dates for training courses.`,
+    description: t("providerDescription", { name: provider.name, area: provider.area }),
     alternates: { canonical: `/${area}/${slug}` },
   };
 }
@@ -82,6 +85,7 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
 
   if (trade) return <TradeAreaPage area={area} trade={trade} />;
 
+  const t = await getTranslations("AreaPages");
   let provider;
   try {
     provider = await getProvider(area, slug);
@@ -111,6 +115,7 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <ProfileViewBeacon providerId={provider.id} />
       <div className="relative overflow-hidden pb-8 sm:pb-12">
         <div
           aria-hidden="true"
@@ -120,7 +125,7 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2">
             <Link href="/">
               <ArrowLeft aria-hidden="true" />
-              Back to training search
+              {t("backToSearch")}
             </Link>
           </Button>
 
@@ -138,18 +143,23 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
   if (!loaded) notFound();
 
   const { summary, scope } = loaded;
-  const providers = await searchProviders({
-    trade,
-    ...(scope === "area" ? { area } : { region: area }),
-  }).catch(() => null);
+  const [providers, t, tFormat] = await Promise.all([
+    searchProviders({
+      trade,
+      ...(scope === "area" ? { area } : { region: area }),
+    }).catch(() => null),
+    getTranslations("AreaPages"),
+    getTranslations("Format"),
+  ]);
 
   const place = titleCase(area);
   const tradeName = titleCase(trade);
   const hasProviders = summary.provider_count > 0;
-  const durationRange =
-    summary.shortest_weeks !== null && summary.longest_weeks !== null
-      ? `${summary.shortest_weeks}–${summary.longest_weeks} weeks`
-      : "Not listed";
+  const hasDurations = summary.shortest_weeks !== null && summary.longest_weeks !== null;
+  const durationRange = hasDurations
+    ? t("weeksRange", { shortest: summary.shortest_weeks!, longest: summary.longest_weeks! })
+    : t("notListed");
+  const feeRange = formatFeeRange(summary.lowest_fee, summary.highest_fee, tFormat);
 
   return (
     <div className="relative overflow-hidden pb-12">
@@ -162,7 +172,7 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
         <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
           <Link href={`/?trade=${trade}`}>
             <ArrowLeft aria-hidden="true" />
-            All {tradeName.toLowerCase()} training
+            {t("allTradeTraining", { trade: tradeName.toLowerCase() })}
           </Link>
         </Button>
 
@@ -174,14 +184,13 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
           <div className="relative max-w-3xl">
             <Badge variant="secondary" className="mb-4">
               <MapPin aria-hidden="true" />
-              Training guide for {place}
+              {t("guideFor", { place })}
             </Badge>
             <h1 className="max-w-2xl text-3xl font-bold tracking-[-0.035em] sm:text-4xl lg:text-5xl">
-              {tradeName} training in {place}
+              {t("tradeTitle", { trade: tradeName, place })}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--color-muted-foreground)] sm:text-lg">
-              Compare real fees, course lengths and upcoming start dates from local training
-              providers before you make contact.
+              {t("tradeLead")}
             </p>
           </div>
 
@@ -190,23 +199,21 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)]/80 p-4">
                 <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
                   <Search className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
-                  Providers
+                  {t("providers")}
                 </dt>
                 <dd className="mt-2 text-2xl font-bold tabular-nums">{summary.provider_count}</dd>
               </div>
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)]/80 p-4">
                 <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
                   <WalletCards className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
-                  Fee range
+                  {t("feeRange")}
                 </dt>
-                <dd className="mt-2 text-lg font-bold">
-                  {formatFeeRange(summary.lowest_fee, summary.highest_fee)}
-                </dd>
+                <dd className="mt-2 text-lg font-bold">{feeRange}</dd>
               </div>
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)]/80 p-4">
                 <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
                   <Clock3 className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
-                  Course length
+                  {t("courseLength")}
                 </dt>
                 <dd className="mt-2 text-lg font-bold">{durationRange}</dd>
               </div>
@@ -224,26 +231,26 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between lg:mt-10">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-brand-strong)]">
-                  Local options
+                  {t("localOptions")}
                 </p>
-                <h2 className="mt-1 text-2xl font-bold tracking-tight">Compare providers</h2>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight">{t("compareProviders")}</h2>
               </div>
               <p className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
                 <ShieldCheck className="size-4 text-[var(--color-visit)]" aria-hidden="true" />
-                Trust information is shown on every listing
+                {t("trustOnEveryListing")}
               </p>
             </div>
 
             <p className="mt-4 max-w-3xl text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-base sm:leading-7">
-              There {summary.provider_count === 1 ? "is" : "are"} {summary.provider_count}{" "}
-              {tradeName.toLowerCase()} {summary.provider_count === 1 ? "provider" : "providers"}{" "}
-              listed in {place}. Fees run from{" "}
-              {formatFeeRange(summary.lowest_fee, summary.highest_fee)}
-              {summary.shortest_weeks !== null && summary.longest_weeks !== null
-                ? `, and courses last between ${summary.shortest_weeks} and ${summary.longest_weeks} weeks`
-                : ""}
-              . Every listing shows the fee, the duration and the next intake date, so you can
-              compare before you call.
+              {t("summaryParagraph", {
+                count: summary.provider_count,
+                trade: tradeName.toLowerCase(),
+                place,
+                feeRange,
+                hasDurations: hasDurations ? "yes" : "no",
+                shortest: summary.shortest_weeks ?? 0,
+                longest: summary.longest_weeks ?? 0,
+              })}
             </p>
 
             {providers ? (
@@ -257,10 +264,8 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
             ) : (
               <Alert variant="warning" className="mt-5">
                 <Search aria-hidden="true" />
-                <AlertTitle>Listings are temporarily unavailable</AlertTitle>
-                <AlertDescription>
-                  Please try this page again shortly, or widen your search to another area.
-                </AlertDescription>
+                <AlertTitle>{t("unavailableTitle")}</AlertTitle>
+                <AlertDescription>{t("unavailableAreaBody")}</AlertDescription>
               </Alert>
             )}
           </>
@@ -270,14 +275,13 @@ async function TradeAreaPage({ area, trade }: { area: string; trade: string }) {
               <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
                 <MapPin aria-hidden="true" />
               </div>
-              <h2 className="mt-4 text-xl font-bold">No local listings yet</h2>
+              <h2 className="mt-4 text-xl font-bold">{t("noLocalTitle")}</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--color-muted-foreground)]">
-                No {tradeName.toLowerCase()} providers are listed in {place} yet. Widen your
-                search to compare training options in other areas.
+                {t("noLocalBody", { trade: tradeName.toLowerCase(), place })}
               </p>
               <Button asChild variant="brand" className="mt-5">
                 <Link href={`/?trade=${trade}`}>
-                  See providers elsewhere
+                  {t("seeElsewhere")}
                   <ArrowRight aria-hidden="true" />
                 </Link>
               </Button>

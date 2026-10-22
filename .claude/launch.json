@@ -3,9 +3,22 @@
   "configurations": [
     {
       "name": "skills-hub-web",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["frontend/node_modules/next/dist/bin/next", "dev", "frontend", "--port", "3100"],
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd frontend && node node_modules/next/dist/bin/next dev --port 3100"],
       "port": 3100
+    },
+    {
+      "name": "skills-hub-api",
+      "runtimeExecutable": "wsl",
+      "runtimeArgs": [
+        "-d",
+        "Ubuntu-24.04",
+        "--",
+        "bash",
+        "-lc",
+        "source /opt/venvs/skillshub/bin/activate && cd /mnt/c/Users/nanas/Downloads/fliptech/backend && ENV_FILE=.env.local CORS_ALLOWED_ORIGINS=http://127.0.0.1:3100,http://localhost:3100 CSRF_TRUSTED_ORIGINS=http://127.0.0.1:3100,http://localhost:3100 PUBLIC_SITE_URL=http://127.0.0.1:3100 python manage.py runserver 0.0.0.0:8000"
+      ],
+      "port": 8000
     }
   ]
 }

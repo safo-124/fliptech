@@ -102,6 +102,8 @@ install -d -o caddy -g caddy /var/log/caddy 2>/dev/null || install -d /var/log/c
 echo "==> systemd units"
 install -m 644 "$HERE/fliptech-api.service" /etc/systemd/system/
 install -m 644 "$HERE/fliptech-web.service" /etc/systemd/system/
+install -m 644 "$HERE/fliptech-freshness.service" /etc/systemd/system/
+install -m 644 "$HERE/fliptech-freshness.timer" /etc/systemd/system/
 # Mode 644 explicitly: the repo lives on an exFAT volume during development,
 # which reports every file as executable, and systemd warns about executable
 # unit files.
@@ -113,6 +115,9 @@ systemctl enable redis-server >/dev/null 2>&1 || true
 # its own after a reboot — deploy.sh only restarts, so without this the machine
 # would come up with Caddy answering and nothing behind it.
 systemctl enable fliptech-api.service fliptech-web.service >/dev/null 2>&1 || true
+# The timer is safe to start now: if the code is not there yet, the nightly
+# run fails, logs it, and succeeds the first night after the deploy.
+systemctl enable --now fliptech-freshness.timer >/dev/null 2>&1 || true
 systemctl start redis-server >/dev/null 2>&1 || true
 
 echo "==> Firewall"

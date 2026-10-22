@@ -18,11 +18,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
+import {useTranslations} from "next-intl";
 import {useEffect, useState} from "react";
 
 import {DashboardBottomBar, DashboardSidebar} from "@/components/dashboard/DashboardNav";
 import type {TraineeTab} from "@/components/trainee/TraineeNav";
-import {TRAINEE_TABS} from "@/components/trainee/TraineeNav";
+import {useTraineeTabs} from "@/components/trainee/TraineeNav";
+import {EDUCATION_STATUSES} from "@/components/trainee/TraineeSignIn";
 import {TraineeOverview} from "@/components/trainee/TraineeOverview";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
@@ -61,23 +63,37 @@ import type {
   TraineeSession,
 } from "@/lib/types";
 
-const STATUS: Record<TraineeEnquiryStatus, {label: string; variant: "secondary" | "warning" | "default"}> = {
-  sent: {label: "Sent to the workshop", variant: "secondary"},
-  replied: {label: "Workshop replied", variant: "default"},
-  visited: {label: "You visited", variant: "default"},
-  enrolled: {label: "Enrolled", variant: "default"},
-  not_delivered: {label: "Not delivered", variant: "warning"},
+/** How each status is drawn. Its words are in the "TraineeDashboard.status"
+ *  messages. */
+const STATUS_VARIANT: Record<TraineeEnquiryStatus, "secondary" | "warning" | "default"> = {
+  sent: "secondary",
+  replied: "default",
+  visited: "default",
+  enrolled: "default",
+  not_delivered: "warning",
 };
 
-/** Short enough to sit in a row of chips on a phone. */
-const FILTERS: Array<{key: TraineeEnquiryStatus | "all"; label: string}> = [
-  {key: "all", label: "All"},
-  {key: "sent", label: "Waiting" },
-  {key: "replied", label: "Replied"},
-  {key: "visited", label: "Visited"},
-  {key: "enrolled", label: "Enrolled"},
-  {key: "not_delivered", label: "Not delivered"},
+/** Short enough to sit in a row of chips on a phone; words in "filters". */
+const FILTERS: ReadonlyArray<TraineeEnquiryStatus | "all"> = [
+  "all",
+  "sent",
+  "replied",
+  "visited",
+  "enrolled",
+  "not_delivered",
 ];
+
+/** Settings lists schooling from the furthest stage down; sign-up from the
+ *  first stage up. Labels are shared, in the "Education" messages. */
+const SETTINGS_EDUCATION_ORDER = [
+  "university",
+  "tvet",
+  "shs_technical",
+  "shs_general",
+  "jhs",
+  "not_in_school",
+  "other",
+] as const;
 
 /**
  * The tab the URL asks for, so a refresh and a back button land where the
@@ -125,15 +141,14 @@ function SearchBox({
  *  thing as having nothing — that case keeps the Empty card and its call to
  *  go and find training. */
 function NoMatches({onClear}: {onClear: () => void}) {
+  const t = useTranslations("TraineeDashboard");
   return (
     <Card className="border-dashed p-6 text-center">
       <MessageSquareOff aria-hidden="true" className="mx-auto size-5 text-[var(--color-muted-foreground)]" />
-      <p className="mt-3 font-semibold">Nothing matches</p>
-      <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-        Try a different word, or clear the filter.
-      </p>
+      <p className="mt-3 font-semibold">{t("noMatchesTitle")}</p>
+      <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("noMatchesBody")}</p>
       <Button type="button" variant="outline" className="mx-auto mt-4" onClick={onClear}>
-        Clear filters
+        {t("clearFilters")}
       </Button>
     </Card>
   );
@@ -141,10 +156,12 @@ function NoMatches({onClear}: {onClear: () => void}) {
 
 
 function ProviderName({provider}: {provider: TraineeProviderLink}) {
+  const t = useTranslations("TraineeDashboard");
   if (!provider.is_listed) {
     return (
       <span>
-        {provider.name} <span className="font-normal text-[var(--color-muted-foreground)]">(no longer listed)</span>
+        {provider.name}{" "}
+        <span className="font-normal text-[var(--color-muted-foreground)]">{t("noLongerListed")}</span>
       </span>
     );
   }
@@ -156,13 +173,14 @@ function ProviderName({provider}: {provider: TraineeProviderLink}) {
 }
 
 function Empty({title, text}: {title: string; text: string}) {
+  const t = useTranslations("TraineeDashboard");
   return (
     <Card className="border-dashed p-6 text-center">
       <p className="font-semibold">{title}</p>
       <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{text}</p>
       <Button asChild variant="outline" className="mx-auto mt-4">
         <Link href="/">
-          Find training
+          {t("findTraining")}
           <ArrowRight aria-hidden="true" />
         </Link>
       </Button>
@@ -179,6 +197,7 @@ function SupportBanner({
   onLeave: () => void;
   busy: boolean;
 }) {
+  const t = useTranslations("TraineeDashboard");
   const ends = new Date(support.expires_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
   return (
     <div
@@ -190,17 +209,18 @@ function SupportBanner({
         <Headset aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--color-warn)]" />
         <div className="text-sm leading-6">
           <p className="font-semibold">
-            Support view: {support.staff_name} is viewing this account
-            {support.can_edit ? " and can make changes" : " (view only)"}.
+            {support.can_edit
+              ? t("supportEditing", {staff: support.staff_name})
+              : t("supportViewing", {staff: support.staff_name})}
           </p>
           <p className="text-[var(--color-muted-foreground)]">
-            Reason: {support.reason}. Ends at {ends}. Every page opened is logged.
+            {t("supportDetail", {reason: support.reason, ends})}
           </p>
         </div>
       </div>
       <Button type="button" variant="outline" onClick={onLeave} disabled={busy} className="shrink-0">
         {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <LogOut aria-hidden="true" />}
-        Leave support view
+        {t("leaveSupport")}
       </Button>
     </div>
   );
@@ -216,6 +236,10 @@ type TraineeBackground = {
 };
 
 export function TraineeDashboard() {
+  const t = useTranslations("TraineeDashboard");
+  const tEducation = useTranslations("Education");
+  const tFormat = useTranslations("Format");
+  const tabs = useTraineeTabs();
   const router = useRouter();
   const [session, setSession] = useState<Extract<TraineeSession, {authenticated: true}> | null>(null);
   const [enquiries, setEnquiries] = useState<TraineeEnquiry[]>([]);
@@ -258,7 +282,7 @@ export function TraineeDashboard() {
     // Checked here as well as on the server so somebody on a slow connection
     // is told before they spend the upload rather than after it.
     if (file.size > 15 * 1024 * 1024) {
-      setError("That picture is larger than 15 MB. Try a smaller one.");
+      setError(t("photoTooLarge"));
       return;
     }
     setPhotoBusy(true);
@@ -267,9 +291,9 @@ export function TraineeDashboard() {
     try {
       const next = await uploadTraineeAvatar(file);
       if (next.authenticated) setSession(next);
-      setNotice("Picture updated.");
+      setNotice(t("photoUpdated"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "That picture could not be saved.");
+      setError(reason instanceof Error ? reason.message : t("photoSaveFailed"));
     } finally {
       setPhotoBusy(false);
     }
@@ -282,9 +306,9 @@ export function TraineeDashboard() {
     try {
       const next = await removeTraineeAvatar();
       if (next.authenticated) setSession(next);
-      setNotice("Picture removed.");
+      setNotice(t("photoRemoved"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "That could not be removed.");
+      setError(reason instanceof Error ? reason.message : t("photoRemoveFailed"));
     } finally {
       setPhotoBusy(false);
     }
@@ -338,7 +362,7 @@ export function TraineeDashboard() {
         setSaved(nextSaved);
       })
       .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Could not load your account.");
+        if (active) setError(reason instanceof Error ? reason.message : t("loadFailed"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -346,7 +370,7 @@ export function TraineeDashboard() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, t]);
 
   const readOnly = Boolean(session?.support && !session.support.can_edit);
 
@@ -357,7 +381,7 @@ export function TraineeDashboard() {
     try {
       await task();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Something went wrong. Try again.");
+      setError(reason instanceof Error ? reason.message : t("genericError"));
     } finally {
       setBusy(false);
     }
@@ -397,7 +421,7 @@ export function TraineeDashboard() {
         field_of_study: background.field_of_study.trim(),
       });
       setSession((current) => (current ? {...current, account} : current));
-      setNotice("Saved.");
+      setNotice(t("saved"));
     });
   };
 
@@ -405,7 +429,7 @@ export function TraineeDashboard() {
     event.preventDefault();
     const address = emailDraft.trim();
     if (!address.includes("@")) {
-      setEmailError("Enter your email address.");
+      setEmailError(t("enterEmail"));
       return;
     }
     setEmailBusy(true);
@@ -415,7 +439,7 @@ export function TraineeDashboard() {
       setEmailChallenge(challenge.challenge_id);
       setEmailCode("");
     } catch (reason) {
-      setEmailError(reason instanceof Error ? reason.message : "Could not send a code.");
+      setEmailError(reason instanceof Error ? reason.message : t("codeSendFailed"));
     } finally {
       setEmailBusy(false);
     }
@@ -432,9 +456,9 @@ export function TraineeDashboard() {
       setEmailChallenge(null);
       setEmailDraft("");
       setEmailCode("");
-      setNotice("Email added. You can sign in with it now.");
+      setNotice(t("emailAdded"));
     } catch (reason) {
-      setEmailError(reason instanceof Error ? reason.message : "That code did not work.");
+      setEmailError(reason instanceof Error ? reason.message : t("codeFailed"));
     } finally {
       setEmailBusy(false);
     }
@@ -449,7 +473,7 @@ export function TraineeDashboard() {
   if (loading) {
     return (
       <div role="status" aria-busy="true" className="space-y-4">
-        <span className="sr-only">Loading your account…</span>
+        <span className="sr-only">{t("loading")}</span>
         <Skeleton className="h-24 w-full rounded-2xl" />
         <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-2xl" />
@@ -463,10 +487,10 @@ export function TraineeDashboard() {
         <div className="flex items-start gap-3">
           <AlertCircle aria-hidden="true" className="size-5 text-[var(--color-warn)]" />
           <div>
-            <p className="font-semibold">Your account could not be loaded</p>
+            <p className="font-semibold">{t("loadFailedTitle")}</p>
             <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{error}</p>
             <Button type="button" variant="outline" className="mt-4" onClick={() => window.location.reload()}>
-              Try again
+              {t("tryAgain")}
             </Button>
           </div>
         </div>
@@ -478,7 +502,6 @@ export function TraineeDashboard() {
   // name. Greeting a person by their own phone number reads like a receipt,
   // so the number moves to the line below and the greeting stays warm.
   const named = Boolean(session.account.display_name.trim());
-  const greeting = named ? session.account.display_name : "there";
   const counts = {
     enquiries: awaitingReply(enquiries),
     saved: saved.length,
@@ -502,13 +525,17 @@ export function TraineeDashboard() {
       <SearchBox
         value={enquiryQuery}
         onChange={setEnquiryQuery}
-        label="Search your enquiries"
-        placeholder="Search by workshop, course or reference"
+        label={t("searchEnquiriesLabel")}
+        placeholder={t("searchEnquiriesPlaceholder")}
       />
       {/* Horizontal scroll rather than a wrap: six chips wrapping to three
           rows pushes the first card off a phone screen. */}
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Filter by status">
-        {FILTERS.map(({key, label}) => {
+      <div
+        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
+        role="group"
+        aria-label={t("filterByStatus")}
+      >
+        {FILTERS.map((key) => {
           const active = statusFilter === key;
           const n = key === "all" ? enquiries.length : enquiries.filter((e) => e.status === key).length;
           return (
@@ -524,7 +551,7 @@ export function TraineeDashboard() {
                   : "border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] hover:border-[var(--color-border-strong)]",
               )}
             >
-              {label}
+              {t(`filters.${key}`)}
               <span className="ml-1.5 tabular-nums opacity-70">{n}</span>
             </button>
           );
@@ -551,7 +578,7 @@ export function TraineeDashboard() {
       )}
       <div className="min-w-0">
         <p className="truncate text-sm font-bold leading-5">
-          {named ? session.account.display_name : "Your account"}
+          {named ? session.account.display_name : t("yourAccount")}
         </p>
         <p className="truncate text-xs text-[var(--color-muted-foreground)]">{session.account.phone}</p>
       </div>
@@ -567,25 +594,30 @@ export function TraineeDashboard() {
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
-            Your account
+            {t("yourAccount")}
           </p>
-          <h1 className="truncate text-2xl font-bold tracking-[-0.03em] sm:text-3xl">Hello, {greeting}</h1>
+          <h1 className="truncate text-2xl font-bold tracking-[-0.03em] sm:text-3xl">
+            {named ? t("helloName", {name: session.account.display_name}) : t("helloThere")}
+          </h1>
           <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            {enquiries.length} {enquiries.length === 1 ? "enquiry" : "enquiries"} · {enrolments.length}{" "}
-            {enrolments.length === 1 ? "course" : "courses"} · {saved.length} saved
+            {t("summary", {
+              enquiries: enquiries.length,
+              courses: enrolments.length,
+              saved: saved.length,
+            })}
           </p>
         </div>
         {session.support ? null : (
           <Button type="button" variant="outline" onClick={signOut} disabled={busy} className="lg:hidden">
             <LogOut aria-hidden="true" />
-            Sign out
+            {t("signOut")}
           </Button>
         )}
       </header>
 
       <div className="gap-7 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
         <DashboardSidebar
-          tabs={TRAINEE_TABS}
+          tabs={tabs}
           tab={tab}
           onSelect={goTo}
           counts={counts}
@@ -620,10 +652,7 @@ export function TraineeDashboard() {
 
       {tab === "enquiries" ? (
         enquiries.length === 0 ? (
-          <Empty
-            title="No enquiries yet"
-            text="When you enquire with a workshop using this number, it appears here with its reference."
-          />
+          <Empty title={t("noEnquiriesTitle")} text={t("noEnquiriesBody")} />
         ) : visibleEnquiries.length === 0 ? (
           <div className="space-y-4">
             {enquiryControls}
@@ -638,7 +667,9 @@ export function TraineeDashboard() {
                 <Card className="h-full">
                   <CardHeader className="pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Badge variant={STATUS[enquiry.status].variant}>{STATUS[enquiry.status].label}</Badge>
+                      <Badge variant={STATUS_VARIANT[enquiry.status]}>
+                        {t(`status.${enquiry.status}`)}
+                      </Badge>
                       <span className="font-mono text-xs text-[var(--color-muted-foreground)]">
                         {enquiry.reference_code}
                       </span>
@@ -647,8 +678,10 @@ export function TraineeDashboard() {
                       <ProviderName provider={enquiry.provider} />
                     </CardTitle>
                     <CardDescription>
-                      {enquiry.programme_title || "Training enquiry"}
-                      {enquiry.intake_start ? ` · starts ${formatDate(enquiry.intake_start)}` : ""}
+                      {enquiry.programme_title || t("trainingEnquiry")}
+                      {enquiry.intake_start
+                        ? ` · ${t("starts", {date: formatDate(enquiry.intake_start)})}`
+                        : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
@@ -657,12 +690,12 @@ export function TraineeDashboard() {
                     ) : null}
                     <p className="flex items-center gap-2 text-[var(--color-muted-foreground)]">
                       <CalendarDays aria-hidden="true" className="size-4" />
-                      Sent {formatDate(enquiry.created_at)}
+                      {t("sentOn", {date: formatDate(enquiry.created_at)})}
                     </p>
                     <Button asChild variant="brand" className="w-full">
                       <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
                         <MessageCircle aria-hidden="true" />
-                        Continue on WhatsApp
+                        {t("continueWhatsApp")}
                       </a>
                     </Button>
                   </CardContent>
@@ -676,10 +709,7 @@ export function TraineeDashboard() {
 
       {tab === "training" ? (
         enrolments.length === 0 ? (
-          <Empty
-            title="No training recorded yet"
-            text="When a workshop tells us you started a course, it shows here."
-          />
+          <Empty title={t("noTrainingTitle")} text={t("noTrainingBody")} />
         ) : (
           <ul className="grid gap-4 md:grid-cols-2">
             {enrolments.map((enrolment) => (
@@ -695,27 +725,27 @@ export function TraineeDashboard() {
                     {enrolment.completed_on ? (
                       <Badge>
                         <CheckCircle2 aria-hidden="true" />
-                        Completed
+                        {t("completed")}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary">In training</Badge>
+                      <Badge variant="secondary">{t("inTraining")}</Badge>
                     )}
                   </div>
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <dt className="text-[var(--color-muted-foreground)]">Started</dt>
+                      <dt className="text-[var(--color-muted-foreground)]">{t("started")}</dt>
                       <dd className="font-semibold">{formatDate(enrolment.started_on)}</dd>
                     </div>
                     <div>
                       <dt className="text-[var(--color-muted-foreground)]">
-                        {enrolment.completed_on ? "Finished" : "Fee paid"}
+                        {enrolment.completed_on ? t("finished") : t("feePaid")}
                       </dt>
                       <dd className="font-semibold">
                         {enrolment.completed_on
                           ? formatDate(enrolment.completed_on)
                           : enrolment.fee_paid
-                            ? formatFee(enrolment.fee_paid)
-                            : "Not recorded"}
+                            ? formatFee(enrolment.fee_paid, tFormat)
+                            : t("notRecorded")}
                       </dd>
                     </div>
                   </dl>
@@ -728,14 +758,14 @@ export function TraineeDashboard() {
 
       {tab === "saved" ? (
         saved.length === 0 ? (
-          <Empty title="Nothing saved yet" text="Use Save on a workshop page to keep it here for later." />
+          <Empty title={t("noSavedTitle")} text={t("noSavedBody")} />
         ) : (
           <div className="space-y-4">
             <SearchBox
               value={savedQuery}
               onChange={setSavedQuery}
-              label="Search saved workshops"
-              placeholder="Search by name or area"
+              label={t("searchSavedLabel")}
+              placeholder={t("searchSavedPlaceholder")}
             />
             {visibleSaved.length === 0 ? <NoMatches onClear={() => setSavedQuery("")} /> : null}
           <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
@@ -753,7 +783,7 @@ export function TraineeDashboard() {
                     variant="ghost"
                     onClick={() => unsave(item.provider.id)}
                     disabled={busy || readOnly}
-                    aria-label={`Remove ${item.provider.name} from saved`}
+                    aria-label={t("removeSaved", {name: item.provider.name})}
                   >
                     <Trash2 aria-hidden="true" />
                   </Button>
@@ -769,11 +799,8 @@ export function TraineeDashboard() {
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>Your picture</CardTitle>
-              <CardDescription>
-                Only you and Skills Hub staff see it. It is never shown to a workshop or on a
-                listing.
-              </CardDescription>
+              <CardTitle>{t("pictureTitle")}</CardTitle>
+              <CardDescription>{t("pictureBody")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap items-center gap-4">
@@ -791,7 +818,7 @@ export function TraineeDashboard() {
                 )}
                 <div className="min-w-0 flex-1 space-y-2">
                   <Label htmlFor="trainee-avatar">
-                    {session.account.avatar ? "Choose a different picture" : "Add a picture"}
+                    {session.account.avatar ? t("choosePicture") : t("addPicture")}
                   </Label>
                   <Input
                     id="trainee-avatar"
@@ -812,7 +839,7 @@ export function TraineeDashboard() {
                       ) : (
                         <Trash2 aria-hidden="true" />
                       )}
-                      Remove it
+                      {t("removePicture")}
                     </Button>
                   ) : null}
                 </div>
@@ -822,26 +849,24 @@ export function TraineeDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Your details</CardTitle>
-              <CardDescription>
-                Signed in as {session.account.phone}. The phone number is your account and cannot be changed here.
-              </CardDescription>
+              <CardTitle>{t("detailsTitle")}</CardTitle>
+              <CardDescription>{t("detailsBody", {phone: session.account.phone})}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={saveSettings} className="space-y-4">
                 <fieldset disabled={busy || readOnly} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="trainee-name">Your name (optional)</Label>
+                    <Label htmlFor="trainee-name">{t("nameLabel")}</Label>
                     <Input
                       id="trainee-name"
                       value={name}
                       maxLength={120}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder="How workshops should address you"
+                      placeholder={t("namePlaceholder")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">Where should we reach you?</p>
+                    <p className="text-sm font-medium">{t("channelQuestion")}</p>
                     {(["whatsapp", "telegram"] as const).map((option) => (
                       <label
                         key={option}
@@ -854,21 +879,20 @@ export function TraineeDashboard() {
                           checked={channel === option}
                           onChange={() => setChannel(option)}
                         />
-                        {option === "whatsapp" ? "WhatsApp" : "Telegram"}
+                        {t(`channels.${option}`)}
                       </label>
                     ))}
                   </div>
                   <div className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
                     <div>
-                      <p className="text-sm font-semibold">Your background</p>
+                      <p className="text-sm font-semibold">{t("backgroundTitle")}</p>
                       <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                        All optional, and it never affects what you can see. It helps us
-                        suggest training that suits where you are coming from.
+                        {t("backgroundBody")}
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="trainee-education">Where are you coming from?</Label>
+                      <Label htmlFor="trainee-education">{t("educationLabel")}</Label>
                       <NativeSelect
                         id="trainee-education"
                         value={background.education_level}
@@ -880,14 +904,12 @@ export function TraineeDashboard() {
                           }))
                         }
                       >
-                        <option value="">Prefer not to say</option>
-                        <option value="university">University or other tertiary</option>
-                        <option value="tvet">CTVET or other TVET institution</option>
-                        <option value="shs_technical">SHS — technical or vocational</option>
-                        <option value="shs_general">SHS — general</option>
-                        <option value="jhs">JHS</option>
-                        <option value="not_in_school">Not in school</option>
-                        <option value="other">Something else</option>
+                        <option value="">{tEducation("preferNotToSay")}</option>
+                        {SETTINGS_EDUCATION_ORDER.map((value) => (
+                          <option key={value} value={value}>
+                            {tEducation(`levels.${value}`)}
+                          </option>
+                        ))}
                       </NativeSelect>
                     </div>
 
@@ -897,7 +919,7 @@ export function TraineeDashboard() {
                     background.education_level !== "not_in_school" ? (
                       <>
                         <div className="space-y-2">
-                          <Label htmlFor="trainee-institution">Which school?</Label>
+                          <Label htmlFor="trainee-institution">{t("institutionLabel")}</Label>
                           <Input
                             id="trainee-institution"
                             value={background.institution_name}
@@ -908,12 +930,12 @@ export function TraineeDashboard() {
                                 institution_name: event.target.value,
                               }))
                             }
-                            placeholder="For example: Accra Technical Training Centre"
+                            placeholder={t("institutionPlaceholder")}
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="trainee-subject">What did you study?</Label>
+                          <Label htmlFor="trainee-subject">{t("subjectLabel")}</Label>
                           <Input
                             id="trainee-subject"
                             value={background.field_of_study}
@@ -924,13 +946,13 @@ export function TraineeDashboard() {
                                 field_of_study: event.target.value,
                               }))
                             }
-                            placeholder="For example: building construction"
+                            placeholder={t("subjectPlaceholder")}
                           />
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
-                            <Label htmlFor="trainee-education-status">How far did you get?</Label>
+                            <Label htmlFor="trainee-education-status">{t("statusLabel")}</Label>
                             <NativeSelect
                               id="trainee-education-status"
                               value={background.education_status}
@@ -942,15 +964,17 @@ export function TraineeDashboard() {
                                 }))
                               }
                             >
-                              <option value="">Prefer not to say</option>
-                              <option value="in_progress">Still studying</option>
-                              <option value="completed">Completed</option>
-                              <option value="left">Left before finishing</option>
+                              <option value="">{tEducation("preferNotToSay")}</option>
+                              {EDUCATION_STATUSES.map((value) => (
+                                <option key={value} value={value}>
+                                  {tEducation(`statuses.${value}`)}
+                                </option>
+                              ))}
                             </NativeSelect>
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="trainee-education-year">Which year?</Label>
+                            <Label htmlFor="trainee-education-year">{t("yearLabel")}</Label>
                             <Input
                               id="trainee-education-year"
                               type="number"
@@ -978,11 +1002,11 @@ export function TraineeDashboard() {
 
                   <Button type="submit" variant="brand">
                     {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-                    Save
+                    {t("save")}
                   </Button>
                 </fieldset>
                 {readOnly ? (
-                  <p className="text-xs text-[var(--color-muted-foreground)]">Support view is read-only.</p>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">{t("supportReadOnly")}</p>
                 ) : null}
               </form>
 
@@ -992,10 +1016,9 @@ export function TraineeDashboard() {
                   cannot share a Save button with the name and the channel. */}
               <div className="mt-6 space-y-3 border-t border-[var(--color-border)] pt-5">
                 <div>
-                  <p className="text-sm font-semibold">Signing in with email</p>
+                  <p className="text-sm font-semibold">{t("emailSignInTitle")}</p>
                   <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                    Your phone number stays how workshops reach you. An email is a second
-                    way to sign in, useful when text messages do not arrive.
+                    {t("emailSignInBody")}
                   </p>
                 </div>
 
@@ -1003,13 +1026,16 @@ export function TraineeDashboard() {
                   <p className="flex items-center gap-2 rounded-xl bg-[var(--color-muted)]/65 p-3 text-sm">
                     <MailCheck aria-hidden="true" className="size-4 shrink-0 text-[var(--color-visit)]" />
                     <span>
-                      <strong>{session.account.email}</strong> is on your account.
+                      {t.rich("emailOnAccount", {
+                        email: session.account.email,
+                        strong: (chunks) => <strong>{chunks}</strong>,
+                      })}
                     </span>
                   </p>
                 ) : emailChallenge ? (
                   <form onSubmit={confirmEmail} className="space-y-2">
                     <Label htmlFor="trainee-email-code">
-                      Code sent to {emailDraft.trim()}
+                      {t("codeSentTo", {email: emailDraft.trim()})}
                     </Label>
                     <Input
                       id="trainee-email-code"
@@ -1031,7 +1057,7 @@ export function TraineeDashboard() {
                         {emailBusy ? (
                           <Loader2 aria-hidden="true" className="animate-spin" />
                         ) : null}
-                        Confirm email
+                        {t("confirmEmail")}
                       </Button>
                       <Button
                         type="button"
@@ -1041,14 +1067,14 @@ export function TraineeDashboard() {
                           setEmailError(null);
                         }}
                       >
-                        Use a different address
+                        {t("differentAddress")}
                       </Button>
                     </div>
                   </form>
                 ) : (
                   <form onSubmit={sendEmailCode} className="space-y-2">
                     <fieldset disabled={readOnly} className="space-y-2">
-                      <Label htmlFor="trainee-new-email">Email address</Label>
+                      <Label htmlFor="trainee-new-email">{t("emailLabel")}</Label>
                       <Input
                         id="trainee-new-email"
                         type="email"
@@ -1069,7 +1095,7 @@ export function TraineeDashboard() {
                         ) : (
                           <Mail aria-hidden="true" />
                         )}
-                        Send me a code
+                        {t("sendCode")}
                       </Button>
                     </fieldset>
                   </form>
@@ -1081,24 +1107,22 @@ export function TraineeDashboard() {
           {session.support ? null : (
             <Card className="border-[var(--color-destructive)]/20">
               <CardHeader>
-                <CardTitle>Close your account</CardTitle>
-                <CardDescription>
-                  Your sign-in and saved list are deleted. Enquiries you sent stay with the workshops you sent them to.
-                </CardDescription>
+                <CardTitle>{t("closeTitle")}</CardTitle>
+                <CardDescription>{t("closeBody")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {confirmClose ? (
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button type="button" variant="destructive" onClick={closeAccount} disabled={busy}>
-                      Yes, close my account
+                      {t("closeConfirm")}
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => setConfirmClose(false)}>
-                      Keep it
+                      {t("closeKeep")}
                     </Button>
                   </div>
                 ) : (
                   <Button type="button" variant="outline" onClick={() => setConfirmClose(true)}>
-                    Close account
+                    {t("closeAccount")}
                   </Button>
                 )}
               </CardContent>
@@ -1109,7 +1133,7 @@ export function TraineeDashboard() {
         </div>
       </div>
 
-      <DashboardBottomBar tabs={TRAINEE_TABS} tab={tab} onSelect={goTo} counts={counts} />
+      <DashboardBottomBar tabs={tabs} tab={tab} onSelect={goTo} counts={counts} />
     </div>
   );
 }

@@ -562,16 +562,25 @@ def confirm_listing_is_current(provider, *, actor):
     if provider.status != Provider.Status.PUBLISHED:
         raise TrainerProfileConflict("Only a published listing can be confirmed.")
 
+    from .freshness import open_prompt
+
     now = timezone.now()
-    ListingConfirmation.objects.create(
-        provider=provider,
-        responded_at=now,
-        channel=ListingConfirmation.Channel.WHATSAPP,
-        fees_confirmed=True,
-        intakes_confirmed=True,
-        confirmed_by=actor,
-        note="Confirmed by the owner from their dashboard.",
-    )
+    answer = {
+        "responded_at": now,
+        "fees_confirmed": True,
+        "intakes_confirmed": True,
+        "confirmed_by": actor,
+        "note": "Confirmed by the owner from their dashboard.",
+    }
+    # Answering the WhatsApp prompt from the dashboard closes that prompt,
+    # rather than leaving it open beside a second row that says the same thing.
+    prompt = open_prompt(provider)
+    if prompt is not None:
+        ListingConfirmation.objects.filter(pk=prompt.pk).update(**answer)
+    else:
+        ListingConfirmation.objects.create(
+            provider=provider, channel=ListingConfirmation.Channel.WHATSAPP, **answer
+        )
 
     provider.last_confirmed_at = now
     provider._history_user = actor

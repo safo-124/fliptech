@@ -1,0 +1,103 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% comment %}
+  Messages to send: WhatsApp messages the system has decided a workshop owner
+  should get, sent by an officer from their own phone. See
+  providers/admin_outbox.py.
+
+  Each Send posts to the back office, which records the message and then opens
+  WhatsApp with it typed. The form opens in a new tab so this list stays where
+  it was, and the page reloads behind it so the sent row drops off.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; {% translate 'Messages to send' %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p class="help" style="margin-bottom: 16px">
+      {% blocktranslate %}
+        Send opens WhatsApp on this device with the message already typed, addressed to the
+        owner. Press send in WhatsApp, then come back here.
+      {% endblocktranslate %}
+    </p>
+
+    {% if not has_site_links %}
+      <ul class="messagelist">
+        <li class="warning">
+          {% translate 'PUBLIC_SITE_URL is not set, so messages will go out without links to the listing or the owner’s dashboard.' %}
+        </li>
+      </ul>
+    {% endif %}
+
+    <div class="module">
+      <h2>{% blocktranslate count counter=live|length %}Listing is live ({{ counter }}){% plural %}Listings are live ({{ counter }}){% endblocktranslate %}</h2>
+      <p class="help" style="padding: 8px 12px 0">
+        {% translate 'Just published. Tell the owner, with a link to check their listing.' %}
+      </p>
+      {% if live %}
+        {% include "admin/providers/provider/messages_rows.html" with rows=live can_send=can_send_live send_url="admin:providers_provider_send_live_notice" date_label=_("Published") %}
+      {% else %}
+        <p style="padding: 12px">{% translate 'Nothing waiting. Every owner has been told their listing is live.' %}</p>
+      {% endif %}
+    </div>
+
+    <div class="module" style="margin-top: 16px">
+      <h2>{% blocktranslate count counter=checks|length %}90-day check ({{ counter }}){% plural %}90-day checks ({{ counter }}){% endblocktranslate %}</h2>
+      <p class="help" style="padding: 8px 12px 0">
+        {% translate 'Published listings due their check of fees and intake dates. When the owner replies, record it under “Sent, waiting for a reply”.' %}
+      </p>
+      {% if checks %}
+        {% include "admin/providers/provider/messages_rows.html" with rows=checks can_send=can_send_checks send_url="admin:providers_provider_send_prompt" date_label=_("Last confirmed") %}
+      {% else %}
+        <p style="padding: 12px">{% translate 'Nothing waiting. Every listing due a check has been prompted.' %}</p>
+      {% endif %}
+    </div>
+
+    <div class="module" style="margin-top: 16px">
+      <h2>{% translate 'Sent, waiting for a reply' %}</h2>
+      {% if awaiting_reply %}
+        <table style="width: 100%">
+          <thead>
+            <tr>
+              <th scope="col">{% translate 'Listing' %}</th>
+              <th scope="col">{% translate 'Sent' %}</th>
+              <th scope="col">{% translate 'By' %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in awaiting_reply %}
+              <tr>
+                <td><a href="{% url 'admin:providers_listingconfirmation_change' row.pk %}">{{ row.provider.name }}</a></td>
+                <td>{{ row.prompted_at|date:"j M Y" }}</td>
+                <td>{{ row.prompted_by|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="help" style="padding: 8px 12px">
+          {% blocktranslate %}With no reply after {{ reprompt_days }} days the listing is shown to trainees as unconfirmed, and a reminder is queued the next night.{% endblocktranslate %}
+        </p>
+      {% else %}
+        <p style="padding: 12px">{% translate 'No 90-day checks waiting for an answer.' %}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    // Send opens WhatsApp in a new tab; refresh this one so the sent row
+    // drops off by the time the officer comes back to it.
+    document.querySelectorAll("[data-send-form]").forEach(function (form) {
+      form.addEventListener("submit", function () {
+        setTimeout(function () { window.location.reload(); }, 1500);
+      });
+    });
+  </script>
+{% endblock %}

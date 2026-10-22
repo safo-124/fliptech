@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { getLocale, getTranslations } from "next-intl/server";
+
 import {SiteFooter} from "@/components/SiteFooter";
 import {SiteHeader} from "@/components/SiteHeader";
 import {BRAND} from "@/lib/brand";
@@ -6,19 +8,21 @@ import {BRAND} from "@/lib/brand";
 import "@fontsource-variable/inter";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: {
-    default: `${BRAND} Skills Hub — find practical skills training in Ghana`,
-    template: `%s | ${BRAND} Skills Hub`,
-  },
-  // Ghana, not Accra. This and the title are what search engines index, so
-  // between them they decide whether somebody in Kumasi believes the site is
-  // for them. Where the workshops actually are today is the hero's job, on the
-  // page, where it can be specific without narrowing the whole product.
-  description:
-    "Compare fees, duration and start dates for welding, tailoring, plumbing and other trades training in Ghana.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"),
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Layout");
+  return {
+    title: {
+      default: t("titleDefault", { brand: BRAND }),
+      template: t("titleTemplate", { brand: BRAND }),
+    },
+    // Ghana, not Accra. This and the title are what search engines index, so
+    // between them they decide whether somebody in Kumasi believes the site is
+    // for them. Where the workshops actually are today is the hero's job, on the
+    // page, where it can be specific without narrowing the whole product.
+    description: t("description"),
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"),
+  };
+}
 
 // Fonts are self-hosted via @fontsource so the app does not depend on a font
 // service, and the page does not block on a third-party connection.
@@ -46,15 +50,19 @@ export const viewport: Viewport = {
  * Nothing here changes what the phone receives. The breakpoints only widen the
  * container and let the card list become a grid on screens that have the room.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const t = await getTranslations("Layout");
+  // "en" is read as Ghanaian English: dates and money are written the way they
+  // are in Ghana. A future "tw" or "gaa" needs no region suffix.
+  const locale = await getLocale();
   return (
-    <html lang="en-GH">
+    <html lang={locale === "en" ? "en-GH" : locale}>
       <body className="min-h-dvh">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:block focus:bg-[var(--color-foreground)] focus:p-3 focus:text-white"
         >
-          Skip to main content
+          {t("skipToContent")}
         </a>
 
         <SiteHeader />

@@ -26,6 +26,7 @@
 
 import dynamic from "next/dynamic";
 import { MapPinned } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useSyncExternalStore } from "react";
 
 import { Card } from "@/components/ui/card";
@@ -34,9 +35,9 @@ import type { ProviderCard } from "@/lib/types";
 
 const DESKTOP_QUERY = "(min-width: 1024px)";
 
-const MapView = dynamic(() => import("./MapView"), {
-  ssr: false,
-  loading: () => (
+function PanelLoading() {
+  const t = useTranslations("SearchMapPanel");
+  return (
     <div
       className="relative grid h-full place-items-center overflow-hidden bg-[var(--color-muted)]/35 text-sm text-[var(--color-muted-foreground)]"
       role="status"
@@ -47,10 +48,15 @@ const MapView = dynamic(() => import("./MapView"), {
         <span className="grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
           <MapPinned className="size-5" aria-hidden="true" />
         </span>
-        Loading map…
+        {t("loading")}
       </span>
     </div>
-  ),
+  );
+}
+
+const MapView = dynamic(() => import("./MapView"), {
+  ssr: false,
+  loading: PanelLoading,
 });
 
 function subscribe(onChange: () => void) {
@@ -68,13 +74,14 @@ function useIsDesktop() {
 }
 
 export function SearchMapPanel({ providers }: { providers: ProviderCard[] }) {
+  const t = useTranslations("SearchMapPanel");
   const isDesktop = useIsDesktop();
 
   if (!isDesktop) return null;
 
   return (
     <Card className="h-[clamp(30rem,calc(100dvh-6.5rem),54rem)] overflow-hidden rounded-2xl border-[var(--color-border-strong)] shadow-[var(--shadow-lg)]">
-      <MapView providers={providers} fillParent scopeLabel="on this page" />
+      <MapView providers={providers} fillParent scopeLabel={t("onThisPage")} />
     </Card>
   );
 }

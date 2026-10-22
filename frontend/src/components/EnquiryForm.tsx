@@ -19,6 +19,7 @@ import {
   Phone,
   UserRound,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -28,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { v, validationMessage } from "@/i18n/validation";
 import { postJson } from "@/lib/api";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
 import type { EnquiryConfirmation } from "@/lib/types";
@@ -36,8 +38,8 @@ const DRAFT_KEY = "skillshub.enquiry.draft";
 
 const schema = z.object({
   phone: ghanaPhoneSchema,
-  trainee_name: z.string().trim().max(120).optional(),
-  message: z.string().trim().max(1000).optional(),
+  trainee_name: z.string().trim().max(120, v("nameTooLong")).optional(),
+  message: z.string().trim().max(1000, v("messageTooLong")).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -51,6 +53,8 @@ export function EnquiryForm({
   intakeId?: number;
   onSent: (confirmation: EnquiryConfirmation) => void;
 }) {
+  const t = useTranslations("EnquiryForm");
+  const tValidation = useTranslations("Validation");
   const [step, setStep] = useState<"details" | "code">("details");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +103,7 @@ export function EnquiryForm({
       if (result.verified) await send(values);
       else setStep("code");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the code.");
+      setError(err instanceof Error ? err.message : t("codeSendFailed"));
     } finally {
       setBusy(false);
     }
@@ -115,7 +119,7 @@ export function EnquiryForm({
       });
       await send(values);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "That code did not work.");
+      setError(err instanceof Error ? err.message : t("codeFailed"));
     } finally {
       setBusy(false);
     }
@@ -140,7 +144,7 @@ export function EnquiryForm({
       className="space-y-6"
       noValidate
     >
-      <ol aria-label="Enquiry progress" className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+      <ol aria-label={t("progress")} className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
         <li
           aria-current={step === "details" ? "step" : undefined}
           className="flex items-center gap-2 text-sm font-semibold"
@@ -155,7 +159,7 @@ export function EnquiryForm({
             {step === "code" ? <Check className="size-4" aria-hidden="true" /> : "1"}
           </span>
           <span className={step === "code" ? "hidden text-[var(--color-muted-foreground)] sm:inline" : ""}>
-            Your details
+            {t("stepDetails")}
           </span>
         </li>
         <li aria-hidden="true" className="h-px bg-[var(--color-border)]" />
@@ -174,22 +178,22 @@ export function EnquiryForm({
           >
             2
           </span>
-          Verify number
+          {t("stepVerify")}
         </li>
       </ol>
 
       <p className="sr-only" aria-live="polite">
-        {step === "details" ? "Step 1 of 2: your details" : "Step 2 of 2: verify your number"}
+        {step === "details" ? t("stepOneAnnounce") : t("stepTwoAnnounce")}
       </p>
 
       {step === "details" ? (
         <fieldset disabled={busy} className="space-y-5 disabled:opacity-70">
-          <legend className="sr-only">Your enquiry details</legend>
+          <legend className="sr-only">{t("detailsLegend")}</legend>
 
           <div className="space-y-2">
             <Label htmlFor="phone" className="flex items-center gap-2">
               <Phone className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
-              Your phone number
+              {t("phoneLabel")}
               <span className="text-[var(--color-destructive)]" aria-hidden="true">
                 *
               </span>
@@ -206,7 +210,7 @@ export function EnquiryForm({
               aria-describedby={formState.errors.phone ? "phone-help phone-error" : "phone-help"}
             />
             <p id="phone-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-              We send one code to check the number is yours. The provider replies on WhatsApp.
+              {t("phoneHelp")}
             </p>
             {formState.errors.phone && (
               <p
@@ -215,7 +219,7 @@ export function EnquiryForm({
                 className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-destructive)]"
               >
                 <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-                {formState.errors.phone.message}
+                {validationMessage(tValidation, formState.errors.phone.message)}
               </p>
             )}
           </div>
@@ -223,13 +227,13 @@ export function EnquiryForm({
           <div className="space-y-2">
             <Label htmlFor="trainee_name" className="flex items-center gap-2">
               <UserRound className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
-              Your name
-              <span className="font-normal text-[var(--color-muted-foreground)]">(optional)</span>
+              {t("nameLabel")}
+              <span className="font-normal text-[var(--color-muted-foreground)]">{t("optional")}</span>
             </Label>
             <Input
               id="trainee_name"
               autoComplete="name"
-              placeholder="How the provider should address you"
+              placeholder={t("namePlaceholder")}
               {...register("trainee_name")}
               aria-invalid={formState.errors.trainee_name ? "true" : "false"}
               aria-describedby={formState.errors.trainee_name ? "trainee-name-error" : undefined}
@@ -241,7 +245,7 @@ export function EnquiryForm({
                 className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-destructive)]"
               >
                 <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-                {formState.errors.trainee_name.message}
+                {validationMessage(tValidation, formState.errors.trainee_name.message)}
               </p>
             )}
           </div>
@@ -249,22 +253,22 @@ export function EnquiryForm({
           <div className="space-y-2">
             <Label htmlFor="message" className="flex items-center gap-2">
               <MessageCircle className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
-              Your question
-              <span className="font-normal text-[var(--color-muted-foreground)]">(optional)</span>
+              {t("questionLabel")}
+              <span className="font-normal text-[var(--color-muted-foreground)]">{t("optional")}</span>
             </Label>
             <Textarea
               id="message"
               rows={3}
               {...register("message")}
-              placeholder="Do you take complete beginners?"
+              placeholder={t("questionPlaceholder")}
               aria-invalid={formState.errors.message ? "true" : "false"}
               aria-describedby={formState.errors.message ? "message-help message-error" : "message-help"}
             />
             <div className="flex items-start justify-between gap-3">
               <p id="message-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                Ask about experience level, tools, schedules or payment options.
+                {t("questionHelp")}
               </p>
-              <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">Up to 1,000 characters</span>
+              <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">{t("questionLimit")}</span>
             </div>
             {formState.errors.message && (
               <p
@@ -273,31 +277,30 @@ export function EnquiryForm({
                 className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-destructive)]"
               >
                 <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-                {formState.errors.message.message}
+                {validationMessage(tValidation, formState.errors.message.message)}
               </p>
             )}
           </div>
         </fieldset>
       ) : (
         <fieldset disabled={busy} className="space-y-4 disabled:opacity-70">
-          <legend className="sr-only">Verify your phone number</legend>
+          <legend className="sr-only">{t("verifyLegend")}</legend>
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/60 p-4">
             <div className="flex gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-card)] text-[var(--color-brand-strong)] shadow-xs">
                 <MessageCircle className="size-5" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Check your messages</p>
+                <p className="text-sm font-semibold">{t("checkMessages")}</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  We sent a one-time code to {getValues("phone")}. It may take a few moments to
-                  arrive.
+                  {t("codeSentTo", { phone: getValues("phone") })}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="code">Enter the 6-digit code we sent you</Label>
+            <Label htmlFor="code">{t("codeLabel")}</Label>
             <Input
               ref={codeInputRef}
               id="code"
@@ -312,7 +315,7 @@ export function EnquiryForm({
               aria-describedby="code-help"
             />
             <p id="code-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-              Enter numbers only. The code expires after a short time for your security.
+              {t("codeHelp")}
             </p>
           </div>
           <Button
@@ -326,7 +329,7 @@ export function EnquiryForm({
             }}
             className="-ml-3"
           >
-            Change my number
+            {t("changeNumber")}
           </Button>
         </fieldset>
       )}
@@ -334,7 +337,7 @@ export function EnquiryForm({
       {error && (
         <Alert variant="destructive">
           <AlertCircle aria-hidden="true" />
-          <AlertTitle>We couldn’t complete that step</AlertTitle>
+          <AlertTitle>{t("stepFailed")}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -344,24 +347,22 @@ export function EnquiryForm({
           {busy ? (
             <>
               <LoaderCircle className="animate-spin" aria-hidden="true" />
-              Sending…
+              {t("sending")}
             </>
           ) : step === "details" ? (
             <>
-              Continue
+              {t("continue")}
               <LockKeyhole aria-hidden="true" />
             </>
           ) : (
             <>
               <MessageCircle aria-hidden="true" />
-              Send enquiry
+              {t("send")}
             </>
           )}
         </Button>
         <p className="text-center text-xs leading-5 text-[var(--color-muted-foreground)]">
-          {step === "details"
-            ? "Next, we’ll verify your number with a one-time code."
-            : "Your enquiry is sent only after the code is verified."}
+          {step === "details" ? t("nextVerify") : t("sentAfterVerify")}
         </p>
       </div>
     </form>

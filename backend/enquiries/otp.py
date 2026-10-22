@@ -175,20 +175,33 @@ def verify_code(
     return verification
 
 
-def phone_is_trusted(phone):
-    """True when this number verified recently enough to skip a fresh code.
+# Session key holding {phone: verified-at epoch seconds} for numbers this
+# browser has proved with an enquiry code.
+TRUSTED_PHONES_SESSION_KEY = "enquiry_trusted_phones"
+
+
+def trust_phone(session, phone, verified_at):
+    """Remember that this browser session just proved `phone`."""
+    trusted = dict(session.get(TRUSTED_PHONES_SESSION_KEY, {}))
+    trusted[str(phone)] = verified_at.timestamp()
+    session[TRUSTED_PHONES_SESSION_KEY] = trusted
+
+
+def phone_is_trusted(session, phone):
+    """True when this session verified the number recently enough to skip a code.
 
     This is what makes "enquire with three providers" cost one SMS rather than
     three.
+
+    The trust belongs to the browser that typed the code, not to the number.
+    Keyed on the number alone, a verification anywhere would let anybody who
+    knew it send enquiries in that person's name for the next hour, and the
+    code-request endpoint would confirm to strangers that it had just been
+    verified. A trainee signed in to their own account is vouched for
+    separately, by the caller.
     """
-    cutoff = timezone.now() - timedelta(seconds=settings.OTP_SESSION_TRUST_SECONDS)
-    # A trainee who signed in to their account proved the same thing. A trainer
-    # sign-in does not count: that code was issued for a different purpose.
-    return PhoneVerification.objects.filter(
-        phone=phone,
-        purpose__in=[
-            PhoneVerification.Purpose.TRAINEE_ENQUIRY,
-            PhoneVerification.Purpose.TRAINEE_ACCESS,
-        ],
-        verified_at__gte=cutoff,
-    ).exists()
+    verified_at = session.get(TRUSTED_PHONES_SESSION_KEY, {}).get(str(phone))
+    if verified_at is None:
+        return False
+    age = timezone.now().timestamp() - verified_at
+    return 0 <= age <= settings.OTP_SESSION_TRUST_SECONDS

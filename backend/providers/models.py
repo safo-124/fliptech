@@ -553,6 +553,11 @@ class ListingConfirmation(TimeStampedModel):
 
     A log rather than a timestamp, so "confirmed last week" can be told apart
     from "never prompted".
+
+    A row moves through three states. The nightly queue_freshness_prompts
+    command creates it with no prompted_at: waiting for staff to send. Sending
+    it from the back office stamps prompted_at and prompted_by. The owner's
+    answer fills responded_at. See providers/freshness.py.
     """
 
     class Channel(models.TextChoices):
@@ -563,6 +568,13 @@ class ListingConfirmation(TimeStampedModel):
 
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="confirmations")
     prompted_at = models.DateTimeField(null=True, blank=True)
+    prompted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     responded_at = models.DateTimeField(null=True, blank=True)
     channel = models.CharField(max_length=20, choices=Channel.choices, default=Channel.WHATSAPP)
     fees_confirmed = models.BooleanField(default=False)
@@ -577,6 +589,64 @@ class ListingConfirmation(TimeStampedModel):
 
     def __str__(self):
         return f"Confirmation for {self.provider.name}"
+
+
+class ProfileViewDay(models.Model):
+    """How many people opened a provider's public profile on one day.
+
+    One of the four numbers Section 04 puts on the workshop dashboard. Stored
+    as a daily count rather than one row per view: the dashboard only ever
+    asks "how many in the last 30 days", and a row per view would keep a
+    record of individual visits that nothing needs. No IP address, cookie or
+    account is stored — see providers/profile_views.py for how a visitor is
+    counted once a day without keeping who they were.
+    """
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="view_days")
+    day = models.DateField()
+    views = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["provider", "day"], name="one_view_count_per_day")
+        ]
+        indexes = [models.Index(fields=["day"])]
+
+    def __str__(self):
+        return f"{self.provider.name} on {self.day}: {self.views}"
+
+
+class OwnerNotice(TimeStampedModel):
+    """A WhatsApp message the system asks staff to send to a workshop owner.
+
+    Section 09 sends the owner a link to review their own listing when it
+    goes live. A business-initiated WhatsApp message needs Cloud API
+    credentials nobody has yet, so the system queues the notice and an
+    officer sends it from the back office with a wa.me link, the same way
+    as the 90-day prompts. See providers/owner_messages.py.
+
+    The row is the record that the owner was told, by whom and when.
+    """
+
+    class Kind(models.TextChoices):
+        LISTING_LIVE = "listing_live", "Listing is live"
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="owner_notices")
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.provider.name}"
 
 
 class Suspension(TimeStampedModel):

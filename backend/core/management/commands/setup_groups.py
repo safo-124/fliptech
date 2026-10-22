@@ -23,6 +23,9 @@ FIELD_OFFICER_PERMISSIONS = [
     ("providers", "verification", ["add", "change", "view"]),
     ("providers", "governmentstatus", ["add", "change", "view"]),
     ("providers", "listingconfirmation", ["add", "change", "view"]),
+    # Sending "your listing is live" to the owner. Created by publishing, so
+    # nobody adds one by hand.
+    ("providers", "ownernotice", ["change", "view"]),
     ("providers", "suspension", ["view"]),
     ("catalog", "trade", ["add", "change", "view"]),
     ("catalog", "programme", ["add", "change", "view"]),

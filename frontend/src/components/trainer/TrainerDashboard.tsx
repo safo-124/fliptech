@@ -20,6 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
+import {useTranslations} from "next-intl";
 import {Fragment, useEffect, useState} from "react";
 
 import {DashboardBottomBar, DashboardSidebar} from "@/components/dashboard/DashboardNav";
@@ -27,7 +28,7 @@ import {TrainerAccount} from "@/components/trainer/TrainerAccount";
 import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
 import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
 import type {TrainerTab} from "@/components/trainer/TrainerNav";
-import {TRAINER_TABS} from "@/components/trainer/TrainerNav";
+import {TRAINER_TAB_KEYS, useTrainerTabs} from "@/components/trainer/TrainerNav";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
 import {Button} from "@/components/ui/button";
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui/card";
 import {Separator} from "@/components/ui/separator";
 import {Skeleton} from "@/components/ui/skeleton";
+import {BRAND} from "@/lib/brand";
 import {formatDate, formatFee} from "@/lib/format";
 import {
   confirmListingIsCurrent,
@@ -56,17 +58,17 @@ import type {
   TrainerSession,
 } from "@/lib/types";
 
-function statusMessage(status: string) {
-  if (status === "draft") return "Your profile is saved as a draft and is not public.";
-  if (status === "pending_approval") {
-    return "Skills Hub is reviewing your profile. It is not public until staff approve it.";
-  }
-  if (status === "published") return "Your workshop profile is live for trainees to find.";
-  if (status === "changes_requested") {
-    return "Staff asked for changes. Update the draft and submit it again when it is ready.";
-  }
-  if (status === "suspended") return "This listing is not public. Read the review note below.";
-  return "Your listing status is shown below.";
+const KNOWN_STATUSES = ["draft", "pending_approval", "published", "changes_requested", "suspended"];
+
+/** What the listing's status means for the owner, from "TrainerDashboard.statusMessages". */
+function statusMessageKey(status: string) {
+  return (KNOWN_STATUSES.includes(status) ? status : "other") as
+    | "draft"
+    | "pending_approval"
+    | "published"
+    | "changes_requested"
+    | "suspended"
+    | "other";
 }
 
 function statusAppearance(status: string) {
@@ -129,9 +131,10 @@ function DetailList({
 }
 
 function DashboardSkeleton() {
+  const t = useTranslations("TrainerDashboard");
   return (
     <div role="status" aria-live="polite" aria-busy="true">
-      <span className="sr-only">Loading trainer dashboard…</span>
+      <span className="sr-only">{t("loading")}</span>
       <div aria-hidden="true" className="space-y-5">
         <Card>
           <CardHeader>
@@ -247,51 +250,61 @@ function PerformancePanel({
   confirmNote: string | null;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("TrainerDashboard");
+  const tFigures = useTranslations("DashboardFigures");
+  const tFormat = useTranslations("Format");
   return (
     <section aria-labelledby="performance-heading" className="space-y-4">
       <div>
         <h2 id="performance-heading" className="text-xl font-bold tracking-tight">
-          Your last 30 days
+          {t("lastDays", {days: figures?.period_days ?? 30})}
         </h2>
-        <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-          What your listing brought in.
-        </p>
+        <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("broughtIn")}</p>
       </div>
 
       {figures ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Figure
-            label="Enquiries"
+            label={tFigures("enquiries")}
             value={String(figures.enquiries)}
-            note="People who asked about your courses."
+            note={t("enquiriesNote")}
           />
           <Figure
-            label="Replied in 48h"
+            label={tFigures("profileViews")}
+            value={String(figures.profile_views)}
+            note={
+              figures.profile_views_counted_since
+                ? `${tFigures("countedSince", {date: formatDate(figures.profile_views_counted_since)})}.`
+                : `${tFigures("profileViewsBasis")}.`
+            }
+          />
+          <Figure
+            label={tFigures("repliedIn48h")}
             value={
               figures.response_rate === null
                 ? "—"
                 : `${Math.round(figures.response_rate * 100)}%`
             }
             note={
-              figures.response_rate === null
-                ? "No enquiries yet to measure."
-                : figures.response_rate_basis
+              figures.response_rate === null ? t("noEnquiriesToMeasure") : tFigures("responseRateBasis")
             }
           />
+          {/* The four numbers Section 04 puts on Screen 5. Course fees ride on
+              the enrolments tile, as on the signed-link dashboard, so both
+              doors show the same four. */}
           <Figure
-            label="Enrolments"
+            label={tFigures("enrolments")}
             value={String(figures.enrolments)}
-            note={figures.enrolments_basis}
-          />
-          <Figure
-            label="Fees from enrolments"
-            value={
-              // formatFee, not a hand-rolled prefix: it is the same Intl
-              // formatter the public listing uses, so an owner comparing
-              // the two sees one currency style rather than two.
-              figures.enrolment_fees_cedis ? formatFee(figures.enrolment_fees_cedis) : "—"
+            note={
+              figures.enrolment_fees_cedis
+                ? // formatFee, not a hand-rolled prefix: it is the same Intl
+                  // formatter the public listing uses, so an owner comparing
+                  // the two sees one currency style rather than two.
+                  `${tFigures("inCourseFees", {
+                    fees: formatFee(figures.enrolment_fees_cedis, tFormat),
+                  })}. ${tFigures("enrolmentsBasis", {brand: BRAND})}`
+                : tFigures("enrolmentsBasis", {brand: BRAND})
             }
-            note="Recorded by staff, not collected by Skills Hub."
           />
         </div>
       ) : (
@@ -302,13 +315,6 @@ function PerformancePanel({
         </div>
       )}
 
-      {/* Profile views is null, not zero, and the reason is worth a sentence:
-          a zero here would read as "nobody looked", which is a claim the
-          software cannot make without an analytics source. */}
-      <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-        Profile views are not counted yet, so they are left blank rather than shown as zero.
-      </p>
-
       {canConfirm ? (
         <div
           className={
@@ -318,16 +324,14 @@ function PerformancePanel({
           }
         >
           <p className="text-sm font-semibold">
-            {isStale
-              ? "Your listing is showing as unconfirmed"
-              : "Are your fees and dates still right?"}
+            {isStale ? t("staleTitle") : t("stillRightTitle")}
           </p>
           <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
             {isStale
-              ? "Trainees see a note asking them to check before they travel. Confirm to remove it."
+              ? t("staleBody")
               : lastConfirmed
-                ? `Last confirmed ${formatDate(lastConfirmed)}.`
-                : "Confirming keeps the unconfirmed note off your listing."}
+                ? t("lastConfirmed", {date: formatDate(lastConfirmed)})
+                : t("confirmingKeeps")}
           </p>
           {confirmNote ? (
             <p className="mt-2 text-sm text-[var(--color-visit)]">{confirmNote}</p>
@@ -340,7 +344,7 @@ function PerformancePanel({
             onClick={onConfirm}
           >
             {confirming ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-            Yes, everything is still correct
+            {t("confirmCorrect")}
           </Button>
         </div>
       ) : null}
@@ -349,6 +353,10 @@ function PerformancePanel({
 }
 
 export function TrainerDashboard() {
+  const t = useTranslations("TrainerDashboard");
+  const tStatus = useTranslations("ListingStatus");
+  const tFormat = useTranslations("Format");
+  const tabs = useTrainerTabs();
   const [session, setSession] = useState<TrainerSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -366,7 +374,7 @@ export function TrainerDashboard() {
   useEffect(() => {
     const apply = () => {
       const wanted = window.location.hash.replace(/^#/, "");
-      if ((["overview", "enquiries", "listing", "account"] as string[]).includes(wanted)) {
+      if ((TRAINER_TAB_KEYS as string[]).includes(wanted)) {
         setTab(wanted as TrainerTab);
       }
     };
@@ -410,7 +418,7 @@ export function TrainerDashboard() {
         }
       })
       .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Could not load the dashboard.");
+        if (active) setError(reason instanceof Error ? reason.message : t("loadFailed"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -418,7 +426,7 @@ export function TrainerDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   async function markReplied(referenceCode: string, replied: boolean) {
     const saved = await setTrainerEnquiryReplied(referenceCode, replied);
@@ -446,9 +454,9 @@ export function TrainerDashboard() {
       );
       const refreshed = await getTrainerDashboard().catch(() => null);
       if (refreshed) setFigures(refreshed);
-      setConfirmNote("Thank you. Your listing shows as up to date.");
+      setConfirmNote(t("confirmedThanks"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not confirm the listing.");
+      setError(reason instanceof Error ? reason.message : t("confirmFailed"));
     } finally {
       setConfirming(false);
     }
@@ -462,7 +470,7 @@ export function TrainerDashboard() {
       sessionStorage.removeItem("skillshub.trainer.public-profile-draft");
       setSession(next);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not sign out.");
+      setError(reason instanceof Error ? reason.message : t("signOutFailed"));
     } finally {
       setBusy(false);
     }
@@ -477,12 +485,12 @@ export function TrainerDashboard() {
           <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
             <AlertCircle aria-hidden="true" className="size-5" />
           </div>
-          <CardTitle>Dashboard unavailable</CardTitle>
+          <CardTitle>{t("unavailableTitle")}</CardTitle>
           <CardDescription>{error}</CardDescription>
         </CardHeader>
         <CardFooter>
           <Button type="button" variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("tryAgain")}
           </Button>
         </CardFooter>
       </Card>
@@ -491,11 +499,7 @@ export function TrainerDashboard() {
 
   if (!session?.authenticated) {
     return (
-      <EmptyState
-        title="Sign in to your trainer profile"
-        description="We will send a one-time code to your private phone number, and to your email as well if you have added one."
-        action="Sign in"
-      />
+      <EmptyState title={t("signInTitle")} description={t("signInBody")} action={t("signIn")} />
     );
   }
 
@@ -504,16 +508,17 @@ export function TrainerDashboard() {
     return (
       <>
       <TrainerAccountNotice session={session} />
-      <EmptyState
-        title="Create your workshop profile"
-        description="No profile has been submitted from this number yet."
-        action="Start profile"
-      />
+      <EmptyState title={t("createTitle")} description={t("createBody")} action={t("startProfile")} />
       </>
     );
   }
 
   const appearance = statusAppearance(profile.status);
+  // Worded from the status code; a code this build does not know shows the
+  // label the server sent.
+  const statusLabel = tStatus.has(profile.status as "draft")
+    ? tStatus(profile.status as "draft")
+    : profile.status_label;
   const StatusIcon = appearance.Icon;
   // What the badge counts. Answering is the job; how many have arrived is not
   // the number an owner needs on a tab.
@@ -527,7 +532,7 @@ export function TrainerDashboard() {
 
       <div className="gap-7 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
         <DashboardSidebar
-          tabs={TRAINER_TABS}
+          tabs={tabs}
           tab={tab}
           onSelect={goTo}
           counts={{enquiries: waitingForReply}}
@@ -541,9 +546,7 @@ export function TrainerDashboard() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold leading-5">{profile.name}</p>
-              <p className="truncate text-xs text-[var(--color-muted-foreground)]">
-                {profile.status_label}
-              </p>
+              <p className="truncate text-xs text-[var(--color-muted-foreground)]">{statusLabel}</p>
             </div>
           </div>
         </DashboardSidebar>
@@ -567,7 +570,7 @@ export function TrainerDashboard() {
                 <div className="min-w-0">
                   <Badge variant={appearance.badge}>
                     <StatusIcon aria-hidden="true" />
-                    {profile.status_label}
+                    {statusLabel}
                   </Badge>
                   <h2
                     id="profile-status-heading"
@@ -576,7 +579,7 @@ export function TrainerDashboard() {
                     {profile.name}
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-muted-foreground)]">
-                    {statusMessage(profile.status)}
+                    {t(`statusMessages.${statusMessageKey(profile.status)}`)}
                   </p>
                 </div>
               </div>
@@ -584,7 +587,7 @@ export function TrainerDashboard() {
                 <Button asChild variant="outline" className="w-full sm:w-auto">
                   <Link href="/trainer/join">
                     <FilePenLine aria-hidden="true" />
-                    Edit draft
+                    {t("editDraft")}
                   </Link>
                 </Button>
               ) : null}
@@ -600,7 +603,7 @@ export function TrainerDashboard() {
                     className="mt-0.5 size-4 shrink-0 text-[var(--color-warn)]"
                   />
                   <div>
-                    <strong className="block font-semibold">Note from the review team</strong>
+                    <strong className="block font-semibold">{t("reviewNote")}</strong>
                     <p className="mt-1 leading-6 text-[var(--color-muted-foreground)]">
                       {profile.review_note}
                     </p>
@@ -637,9 +640,9 @@ export function TrainerDashboard() {
               </div>
               <div>
                 <h2 id="workshop-details-heading" className="font-semibold">
-                  Workshop details
+                  {t("workshopDetails")}
                 </h2>
-                <CardDescription>Your public workshop information</CardDescription>
+                <CardDescription>{t("workshopDetailsBody")}</CardDescription>
               </div>
             </CardHeader>
             <Separator />
@@ -647,7 +650,7 @@ export function TrainerDashboard() {
               <DetailList
                 rows={[
                   {
-                    label: "Owner or trainer",
+                    label: t("ownerOrTrainer"),
                     value: (
                       <span className="inline-flex items-center gap-1.5">
                         <UserRound aria-hidden="true" className="size-3.5 text-[var(--color-muted-foreground)]" />
@@ -656,7 +659,7 @@ export function TrainerDashboard() {
                     ),
                   },
                   {
-                    label: "Public contact",
+                    label: t("publicContact"),
                     value: (
                       <span className="inline-flex items-center gap-1.5">
                         <Phone aria-hidden="true" className="size-3.5 text-[var(--color-muted-foreground)]" />
@@ -665,7 +668,7 @@ export function TrainerDashboard() {
                     ),
                   },
                   {
-                    label: "Area",
+                    label: t("area"),
                     value: (
                       <span className="inline-flex items-center gap-1.5">
                         <MapPin aria-hidden="true" className="size-3.5 text-[var(--color-muted-foreground)]" />
@@ -673,7 +676,7 @@ export function TrainerDashboard() {
                       </span>
                     ),
                   },
-                  {label: "Address", value: profile.address},
+                  {label: t("address"), value: profile.address},
                 ]}
               />
             </CardContent>
@@ -689,18 +692,18 @@ export function TrainerDashboard() {
                 </div>
                 <div>
                   <h2 id="course-details-heading" className="font-semibold">
-                    First course
+                    {t("firstCourse")}
                   </h2>
-                  <CardDescription>The course trainees can compare</CardDescription>
+                  <CardDescription>{t("firstCourseBody")}</CardDescription>
                 </div>
               </CardHeader>
               <Separator />
               <CardContent className="pt-2 sm:px-6">
                 <DetailList
                   rows={[
-                    {label: "Course", value: profile.programme.title},
+                    {label: t("course"), value: profile.programme.title},
                     {
-                      label: "Trade",
+                      label: t("trade"),
                       value: (
                         <span className="inline-flex items-center gap-1.5">
                           <BadgeCheck aria-hidden="true" className="size-3.5 text-[var(--color-muted-foreground)]" />
@@ -708,13 +711,16 @@ export function TrainerDashboard() {
                         </span>
                       ),
                     },
-                    {label: "Fee", value: formatFee(String(profile.programme.fee))},
-                    {label: "Duration", value: `${profile.programme.duration_weeks} weeks`},
+                    {label: t("fee"), value: formatFee(String(profile.programme.fee), tFormat)},
                     {
-                      label: "Next intake",
+                      label: t("duration"),
+                      value: tFormat("weeks", {count: profile.programme.duration_weeks}),
+                    },
+                    {
+                      label: t("nextIntake"),
                       value: profile.programme.intake?.start_date
                         ? formatDate(profile.programme.intake.start_date)
-                        : "Date not set",
+                        : t("dateNotSet"),
                     },
                   ]}
                 />
@@ -728,14 +734,14 @@ export function TrainerDashboard() {
                 <div className="mb-1 grid size-10 place-items-center rounded-xl bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">
                   <BookOpen aria-hidden="true" className="size-4" />
                 </div>
-                <CardTitle id="no-course-heading">No course has been added yet.</CardTitle>
-                <CardDescription>Add a course so trainees can compare your offer.</CardDescription>
+                <CardTitle id="no-course-heading">{t("noCourseTitle")}</CardTitle>
+                <CardDescription>{t("noCourseBody")}</CardDescription>
               </CardHeader>
               {profile.editable ? (
                 <CardFooter className="sm:px-6">
                   <Button asChild variant="outline" className="w-full sm:w-auto">
                     <Link href="/trainer/join">
-                      Add your first course
+                      {t("addFirstCourse")}
                       <ArrowRight aria-hidden="true" />
                     </Link>
                   </Button>
@@ -771,7 +777,7 @@ export function TrainerDashboard() {
       <div className="flex flex-col gap-3 border-t border-[var(--color-border)] pt-5 sm:flex-row sm:items-center sm:justify-between lg:hidden">
         <p className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
           <CalendarDays aria-hidden="true" className="size-3.5" />
-          Your draft is saved on this device while you are signed in.
+          {t("draftSaved")}
         </p>
         <Button
           type="button"
@@ -781,14 +787,14 @@ export function TrainerDashboard() {
           className="w-full sm:w-auto"
         >
           {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <LogOut aria-hidden="true" />}
-          {busy ? "Signing out…" : "Sign out"}
+          {busy ? t("signingOut") : t("signOut")}
         </Button>
       </div>
         </div>
       </div>
 
       <DashboardBottomBar
-        tabs={TRAINER_TABS}
+        tabs={tabs}
         tab={tab}
         onSelect={goTo}
         counts={{enquiries: waitingForReply}}

@@ -1,9 +1,13 @@
 import type {Metadata} from "next";
+import {getTranslations} from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Trainer profile",
-  robots: {index: false, follow: false},
-};
+import {ClientMessages} from "@/i18n/ClientMessages";
+import {TRAINER_CLIENT_NAMESPACES} from "@/i18n/namespaces";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("TrainerPages");
+  return {title: t("layoutTitle"), robots: {index: false, follow: false}};
+}
 
 export default function TrainerLayout({children}: {children: React.ReactNode}) {
   return (
@@ -12,7 +16,7 @@ export default function TrainerLayout({children}: {children: React.ReactNode}) {
         aria-hidden="true"
         className="pointer-events-none absolute -right-28 -top-32 -z-10 size-72 rounded-full bg-[var(--color-brand-soft)]/70 blur-3xl"
       />
-      {children}
+      <ClientMessages namespaces={TRAINER_CLIENT_NAMESPACES}>{children}</ClientMessages>
     </div>
   );
 }

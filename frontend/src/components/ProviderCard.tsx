@@ -31,6 +31,7 @@ import {
   WalletCards,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Card } from "@/components/ui/card";
 import { formatDate, formatDistance, formatDuration, formatFee } from "@/lib/format";
@@ -90,7 +91,9 @@ function initials(name: string): string {
 }
 
 export function ProviderCard({ provider }: { provider: ProviderCardData }) {
-  const distance = formatDistance(provider.distance_m);
+  const t = useTranslations("ProviderCard");
+  const tFormat = useTranslations("Format");
+  const distance = formatDistance(provider.distance_m, tFormat);
 
   return (
     <article className="h-full">
@@ -165,18 +168,22 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
           {provider.is_stale && (
             <p className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--color-warn)]/20 bg-[var(--color-warn-bg)] px-3 py-2 text-xs leading-4 text-[var(--color-warn)]">
               <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>Not confirmed recently. Check the fee before you travel.</span>
+              <span>{t("notConfirmedRecently")}</span>
             </p>
           )}
 
           {/* mt-auto pins this to the bottom so the numbers align across a row. */}
           <dl className="mt-auto grid grid-cols-3 divide-x divide-[var(--color-border)] rounded-xl bg-[var(--color-muted)]/65 px-3 py-3.5">
-            <Fact icon={WalletCards} label="Fee from" value={formatFee(provider.lowest_fee)} />
-            <Fact icon={Clock3} label="Duration" value={formatDuration(provider.shortest_duration_weeks)} />
+            <Fact icon={WalletCards} label={t("feeFrom")} value={formatFee(provider.lowest_fee, tFormat)} />
+            <Fact
+              icon={Clock3}
+              label={t("duration")}
+              value={formatDuration(provider.shortest_duration_weeks, tFormat)}
+            />
             <Fact
               icon={CalendarDays}
-              label="Next intake"
-              value={provider.next_intake ? formatDate(provider.next_intake) : "Ask provider"}
+              label={t("nextIntake")}
+              value={provider.next_intake ? formatDate(provider.next_intake) : t("askProvider")}
             />
           </dl>
         </Link>

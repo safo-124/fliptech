@@ -2,6 +2,7 @@
 
 import {Bookmark, BookmarkCheck, Loader2} from "lucide-react";
 import Link from "next/link";
+import {useTranslations} from "next-intl";
 import {useEffect, useState} from "react";
 
 import {Button} from "@/components/ui/button";
@@ -14,6 +15,7 @@ type State = "loading" | "anonymous" | "saved" | "unsaved";
  * the search page stays free of client JavaScript (Section 10 page weight).
  */
 export function SaveProviderButton({providerId, returnTo}: {providerId: number; returnTo: string}) {
+  const t = useTranslations("SaveProviderButton");
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
@@ -46,7 +48,7 @@ export function SaveProviderButton({providerId, returnTo}: {providerId: number; 
       <Button asChild variant="outline">
         <Link href={`/trainee/sign-in?next=${encodeURIComponent(returnTo)}`}>
           <Bookmark aria-hidden="true" />
-          Save
+          {t("save")}
         </Link>
       </Button>
     );
@@ -77,7 +79,7 @@ export function SaveProviderButton({providerId, returnTo}: {providerId: number; 
       aria-pressed={state === "saved"}
     >
       <Icon aria-hidden="true" className={busy ? "animate-spin" : undefined} />
-      {state === "saved" ? "Saved" : "Save"}
+      {state === "saved" ? t("saved") : t("save")}
     </Button>
   );
 }

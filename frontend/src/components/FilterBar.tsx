@@ -11,6 +11,7 @@
 
 import Link from "next/link";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -37,9 +38,17 @@ const FORM_FIELDS = new Set<keyof SearchParams>([
   "trade",
   "q",
   "max_fee",
+  "places",
   "verified_only",
   "page",
 ]);
+
+/**
+ * Group sizes for Section 03's NGO programme officer, placing a cohort. A
+ * trainee leaves it on "Just me". Any other number still works from the URL;
+ * these are the sizes worth a tap.
+ */
+const GROUP_SIZES = ["5", "10", "20", "30"];
 
 export function FilterBar({
   trades,
@@ -48,6 +57,7 @@ export function FilterBar({
   trades: Trade[];
   params: SearchParams;
 }) {
+  const t = useTranslations("FilterBar");
   const hasFilters = Object.entries(params).some(([key, value]) => key !== "page" && Boolean(value));
   const preservedParams = Object.entries(params).filter(
     ([key, value]) => value && !FORM_FIELDS.has(key as keyof SearchParams),
@@ -58,19 +68,19 @@ export function FilterBar({
       <div className="flex items-center justify-between gap-4 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
           <SlidersHorizontal className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>Choose a trade</span>
+          <span>{t("chooseTrade")}</span>
         </div>
         {hasFilters ? (
           <Button asChild variant="ghost" size="sm" className="min-h-11 shrink-0">
             <Link href="/">
               <X aria-hidden="true" />
-              Clear filters
+              {t("clearFilters")}
             </Link>
           </Button>
         ) : null}
       </div>
 
-      <nav aria-label="Filter by trade" className="scrollbar-none overflow-x-auto px-4 pb-4 sm:px-5">
+      <nav aria-label={t("filterByTrade")} className="scrollbar-none overflow-x-auto px-4 pb-4 sm:px-5">
         <ul className="flex min-w-max gap-2">
           <li>
             <Button
@@ -82,7 +92,7 @@ export function FilterBar({
                 href={withParam(params, "trade", undefined)}
                 aria-current={!params.trade ? "page" : undefined}
               >
-                All trades
+                {t("allTrades")}
               </Link>
             </Button>
           </li>
@@ -113,15 +123,17 @@ export function FilterBar({
       <form
         action="/"
         method="get"
-        className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-[minmax(16rem,1fr)_12rem_minmax(13rem,auto)_auto] lg:items-end"
+        // One row only from xl. Five controls need about 63rem, and the card is
+        // narrower than that at lg, so there they stay two to a row.
+        className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-[minmax(16rem,1fr)_11rem_13rem_minmax(13rem,auto)_auto] xl:items-end"
       >
         {params.trade && <input type="hidden" name="trade" value={params.trade} />}
         {preservedParams.map(([key, value]) => (
           <input key={key} type="hidden" name={key} value={value} />
         ))}
 
-        <div className="sm:col-span-2 lg:col-span-1">
-          <Label htmlFor="provider-search">Search providers or skills</Label>
+        <div className="sm:col-span-2 xl:col-span-1">
+          <Label htmlFor="provider-search">{t("searchLabel")}</Label>
           <div className="relative mt-2">
             <Search
               className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-foreground)]"
@@ -132,25 +144,44 @@ export function FilterBar({
               type="search"
               name="q"
               defaultValue={params.q ?? ""}
-              placeholder="Try welding, sewing or plumbing"
+              placeholder={t("searchPlaceholder")}
               className="pl-10"
             />
           </div>
         </div>
 
         <div>
-          <Label htmlFor="maximum-fee">Maximum fee</Label>
+          <Label htmlFor="maximum-fee">{t("maximumFee")}</Label>
           <div className="mt-2">
             <NativeSelect
               id="maximum-fee"
               name="max_fee"
               defaultValue={params.max_fee ?? ""}
             >
-              <option value="">Any fee</option>
+              <option value="">{t("anyFee")}</option>
               <option value="500">GH₵500</option>
               <option value="1000">GH₵1,000</option>
               <option value="1500">GH₵1,500</option>
               <option value="2500">GH₵2,500</option>
+            </NativeSelect>
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="group-size">{t("placesNeeded")}</Label>
+          <div className="mt-2">
+            <NativeSelect id="group-size" name="places" defaultValue={params.places ?? ""}>
+              <option value="">{t("justMe")}</option>
+              {/* A size typed into the URL is kept, so the form does not
+                  silently reset it on the next search. */}
+              {params.places && !GROUP_SIZES.includes(params.places) ? (
+                <option value={params.places}>{t("groupOf", { size: params.places })}</option>
+              ) : null}
+              {GROUP_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {t("groupOf", { size })}
+                </option>
+              ))}
             </NativeSelect>
           </div>
         </div>
@@ -171,15 +202,15 @@ export function FilterBar({
             />
           </span>
           <span className="min-w-0 leading-tight">
-            <span className="block text-sm font-semibold">Visited by {BRAND}</span>
+            <span className="block text-sm font-semibold">{t("visitedBy", { brand: BRAND })}</span>
             <span className="mt-0.5 block text-[10px] font-normal text-[var(--color-muted-foreground)]">
-              A {BRAND} site check
+              {t("siteCheck", { brand: BRAND })}
             </span>
           </span>
         </Label>
 
-        <Button type="submit" variant="brand" size="lg" className="w-full lg:w-auto">
-          Show providers
+        <Button type="submit" variant="brand" size="lg" className="w-full xl:w-auto">
+          {t("showProviders")}
           <Search aria-hidden="true" />
         </Button>
       </form>

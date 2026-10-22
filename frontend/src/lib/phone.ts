@@ -1,5 +1,7 @@
 import {z} from "zod";
 
+import {v} from "../i18n/validation";
+
 /**
  * Ghana mobile numbers, however they were actually typed.
  *
@@ -23,7 +25,9 @@ export function stripPhoneSeparators(phone: string): string {
 export const ghanaPhoneSchema = z
   .string()
   .transform(stripPhoneSeparators)
-  .pipe(z.string().regex(/^(?:\+233|0)\d{9}$/, "Enter a Ghana number, like 0241234567"));
+  // A key into the "Validation" messages, shown in the visitor's language by
+  // the form. See src/i18n/validation.ts.
+  .pipe(z.string().regex(/^(?:\+233|0)\d{9}$/, v("phoneInvalid")));
 
 export function toGhanaE164(phone: string): string {
   const normalized = stripPhoneSeparators(phone);

@@ -1,0 +1,39 @@
+{% load i18n %}
+{% comment %}
+  One table of messages waiting to be sent. Included by messages.html for each
+  kind; `rows` carry a provider, a send_to number and the `when` shown under
+  `date_label`. `send_url` is the URL name that records and opens WhatsApp
+  for one row.
+{% endcomment %}
+<table style="width: 100%">
+  <thead>
+    <tr>
+      <th scope="col">{% translate 'Listing' %}</th>
+      <th scope="col">{{ date_label }}</th>
+      <th scope="col">{% translate 'Send to' %}</th>
+      <th scope="col"><span class="visually-hidden">{% translate 'Send' %}</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>
+          <a href="{% url 'admin:providers_provider_change' row.provider.pk %}">{{ row.provider.name }}</a>
+          <div class="mini quiet">{{ row.provider.area.name }}</div>
+        </td>
+        <td>{{ row.when|date:"j M Y"|default:_("Never") }}</td>
+        <td>{{ row.send_to }}</td>
+        <td>
+          {% if can_send %}
+            <form method="post" action="{% url send_url row.pk %}" target="_blank" rel="noopener" data-send-form>
+              {% csrf_token %}
+              <button type="submit" class="button default" style="min-height: 44px">
+                {% translate 'Send on WhatsApp' %}
+              </button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>

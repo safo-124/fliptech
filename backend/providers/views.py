@@ -4,11 +4,13 @@ Everything here is anonymous and read-only. Ranking is by distance, never by
 who paid most, which is what keeps the ordering defensible.
 """
 
+from django.contrib.auth import get_user
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
 from django.db.models import Avg, Count, Max, Min
 from django.shortcuts import get_object_or_404
+from django_ratelimit.core import is_ratelimited
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
@@ -19,15 +21,20 @@ from rest_framework.views import APIView
 
 from catalog.models import Programme
 from core.money import money
+from core.network import canonical_client_ip, ratelimit_client_ip
 from geography.models import Area, Region
 
 from .filters import ProviderFilter
 from .models import Provider
+from .profile_views import record_view
 from .serializers import ProviderDetailSerializer, ProviderListSerializer
 
 # Section 04 warns against thin templates with a place name swapped in. A
 # generated page needs real inventory behind it before it is worth indexing.
 MIN_LISTINGS_FOR_GENERATED_PAGE = 3
+
+DEFAULT_RADIUS_KM = 10
+MAX_RADIUS_KM = 100
 
 
 def _point_from_query(params):
@@ -43,11 +50,33 @@ def _point_from_query(params):
         raise ValidationError({"detail": "lat and lng must be numbers."}) from exc
 
 
+def _radius_from_query(params):
+    """Read radius_km off the query string, defaulting to 10.
+
+    Capped because "near me" stops meaning anything long before it reaches the
+    far side of the country, and an unbounded radius turns a distance search
+    into a full-table scan anyone can ask for.
+    """
+    raw = params.get("radius_km")
+    if raw is None:
+        return DEFAULT_RADIUS_KM
+    try:
+        radius_km = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"detail": "radius_km must be a number."}) from exc
+    # `not (a < x <= b)` rather than two comparisons, so NaN is refused too.
+    if not (0 < radius_km <= MAX_RADIUS_KM):
+        raise ValidationError(
+            {"detail": f"radius_km must be more than 0 and at most {MAX_RADIUS_KM}."}
+        )
+    return radius_km
+
+
 @extend_schema(
     parameters=[
         OpenApiParameter("lat", OpenApiTypes.NUMBER, description="Search origin latitude"),
         OpenApiParameter("lng", OpenApiTypes.NUMBER, description="Search origin longitude"),
-        OpenApiParameter("radius_km", OpenApiTypes.NUMBER, description="Default 10"),
+        OpenApiParameter("radius_km", OpenApiTypes.NUMBER, description="Default 10, at most 100"),
         OpenApiParameter("bbox", OpenApiTypes.STR, description="minLng,minLat,maxLng,maxLat"),
         OpenApiParameter("trade", OpenApiTypes.STR),
         OpenApiParameter("area", OpenApiTypes.STR),
@@ -55,6 +84,11 @@ def _point_from_query(params):
         OpenApiParameter("max_fee", OpenApiTypes.NUMBER),
         OpenApiParameter("verified_only", OpenApiTypes.BOOL),
         OpenApiParameter("q", OpenApiTypes.STR, description="Fuzzy name and trade search"),
+        OpenApiParameter(
+            "places",
+            OpenApiTypes.INT,
+            description="Only providers with a course that can seat a group this size",
+        ),
     ]
 )
 class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
@@ -79,7 +113,7 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
 
         origin = _point_from_query(self.request.query_params)
         if origin is not None:
-            radius_km = float(self.request.query_params.get("radius_km", 10))
+            radius_km = _radius_from_query(self.request.query_params)
             return (
                 queryset.annotate(distance=Distance("location", origin))
                 .filter(distance__lte=D(km=radius_km))
@@ -108,6 +142,46 @@ class ProviderBySlugView(RetrieveAPIView):
             area__slug=self.kwargs["area_slug"],
             slug=self.kwargs["slug"],
         )
+
+
+class ProfileViewedView(APIView):
+    """The profile page saying it was opened. Counts toward Screen 5's views.
+
+    Sent with navigator.sendBeacon, which cannot attach a CSRF header, so DRF
+    authentication is switched off here: with it on, a signed-in visitor's
+    beacon would be refused for want of a token. Nothing is read or changed on
+    anybody's behalf — the worst a forged request can do is add one view,
+    once per connection per day — and the signed-in user can still be read
+    from the session, which is all the staff and owner exclusions need.
+
+    Always answers 204 for a published listing, counted or not, so the
+    response says nothing about who is excluded or already counted.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    @extend_schema(request=None, responses={204: None})
+    def post(self, request, pk):
+        provider = get_object_or_404(Provider.objects.published(), pk=pk)
+        if is_ratelimited(
+            request,
+            group="profile-viewed",
+            key=ratelimit_client_ip,
+            rate="60/m",
+            increment=True,
+        ):
+            return Response(status=429)
+
+        record_view(
+            provider,
+            client_ip=canonical_client_ip(request) or "",
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:300],
+            # From the session directly: with authentication off, DRF sets
+            # the request's user to anonymous, including on the Django request.
+            user=get_user(request._request),
+        )
+        return Response(status=204)
 
 
 class TradeAreaSummarySerializer(serializers.Serializer):

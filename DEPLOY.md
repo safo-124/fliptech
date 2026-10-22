@@ -272,6 +272,24 @@ untested backup is not a backup, so restore-test it once on a scratch database:
 Back up `/var/lib/fliptech/private-media` alongside it — verification evidence
 is not reproducible.
 
+Nightly freshness prompts. `fliptech-freshness.timer` runs
+`queue_freshness_prompts` at 05:00, which puts every listing due its 90-day
+check into the back office's "Messages to send" page. Staff send each one from
+there on WhatsApp. `bootstrap.sh` installs and enables it; on a server
+bootstrapped before it existed, install it once:
+
+```bash
+sudo install -m 644 deploy/fliptech-freshness.service deploy/fliptech-freshness.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fliptech-freshness.timer
+sudo systemctl start fliptech-freshness      # run it now, once
+sudo journalctl -u fliptech-freshness        # what it queued
+systemctl list-timers fliptech-freshness     # when it runs next
+```
+
+The message carries the owner's dashboard link only when `PUBLIC_SITE_URL` is
+set in `backend/.env`.
+
 ---
 
 ## Not wired up yet

@@ -27,7 +27,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.urls import reverse
 
-CACHE_KEY = "back-office:sidebar:v4"
+CACHE_KEY = "back-office:sidebar:v5"
 CACHE_SECONDS = 60
 
 
@@ -44,6 +44,10 @@ def _snapshot():
 
     counts = {queue.key: queue.count(base) for queue in work.QUEUES}
     published = work.published(base).count()
+
+    from providers.admin_outbox import waiting_count
+
+    messages_waiting = waiting_count()
 
     enquiry_counts = enquiry_work.counts(Enquiry.objects.all())
     enquiry_changelist = reverse("admin:enquiries_enquiry_changelist")
@@ -95,7 +99,21 @@ def _snapshot():
             }
             for queue in work.SIDEBAR_QUEUES
             if counts[queue.key]
-        ],
+        ]
+        + (
+            # Not a provider filter but its own page: each row is a WhatsApp
+            # message to send, not a listing to edit. See admin_outbox.py.
+            [
+                {
+                    "key": "owner_messages",
+                    "label": "Messages to send",
+                    "count": messages_waiting,
+                    "url": reverse("admin:providers_provider_messages"),
+                }
+            ]
+            if messages_waiting
+            else []
+        ),
         "enquiry_queues": [
             {
                 "key": queue.key,

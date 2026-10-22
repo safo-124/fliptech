@@ -1,26 +1,32 @@
 import {z} from "zod";
 
+import {v, type ValidationKey} from "../i18n/validation";
+
 import {ghanaPhoneSchema, toGhanaE164} from "./phone";
 import type {TrainerProfile} from "./types";
 
-const requiredText = (label: string, maximum: number) =>
-  z.string().trim().min(1, `${label} is required`).max(maximum);
+// Every message below is a key into the "Validation" messages, shown in the
+// visitor's language by the form. See src/i18n/validation.ts.
+
+const requiredText = (required: ValidationKey, maximum: number) =>
+  z.string().trim().min(1, v(required)).max(maximum, v("tooLong"));
 
 const optionalWholeNumber = z
   .string()
   .trim()
-  .refine((value) => value === "" || /^\d+$/.test(value), "Enter a whole number");
+  .refine((value) => value === "" || /^\d+$/.test(value), v("wholeNumber"));
 
-const coordinate = (label: string, minimum: number, maximum: number) =>
+const coordinate = (
+  messages: {required: ValidationKey; invalid: ValidationKey; range: ValidationKey},
+  minimum: number,
+  maximum: number,
+) =>
   z
     .string()
     .trim()
-    .min(1, `${label} is required`)
-    .refine((value) => Number.isFinite(Number(value)), `Enter a valid ${label.toLowerCase()}`)
-    .refine(
-      (value) => Number(value) >= minimum && Number(value) <= maximum,
-      `${label} must be between ${minimum} and ${maximum}`,
-    );
+    .min(1, v(messages.required))
+    .refine((value) => Number.isFinite(Number(value)), v(messages.invalid))
+    .refine((value) => Number(value) >= minimum && Number(value) <= maximum, v(messages.range));
 
 export const trainerDraftSchema = z
   .object({
@@ -28,22 +34,30 @@ export const trainerDraftSchema = z
     // Required, because confirming an account is the judgement that this
     // person speaks for this workshop, and a verified phone only proves they
     // hold a SIM.
-    full_name: requiredText("Your name", 200),
-    role: z.string().min(1, "Choose your role at the workshop"),
-    id_document_type: z.string().min(1, "Choose an ID type"),
-    id_document_number: requiredText("ID number", 60),
+    full_name: requiredText("fullNameRequired", 200),
+    role: z.string().min(1, v("roleRequired")),
+    id_document_type: z.string().min(1, v("idTypeRequired")),
+    id_document_number: requiredText("idNumberRequired", 60),
 
     // --- the workshop ---
-    name: requiredText("Workshop name", 200),
-    owner_name: requiredText("Owner or trainer name", 200),
+    name: requiredText("workshopNameRequired", 200),
+    owner_name: requiredText("ownerNameRequired", 200),
     contact_phone: ghanaPhoneSchema,
-    area_id: z.string().min(1, "Choose an area"),
-    address: requiredText("Workshop address", 300),
+    area_id: z.string().min(1, v("areaRequired")),
+    address: requiredText("addressRequired", 300),
     // Required. A street address does not find a workshop in Accra and a phone
     // GPS pin can be tens of metres out; the field officer navigates by this.
-    landmark: requiredText("Nearest landmark", 200),
-    latitude: coordinate("Latitude", -90, 90),
-    longitude: coordinate("Longitude", -180, 180),
+    landmark: requiredText("landmarkRequired", 200),
+    latitude: coordinate(
+      {required: "latitudeRequired", invalid: "latitudeInvalid", range: "latitudeRange"},
+      -90,
+      90,
+    ),
+    longitude: coordinate(
+      {required: "longitudeRequired", invalid: "longitudeInvalid", range: "longitudeRange"},
+      -180,
+      180,
+    ),
     year_established: optionalWholeNumber,
     premises_tenure: z.string(),
     trainer_count: optionalWholeNumber,
@@ -55,27 +69,27 @@ export const trainerDraftSchema = z
     data_consent: z.boolean(),
 
     // --- the course ---
-    trade_id: z.string().min(1, "Choose a trade"),
-    programme_title: requiredText("Course title", 200),
+    trade_id: z.string().min(1, v("tradeRequired")),
+    programme_title: requiredText("courseTitleRequired", 200),
     fee: z
       .string()
       .trim()
-      .regex(/^\d+(?:\.\d{1,2})?$/, "Enter the fee in Ghana cedis"),
+      .regex(/^\d+(?:\.\d{1,2})?$/, v("feeInvalid")),
     duration_weeks: z
       .string()
       .trim()
-      .regex(/^\d+$/, "Enter the number of weeks")
-      .refine((value) => Number(value) >= 1, "Duration must be at least one week"),
+      .regex(/^\d+$/, v("weeksInvalid"))
+      .refine((value) => Number(value) >= 1, v("weeksMinimum")),
     instalments_allowed: z.boolean(),
-    instalment_note: z.string().trim().max(200),
+    instalment_note: z.string().trim().max(200, v("tooLong")),
     hours_per_week: optionalWholeNumber,
-    weekly_schedule: z.string().trim().max(200),
+    weekly_schedule: z.string().trim().max(200, v("tooLong")),
     capacity: optionalWholeNumber,
     fee_includes_tools: z.boolean(),
     fee_includes_materials: z.boolean(),
     fee_includes_ppe: z.boolean(),
     fee_includes_certificate: z.boolean(),
-    certificate_awarded: z.string().trim().max(200),
+    certificate_awarded: z.string().trim().max(200, v("tooLong")),
     intake_start_date: z.string(),
     places_offered: optionalWholeNumber,
   })
@@ -84,21 +98,21 @@ export const trainerDraftSchema = z
       context.addIssue({
         code: "custom",
         path: ["intake_start_date"],
-        message: "Add a start date before the number of places",
+        message: v("startDateBeforePlaces"),
       });
     }
     if (values.fee_includes_certificate && !values.certificate_awarded) {
       context.addIssue({
         code: "custom",
         path: ["certificate_awarded"],
-        message: "Name the certificate the fee covers",
+        message: v("certificateRequired"),
       });
     }
     if (values.instalments_allowed && !values.instalment_note) {
       context.addIssue({
         code: "custom",
         path: ["instalment_note"],
-        message: "Explain the instalment arrangement",
+        message: v("instalmentNoteRequired"),
       });
     }
   });
@@ -132,7 +146,7 @@ export function trainerDraftSchemaFor(existingIntakeStartDate?: string | null) {
     context.addIssue({
       code: "custom",
       path: ["intake_start_date"],
-      message: "Choose a start date in the future",
+      message: v("startDateInFuture"),
     });
   });
 }

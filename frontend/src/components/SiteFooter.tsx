@@ -1,5 +1,6 @@
 import {MapPin, ShieldCheck} from "lucide-react";
 import Link from "next/link";
+import {getTranslations} from "next-intl/server";
 
 import {BrandMark} from "@/components/BrandMark";
 import {BrandShards} from "@/components/BrandShards";
@@ -9,7 +10,12 @@ import {coveragePhrase, launchedRegionNames} from "@/lib/coverage";
 export async function SiteFooter() {
   // Named while there are a few regions, the country once there are many.
   // Read from the API rather than written here, so it follows the rollout.
-  const coverage = coveragePhrase(await launchedRegionNames());
+  const [t, tCoverage, regionNames] = await Promise.all([
+    getTranslations("SiteFooter"),
+    getTranslations("Coverage"),
+    launchedRegionNames(),
+  ]);
+  const coverage = coveragePhrase(regionNames, tCoverage);
 
   return (
     // Closes the page on the same indigo the header opens it with.
@@ -20,28 +26,26 @@ export async function SiteFooter() {
           <div className="flex items-center gap-2.5">
             <BrandMark className="size-7" />
             <p className="text-sm font-semibold text-white">
-              A clearer way to choose practical training.
+              {t("tagline")}
             </p>
           </div>
           <p className="mt-3 text-xs leading-5 text-white/60">
-            Compare fees, course length and intake dates before you travel. A {BRAND} site
-            visit and a government record are shown separately so you always know what was
-            checked.
+            {t("summary", {brand: BRAND})}
           </p>
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-white/60">
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="size-3.5" aria-hidden /> {coverage}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5" aria-hidden /> Honest verification labels
+              <ShieldCheck className="size-3.5" aria-hidden /> {t("honestLabels")}
             </span>
           </div>
         </div>
-        <nav className="flex gap-5 text-xs font-medium text-white/75" aria-label="Footer navigation">
-          <Link href="/" className="hover:text-white hover:underline">Browse providers</Link>
-          <Link href="/map" className="hover:text-white hover:underline">Explore map</Link>
-          <Link href="/trainer/join" className="hover:text-white hover:underline">For trainers</Link>
-          <Link href="/privacy" className="hover:text-white hover:underline">Privacy</Link>
+        <nav className="flex gap-5 text-xs font-medium text-white/75" aria-label={t("footerNavigation")}>
+          <Link href="/" className="hover:text-white hover:underline">{t("browseProviders")}</Link>
+          <Link href="/map" className="hover:text-white hover:underline">{t("exploreMap")}</Link>
+          <Link href="/trainer/join" className="hover:text-white hover:underline">{t("forTrainers")}</Link>
+          <Link href="/privacy" className="hover:text-white hover:underline">{t("privacy")}</Link>
         </nav>
       </div>
     </footer>

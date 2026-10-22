@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import type {Metadata} from "next";
 import Link from "next/link";
+import {getTranslations} from "next-intl/server";
 
 import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
 import {Badge} from "@/components/ui/badge";
@@ -46,10 +47,10 @@ import {getDashboard} from "@/lib/api";
 import {BRAND} from "@/lib/brand";
 import {formatDate, formatFee} from "@/lib/format";
 
-export const metadata: Metadata = {
-  title: "Your workshop dashboard",
-  robots: {index: false, follow: false},
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("WorkshopDashboard");
+  return {title: t("metaTitle"), robots: {index: false, follow: false}};
+}
 
 // Per-owner data behind a signed link: never cached, never statically rendered.
 export const dynamic = "force-dynamic";
@@ -96,8 +97,13 @@ function listingStatusVariant(status: string): "default" | "secondary" | "warnin
   return "outline";
 }
 
-function listingStatusLabel(status: string) {
-  return status.replace(/_/g, " ");
+/** The listing's status in words. A status this build does not know is shown
+ *  as the code with its underscores spaced out, rather than not at all. */
+function listingStatusLabel(
+  t: Awaited<ReturnType<typeof getTranslations<"ListingStatus">>>,
+  status: string,
+) {
+  return t.has(status as "draft") ? t(status as "draft") : status.replace(/_/g, " ");
 }
 
 export default async function DashboardPage({
@@ -106,7 +112,13 @@ export default async function DashboardPage({
   params: Promise<{token: string}>;
 }) {
   const {token} = await params;
-  const data = await getDashboard(token).catch(() => null);
+  const [data, t, tFigures, tStatus, tFormat] = await Promise.all([
+    getDashboard(token).catch(() => null),
+    getTranslations("WorkshopDashboard"),
+    getTranslations("DashboardFigures"),
+    getTranslations("ListingStatus"),
+    getTranslations("Format"),
+  ]);
 
   if (!data) {
     return (
@@ -120,15 +132,13 @@ export default async function DashboardPage({
             <div className="mb-2 grid size-14 place-items-center rounded-2xl bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
               <AlertCircle aria-hidden="true" className="size-6" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">This link is not valid</h1>
-            <CardDescription className="max-w-md">
-              Dashboard links expire. Ask {BRAND} to send you a new one on WhatsApp.
-            </CardDescription>
+            <h1 className="text-2xl font-bold tracking-tight">{t("invalidTitle")}</h1>
+            <CardDescription className="max-w-md">{t("invalidBody", {brand: BRAND})}</CardDescription>
           </CardHeader>
           <CardFooter className="justify-center px-5 pb-8 sm:px-8">
             <Button asChild variant="outline" className="w-full sm:w-auto">
               <Link href="/trainer/join">
-                Sign in to manage your profile
+                {t("signInToManage")}
                 <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
@@ -149,47 +159,51 @@ export default async function DashboardPage({
         <div className="min-w-0">
           <Badge variant="secondary">
             <LockKeyhole aria-hidden="true" />
-            Private signed link
+            {t("privateLink")}
           </Badge>
           <h1 className="mt-4 break-words text-3xl font-bold tracking-[-0.035em] sm:text-4xl">
             {data.provider.name}
           </h1>
           <p className="mt-2 flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
             <CalendarClock aria-hidden="true" className="size-4" />
-            Performance from the last {data.period_days} days
+            {t("performancePeriod", {days: data.period_days})}
           </p>
         </div>
         <Button asChild variant="outline" className="w-full sm:w-auto">
           <Link href="/trainer/join">
             <FilePenLine aria-hidden="true" />
-            Manage your workshop profile
+            {t("manageProfile")}
           </Link>
         </Button>
       </header>
 
       {/* Two up on a phone, four across on a desktop. Null values are kept
           distinct from real zeros so the performance story stays honest. */}
-      <section aria-label="Workshop performance">
+      <section aria-label={t("performanceLabel")}>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-          <Stat label="Enquiries" value={String(data.enquiries)} icon={MessageCircle} />
+          <Stat label={tFigures("enquiries")} value={String(data.enquiries)} icon={MessageCircle} />
           <Stat
-            label="Profile views"
-            value={data.profile_views === null ? "Not measured" : String(data.profile_views)}
-            note={data.profile_views === null ? "Coming when analytics are added" : undefined}
+            label={tFigures("profileViews")}
+            value={String(data.profile_views)}
+            note={
+              data.profile_views_counted_since
+                ? tFigures("countedSince", {date: formatDate(data.profile_views_counted_since)})
+                : tFigures("profileViewsBasis")
+            }
             icon={Eye}
           />
           <Stat
-            label="Response rate"
+            label={tFigures("responseRate")}
             value={data.response_rate === null ? "—" : `${Math.round(data.response_rate * 100)}%`}
-            note={data.response_rate_basis}
+            note={tFigures("responseRateBasis")}
             icon={BarChart3}
           />
           <Stat
-            label="Enrolments"
+            label={tFigures("enrolments")}
             value={String(data.enrolments)}
             note={
               data.enrolment_fees_cedis
-                ? `${formatFee(data.enrolment_fees_cedis)} in course fees`
+                ? tFigures("inCourseFees", {fees: formatFee(data.enrolment_fees_cedis, tFormat)})
                 : undefined
             }
             icon={GraduationCap}
@@ -199,7 +213,7 @@ export default async function DashboardPage({
 
       <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/75 p-4 text-xs leading-5 text-[var(--color-muted-foreground)] shadow-xs">
         <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-strong)]" />
-        <p>{data.enrolments_basis}</p>
+        <p>{tFigures("enrolmentsBasis", {brand: BRAND})}</p>
       </div>
 
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
@@ -211,9 +225,9 @@ export default async function DashboardPage({
                   <ShieldCheck aria-hidden="true" className="size-4" />
                 </div>
                 <h2 id="signed-listing-heading" className="font-semibold">
-                  Your listing
+                  {t("yourListing")}
                 </h2>
-                <CardDescription>Current public listing health</CardDescription>
+                <CardDescription>{t("listingHealth")}</CardDescription>
               </div>
               <Badge variant={listingStatusVariant(data.listing.status)} className="capitalize">
                 {data.listing.is_stale ? (
@@ -221,22 +235,22 @@ export default async function DashboardPage({
                 ) : (
                   <CheckCircle2 aria-hidden="true" />
                 )}
-                {listingStatusLabel(data.listing.status)}
+                {listingStatusLabel(tStatus, data.listing.status)}
               </Badge>
             </CardHeader>
             <Separator />
             <CardContent className="pt-2 sm:px-6">
               <dl>
                 <div className="grid gap-1 py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-5">
-                  <dt className="text-sm text-[var(--color-muted-foreground)]">Status</dt>
+                  <dt className="text-sm text-[var(--color-muted-foreground)]">{t("status")}</dt>
                   <dd className="break-words text-sm font-semibold capitalize sm:text-right">
-                    {listingStatusLabel(data.listing.status)}
+                    {listingStatusLabel(tStatus, data.listing.status)}
                   </dd>
                 </div>
                 <Separator />
                 <div className="grid gap-1 py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-5">
                   <dt className="text-sm text-[var(--color-muted-foreground)]">
-                    Details last confirmed
+                    {t("lastConfirmed")}
                   </dt>
                   <dd className="break-words text-sm font-semibold sm:text-right">
                     {formatDate(data.listing.last_confirmed_at)}
@@ -246,11 +260,9 @@ export default async function DashboardPage({
               {data.listing.is_stale ? (
                 <Alert variant="warning" className="mt-3">
                   <RefreshCw aria-hidden="true" />
-                  <AlertTitle>Details may be out of date</AlertTitle>
+                  <AlertTitle>{t("staleTitle")}</AlertTitle>
                   <AlertDescription>
-                    <p>
-                      Trainees see this notice. Confirm your fees and intake dates with {BRAND} to remove it.
-                    </p>
+                    <p>{t("staleBody", {brand: BRAND})}</p>
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -265,15 +277,13 @@ export default async function DashboardPage({
                 <div className="mb-1 grid size-10 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
                   <UsersRound aria-hidden="true" className="size-4" />
                 </div>
-                <CardTitle id="profile-management-heading">Profile management</CardTitle>
-                <CardDescription>
-                  Sign in with your private phone number. Changes are reviewed before they become public.
-                </CardDescription>
+                <CardTitle id="profile-management-heading">{t("profileManagement")}</CardTitle>
+                <CardDescription>{t("profileManagementBody")}</CardDescription>
               </CardHeader>
               <CardFooter className="sm:px-6">
                 <Button asChild variant="brand" className="w-full">
                   <Link href="/trainer/join">
-                    Manage your workshop profile
+                    {t("manageProfile")}
                     <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
@@ -288,9 +298,9 @@ export default async function DashboardPage({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h2 id="subscription-heading" className="font-semibold">
-                        Subscription
+                        {t("subscription")}
                       </h2>
-                      <CardDescription>Your current plan</CardDescription>
+                      <CardDescription>{t("currentPlan")}</CardDescription>
                     </div>
                     <Badge variant="outline">{data.subscription.tier}</Badge>
                   </div>
@@ -298,11 +308,11 @@ export default async function DashboardPage({
                 <Separator />
                 <CardContent className="pt-5 sm:px-6">
                   <p className="text-2xl font-bold tabular-nums">
-                    {formatFee(data.subscription.price)}
+                    {formatFee(data.subscription.price, tFormat)}
                   </p>
                   <p className="mt-1 flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
                     <CalendarClock aria-hidden="true" className="size-3.5" />
-                    Renews {formatDate(data.subscription.period_end)}
+                    {t("renews", {date: formatDate(data.subscription.period_end)})}
                   </p>
                 </CardContent>
               </Card>

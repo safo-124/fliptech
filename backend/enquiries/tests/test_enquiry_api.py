@@ -156,6 +156,48 @@ def test_second_provider_in_the_same_session_costs_no_extra_sms(client, programm
 
 
 @pytest.mark.django_db
+def test_another_browser_cannot_ride_on_a_verification(client, programme, monkeypatch):
+    """Verifying a number trusts the browser that typed the code, not the
+    number. Otherwise anybody who knew it could enquire in its owner's name."""
+    from django.test import Client
+
+    from enquiries import otp
+
+    monkeypatch.setattr(otp, "_generate_code", lambda: "123456")
+    otp.request_code(PHONE)
+    client.post("/api/enquiries/verify-code/", {"phone": PHONE, "code": "123456"})
+
+    stranger = Client()
+    sent = stranger.post("/api/enquiries/", {"phone": PHONE, "programme_id": programme.pk})
+    assert sent.status_code == 403
+    assert Enquiry.objects.count() == 0
+
+    # Nor does asking for a code reveal that the number was just verified.
+    requested = stranger.post("/api/enquiries/request-code/", {"phone": PHONE})
+    assert requested.json()["verified"] is False
+
+
+@pytest.mark.django_db
+def test_session_trust_expires(client, programme, monkeypatch, settings):
+    from enquiries import otp
+
+    monkeypatch.setattr(otp, "_generate_code", lambda: "123456")
+    otp.request_code(PHONE)
+    client.post("/api/enquiries/verify-code/", {"phone": PHONE, "code": "123456"})
+
+    # Age the session's record past the window. A signed-in trainee is vouched
+    # for by the account, so sign out too, to test the window on its own.
+    earlier = timezone.now() - timedelta(seconds=settings.OTP_SESSION_TRUST_SECONDS + 1)
+    session = client.session
+    session[otp.TRUSTED_PHONES_SESSION_KEY] = {PHONE: earlier.timestamp()}
+    session.pop("_auth_user_id", None)
+    session.save()
+
+    response = client.post("/api/enquiries/", {"phone": PHONE, "programme_id": programme.pk})
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
 def test_enquiry_is_refused_for_an_unpublished_listing(client, programme, monkeypatch):
     from enquiries import otp
 

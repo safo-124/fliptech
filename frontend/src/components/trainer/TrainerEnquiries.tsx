@@ -1,6 +1,7 @@
 "use client";
 
 import {Check, Clock3, Loader2, MessageCircle, Phone, RotateCcw, Search, Send} from "lucide-react";
+import {useTranslations} from "next-intl";
 import {useState} from "react";
 
 import {Badge} from "@/components/ui/badge";
@@ -14,6 +15,9 @@ import {cn} from "@/lib/utils";
 import type {TrainerEnquiry} from "@/lib/types";
 
 type Filter = "all" | "waiting" | "replied";
+
+/** Needs-a-reply first: answering is the job. Words in "TrainerEnquiries.filters". */
+const FILTERS: ReadonlyArray<Filter> = ["waiting", "all", "replied"];
 
 /**
  * The people who asked, and a way to answer them.
@@ -37,6 +41,7 @@ export function TrainerEnquiries({
   loading: boolean;
   onToggleReplied: (referenceCode: string, replied: boolean) => Promise<void>;
 }) {
+  const t = useTranslations("TrainerEnquiries");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   // Per row, not one flag for the list: marking one enquiry should not freeze
@@ -59,7 +64,7 @@ export function TrainerEnquiries({
   if (loading) {
     return (
       <div className="space-y-3" role="status" aria-busy="true">
-        <span className="sr-only">Loading your enquiries…</span>
+        <span className="sr-only">{t("loading")}</span>
         {[0, 1, 2].map((n) => (
           <Skeleton key={n} className="h-36 w-full rounded-2xl" />
         ))}
@@ -73,10 +78,9 @@ export function TrainerEnquiries({
         <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">
           <Send aria-hidden="true" className="size-5" />
         </span>
-        <p className="mt-4 text-lg font-semibold">No enquiries yet</p>
+        <p className="mt-4 text-lg font-semibold">{t("emptyTitle")}</p>
         <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-[var(--color-muted-foreground)]">
-          When someone asks about your courses through Skills Hub, they appear here with their
-          message and a reference, and you can reply on WhatsApp.
+          {t("emptyBody")}
         </p>
       </Card>
     );
@@ -112,22 +116,16 @@ export function TrainerEnquiries({
         />
         <Input
           type="search"
-          aria-label="Search your enquiries"
+          aria-label={t("searchLabel")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by name, number, course or reference"
+          placeholder={t("searchPlaceholder")}
           className="pl-9"
         />
       </div>
 
-      <div className="flex gap-1.5" role="group" aria-label="Filter enquiries">
-        {(
-          [
-            ["waiting", "Needs a reply"],
-            ["all", "All"],
-            ["replied", "Replied"],
-          ] as Array<[Filter, string]>
-        ).map(([key, label]) => (
+      <div className="flex gap-1.5" role="group" aria-label={t("filterLabel")}>
+        {FILTERS.map((key) => (
           <button
             key={key}
             type="button"
@@ -140,7 +138,7 @@ export function TrainerEnquiries({
                 : "border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-muted-foreground)] hover:border-[var(--color-border-strong)]",
             )}
           >
-            {label}
+            {t(`filters.${key}`)}
             <span className="ml-1.5 tabular-nums opacity-70">{counts[key]}</span>
           </button>
         ))}
@@ -148,10 +146,8 @@ export function TrainerEnquiries({
 
       {visible.length === 0 ? (
         <Card className="border-dashed p-6 text-center">
-          <p className="font-semibold">Nothing matches</p>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            Try a different word, or clear the filter.
-          </p>
+          <p className="font-semibold">{t("noMatchesTitle")}</p>
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("noMatchesBody")}</p>
           <Button
             type="button"
             variant="outline"
@@ -161,7 +157,7 @@ export function TrainerEnquiries({
               setQuery("");
             }}
           >
-            Clear filters
+            {t("clearFilters")}
           </Button>
         </Card>
       ) : (
@@ -172,11 +168,11 @@ export function TrainerEnquiries({
                 <CardHeader className="pb-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     {enquiry.replied ? (
-                      <Badge variant="secondary">Replied</Badge>
+                      <Badge variant="secondary">{t("filters.replied")}</Badge>
                     ) : (
                       <Badge variant="warning">
                         <Clock3 aria-hidden="true" />
-                        Needs a reply
+                        {t("filters.waiting")}
                       </Badge>
                     )}
                     <span className="font-mono text-xs text-[var(--color-muted-foreground)]">
@@ -184,11 +180,13 @@ export function TrainerEnquiries({
                     </span>
                   </div>
                   <CardTitle className="text-lg">
-                    {enquiry.trainee_name || "Someone"}
+                    {enquiry.trainee_name || t("someone")}
                   </CardTitle>
                   <p className="text-sm text-[var(--color-muted-foreground)]">
-                    {enquiry.programme ?? "General enquiry"} · asked{" "}
-                    {formatDate(enquiry.created_at)}
+                    {t("askedAbout", {
+                      programme: enquiry.programme ?? t("generalEnquiry"),
+                      date: formatDate(enquiry.created_at),
+                    })}
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
@@ -198,7 +196,7 @@ export function TrainerEnquiries({
                     </p>
                   ) : (
                     <p className="text-[var(--color-muted-foreground)]">
-                      They did not leave a message.
+                      {t("noMessage")}
                     </p>
                   )}
                   <p className="flex items-center gap-2 text-[var(--color-muted-foreground)]">
@@ -209,7 +207,7 @@ export function TrainerEnquiries({
                     <Button asChild variant="brand" className="flex-1">
                       <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
                         <MessageCircle aria-hidden="true" />
-                        Reply on WhatsApp
+                        {t("replyWhatsApp")}
                       </a>
                     </Button>
                     {/* Separate from the link on purpose. Opening WhatsApp is
@@ -231,12 +229,12 @@ export function TrainerEnquiries({
                       ) : (
                         <Check aria-hidden="true" />
                       )}
-                      {enquiry.replied ? "Not replied yet" : "Mark as replied"}
+                      {enquiry.replied ? t("markNotReplied") : t("markReplied")}
                     </Button>
                   </div>
                   {failed === enquiry.reference_code ? (
                     <p role="alert" className="text-sm text-[var(--color-warn)]">
-                      Could not save that. Check your connection and try again.
+                      {t("saveFailed")}
                     </p>
                   ) : null}
                 </CardContent>

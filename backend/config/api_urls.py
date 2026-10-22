@@ -38,7 +38,12 @@ from providers.trainer_views import (
     TrainerProfileView,
     TrainerSessionView,
 )
-from providers.views import ProviderBySlugView, ProviderViewSet, TradeAreaSummaryView
+from providers.views import (
+    ProfileViewedView,
+    ProviderBySlugView,
+    ProviderViewSet,
+    TradeAreaSummaryView,
+)
 
 router = DefaultRouter()
 router.register("providers", ProviderViewSet, basename="provider")
@@ -143,6 +148,13 @@ urlpatterns = [
     # Public page data. Registered before the router so the two-segment provider
     # address does not collide with the router's detail route.
     path("pages/summary/", TradeAreaSummaryView.as_view(), name="trade-area-summary"),
+    # The profile page reporting that it was opened, for the dashboard's
+    # profile views. Before the router, which owns providers/<pk>/.
+    path(
+        "providers/<int:pk>/viewed/",
+        ProfileViewedView.as_view(),
+        name="provider-profile-viewed",
+    ),
     path(
         "providers/<slug:area_slug>/<slug:slug>/",
         ProviderBySlugView.as_view(),

@@ -2,6 +2,7 @@
 
 import {UserPlus, UserRound} from "lucide-react";
 import Link from "next/link";
+import {useTranslations} from "next-intl";
 import {useEffect, useState} from "react";
 
 import {Button} from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {getWhoami} from "@/lib/session-api";
  * no JavaScript to be correct. The swap costs one small request per page load.
  */
 export function AccountNav() {
+  const t = useTranslations("AccountNav");
   const [account, setAccount] = useState<{
     href: string;
     name: string;
@@ -89,14 +91,14 @@ export function AccountNav() {
       <Button asChild variant="onBand" size="default" className="px-3 sm:px-4">
         <Link href="/trainee">
           <UserRound aria-hidden />
-          <span className="hidden sm:inline">My account</span>
-          <span className="sm:hidden">Account</span>
+          <span className="hidden sm:inline">{t("myAccount")}</span>
+          <span className="sm:hidden">{t("account")}</span>
         </Link>
       </Button>
       <Button asChild variant="warm" size="default" className="px-3 sm:px-4">
         <Link href="/join">
           <UserPlus aria-hidden />
-          Sign up
+          {t("signUp")}
         </Link>
       </Button>
     </>

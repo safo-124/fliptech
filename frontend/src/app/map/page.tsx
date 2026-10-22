@@ -6,8 +6,11 @@
  * the first payload rather than after a second round trip on a 3G connection.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { AlertTriangle, List, Map, MapPin, Route, SearchX } from "lucide-react";
 
@@ -16,13 +19,15 @@ import { ProviderCard } from "@/components/ProviderCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ClientMessages } from "@/i18n/ClientMessages";
+import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { buildQuery, searchAllProviders, type SearchParams } from "@/lib/api";
 import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
-export const metadata = {
-  title: "Map of training providers",
-  description: "See every published skills training provider on one map.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("MapPage");
+  return { title: t("metaTitle"), description: t("metaDescription") };
+}
 
 function hasMappableCoordinates(provider: ProviderCardData) {
   return (
@@ -40,21 +45,22 @@ function withoutPage(params: SearchParams): SearchParams {
 }
 
 function ViewSwitch({ listHref, mapHref }: { listHref: string; mapHref: string }) {
+  const t = useTranslations("SearchPage");
   return (
     <nav
-      aria-label="Choose results view"
+      aria-label={t("chooseView")}
       className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-1 shadow-xs"
     >
       <Button asChild variant="ghost" size="sm" className="min-h-11 rounded-lg px-3">
         <Link href={listHref}>
           <List aria-hidden="true" />
-          List
+          {t("list")}
         </Link>
       </Button>
       <Button asChild size="sm" className="min-h-11 rounded-lg px-3 shadow-none">
         <Link href={mapHref} aria-current="page">
           <Map aria-hidden="true" />
-          Map
+          {t("map")}
         </Link>
       </Button>
     </nav>
@@ -74,6 +80,7 @@ function MapPageState({
   retryHref?: string;
   alert?: boolean;
 }) {
+  const t = useTranslations("MapPage");
   const Icon = alert ? AlertTriangle : SearchX;
 
   return (
@@ -96,13 +103,13 @@ function MapPageState({
         <div className="mt-5 flex flex-wrap justify-center gap-3">
           {retryHref ? (
             <Button asChild>
-              <Link href={retryHref}>Try the map again</Link>
+              <Link href={retryHref}>{t("retry")}</Link>
             </Button>
           ) : null}
           <Button asChild variant="outline">
             <Link href={listHref}>
               <List aria-hidden="true" />
-              Use the list view
+              {t("useList")}
             </Link>
           </Button>
         </div>
@@ -135,20 +142,15 @@ export default async function MapPage({
   // This helper follows every DRF pagination link and throws if any page fails.
   // Rendering no map is more honest than labelling the first 20 markers with
   // the catalogue-wide count returned by the API.
-  const providers = await searchAllProviders(params).catch(() => null);
+  const [providers, t] = await Promise.all([
+    searchAllProviders(params).catch(() => null),
+    getTranslations("MapPage"),
+  ]);
 
   if (!providers) {
     return (
-      <MapPageState
-        title="We could not load the complete map"
-        listHref={listHref}
-        retryHref={mapHref}
-        alert
-      >
-        <p>
-          One or more pages of providers could not be loaded, so we have not shown an incomplete
-          map.
-        </p>
+      <MapPageState title={t("incompleteTitle")} listHref={listHref} retryHref={mapHref} alert>
+        <p>{t("incompleteBody")}</p>
       </MapPageState>
     );
   }
@@ -156,14 +158,10 @@ export default async function MapPage({
   if (providers.length === 0) {
     return (
       <MapPageState
-        title={hasActiveFilters ? "No provider locations match these filters" : "No provider locations yet"}
+        title={hasActiveFilters ? t("noMatchTitle") : t("noneYetTitle")}
         listHref={listHref}
       >
-        <p>
-          {hasActiveFilters
-            ? "Return to the list to adjust your filters and see more options."
-            : "Published training providers will appear here as soon as they are available."}
-        </p>
+        <p>{hasActiveFilters ? t("noMatchBody") : t("noneYetBody")}</p>
       </MapPageState>
     );
   }
@@ -173,11 +171,8 @@ export default async function MapPage({
 
   if (mappableProviders.length === 0) {
     return (
-      <MapPageState title="Provider locations are unavailable" listHref={listHref} alert>
-        <p>
-          We loaded {providers.length} published {providers.length === 1 ? "provider" : "providers"},
-          but none has a usable map location. The full records are still available in the list.
-        </p>
+      <MapPageState title={t("unavailableTitle")} listHref={listHref} alert>
+        <p>{t("unavailableBody", { count: providers.length })}</p>
       </MapPageState>
     );
   }
@@ -197,15 +192,13 @@ export default async function MapPage({
             className="border-[var(--color-brand)]/20 bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
           >
             <Route aria-hidden="true" />
-            {hasActiveFilters ? "Map with your active filters" : "Explore by location"}
+            {hasActiveFilters ? t("badgeFiltered") : t("badgeExplore")}
           </Badge>
           <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-            {mappableProviders.length} provider {mappableProviders.length === 1 ? "location" : "locations"}
+            {t("locationCount", { count: mappableProviders.length })}
           </h1>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[var(--color-muted-foreground)]">
-            {hasActiveFilters
-              ? "This map shows the complete provider set for the same filters as your list."
-              : "See where published training workshops are located, then open a listing for fees and intake dates."}
+            {hasActiveFilters ? t("leadFiltered") : t("leadExplore")}
           </p>
         </div>
         <ViewSwitch listHref={listHref} mapHref={mapHref} />
@@ -217,10 +210,7 @@ export default async function MapPage({
           role="status"
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <p>
-            {missingLocationCount} of {providers.length} published providers cannot be plotted
-            because their location data is invalid. They remain available in the list view.
-          </p>
+          <p>{t("missingLocations", { missing: missingLocationCount, count: providers.length })}</p>
         </Card>
       ) : null}
 
@@ -229,7 +219,7 @@ export default async function MapPage({
         <ul
           className="hidden h-[70dvh] min-h-[28rem] space-y-4 overflow-y-auto pr-1 lg:block"
           data-map-comparison-list
-          aria-label="Providers shown on the map"
+          aria-label={t("listLabel")}
         >
           {providers.map((provider) => (
             <li key={provider.id}>
@@ -242,12 +232,9 @@ export default async function MapPage({
             reach both edges, and the height is everything under the 4rem site
             header. From lg it goes back to being a card in the grid. */}
         <div className="relative -mx-3 h-[calc(100dvh-4rem)] overflow-hidden bg-[var(--color-card)] lg:mx-0 lg:h-auto lg:rounded-2xl lg:border lg:border-[var(--color-border-strong)] lg:shadow-[var(--shadow-lg)]">
-          <MapLoader
-            providers={mappableProviders}
-            listHref={listHref}
-            fill
-            immersive
-          />
+          <ClientMessages namespaces={MAP_CLIENT_NAMESPACES}>
+            <MapLoader providers={mappableProviders} listHref={listHref} fill immersive />
+          </ClientMessages>
 
           {/* Back to the list. The header's List/Map switch is off-screen on a
               phone now, so this is the way back, and it matches the "View on
@@ -257,17 +244,14 @@ export default async function MapPage({
             className="band absolute inset-x-0 bottom-9 z-[500] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
           >
             <List aria-hidden="true" className="size-4" />
-            List view
+            {t("listView")}
           </Link>
         </div>
       </div>
 
       <div className="mt-4 hidden items-start gap-2 text-xs leading-5 text-[var(--color-muted-foreground)] lg:flex">
         <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        <p>
-          The list view keeps fee, duration and next intake visible on every card, which makes
-          comparing providers easier than the map does.
-        </p>
+        <p>{t("listAdvice")}</p>
       </div>
     </div>
   );

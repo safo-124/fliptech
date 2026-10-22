@@ -1,4 +1,15 @@
-/** Ghana cedi and date formatting, in one place so the interface stays consistent. */
+/** Ghana cedi and date formatting, in one place so the interface stays consistent.
+ *
+ * The helpers that produce words — "Fee not listed", "3 weeks", "2.4 km away" —
+ * take the "Format" translator, so those words live in messages/en.json with
+ * every other string. Pass `useTranslations("Format")` from a client or
+ * synchronous component, or `await getTranslations("Format")` from an async
+ * one. Numbers and dates stay with Intl, which already knows how to write them.
+ */
+
+import type { useTranslations } from "next-intl";
+
+export type FormatTranslator = ReturnType<typeof useTranslations<"Format">>;
 
 const cedi = new Intl.NumberFormat("en-GH", {
   style: "currency",
@@ -6,15 +17,15 @@ const cedi = new Intl.NumberFormat("en-GH", {
   maximumFractionDigits: 0,
 });
 
-export function formatFee(value: string | null): string {
-  if (value === null) return "Fee not listed";
+export function formatFee(value: string | null, t: FormatTranslator): string {
+  if (value === null) return t("feeNotListed");
   return cedi.format(Number(value));
 }
 
-export function formatFeeRange(low: string | null, high: string | null): string {
-  if (!low || !high) return "Fees not listed";
+export function formatFeeRange(low: string | null, high: string | null, t: FormatTranslator): string {
+  if (!low || !high) return t("feesNotListed");
   if (low === high) return cedi.format(Number(low));
-  return `${cedi.format(Number(low))} to ${cedi.format(Number(high))}`;
+  return t("feeRange", { low: cedi.format(Number(low)), high: cedi.format(Number(high)) });
 }
 
 export function formatDate(value: string | null): string {
@@ -31,17 +42,16 @@ export function formatMonthYear(value: string | null): string {
   return new Date(value).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
-export function formatDuration(weeks: number | null): string {
-  if (weeks === null) return "Duration not listed";
-  if (weeks < 4) return `${weeks} week${weeks === 1 ? "" : "s"}`;
-  const months = Math.round(weeks / 4.345);
-  return `${months} month${months === 1 ? "" : "s"}`;
+export function formatDuration(weeks: number | null, t: FormatTranslator): string {
+  if (weeks === null) return t("durationNotListed");
+  if (weeks < 4) return t("weeks", { count: weeks });
+  return t("months", { count: Math.round(weeks / 4.345) });
 }
 
-export function formatDistance(metres: number | null): string | null {
+export function formatDistance(metres: number | null, t: FormatTranslator): string | null {
   if (metres === null) return null;
-  if (metres < 950) return `${Math.round(metres / 50) * 50} m away`;
-  return `${(metres / 1000).toFixed(1)} km away`;
+  if (metres < 950) return t("metresAway", { metres: Math.round(metres / 50) * 50 });
+  return t("kilometresAway", { kilometres: (metres / 1000).toFixed(1) });
 }
 
 /**

@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,13 +26,14 @@ export async function generateMetadata({
   params: Promise<{ trade: string }>;
 }): Promise<Metadata> {
   const { trade } = await params;
-  const found = await getTrade(trade).catch(() => null);
-  if (!found) return { title: "Not found" };
+  const [found, t] = await Promise.all([
+    getTrade(trade).catch(() => null),
+    getTranslations("TradePage"),
+  ]);
+  if (!found) return { title: t("notFound") };
   return {
-    title: `${found.name} training in Ghana`,
-    description:
-      found.description ||
-      `What ${found.name.toLowerCase()} training costs, how long it takes, and where to find it.`,
+    title: t("metaTitle", { trade: found.name }),
+    description: found.description || t("metaDescription", { trade: found.name.toLowerCase() }),
     alternates: { canonical: `/trades/${trade}` },
   };
 }
@@ -46,7 +48,10 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
     throw error;
   }
 
-  const results = await searchProviders({ trade }).catch(() => null);
+  const [results, t] = await Promise.all([
+    searchProviders({ trade }).catch(() => null),
+    getTranslations("TradePage"),
+  ]);
 
   return (
     <div className="relative overflow-hidden pb-12">
@@ -59,7 +64,7 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
         <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
           <Link href="/">
             <ArrowLeft aria-hidden="true" />
-            Search all trades
+            {t("searchAll")}
           </Link>
         </Button>
 
@@ -76,10 +81,10 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
           <div className="relative max-w-3xl">
             <Badge variant="secondary" className="mb-4">
               <BookOpenCheck aria-hidden="true" />
-              Trade guide
+              {t("tradeGuide")}
             </Badge>
             <h1 className="max-w-2xl text-3xl font-bold tracking-[-0.04em] sm:text-4xl lg:text-5xl">
-              {found.name} training
+              {t("heading", { trade: found.name })}
             </h1>
             {found.description && (
               <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--color-muted-foreground)] sm:text-lg sm:leading-8">
@@ -90,12 +95,11 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="px-3 py-2 text-xs">
                 <GraduationCap aria-hidden="true" />
-                {found.provider_count} listed{" "}
-                {found.provider_count === 1 ? "provider" : "providers"}
+                {t("listedCount", { count: found.provider_count })}
               </Badge>
               <span className="inline-flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
                 <ShieldCheck className="size-4 text-[var(--color-visit)]" aria-hidden="true" />
-                Fees, schedules and trust details in one place
+                {t("allInOnePlace")}
               </span>
             </div>
           </div>
@@ -104,13 +108,13 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
         <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between lg:mt-10">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-brand-strong)]">
-              Available training
+              {t("availableTraining")}
             </p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight">Compare providers</h2>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight">{t("compareProviders")}</h2>
           </div>
           {results ? (
             <p className="text-sm text-[var(--color-muted-foreground)]">
-              Showing {results.results.length} of {results.count}
+              {t("showing", { shown: results.results.length, count: results.count })}
             </p>
           ) : null}
         </div>
@@ -118,10 +122,8 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
         {results === null ? (
           <Alert variant="warning" className="mt-5">
             <Search aria-hidden="true" />
-            <AlertTitle>Listings are temporarily unavailable</AlertTitle>
-            <AlertDescription>
-              Please try this page again shortly, or return to search to explore other trades.
-            </AlertDescription>
+            <AlertTitle>{t("unavailableTitle")}</AlertTitle>
+            <AlertDescription>{t("unavailableBody")}</AlertDescription>
           </Alert>
         ) : results.results.length > 0 ? (
           <ul className="mt-6 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -137,9 +139,9 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
               <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
                 <Search aria-hidden="true" />
               </div>
-              <h3 className="mt-4 text-xl font-bold">No providers listed yet</h3>
+              <h3 className="mt-4 text-xl font-bold">{t("noneTitle")}</h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--color-muted-foreground)]">
-                Try another trade or return soon as new training providers are added regularly.
+                {t("noneBody")}
               </p>
             </CardContent>
           </Card>
@@ -147,7 +149,7 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
 
         <Button asChild variant="outline" className="mt-8 w-full sm:w-auto">
           <Link href="/">
-            Search all trades
+            {t("searchAll")}
             <ArrowRight aria-hidden="true" />
           </Link>
         </Button>

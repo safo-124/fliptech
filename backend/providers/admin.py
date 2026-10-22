@@ -32,6 +32,7 @@ from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
 from . import admin_upload, queues
+from .admin_outbox import OwnerMessagesAdminMixin
 from .lifecycle import (
     ProviderTransitionError,
     UnconfirmedTrainerError,
@@ -42,6 +43,7 @@ from .lifecycle import (
 from .models import (
     GovernmentStatus,
     ListingConfirmation,
+    OwnerNotice,
     Provider,
     ProviderEvidence,
     ProviderMembership,
@@ -192,7 +194,7 @@ class ReturnForChangesForm(forms.Form):
 
 
 @admin.register(Provider)
-class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
+class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
     """Provider onboarding, the screen a field officer lives in.
 
     ExportActionMixin is here for a specific reason: Section 03 names "no way to
@@ -385,6 +387,8 @@ class ProviderAdmin(ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
                 self.admin_site.admin_view(admin_upload.photos_base),
                 name="providers_provider_photos_base",
             ),
+            # WhatsApp messages to owners. See admin_outbox.py.
+            *self.outbox_urls(),
         ]
         return custom + super().get_urls()
 
@@ -639,6 +643,7 @@ class ListingConfirmationAdmin(admin.ModelAdmin):
     list_display = (
         "provider",
         "prompted_at",
+        "prompted_by",
         "responded_at",
         "channel",
         "fees_confirmed",
@@ -647,11 +652,47 @@ class ListingConfirmationAdmin(admin.ModelAdmin):
     list_filter = ("channel", "fees_confirmed", "intakes_confirmed", "prompted_at")
     search_fields = ("provider__name",)
     autocomplete_fields = ("provider", "confirmed_by")
+    readonly_fields = ("prompted_by",)
 
     def save_model(self, request, obj, form, change):
+        # Whoever records the owner's answer is the one vouching for it.
+        if obj.responded_at and obj.confirmed_by_id is None:
+            obj.confirmed_by = request.user
+        # Clearing "prompted at" puts a prompt back in the queue, for an
+        # officer who opened WhatsApp and backed out without sending.
+        if obj.prompted_at is None:
+            obj.prompted_by = None
         super().save_model(request, obj, form, change)
         if obj.responded_at and obj.fees_confirmed and obj.intakes_confirmed:
             Provider.objects.filter(pk=obj.provider_id).update(last_confirmed_at=obj.responded_at)
+
+
+@admin.register(OwnerNotice)
+class OwnerNoticeAdmin(admin.ModelAdmin):
+    """The record of owners told their listing is live.
+
+    Created by publishing, sent from Messages to send. The only edit is
+    clearing "sent at", which puts a notice back in the queue for an officer
+    who opened WhatsApp and backed out without sending.
+    """
+
+    list_display = ("provider", "kind", "created_at", "sent_at", "sent_by")
+    list_filter = ("kind", "sent_at")
+    search_fields = ("provider__name",)
+    fields = ("provider", "kind", "created_at", "sent_at", "sent_by")
+    readonly_fields = ("provider", "kind", "created_at", "sent_by")
+    list_select_related = ("provider", "sent_by")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if obj.sent_at is None:
+            obj.sent_by = None
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ProviderPhoto)

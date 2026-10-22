@@ -1,5 +1,7 @@
 import {Clock3, ShieldX} from "lucide-react";
+import {useTranslations} from "next-intl";
 
+import {BRAND} from "@/lib/brand";
 import type {TrainerSession} from "@/lib/types";
 
 /**
@@ -10,6 +12,7 @@ import type {TrainerSession} from "@/lib/types";
  * saves a support call asking why an approved-looking profile is not live.
  */
 export function TrainerAccountNotice({session}: {session: TrainerSession | null}) {
+  const t = useTranslations("TrainerAccountNotice");
   if (!session?.authenticated || !session.account_status || session.account_status === "confirmed") {
     return null;
   }
@@ -18,9 +21,9 @@ export function TrainerAccountNotice({session}: {session: TrainerSession | null}
       <div role="alert" className="mb-5 flex items-start gap-3 rounded-2xl border border-[var(--color-destructive)]/30 bg-[var(--color-card)] p-4 text-sm">
         <ShieldX aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--color-destructive)]" />
         <div>
-          <p className="font-semibold">Your trainer sign-up was not approved</p>
+          <p className="font-semibold">{t("declinedTitle")}</p>
           <p className="mt-1 leading-6 text-[var(--color-muted-foreground)]">
-            {session.account_note || "Contact Fliptech if you think this is a mistake."}
+            {session.account_note || t("declinedBody", {brand: BRAND})}
           </p>
         </div>
       </div>
@@ -34,11 +37,8 @@ export function TrainerAccountNotice({session}: {session: TrainerSession | null}
     >
       <Clock3 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--color-warn)]" />
       <div>
-        <p className="font-semibold">Waiting for Fliptech to confirm your sign-up</p>
-        <p className="mt-1 leading-6 text-[var(--color-muted-foreground)]">
-          You can finish and submit your workshop profile now. It goes public only after your
-          sign-up is confirmed and the profile is reviewed.
-        </p>
+        <p className="font-semibold">{t("pendingTitle", {brand: BRAND})}</p>
+        <p className="mt-1 leading-6 text-[var(--color-muted-foreground)]">{t("pendingBody")}</p>
       </div>
     </div>
   );

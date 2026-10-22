@@ -22,6 +22,9 @@ import {
   SearchX,
   TriangleAlert,
 } from "lucide-react";
+import type { Metadata } from "next";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { BrandShards } from "@/components/BrandShards";
 import { FilterBar } from "@/components/FilterBar";
@@ -29,16 +32,20 @@ import { ProviderCard } from "@/components/ProviderCard";
 import { SearchMapPanel } from "@/components/SearchMapPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ClientMessages } from "@/i18n/ClientMessages";
+import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { buildQuery, getTrades, searchProviders, type SearchParams } from "@/lib/api";
 import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
+import { BRAND } from "@/lib/brand";
 import { titleCase } from "@/lib/format";
 
-export const metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("SearchPage");
   // Deliberately not region-aware. A title that changed as regions launched
   // would churn the one string search engines have indexed longest, and the
   // product is national whichever regions happen to be live this month.
-  title: "Find skills training near you in Ghana",
-};
+  return { title: t("metaTitle") };
+}
 
 function withoutPage(params: SearchParams): SearchParams {
   return { ...params, page: undefined };
@@ -50,21 +57,22 @@ function listPageHref(params: SearchParams, page: number) {
 }
 
 function ResultsViewSwitch({ listHref, mapHref }: { listHref: string; mapHref: string }) {
+  const t = useTranslations("SearchPage");
   return (
     <nav
-      aria-label="Choose results view"
+      aria-label={t("chooseView")}
       className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-1 shadow-xs"
     >
       <Button asChild size="sm" className="min-h-11 rounded-lg px-3 shadow-none">
         <Link href={listHref} aria-current="page">
           <List aria-hidden="true" />
-          List
+          {t("list")}
         </Link>
       </Button>
       <Button asChild variant="ghost" size="sm" className="min-h-11 rounded-lg px-3">
         <Link href={mapHref}>
           <Map aria-hidden="true" />
-          Map
+          {t("map")}
         </Link>
       </Button>
     </nav>
@@ -81,21 +89,26 @@ export default async function SearchPage({
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
 
-  const [trades, results, regionNames] = await Promise.all([
+  const [trades, results, regionNames, t, tCoverage] = await Promise.all([
     getTrades().catch(() => ({ results: [] })),
     searchProviders(params).catch(() => null),
     launchedRegionNames(),
+    getTranslations("SearchPage"),
+    getTranslations("Coverage"),
   ]);
   // "in Greater Accra" while that is the only live region, "across Ghana"
   // once naming them stops being readable.
-  const coverage = coverageSuffix(regionNames);
+  const coverage = coverageSuffix(regionNames, tCoverage);
 
   const mapHref = `/map${buildQuery(withoutPage(params))}`;
   const listHref = `/${buildQuery(params)}`;
   const currentPage = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
-  const resultTitle = params.trade
-    ? `${titleCase(params.trade)} training providers`
-    : "Training providers";
+  const groupSize = Number.parseInt(params.places ?? "", 10);
+  const tradeTitle = params.trade
+    ? t("tradeProviders", { trade: titleCase(params.trade) })
+    : t("allProviders");
+  const resultTitle =
+    groupSize > 0 ? t("withRoomFor", { title: tradeTitle, size: groupSize }) : tradeTitle;
 
   return (
     <>
@@ -115,18 +128,19 @@ export default async function SearchPage({
           <div className="max-w-3xl">
             <span className="badge border-white/20 bg-white/10 text-white/80 backdrop-blur-sm">
               <MapPin aria-hidden="true" className="size-3.5" />
-              Practical training {coverage}
+              {t("heroBadge", { coverage })}
             </span>
             <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.05] tracking-[-0.035em] text-white sm:text-4xl lg:text-[3.25rem]">
-              Find training that fits your plans and{" "}
-              <span className="bg-gradient-to-r from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] bg-clip-text text-transparent">
-                your pocket
-              </span>
-              .
+              {t.rich("heroTitle", {
+                highlight: (chunks) => (
+                  <span className="bg-gradient-to-r from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] bg-clip-text text-transparent">
+                    {chunks}
+                  </span>
+                ),
+              })}
             </h1>
             <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 sm:text-base sm:leading-7">
-              Compare course fees, duration and next intake dates before you spend time or money
-              travelling to a workshop.
+              {t("heroLead")}
             </p>
           </div>
         </div>
@@ -156,13 +170,13 @@ export default async function SearchPage({
               </span>
               <div>
                 <h2 id="search-results-heading" className="font-semibold text-[var(--color-foreground)]">
-                  We could not load providers just now
+                  {t("loadFailedTitle")}
                 </h2>
                 <p className="mt-1 text-sm leading-6">
-                  Check your connection and try again. Your filters are still available above.
+                  {t("loadFailedBody")}
                 </p>
                 <Button asChild variant="outline" className="mt-4">
-                  <Link href={`/${buildQuery(params)}`}>Try again</Link>
+                  <Link href={`/${buildQuery(params)}`}>{t("tryAgain")}</Link>
                 </Button>
               </div>
             </div>
@@ -172,7 +186,7 @@ export default async function SearchPage({
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
-                  Explore your options
+                  {t("exploreOptions")}
                 </p>
                 <h2
                   id="search-results-heading"
@@ -182,8 +196,8 @@ export default async function SearchPage({
                 </h2>
                 <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
                   {results.results.length === results.count
-                    ? `${results.count} ${results.count === 1 ? "provider" : "providers"}`
-                    : `${results.results.length} on this page · ${results.count} total`}
+                    ? t("providerCount", { count: results.count })
+                    : t("pageCount", { shown: results.results.length, count: results.count })}
                 </p>
               </div>
               <ResultsViewSwitch listHref={listHref} mapHref={mapHref} />
@@ -204,7 +218,7 @@ export default async function SearchPage({
                 className="band fixed inset-x-0 bottom-5 z-[900] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
               >
                 <Map aria-hidden="true" className="size-4" />
-                View {results.count} on map
+                {t("viewOnMap", { count: results.count })}
               </Link>
             ) : null}
 
@@ -214,12 +228,12 @@ export default async function SearchPage({
                   <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]">
                     <SearchX className="size-5" aria-hidden="true" />
                   </span>
-                  <h3 className="mt-4 text-lg font-semibold">No providers match those filters yet</h3>
+                  <h3 className="mt-4 text-lg font-semibold">{t("noMatchTitle")}</h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
-                    Try removing the fee limit, changing your search, or choosing all trades.
+                    {t("noMatchBody")}
                   </p>
                   <Button asChild variant="outline" className="mt-5">
-                    <Link href="/">Clear all filters</Link>
+                    <Link href="/">{t("clearAllFilters")}</Link>
                   </Button>
                 </div>
               </Card>
@@ -242,9 +256,11 @@ export default async function SearchPage({
                     ))}
                   </ul>
 
-                  <aside className="hidden lg:block" aria-label="Map of providers on this page">
+                  <aside className="hidden lg:block" aria-label={t("mapOfPage")}>
                     <div className="sticky top-[5.5rem]">
-                      <SearchMapPanel providers={results.results} />
+                      <ClientMessages namespaces={MAP_CLIENT_NAMESPACES}>
+                        <SearchMapPanel providers={results.results} />
+                      </ClientMessages>
                     </div>
                   </aside>
                 </div>
@@ -252,25 +268,25 @@ export default async function SearchPage({
                 {results.previous || results.next ? (
                   <nav
                     className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-xs lg:mr-[29.25rem] xl:mr-[35.25rem]"
-                    aria-label="Provider result pages"
+                    aria-label={t("resultPages")}
                   >
                     {results.previous ? (
                       <Button asChild variant="ghost">
                         <Link href={listPageHref(params, currentPage - 1)} rel="prev">
                           <ArrowLeft aria-hidden="true" />
-                          Previous
+                          {t("previous")}
                         </Link>
                       </Button>
                     ) : (
                       <span />
                     )}
                     <span className="px-2 text-xs font-semibold text-[var(--color-muted-foreground)]">
-                      Page {currentPage}
+                      {t("pageNumber", { page: currentPage })}
                     </span>
                     {results.next ? (
                       <Button asChild variant="ghost">
                         <Link href={listPageHref(params, currentPage + 1)} rel="next">
-                          Next
+                          {t("next")}
                           <ArrowRight aria-hidden="true" />
                         </Link>
                       </Button>
@@ -282,8 +298,7 @@ export default async function SearchPage({
 
                 <Card className="mt-6 border-[var(--color-brand)]/15 bg-[var(--color-brand-soft)]/55 p-4 shadow-none lg:mr-[29.25rem] xl:mr-[35.25rem]">
                   <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                    Enquire with three providers before you decide. Comparing is free and is the
-                    best way to understand what a fair fee looks like.
+                    {t("compareAdvice")}
                   </p>
                 </Card>
               </>
@@ -300,14 +315,13 @@ export default async function SearchPage({
         <div className="grid gap-4 rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-[var(--shadow-card)] sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
-              Join Skills Hub
+              {t("joinEyebrow")}
             </p>
             <h2 id="join-heading" className="mt-1 text-2xl font-bold tracking-tight">
-              Sign up with just your phone number
+              {t("joinTitle")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
-              No password. Trainees keep their enquiries in one place. Workshops are confirmed by
-              Fliptech before they appear here.
+              {t("joinBody", { brand: BRAND })}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -319,8 +333,8 @@ export default async function SearchPage({
                 <GraduationCap aria-hidden="true" className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">I want to learn</span>
-                <span className="block text-xs text-[var(--color-muted-foreground)]">Sign up as a trainee</span>
+                <span className="block font-semibold">{t("learnTitle")}</span>
+                <span className="block text-xs text-[var(--color-muted-foreground)]">{t("learnBody")}</span>
               </span>
               <ArrowRight aria-hidden="true" className="size-4 text-[var(--color-muted-foreground)] group-hover:text-[var(--color-brand-strong)]" />
             </Link>
@@ -332,8 +346,8 @@ export default async function SearchPage({
                 <Building2 aria-hidden="true" className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">I train people</span>
-                <span className="block text-xs text-[var(--color-muted-foreground)]">Sign up as a trainer</span>
+                <span className="block font-semibold">{t("trainTitle")}</span>
+                <span className="block text-xs text-[var(--color-muted-foreground)]">{t("trainBody")}</span>
               </span>
               <ArrowRight aria-hidden="true" className="size-4 text-[var(--color-muted-foreground)] group-hover:text-[var(--color-brand-strong)]" />
             </Link>

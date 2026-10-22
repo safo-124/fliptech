@@ -9,6 +9,7 @@
  */
 
 import { Landmark, Shield, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { BRAND } from "@/lib/brand";
@@ -43,25 +44,30 @@ function TrustBadge({
 }
 
 export function SiteVisitBadge({ visit }: { visit: SiteVisit }) {
+  const t = useTranslations("TrustBadges");
   if (!visit) {
     // Absent is a real state and is shown, not hidden. A listing with no visit
     // must look different from one with a visit, or the visit means nothing.
-    return <TrustBadge kind="visit" label={`Not visited by ${BRAND}`} tone="muted" />;
+    return <TrustBadge kind="visit" label={t("notVisited", { brand: BRAND })} tone="muted" />;
   }
   return (
     <TrustBadge
       kind="visit"
-      label={`${BRAND} visit ${formatMonthYear(visit.visited_on)}`}
+      label={t("visited", { brand: BRAND, date: formatMonthYear(visit.visited_on) })}
       tone="visit"
     />
   );
 }
 
 export function GovernmentBadge({ status }: { status: GovernmentStatusBadge }) {
+  const t = useTranslations("TrustBadges");
   const tone = status.registration_status === "registered" ? "gov" : "muted";
-  // The label is used exactly as the backend authored it. Lowercasing it here
-  // turned "Claimed, not verified by Fliiptech" into "...by fliiptech".
-  return <TrustBadge kind="government" label={`CTVET: ${status.label}`} tone={tone} />;
+  // Worded from the status code so it can be translated. A code this build
+  // does not know falls back to the label exactly as the backend authored it,
+  // never lowercased — that once turned "...by Fliiptech" into "...by fliiptech".
+  const key = `status.${status.registration_status}` as const;
+  const label = t.has(key) ? t(key) : status.label;
+  return <TrustBadge kind="government" label={t("government", { status: label })} tone={tone} />;
 }
 
 export function TrustBadges({

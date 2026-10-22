@@ -106,16 +106,22 @@ def test_the_signed_in_numbers_match_the_tokenised_link(client, area):
 
 
 @pytest.mark.django_db
-def test_profile_views_is_null_rather_than_zero(client, area):
-    """There is no analytics source.
+def test_profile_views_cover_the_last_thirty_days(client, area):
+    """The views tile counts the dashboard's window and nothing older."""
+    from providers.models import ProfileViewDay
 
-    A zero reads as "nobody looked", which is a claim the software cannot
-    make. Null reads as "not measured", which is true.
-    """
-    account, _ = make_listing(area, phone=PHONE, name="Accra Welding", slug="accra-welding")
+    account, provider = make_listing(area, phone=PHONE, name="Accra Welding", slug="accra-welding")
+    today = timezone.localdate()
+    ProfileViewDay.objects.create(provider=provider, day=today, views=4)
+    ProfileViewDay.objects.create(provider=provider, day=today - timedelta(days=29), views=2)
+    ProfileViewDay.objects.create(provider=provider, day=today - timedelta(days=45), views=50)
     client.force_login(account.user)
 
-    assert client.get(dashboard_url()).json()["profile_views"] is None
+    body = client.get(dashboard_url()).json()
+
+    assert body["profile_views"] == 6
+    # Counting began more than 30 days ago, so there is no caveat to show.
+    assert body["profile_views_counted_since"] is None
 
 
 # --------------------------------------------------------------------------

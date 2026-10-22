@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { SaveProviderButton } from "@/components/trainee/SaveProviderButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,9 +40,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { ClientMessages } from "@/i18n/ClientMessages";
+import { PROFILE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { BRAND } from "@/lib/brand";
 import { formatDate, formatDuration, formatFee } from "@/lib/format";
 import type { ProviderDetail } from "@/lib/types";
+
+/**
+ * A government status worded from its code, so it can be translated. A code
+ * this build does not know falls back to the label as the backend wrote it.
+ */
+function governmentStatus(
+  t: ReturnType<typeof useTranslations<"ProviderProfile">>,
+  code: string,
+  label: string,
+) {
+  const key = `status.${code}`;
+  return t.has(key as "status.registered") ? t(key as "status.registered") : label;
+}
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -53,6 +69,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function VerificationBlock({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
   const latestVisit = provider.verifications[0] ?? null;
 
   return (
@@ -67,15 +84,15 @@ function VerificationBlock({ provider }: { provider: ProviderDetail }) {
               {latestVisit ? (
                 <>
                   <BadgeCheck aria-hidden="true" />
-                  Site visited
+                  {t("siteVisited")}
                 </>
               ) : (
-                "Not visited"
+                t("notVisited")
               )}
             </Badge>
           </div>
           <h2 id="fliptech-verification-heading" className="mt-4 text-base font-bold">
-            {BRAND} verification
+            {t("verificationHeading", { brand: BRAND })}
           </h2>
           {latestVisit ? (
             <>
@@ -83,23 +100,25 @@ function VerificationBlock({ provider }: { provider: ProviderDetail }) {
               <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-[var(--color-muted-foreground)]">
                 <CalendarDays className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>
-                  Visited {formatDate(latestVisit.visited_on)}
-                  {latestVisit.officer ? ` by ${latestVisit.officer}` : ""}.
+                  {latestVisit.officer
+                    ? t("visitedOnBy", {
+                        date: formatDate(latestVisit.visited_on),
+                        officer: latestVisit.officer,
+                      })
+                    : t("visitedOn", { date: formatDate(latestVisit.visited_on) })}
                 </span>
               </p>
             </>
           ) : (
             <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
-              {BRAND} has not visited this workshop. Everything below was supplied by the
-              provider and has not been checked by us.
+              {t("notVisitedBody", { brand: BRAND })}
             </p>
           )}
 
           <div className="mt-4 flex gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)]/70 p-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <p>
-              A {BRAND} visit is not a government accreditation. It records what our officer
-              saw on the day.
+              {t("notAccreditation", { brand: BRAND })}
             </p>
           </div>
         </CardContent>
@@ -109,6 +128,7 @@ function VerificationBlock({ provider }: { provider: ProviderDetail }) {
 }
 
 function GovernmentBlock({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
   const government = provider.government_status_detail;
 
   return (
@@ -121,31 +141,39 @@ function GovernmentBlock({ provider }: { provider: ProviderDetail }) {
             </div>
             <Badge variant={government ? "government" : "secondary"}>
               <FileCheck2 aria-hidden="true" />
-              {government ? "Document record" : "No record claimed"}
+              {government ? t("documentRecord") : t("noRecordClaimed")}
             </Badge>
           </div>
           <h2 id="government-status-heading" className="mt-4 text-base font-bold">
-            Government status
+            {t("governmentHeading")}
           </h2>
           <dl className="mt-2">
             <Row
-              label="CTVET registration"
-              value={government ? government.registration_status_display : "Not claimed"}
+              label={t("ctvetRegistration")}
+              value={
+                government
+                  ? governmentStatus(t, government.registration_status, government.registration_status_display)
+                  : t("notClaimed")
+              }
             />
             {government?.registration_number ? (
-              <Row label="Registration number" value={government.registration_number} />
+              <Row label={t("registrationNumber")} value={government.registration_number} />
             ) : null}
             <Row
-              label="Accreditation"
-              value={government ? government.accreditation_status_display : "Not claimed"}
+              label={t("accreditation")}
+              value={
+                government
+                  ? governmentStatus(t, government.accreditation_status, government.accreditation_status_display)
+                  : t("notClaimed")
+              }
             />
             {government?.source_note ? (
-              <Row label="Source" value={government.source_note} />
+              <Row label={t("source")} value={government.source_note} />
             ) : null}
           </dl>
           <p className="mt-3 flex gap-2 text-xs leading-5 text-[var(--color-muted-foreground)]">
             <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <span>Shown exactly as documented. {BRAND} does not infer this status.</span>
+            <span>{t("shownAsDocumented", { brand: BRAND })}</span>
           </p>
         </CardContent>
       </section>
@@ -154,20 +182,20 @@ function GovernmentBlock({ provider }: { provider: ProviderDetail }) {
 }
 
 function Programmes({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
+  const tFormat = useTranslations("Format");
   return (
     <section aria-labelledby="training-offered-heading" className="lg:order-1">
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-brand-strong)]">
-            Course options
+            {t("courseOptions")}
           </p>
           <h2 id="training-offered-heading" className="mt-1 text-2xl font-bold tracking-tight">
-            Training offered
+            {t("trainingOffered")}
           </h2>
         </div>
-        <Badge variant="outline">
-          {provider.programmes.length} {provider.programmes.length === 1 ? "course" : "courses"}
-        </Badge>
+        <Badge variant="outline">{t("courseCount", { count: provider.programmes.length })}</Badge>
       </div>
 
       {provider.programmes.length > 0 ? (
@@ -187,10 +215,10 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
                       </div>
                       <div className="sm:text-right">
                         <p className="text-xs font-medium text-[var(--color-muted-foreground)]">
-                          Course fee
+                          {t("courseFee")}
                         </p>
                         <p className="mt-1 text-xl font-bold tabular-nums">
-                          {formatFee(programme.fee)}
+                          {formatFee(programme.fee, tFormat)}
                         </p>
                       </div>
                     </div>
@@ -199,28 +227,28 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
                       <div className="rounded-xl bg-[var(--color-muted)]/70 p-3">
                         <dt className="flex items-center gap-2 text-xs font-medium text-[var(--color-muted-foreground)]">
                           <Clock3 className="size-3.5 text-[var(--color-brand)]" aria-hidden="true" />
-                          Duration
+                          {t("duration")}
                         </dt>
                         <dd className="mt-1.5 text-sm font-semibold">
-                          {formatDuration(programme.duration_weeks)}
+                          {formatDuration(programme.duration_weeks, tFormat)}
                         </dd>
                       </div>
                       <div className="rounded-xl bg-[var(--color-muted)]/70 p-3">
                         <dt className="flex items-center gap-2 text-xs font-medium text-[var(--color-muted-foreground)]">
                           <CalendarDays className="size-3.5 text-[var(--color-brand)]" aria-hidden="true" />
-                          Next intake
+                          {t("nextIntake")}
                         </dt>
                         <dd className="mt-1.5 text-sm font-semibold">
-                          {nextIntake ? formatDate(nextIntake.start_date) : "Ask the provider"}
+                          {nextIntake ? formatDate(nextIntake.start_date) : t("askProvider")}
                         </dd>
                       </div>
                       <div className="rounded-xl bg-[var(--color-muted)]/70 p-3">
                         <dt className="flex items-center gap-2 text-xs font-medium text-[var(--color-muted-foreground)]">
                           <Banknote className="size-3.5 text-[var(--color-brand)]" aria-hidden="true" />
-                          Payment
+                          {t("payment")}
                         </dt>
                         <dd className="mt-1.5 text-sm font-semibold">
-                          {programme.instalments_allowed ? "Instalments allowed" : "Full payment"}
+                          {programme.instalments_allowed ? t("instalmentsAllowed") : t("fullPayment")}
                         </dd>
                       </div>
                     </dl>
@@ -228,21 +256,21 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
                     {/* A plain list, not prose. */}
                     <dl className="mt-4 rounded-xl border border-[var(--color-border)] px-4">
                       <Row
-                        label="Instalment details"
+                        label={t("instalmentDetails")}
                         value={
                           programme.instalments_allowed
-                            ? programme.instalment_note || "Allowed"
-                            : "Full payment"
+                            ? programme.instalment_note || t("allowed")
+                            : t("fullPayment")
                         }
                       />
                       {programme.hours_per_week ? (
-                        <Row label="Hours a week" value={`${programme.hours_per_week}`} />
+                        <Row label={t("hoursAWeek")} value={`${programme.hours_per_week}`} />
                       ) : null}
                       {programme.weekly_schedule ? (
-                        <Row label="Schedule" value={programme.weekly_schedule} />
+                        <Row label={t("schedule")} value={programme.weekly_schedule} />
                       ) : null}
                       {nextIntake && nextIntake.places_remaining !== null ? (
-                        <Row label="Places remaining" value={`${nextIntake.places_remaining}`} />
+                        <Row label={t("placesRemaining")} value={`${nextIntake.places_remaining}`} />
                       ) : null}
                     </dl>
                   </div>
@@ -251,13 +279,13 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
 
                   <div className="flex flex-col gap-3 bg-[var(--color-background)]/70 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <p className="max-w-sm text-xs leading-5 text-[var(--color-muted-foreground)]">
-                      Ask about availability, entry requirements or payment options.
+                      {t("askAbout")}
                     </p>
                     <Button asChild variant="brand" className="w-full sm:w-auto">
                       <Link
                         href={`/enquiry?programme=${programme.id}${nextIntake ? `&intake=${nextIntake.id}` : ""}`}
                       >
-                        Enquire about this course
+                        {t("enquire")}
                         <ArrowRight aria-hidden="true" />
                       </Link>
                     </Button>
@@ -271,9 +299,9 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
         <Card className="mt-5 border-dashed text-center">
           <CardContent className="px-5 py-10">
             <Wrench className="mx-auto size-7 text-[var(--color-muted-foreground)]" aria-hidden="true" />
-            <h3 className="mt-3 font-bold">Course details coming soon</h3>
+            <h3 className="mt-3 font-bold">{t("noCoursesTitle")}</h3>
             <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-              This provider has not published any training courses yet.
+              {t("noCoursesBody")}
             </p>
           </CardContent>
         </Card>
@@ -336,6 +364,7 @@ function PhotoStrip({
 }
 
 export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
   // The hero should show the place, not a close-up of a gate: someone landing
   // here is still deciding whether this is a real workshop they can get to.
   // Falls back to whatever exists when there is no premises shot.
@@ -349,7 +378,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
         {heroPhoto ? (
           <Image
             src={heroPhoto.image}
-            alt={heroPhoto.caption || `The workshop at ${provider.name}`}
+            alt={heroPhoto.caption || t("heroAlt", { name: provider.name })}
             width={1400}
             height={620}
             className="aspect-[4/3] w-full object-cover sm:aspect-video lg:aspect-[21/8]"
@@ -362,7 +391,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
               <div className="flex size-16 items-center justify-center rounded-2xl bg-[var(--color-card)] shadow-sm">
                 <Wrench className="size-7" aria-hidden="true" />
               </div>
-              <p className="mt-3 text-sm font-medium">Workshop photo coming soon</p>
+              <p className="mt-3 text-sm font-medium">{t("photoComingSoon")}</p>
             </div>
           </div>
         )}
@@ -370,7 +399,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
         {provider.photos.length > 1 ? (
           <Badge className="absolute bottom-3 right-3 border-white/30 bg-black/70 text-white sm:bottom-5 sm:right-5">
             <Camera aria-hidden="true" />
-            {provider.photos.length} photos
+            {t("photoCount", { count: provider.photos.length })}
           </Badge>
         ) : null}
       </div>
@@ -389,7 +418,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
                    a light background. */
                 <Image
                   src={provider.logo}
-                  alt={`${provider.name} logo`}
+                  alt={t("logoAlt", { name: provider.name })}
                   width={72}
                   height={72}
                   className="size-16 shrink-0 rounded-2xl border border-[var(--color-border)] bg-white object-contain p-1.5 sm:size-[4.5rem]"
@@ -407,16 +436,18 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <SaveProviderButton
-            providerId={provider.id}
-            returnTo={`/${provider.area_slug}/${provider.slug}`}
-          />
+          <ClientMessages namespaces={PROFILE_CLIENT_NAMESPACES}>
+            <SaveProviderButton
+              providerId={provider.id}
+              returnTo={`/${provider.area_slug}/${provider.slug}`}
+            />
+          </ClientMessages>
           <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
             <GraduationCap className="size-5 text-[var(--color-brand)]" aria-hidden="true" />
             <div>
-              <p className="text-xs text-[var(--color-muted-foreground)]">Training choices</p>
+              <p className="text-xs text-[var(--color-muted-foreground)]">{t("trainingChoices")}</p>
               <p className="text-sm font-bold">
-                {provider.programmes.length} {provider.programmes.length === 1 ? "course" : "courses"}
+                {t("courseCount", { count: provider.programmes.length })}
               </p>
             </div>
           </div>
@@ -437,8 +468,8 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
 
           <PhotoStrip
             photos={workPhotos}
-            title="Their work"
-            caption="Made or repaired by this workshop and its trainees."
+            title={t("theirWork")}
+            caption={t("theirWorkCaption")}
             headingId="their-work-heading"
           />
 
@@ -447,8 +478,8 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
           {workshopPhotos.length > 1 ? (
             <PhotoStrip
               photos={workshopPhotos.slice(1)}
-              title="The workshop"
-              caption="Where the training happens."
+              title={t("theWorkshop")}
+              caption={t("theWorkshopCaption")}
               headingId="the-workshop-heading"
             />
           ) : null}
@@ -459,11 +490,8 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
         <div className="px-5 pb-7 sm:px-7 sm:pb-9 lg:px-10 lg:pb-10">
           <Alert variant="warning">
             <AlertTriangle aria-hidden="true" />
-            <AlertTitle>Confirm before you travel</AlertTitle>
-            <AlertDescription>
-              These details were last confirmed with the provider some time ago. Confirm the
-              fee before you travel.
-            </AlertDescription>
+            <AlertTitle>{t("staleTitle")}</AlertTitle>
+            <AlertDescription>{t("staleBody")}</AlertDescription>
           </Alert>
         </div>
       )}

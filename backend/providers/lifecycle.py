@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import Provider, TrainerAccount
+from .owner_messages import queue_live_notice
 
 
 class ProviderTransitionError(ValueError):
@@ -58,12 +59,16 @@ def publish_provider(provider, *, actor):
     provider.published_at = now
     provider.last_confirmed_at = now
     provider.review_note = ""
-    return _save_transition(
+    _save_transition(
         provider,
         actor=actor,
         reason="Approved and published",
         fields=["status", "published_at", "last_confirmed_at", "review_note"],
     )
+    # Section 09: the owner is sent a link to review their own listing. Queued
+    # in the same transaction, so a publish that rolls back tells nobody.
+    queue_live_notice(provider)
+    return provider
 
 
 @transaction.atomic

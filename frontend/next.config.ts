@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// Interface strings live in messages/<locale>.json; src/i18n/request.ts says
+// which one a request gets. See that file for why there is no locale routing.
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const apiHost = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -85,4 +90,4 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

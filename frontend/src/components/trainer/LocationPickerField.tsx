@@ -14,13 +14,15 @@
 
 import dynamic from "next/dynamic";
 import {MapPinned} from "lucide-react";
+import {useTranslations} from "next-intl";
 import {Component, type ErrorInfo, type ReactNode} from "react";
 
 import {Skeleton} from "@/components/ui/skeleton";
 
 import type {LatLng} from "./LocationPicker";
 
-function PickerPlaceholder({message}: {message: string}) {
+function PickerPlaceholder({message}: {message: "loading" | "failed"}) {
+  const t = useTranslations("LocationPicker");
   return (
     <div
       className="relative grid h-64 place-items-center overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)]/35 px-6 text-center"
@@ -34,7 +36,7 @@ function PickerPlaceholder({message}: {message: string}) {
         >
           <MapPinned className="size-5" />
         </span>
-        <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{message}</p>
+        <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t(message)}</p>
       </div>
     </div>
   );
@@ -42,7 +44,7 @@ function PickerPlaceholder({message}: {message: string}) {
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ssr: false,
-  loading: () => <PickerPlaceholder message="Loading map…" />,
+  loading: () => <PickerPlaceholder message="loading" />,
 });
 
 class PickerBoundary extends Component<{children: ReactNode}, {failed: boolean}> {
@@ -58,9 +60,7 @@ class PickerBoundary extends Component<{children: ReactNode}, {failed: boolean}>
 
   render() {
     if (this.state.failed) {
-      return (
-        <PickerPlaceholder message="The map could not load. Enter the coordinates below instead." />
-      );
+      return <PickerPlaceholder message="failed" />;
     }
     return this.props.children;
   }

@@ -10,6 +10,12 @@
  * promise on paper that the software breaks every day.
  *
  * If you change what is collected, change this page in the same commit.
+ *
+ * Deliberately not in messages/en.json. The rest of the interface is strings,
+ * looked up by key so a Twi or Ga version can be added; this is a legal
+ * document, and a translated policy should be translated, checked and dated
+ * as one document — not reassembled from a few hundred separately translated
+ * sentences. When a second language arrives, it gets a second policy page.
  */
 
 import type {Metadata} from "next";

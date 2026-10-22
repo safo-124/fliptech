@@ -30,6 +30,7 @@ from enquiries import whatsapp
 from enquiries.models import Enquiry, Enrolment
 
 from .models import Provider
+from .profile_views import counting_started_on, views_since
 
 TOKEN_SALT = "provider-dashboard"
 
@@ -96,15 +97,19 @@ def dashboard_payload(provider, *, period_days=30):
     enrolment_stats = enrolments.aggregate(
         count=Count("id"), fees=Sum("fee_paid"), average_fee=Avg("fee_paid")
     )
+    started = counting_started_on()
 
     return {
         "provider": {"name": provider.name, "slug": provider.slug},
         "period_days": period_days,
         "enquiries": total,
-        # Profile views need an analytics source, which is not in the stack
-        # yet. Reporting null is better than reporting a zero that looks like
-        # nobody looked.
-        "profile_views": None,
+        "profile_views": views_since(provider, since.date()),
+        "profile_views_basis": "People who opened your listing, counted once a day each",
+        # Set only while counting is younger than this window, so a week of
+        # counting does not read as a slow month.
+        "profile_views_counted_since": (
+            started if started is not None and started > since.date() else None
+        ),
         "response_rate": round(answered / total, 3) if total else None,
         "response_rate_basis": "Enquiries marked replied within 48 hours",
         "enrolments": enrolment_stats["count"],

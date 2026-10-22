@@ -2,6 +2,7 @@
 
 import {Loader2, LogOut} from "lucide-react";
 import type {LucideIcon} from "lucide-react";
+import {useTranslations} from "next-intl";
 
 import {Button} from "@/components/ui/button";
 import {cn} from "@/lib/utils";
@@ -50,11 +51,12 @@ export function DashboardSidebar<Key extends string>({
   busy: boolean;
   canSignOut: boolean;
 }) {
+  const t = useTranslations("DashboardNav");
   return (
     <aside className="hidden lg:block">
       <div className="sticky top-[5.5rem] space-y-4">
         {children}
-        <nav aria-label="Account sections" className="space-y-1">
+        <nav aria-label={t("sections")} className="space-y-1">
           {tabs.map(({key, label, Icon}) => {
             const active = tab === key;
             const count = counts[key];
@@ -92,7 +94,7 @@ export function DashboardSidebar<Key extends string>({
         {canSignOut ? (
           <Button type="button" variant="outline" onClick={onSignOut} disabled={busy} className="w-full">
             {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <LogOut aria-hidden="true" />}
-            Sign out
+            {t("signOut")}
           </Button>
         ) : null}
       </div>
@@ -111,9 +113,10 @@ export function DashboardBottomBar<Key extends string>({
   onSelect: (tab: Key) => void;
   counts: Counts<Key>;
 }) {
+  const t = useTranslations("DashboardNav");
   return (
     <nav
-      aria-label="Account sections"
+      aria-label={t("sections")}
       /* pb-[env(safe-area-inset-bottom)] keeps the row clear of the iOS home
          indicator, which otherwise sits on top of the last few pixels. */
       className="fixed inset-x-0 bottom-0 z-[900] border-t border-[var(--color-border)] bg-[var(--color-card)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"

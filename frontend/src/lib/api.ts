@@ -100,6 +100,8 @@ export type SearchParams = {
   region?: string;
   max_fee?: string;
   verified_only?: string;
+  /** Only providers with a course that can seat a group this size. */
+  places?: string;
   q?: string;
   lat?: string;
   lng?: string;

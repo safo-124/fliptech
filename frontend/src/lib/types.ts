@@ -139,7 +139,10 @@ export type DashboardData = {
   provider: { name: string; slug: string };
   period_days: number;
   enquiries: number;
-  profile_views: number | null;
+  profile_views: number;
+  profile_views_basis: string;
+  /** Set while counting is younger than the window, so a short count is not read as a slow month. */
+  profile_views_counted_since: string | null;
   response_rate: number | null;
   response_rate_basis: string;
   enrolments: number;
@@ -369,16 +372,17 @@ export type EnquiryConfirmation = {
 /**
  * Screen 5, as the server computes it.
  *
- * `profile_views` is null rather than 0 on purpose: there is no analytics
- * source yet, and a zero reads as "nobody looked" — a claim the software
- * cannot make. `response_rate` is null when there were no enquiries to
- * measure, which is not the same as a rate of zero.
+ * `response_rate` is null when there were no enquiries to measure, which is
+ * not the same as a rate of zero. Profile views are counted by a beacon from
+ * the profile page, once per visitor per day.
  */
 export type TrainerDashboard = {
   provider: {name: string; slug: string};
   period_days: number;
   enquiries: number;
-  profile_views: number | null;
+  profile_views: number;
+  profile_views_basis: string;
+  profile_views_counted_since: string | null;
   response_rate: number | null;
   response_rate_basis: string;
   enrolments: number;

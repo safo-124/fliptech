@@ -41,6 +41,10 @@ playwright-report/
 # Media and static
 /backend/media/
 /backend/staticfiles/
+# Identity documents and verification evidence. PRIVATE_MEDIA_ROOT defaults
+# to here in development, and the test suite's upload tests write here too, so
+# without this a `git add .` after a local test run commits ID photographs.
+/backend/private-media/
 
 # Editors and OS
 .vscode/

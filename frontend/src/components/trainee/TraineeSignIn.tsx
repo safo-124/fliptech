@@ -11,6 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import {useRouter, useSearchParams} from "next/navigation";
+import {useTranslations} from "next-intl";
 import {useEffect, useState} from "react";
 
 import {Button} from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader} from "@/comp
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {NativeSelect} from "@/components/ui/native-select";
+import {validationMessage} from "@/i18n/validation";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {
   getTraineeSession,
@@ -34,16 +36,19 @@ type Step = "phone" | "code";
 
 /** Mirrors TraineeAccount.EducationLevel in backend/trainees/models.py. The
  *  split that matters is SHS general against SHS technical: someone leaving a
- *  technical SHS has already done workshop hours. */
-const EDUCATION_LEVELS: Array<[string, string]> = [
-  ["not_in_school", "Not in school"],
-  ["jhs", "JHS"],
-  ["shs_general", "SHS — general"],
-  ["shs_technical", "SHS — technical or vocational"],
-  ["tvet", "CTVET or other TVET institution"],
-  ["university", "University or other tertiary"],
-  ["other", "Something else"],
-];
+ *  technical SHS has already done workshop hours. Labels are in the
+ *  "Education" messages. */
+export const EDUCATION_LEVELS = [
+  "not_in_school",
+  "jhs",
+  "shs_general",
+  "shs_technical",
+  "tvet",
+  "university",
+  "other",
+] as const;
+
+export const EDUCATION_STATUSES = ["in_progress", "completed", "left"] as const;
 
 /**
  * Which identifier is being used.
@@ -60,6 +65,9 @@ type Method = "phone" | "email";
  * and the account exists. There is no separate registration form to abandon.
  */
 export function TraineeSignIn() {
+  const t = useTranslations("TraineeSignIn");
+  const tEducation = useTranslations("Education");
+  const tValidation = useTranslations("Validation");
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNextPath(params.get("next"));
@@ -97,7 +105,7 @@ export function TraineeSignIn() {
     // Checked here as well as on the server, so somebody on a slow connection
     // is told before they spend the upload rather than after.
     if (file.size > 15 * 1024 * 1024) {
-      setPhotoError("That picture is larger than 15 MB. Try a smaller one.");
+      setPhotoError(t("photoTooLarge"));
       return;
     }
     setPhoto(file);
@@ -128,7 +136,7 @@ export function TraineeSignIn() {
       // Deliberately shallow: the server validates properly, and a regex that
       // second-guesses what a valid address looks like rejects real ones.
       if (!address.includes("@")) {
-        setError("Enter your email address.");
+        setError(t("enterEmail"));
         return;
       }
       setBusy(true);
@@ -139,7 +147,7 @@ export function TraineeSignIn() {
         setCode("");
         setStep("code");
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "Could not send a code.");
+        setError(reason instanceof Error ? reason.message : t("sendFailed"));
       } finally {
         setBusy(false);
       }
@@ -148,7 +156,9 @@ export function TraineeSignIn() {
 
     const parsed = ghanaPhoneSchema.safeParse(phone);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Enter a Ghana mobile number.");
+      setError(
+        validationMessage(tValidation, parsed.error.issues[0]?.message) ?? t("enterGhanaNumber"),
+      );
       return;
     }
     setBusy(true);
@@ -163,7 +173,7 @@ export function TraineeSignIn() {
       setCode("");
       setStep("code");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not send a code.");
+      setError(reason instanceof Error ? reason.message : t("sendFailed"));
     } finally {
       setBusy(false);
     }
@@ -172,7 +182,7 @@ export function TraineeSignIn() {
   async function checkCode(event: React.FormEvent) {
     event.preventDefault();
     if (!challengeId || code.length < 4) {
-      setError("Enter the code from your message.");
+      setError(t("enterCode"));
       return;
     }
     setBusy(true);
@@ -193,11 +203,9 @@ export function TraineeSignIn() {
         // account is not a problem to report — it just signed them in, which
         // is what they wanted.
         if (result.email_outcome === "taken") {
-          held =
-            "You are signed in, but that email address is already used by another account, so we did not add it. You can add a different one from your account.";
+          held = t("emailTaken");
         } else if (result.email_outcome === "already_set") {
-          held =
-            "You are signed in. This account already has an email address, so we kept the one that was there.";
+          held = t("emailAlreadySet");
         }
       }
       // Only now does an account exist to attach it to. A picture that fails
@@ -213,7 +221,7 @@ export function TraineeSignIn() {
       }
       router.replace(next);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "That code did not work.");
+      setError(reason instanceof Error ? reason.message : t("codeFailed"));
       setBusy(false);
     }
   }
@@ -225,7 +233,7 @@ export function TraineeSignIn() {
           <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
             <Mail aria-hidden="true" className="size-5" />
           </div>
-          <h2 className="text-xl font-bold tracking-tight">One thing to know</h2>
+          <h2 className="text-xl font-bold tracking-tight">{t("oneThingTitle")}</h2>
           <CardDescription>{outcome}</CardDescription>
         </CardHeader>
         <CardFooter className="sm:px-6">
@@ -235,7 +243,7 @@ export function TraineeSignIn() {
             className="w-full"
             onClick={() => router.replace(next)}
           >
-            Go to my account
+            {t("goToAccount")}
             <ArrowRight aria-hidden="true" />
           </Button>
         </CardFooter>
@@ -251,15 +259,15 @@ export function TraineeSignIn() {
             <ShieldCheck aria-hidden="true" className="size-5" />
           </div>
           <h2 className="text-xl font-bold tracking-tight">
-            {method === "email" ? "Check your email" : "Check your messages"}
+            {method === "email" ? t("checkEmail") : t("checkMessages")}
           </h2>
           <CardDescription>
-            We sent a code to {method === "email" ? email.trim() : phone}.
+            {t("codeSentTo", {destination: method === "email" ? email.trim() : phone})}
           </CardDescription>
         </CardHeader>
         <form onSubmit={checkCode} noValidate aria-busy={busy}>
           <CardContent className="space-y-3 sm:px-6">
-            <Label htmlFor="trainee-code">Verification code</Label>
+            <Label htmlFor="trainee-code">{t("codeLabel")}</Label>
             <Input
               id="trainee-code"
               name="verification-code"
@@ -284,7 +292,7 @@ export function TraineeSignIn() {
           <CardFooter className="flex-col gap-2 sm:px-6">
             <Button type="submit" variant="brand" disabled={busy} className="w-full">
               {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <ShieldCheck aria-hidden="true" />}
-              {busy ? "Checking…" : "Verify and continue"}
+              {busy ? t("checking") : t("verify")}
             </Button>
             <Button
               type="button"
@@ -296,7 +304,7 @@ export function TraineeSignIn() {
               }}
             >
               <ArrowLeft aria-hidden="true" />
-              {method === "email" ? "Change email address" : "Change phone number"}
+              {method === "email" ? t("changeEmail") : t("changePhone")}
             </Button>
           </CardFooter>
         </form>
@@ -316,24 +324,24 @@ export function TraineeSignIn() {
         </div>
         <h2 className="text-xl font-bold tracking-tight">
           {method === "email"
-            ? "Continue with your email"
+            ? t("titleEmail")
             : signingUp
-              ? "Create your account"
-              : "Continue with your phone"}
+              ? t("titleSignUp")
+              : t("titlePhone")}
         </h2>
         <CardDescription>
           {method === "email"
-            ? "For an address you already added to your account. We send a one-time code."
+            ? t("leadEmail")
             : signingUp
-              ? "This is the whole sign-up: your number, then the code we send you. No password. Add your email below and the code goes there too, in case the text is slow. If you already have an account, this signs you into it."
-              : "New or returning, it is the same step. We send a one-time code by text, and to your email as well if you have added one. No password."}
+              ? t("leadSignUp")
+              : t("leadPhone")}
         </CardDescription>
       </CardHeader>
       <form onSubmit={sendCode} noValidate aria-busy={busy}>
         <CardContent className="space-y-3 sm:px-6">
           {method === "email" ? (
             <>
-              <Label htmlFor="trainee-email">Email address</Label>
+              <Label htmlFor="trainee-email">{t("emailLabel")}</Label>
               <Input
                 id="trainee-email"
                 name="email"
@@ -359,14 +367,13 @@ export function TraineeSignIn() {
                   id="trainee-email-help"
                   className="text-xs leading-5 text-[var(--color-muted-foreground)]"
                 >
-                  This works only if you already added this address to your account. If you
-                  have not, use your phone number.
+                  {t("emailHelp")}
                 </p>
               )}
             </>
           ) : (
             <>
-              <Label htmlFor="trainee-phone">Mobile number</Label>
+              <Label htmlFor="trainee-phone">{t("phoneLabel")}</Label>
               <Input
                 id="trainee-phone"
                 name="phone"
@@ -392,7 +399,7 @@ export function TraineeSignIn() {
                   id="trainee-phone-help"
                   className="text-xs leading-5 text-[var(--color-muted-foreground)]"
                 >
-                  Use the number you enquire with, so your enquiries show up in your account.
+                  {t("phoneHelp")}
                 </p>
               )}
             </>
@@ -401,10 +408,9 @@ export function TraineeSignIn() {
           {signingUp && method === "phone" ? (
             <div className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
               <div>
-                <p className="text-sm font-semibold">A bit about you</p>
+                <p className="text-sm font-semibold">{t("aboutYouTitle")}</p>
                 <p className="mt-0.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  All optional, and you can change any of it later. Workshops answer better when
-                  they know what you have already done.
+                  {t("aboutYouBody")}
                 </p>
               </div>
 
@@ -423,7 +429,7 @@ export function TraineeSignIn() {
                 )}
                 <div className="min-w-0 flex-1">
                   <Label htmlFor="trainee-photo" className="text-sm">
-                    Profile picture
+                    {t("photoLabel")}
                   </Label>
                   <Input
                     id="trainee-photo"
@@ -438,26 +444,26 @@ export function TraineeSignIn() {
                     </p>
                   ) : (
                     <p className="mt-1 text-xs leading-4 text-[var(--color-muted-foreground)]">
-                      Only you and Skills Hub staff see it. It is never shown to a workshop.
+                      {t("photoHelp")}
                     </p>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="trainee-name">Your name</Label>
+                <Label htmlFor="trainee-name">{t("nameLabel")}</Label>
                 <Input
                   id="trainee-name"
                   value={profile.display_name ?? ""}
                   maxLength={120}
                   onChange={(event) => field("display_name", event.target.value)}
-                  placeholder="How workshops should address you"
+                  placeholder={t("namePlaceholder")}
                   autoComplete="name"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="trainee-signup-email">Email address</Label>
+                <Label htmlFor="trainee-signup-email">{t("emailLabel")}</Label>
                 <Input
                   id="trainee-signup-email"
                   type="email"
@@ -467,22 +473,21 @@ export function TraineeSignIn() {
                   autoComplete="email"
                 />
                 <p className="text-xs leading-4 text-[var(--color-muted-foreground)]">
-                  We send your code here as well as by text. Confirm it later from your account to
-                  use it for signing in.
+                  {t("signUpEmailHelp")}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="trainee-education">Education so far</Label>
+                <Label htmlFor="trainee-education">{t("educationLabel")}</Label>
                 <NativeSelect
                   id="trainee-education"
                   value={profile.education_level ?? ""}
                   onChange={(event) => field("education_level", event.target.value)}
                 >
-                  <option value="">Prefer not to say</option>
-                  {EDUCATION_LEVELS.map(([value, label]) => (
+                  <option value="">{tEducation("preferNotToSay")}</option>
+                  {EDUCATION_LEVELS.map((value) => (
                     <option key={value} value={value}>
-                      {label}
+                      {tEducation(`levels.${value}`)}
                     </option>
                   ))}
                 </NativeSelect>
@@ -491,41 +496,43 @@ export function TraineeSignIn() {
               {profile.education_level && profile.education_level !== "not_in_school" ? (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="trainee-institution">School or institution</Label>
+                    <Label htmlFor="trainee-institution">{t("institutionLabel")}</Label>
                     <Input
                       id="trainee-institution"
                       value={profile.institution_name ?? ""}
                       maxLength={200}
                       onChange={(event) => field("institution_name", event.target.value)}
-                      placeholder="For example: Accra Technical Training Centre"
+                      placeholder={t("institutionPlaceholder")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="trainee-field">What you studied</Label>
+                    <Label htmlFor="trainee-field">{t("fieldLabel")}</Label>
                     <Input
                       id="trainee-field"
                       value={profile.field_of_study ?? ""}
                       maxLength={200}
                       onChange={(event) => field("field_of_study", event.target.value)}
-                      placeholder="For example: building construction"
+                      placeholder={t("fieldPlaceholder")}
                     />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="trainee-status">How it went</Label>
+                      <Label htmlFor="trainee-status">{t("statusLabel")}</Label>
                       <NativeSelect
                         id="trainee-status"
                         value={profile.education_status ?? ""}
                         onChange={(event) => field("education_status", event.target.value)}
                       >
-                        <option value="">Prefer not to say</option>
-                        <option value="in_progress">Still studying</option>
-                        <option value="completed">Completed</option>
-                        <option value="left">Left before finishing</option>
+                        <option value="">{tEducation("preferNotToSay")}</option>
+                        {EDUCATION_STATUSES.map((value) => (
+                          <option key={value} value={value}>
+                            {tEducation(`statuses.${value}`)}
+                          </option>
+                        ))}
                       </NativeSelect>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="trainee-year">Year</Label>
+                      <Label htmlFor="trainee-year">{t("yearLabel")}</Label>
                       <Input
                         id="trainee-year"
                         inputMode="numeric"
@@ -546,16 +553,14 @@ export function TraineeSignIn() {
           <div className="flex items-start gap-2.5 rounded-xl bg-[var(--color-muted)]/65 p-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
             <LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-strong)]" />
             <p>
-              {method === "email"
-                ? "We keep your email, your phone number and your enquiries. Nothing else is required."
-                : "We keep your phone number and your enquiries. Nothing else is required."}
+              {method === "email" ? t("keepEmail") : t("keepPhone")}
             </p>
           </div>
         </CardContent>
         <CardFooter className="flex-col gap-2 sm:px-6">
           <Button type="submit" variant="brand" disabled={busy} className="w-full">
             {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-            {busy ? "Sending code…" : "Send my code"}
+            {busy ? t("sendingCode") : t("sendCode")}
             {!busy ? <ArrowRight aria-hidden="true" /> : null}
           </Button>
           {/* Phone stays first and stays the default. Email is offered as the
@@ -583,12 +588,12 @@ export function TraineeSignIn() {
             {method === "email" ? (
               <>
                 <Smartphone aria-hidden="true" />
-                Use my phone number instead
+                {t("usePhone")}
               </>
             ) : (
               <>
                 <Mail aria-hidden="true" />
-                Use my email instead
+                {t("useEmail")}
               </>
             )}
           </Button>
