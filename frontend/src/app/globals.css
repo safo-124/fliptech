@@ -231,6 +231,13 @@ body {
     display: none;
   }
 
+  /* OpenStreetMap's default tiles, quietened so the pins are what the eye
+     lands on. A little colour is kept, so the sea still reads as sea and a
+     park as a park. See lib/map-tiles.ts for when this applies. */
+  .map-soft-tiles .leaflet-tile-pane {
+    filter: saturate(0.35) brightness(1.04) contrast(0.95);
+  }
+
   .scrollbar-none {
     scrollbar-width: none;
   }
@@ -238,6 +245,13 @@ body {
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Leaflet sets its own font on the map, and as unlayered CSS it beats anything
+   in a layer. So this is unlayered and one step more specific: popups and the
+   attribution are in the site's typeface rather than Helvetica. */
+:root .leaflet-container {
+  font-family: var(--font-sans);
 }
 
 /* Keyboard focus must stay visible. Never remove this without a replacement. */

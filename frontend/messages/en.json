@@ -218,7 +218,12 @@
     "theWorkshop": "The workshop",
     "theWorkshopCaption": "Where the training happens.",
     "staleTitle": "Confirm before you travel",
-    "staleBody": "These details were last confirmed with the provider some time ago. Confirm the fee before you travel."
+    "staleBody": "These details were last confirmed with the provider some time ago. Confirm the fee before you travel.",
+    "directions": "Directions",
+    "directionsLabel": "Directions to {name}, opens Google Maps",
+    "locationHeading": "Where to find it",
+    "locationMapLabel": "Map showing where {name} is",
+    "locationNote": "A pin can be a street or so out. Ask the workshop for the last few turns when you get in touch."
   },
   "SaveProviderButton": {
     "save": "Save",

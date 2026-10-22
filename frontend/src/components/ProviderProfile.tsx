@@ -29,11 +29,13 @@ import {
   GraduationCap,
   Info,
   MapPin,
+  Navigation,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ProviderLocationMap } from "@/components/ProviderLocationMap";
 import { SaveProviderButton } from "@/components/trainee/SaveProviderButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +45,7 @@ import { Separator } from "@/components/ui/separator";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { PROFILE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { BRAND } from "@/lib/brand";
+import { directionsUrl, hasPin } from "@/lib/directions";
 import { formatDate, formatDuration, formatFee } from "@/lib/format";
 import type { ProviderDetail } from "@/lib/types";
 
@@ -318,6 +321,56 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
  * and a trainee deciding whether a fee is worth paying is asking the second
  * one — which a picture of a tidy yard does not answer.
  */
+/**
+ * Where the workshop is. Someone choosing between two of them is also
+ * choosing a journey, and the address alone does not find a workshop in
+ * Accra. The landmark would, but it is not shown: trainers were told it is
+ * how the field officer finds them, not that it would be public.
+ */
+function Location({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
+  if (!hasPin(provider)) return null;
+
+  return (
+    <section aria-labelledby="location-heading" className="lg:order-1">
+      <h2 id="location-heading" className="text-2xl font-bold tracking-tight">
+        {t("locationHeading")}
+      </h2>
+      <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
+        {provider.address ? `${provider.address}, ` : ""}
+        {provider.area}
+      </p>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--color-border)]">
+        <ProviderLocationMap
+          place={{
+            lat: provider.lat,
+            lng: provider.lng,
+            primary_photo: provider.primary_photo,
+            logo: provider.logo,
+          }}
+          label={t("locationMapLabel", { name: provider.name })}
+        />
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">{t("locationNote")}</p>
+        <Button asChild variant="outline" className="w-full shrink-0 sm:w-auto">
+          <a
+            href={directionsUrl(provider.lat, provider.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("directionsLabel", { name: provider.name })}
+          >
+            <Navigation aria-hidden="true" />
+            {t("directions")}
+          </a>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function PhotoStrip({
   photos,
   title,
@@ -431,7 +484,24 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
             </div>
             <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-base">
               <MapPin className="mt-1 size-4 shrink-0" aria-hidden="true" />
-              <span>{provider.address ? `${provider.address}, ` : ""}{provider.area}</span>
+              <span>
+                {provider.address ? `${provider.address}, ` : ""}
+                {provider.area}
+                {hasPin(provider) ? (
+                  <>
+                    {" · "}
+                    <a
+                      href={directionsUrl(provider.lat, provider.lng)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={t("directionsLabel", { name: provider.name })}
+                      className="font-semibold text-[var(--color-brand-strong)] underline underline-offset-4"
+                    >
+                      {t("directions")}
+                    </a>
+                  </>
+                ) : null}
+              </span>
             </p>
           </div>
 
@@ -465,6 +535,8 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
 
         <div className="space-y-9 lg:order-1">
           <Programmes provider={provider} />
+
+          <Location provider={provider} />
 
           <PhotoStrip
             photos={workPhotos}
