@@ -156,6 +156,7 @@ def account_for_verified_phone(*, phone, verified_at, display_name="", profile=N
     return account
 
 
+@transaction.atomic
 def account_for_verified_email(*, email, verified_at):
     """Return the trainee account that owns an address that just proved itself.
 

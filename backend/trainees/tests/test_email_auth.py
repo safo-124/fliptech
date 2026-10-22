@@ -216,3 +216,25 @@ def test_an_address_already_on_another_account_is_refused_before_any_mail_is_sen
 
     assert response.status_code == 409
     assert EmailVerification.objects.count() == before
+
+
+@pytest.mark.django_db(transaction=True)
+def test_email_sign_in_works_outside_the_tests_own_transaction(client, fixed_code):
+    """Every other test runs inside a transaction, which hid that this one had
+    none of its own. The row lock it takes needs one, and a real request does
+    not bring it."""
+    trainee = account_for_verified_phone(phone=PHONE, verified_at=timezone.now())
+    trainee.email = EMAIL
+    trainee.email_verified_at = timezone.now()
+    trainee.save(update_fields=["email", "email_verified_at", "updated_at"])
+    client.post(request_url(), {"email": EMAIL}, content_type="application/json")
+    challenge = EmailVerification.objects.latest("created_at")
+
+    response = client.post(
+        verify_url(),
+        {"challenge_id": str(challenge.challenge_id), "email": EMAIL, "code": CODE},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200, response.content
+    assert response.json()["authenticated"] is True

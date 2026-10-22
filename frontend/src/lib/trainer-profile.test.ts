@@ -115,6 +115,48 @@ describe("trainer profile form", () => {
     expect(trainerDraftSchema.safeParse({...complete, landmark: ""}).success).toBe(false);
   });
 
+  it("saves the workshop before the course step has been reached", () => {
+    // The photos step comes before the course and needs a saved profile. A new
+    // trainer's course fields are still empty at that point, and building this
+    // payload used to throw on them: "Continue to photos" did nothing at all.
+    const workshopOnly: TrainerDraftForm = {
+      ...complete,
+      trade_id: "",
+      programme_title: "",
+      fee: "",
+      duration_weeks: "",
+    };
+
+    const payload = trainerProfilePayload(workshopOnly);
+
+    expect(payload.programme).toBeNull();
+    expect(payload).toMatchObject({name: "Accra Welding Works", landmark: "Behind the community market"});
+  });
+
+  it("holds back a course that is only half filled in", () => {
+    // Back from the course step to fix the workshop, then forward again: the
+    // half-typed course is not sent, and the one already saved stays put.
+    expect(trainerProfilePayload({...complete, fee: ""}).programme).toBeNull();
+    expect(
+      trainerProfilePayload({...complete, instalments_allowed: true, instalment_note: ""}).programme,
+    ).toBeNull();
+  });
+
+  it("does not refuse a save over the ID number, which is never kept after a reload", () => {
+    expect(() => trainerProfilePayload({...complete, id_document_number: ""})).not.toThrow();
+  });
+
+  it("trims what was typed", () => {
+    const payload = trainerProfilePayload({
+      ...complete,
+      name: "  Accra Welding Works ",
+      fee: " 1200.00 ",
+    });
+
+    expect(payload.name).toBe("Accra Welding Works");
+    expect(payload.programme?.fee).toBe("1200.00");
+  });
+
   it("wants the certificate named once the fee is said to include one", () => {
     const result = trainerDraftSchema.safeParse({
       ...complete,
@@ -145,12 +187,12 @@ describe("intake dates", () => {
 
   it("does not post places_remaining, which the API owns", () => {
     const payload = trainerProfilePayload(dated(iso(30)));
-    expect(payload.programme.intake).toEqual({
+    expect(payload.programme?.intake).toEqual({
       start_date: iso(30),
       places_offered: 15,
       is_open: true,
     });
-    expect(payload.programme.intake).not.toHaveProperty("places_remaining");
+    expect(payload.programme?.intake).not.toHaveProperty("places_remaining");
   });
 
   it("rejects a start date that has already passed", () => {

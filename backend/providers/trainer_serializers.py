@@ -178,7 +178,11 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
     site_visit_consent = serializers.BooleanField(required=False, default=False)
     data_consent = serializers.BooleanField(required=False, default=False)
 
-    programme = TrainerProgrammeInputSerializer()
+    # Null when saved from a step before the course one. The wizard saves the
+    # workshop on the way to the photos, which upload against a saved row, and
+    # the course step comes after them. Submission still needs a course: see
+    # submission_blockers.
+    programme = TrainerProgrammeInputSerializer(required=False, allow_null=True, default=None)
 
 
 # --- Upload schemas -------------------------------------------------------

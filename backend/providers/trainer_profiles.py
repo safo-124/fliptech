@@ -165,7 +165,6 @@ def current_intake_start_date(provider):
     return intakes[0].start_date if len(intakes) == 1 else None
 
 
-@transaction.atomic
 def _same(before, after):
     """Compare two field values for "did the owner actually change this".
 
@@ -192,6 +191,10 @@ def _field_label(field):
     }.get(field, field)
 
 
+# Atomic here, not in the view: the row locks below need a transaction, and the
+# test suite runs every test inside one, so a missing decorator passes every
+# test and fails every real save. It once sat two helpers further up, on _same.
+@transaction.atomic
 def save_owned_profile(*, account, actor, validated_data):
     # Serialise profile creation for one trainer so two mobile retries cannot
     # both pass the "no membership yet" check.
@@ -214,8 +217,8 @@ def save_owned_profile(*, account, actor, validated_data):
                 else "This listing has been suspended. Contact Fliiptech."
             )
 
-    programme_data = validated_data.pop("programme")
-    intake_data = programme_data.pop("intake", None)
+    programme_data = validated_data.pop("programme", None)
+    intake_data = programme_data.pop("intake", None) if programme_data else None
 
     # These belong to the person, not the workshop, so they come off before
     # the rest is splatted onto Provider.
@@ -311,6 +314,12 @@ def save_owned_profile(*, account, actor, validated_data):
             actor=actor,
             reason=reason,
         )
+
+    if programme_data is None:
+        # Saved before the course step. Whatever course the profile already
+        # has is left exactly as it is: no course in this save is not a request
+        # to remove one.
+        return get_owned_profile(account)
 
     programmes = list(Programme.objects.select_for_update().filter(provider=provider)[:2])
     if len(programmes) > 1:

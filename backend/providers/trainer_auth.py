@@ -51,6 +51,7 @@ def account_for_verified_phone(*, phone, verified_at):
     return account
 
 
+@transaction.atomic
 def account_for_verified_email(*, email, verified_at):
     """The trainer account that owns an address which just proved itself.
 

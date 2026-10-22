@@ -145,14 +145,34 @@ const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "places_offered",
 ];
 
+/** Which step shows a field, so an error the server sends can be taken there. */
+const FIELD_STEPS: ReadonlyArray<readonly [FieldPath<TrainerDraftForm>[], Step]> = [
+  [IDENTITY_FIELDS, "you"],
+  [WORKSHOP_FIELDS, "workshop"],
+  [COURSE_FIELDS, "course"],
+];
+
+function stepFor(field: FieldPath<TrainerDraftForm>): Step | null {
+  return FIELD_STEPS.find(([fields]) => fields.includes(field))?.[1] ?? null;
+}
+
 const API_FIELD_NAMES: Record<string, FieldPath<TrainerDraftForm>> = {
+  full_name: "full_name",
+  role: "role",
+  id_document_type: "id_document_type",
+  id_document_number: "id_document_number",
   name: "name",
   owner_name: "owner_name",
   contact_phone: "contact_phone",
   area_id: "area_id",
   address: "address",
+  landmark: "landmark",
   latitude: "latitude",
   longitude: "longitude",
+  year_established: "year_established",
+  premises_tenure: "premises_tenure",
+  trainer_count: "trainer_count",
+  trainee_count: "trainee_count",
   "programme.trade_id": "trade_id",
   "programme.title": "programme_title",
   "programme.fee": "fee",
@@ -874,14 +894,23 @@ export function TrainerJoinWizard() {
   }
 
   function applyApiErrors(reason: TrainerApiError) {
-    let first: FieldPath<TrainerDraftForm> | null = null;
+    const refused: FieldPath<TrainerDraftForm>[] = [];
     for (const [apiName, message] of Object.entries(reason.fields)) {
       const formName = API_FIELD_NAMES[apiName];
       if (!formName) continue;
-      first ??= formName;
+      refused.push(formName);
       setFieldError(formName, {type: "server", message});
     }
-    if (first) setFocus(first);
+    // Every save sends the whole profile, so a field the server refused can
+    // be on another step — on submit, it always is. Stay if one is on this
+    // step, otherwise go to the first: an error beside a field nobody can see
+    // is no error at all.
+    const first = refused.find((field) => stepFor(field) === step) ?? refused[0];
+    if (first) {
+      const target = stepFor(first);
+      if (target && target !== step) setStep(target);
+      requestAnimationFrame(() => setFocus(first));
+    }
     setError(reason.fields.detail ?? (!first ? reason.message : null));
   }
 
@@ -1599,15 +1628,21 @@ export function TrainerJoinWizard() {
                 </div>
               </fieldset>
             </CardContent>
-            <CardFooter className="sm:px-6">
+            <CardFooter className="flex-col gap-3 sm:px-6">
+              {error ? <FormError id="workshop-save-error" message={error} /> : null}
               <Button
                 type="button"
                 variant="brand"
+                disabled={busy}
                 onClick={() => saveThenContinue(WORKSHOP_FIELDS, "photos")}
                 className="w-full"
               >
-                {t("continueToPhotos")}
-                <ArrowRight aria-hidden="true" />
+                {busy ? t("saving") : t("continueToPhotos")}
+                {busy ? (
+                  <Loader2 aria-hidden="true" className="animate-spin" />
+                ) : (
+                  <ArrowRight aria-hidden="true" />
+                )}
               </Button>
             </CardFooter>
           </Card>
@@ -2031,25 +2066,33 @@ export function TrainerJoinWizard() {
                 </div>
               </fieldset>
             </CardContent>
-            <CardFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between sm:px-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("workshop")}
-                className="w-full sm:w-auto"
-              >
-                <ArrowLeft aria-hidden="true" />
-                {t("back")}
-              </Button>
-              <Button
-                type="button"
-                variant="brand"
-                onClick={() => saveThenContinue(COURSE_FIELDS, "review")}
-                className="w-full sm:w-auto"
-              >
-                {t("reviewProfile")}
-                <ArrowRight aria-hidden="true" />
-              </Button>
+            <CardFooter className="flex-col gap-3 sm:px-6">
+              {error ? <FormError id="course-save-error" message={error} /> : null}
+              <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep("photos")}
+                  className="w-full sm:w-auto"
+                >
+                  <ArrowLeft aria-hidden="true" />
+                  {t("back")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="brand"
+                  disabled={busy}
+                  onClick={() => saveThenContinue(COURSE_FIELDS, "review")}
+                  className="w-full sm:w-auto"
+                >
+                  {busy ? t("saving") : t("reviewProfile")}
+                  {busy ? (
+                    <Loader2 aria-hidden="true" className="animate-spin" />
+                  ) : (
+                    <ArrowRight aria-hidden="true" />
+                  )}
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         </section>

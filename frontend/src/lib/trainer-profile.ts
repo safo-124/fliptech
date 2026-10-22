@@ -28,92 +28,130 @@ const coordinate = (
     .refine((value) => Number.isFinite(Number(value)), v(messages.invalid))
     .refine((value) => Number(value) >= minimum && Number(value) <= maximum, v(messages.range));
 
-export const trainerDraftSchema = z
-  .object({
-    // --- who is submitting this ---
-    // Required, because confirming an account is the judgement that this
-    // person speaks for this workshop, and a verified phone only proves they
-    // hold a SIM.
-    full_name: requiredText("fullNameRequired", 200),
-    role: z.string().min(1, v("roleRequired")),
-    id_document_type: z.string().min(1, v("idTypeRequired")),
-    id_document_number: requiredText("idNumberRequired", 60),
+const trainerDraftShape = z.object({
+  // --- who is submitting this ---
+  // Required, because confirming an account is the judgement that this
+  // person speaks for this workshop, and a verified phone only proves they
+  // hold a SIM.
+  full_name: requiredText("fullNameRequired", 200),
+  role: z.string().min(1, v("roleRequired")),
+  id_document_type: z.string().min(1, v("idTypeRequired")),
+  id_document_number: requiredText("idNumberRequired", 60),
 
-    // --- the workshop ---
-    name: requiredText("workshopNameRequired", 200),
-    owner_name: requiredText("ownerNameRequired", 200),
-    contact_phone: ghanaPhoneSchema,
-    area_id: z.string().min(1, v("areaRequired")),
-    address: requiredText("addressRequired", 300),
-    // Required. A street address does not find a workshop in Accra and a phone
-    // GPS pin can be tens of metres out; the field officer navigates by this.
-    landmark: requiredText("landmarkRequired", 200),
-    latitude: coordinate(
-      {required: "latitudeRequired", invalid: "latitudeInvalid", range: "latitudeRange"},
-      -90,
-      90,
-    ),
-    longitude: coordinate(
-      {required: "longitudeRequired", invalid: "longitudeInvalid", range: "longitudeRange"},
-      -180,
-      180,
-    ),
-    year_established: optionalWholeNumber,
-    premises_tenure: z.string(),
-    trainer_count: optionalWholeNumber,
-    trainee_count: optionalWholeNumber,
+  // --- the workshop ---
+  name: requiredText("workshopNameRequired", 200),
+  owner_name: requiredText("ownerNameRequired", 200),
+  contact_phone: ghanaPhoneSchema,
+  area_id: z.string().min(1, v("areaRequired")),
+  address: requiredText("addressRequired", 300),
+  // Required. A street address does not find a workshop in Accra and a phone
+  // GPS pin can be tens of metres out; the field officer navigates by this.
+  landmark: requiredText("landmarkRequired", 200),
+  latitude: coordinate(
+    {required: "latitudeRequired", invalid: "latitudeInvalid", range: "latitudeRange"},
+    -90,
+    90,
+  ),
+  longitude: coordinate(
+    {required: "longitudeRequired", invalid: "longitudeInvalid", range: "longitudeRange"},
+    -180,
+    180,
+  ),
+  year_established: optionalWholeNumber,
+  premises_tenure: z.string(),
+  trainer_count: optionalWholeNumber,
+  trainee_count: optionalWholeNumber,
 
-    // --- declarations ---
-    declared_accurate: z.boolean(),
-    site_visit_consent: z.boolean(),
-    data_consent: z.boolean(),
+  // --- declarations ---
+  declared_accurate: z.boolean(),
+  site_visit_consent: z.boolean(),
+  data_consent: z.boolean(),
 
-    // --- the course ---
-    trade_id: z.string().min(1, v("tradeRequired")),
-    programme_title: requiredText("courseTitleRequired", 200),
-    fee: z
-      .string()
-      .trim()
-      .regex(/^\d+(?:\.\d{1,2})?$/, v("feeInvalid")),
-    duration_weeks: z
-      .string()
-      .trim()
-      .regex(/^\d+$/, v("weeksInvalid"))
-      .refine((value) => Number(value) >= 1, v("weeksMinimum")),
-    instalments_allowed: z.boolean(),
-    instalment_note: z.string().trim().max(200, v("tooLong")),
-    hours_per_week: optionalWholeNumber,
-    weekly_schedule: z.string().trim().max(200, v("tooLong")),
-    capacity: optionalWholeNumber,
-    fee_includes_tools: z.boolean(),
-    fee_includes_materials: z.boolean(),
-    fee_includes_ppe: z.boolean(),
-    fee_includes_certificate: z.boolean(),
-    certificate_awarded: z.string().trim().max(200, v("tooLong")),
-    intake_start_date: z.string(),
-    places_offered: optionalWholeNumber,
+  // --- the course ---
+  trade_id: z.string().min(1, v("tradeRequired")),
+  programme_title: requiredText("courseTitleRequired", 200),
+  fee: z
+    .string()
+    .trim()
+    .regex(/^\d+(?:\.\d{1,2})?$/, v("feeInvalid")),
+  duration_weeks: z
+    .string()
+    .trim()
+    .regex(/^\d+$/, v("weeksInvalid"))
+    .refine((value) => Number(value) >= 1, v("weeksMinimum")),
+  instalments_allowed: z.boolean(),
+  instalment_note: z.string().trim().max(200, v("tooLong")),
+  hours_per_week: optionalWholeNumber,
+  weekly_schedule: z.string().trim().max(200, v("tooLong")),
+  capacity: optionalWholeNumber,
+  fee_includes_tools: z.boolean(),
+  fee_includes_materials: z.boolean(),
+  fee_includes_ppe: z.boolean(),
+  fee_includes_certificate: z.boolean(),
+  certificate_awarded: z.string().trim().max(200, v("tooLong")),
+  intake_start_date: z.string(),
+  places_offered: optionalWholeNumber,
+});
+
+type CourseRuleValues = Pick<
+  z.infer<typeof trainerDraftShape>,
+  | "places_offered"
+  | "intake_start_date"
+  | "fee_includes_certificate"
+  | "certificate_awarded"
+  | "instalments_allowed"
+  | "instalment_note"
+>;
+
+/** The rules between course fields, for the whole form and the course alone. */
+function courseIssues(values: CourseRuleValues) {
+  const issues: {path: keyof CourseRuleValues; message: ValidationKey}[] = [];
+  if (values.places_offered && !values.intake_start_date) {
+    issues.push({path: "intake_start_date", message: v("startDateBeforePlaces")});
+  }
+  if (values.fee_includes_certificate && !values.certificate_awarded) {
+    issues.push({path: "certificate_awarded", message: v("certificateRequired")});
+  }
+  if (values.instalments_allowed && !values.instalment_note) {
+    issues.push({path: "instalment_note", message: v("instalmentNoteRequired")});
+  }
+  return issues;
+}
+
+export const trainerDraftSchema = trainerDraftShape.superRefine((values, context) => {
+  for (const issue of courseIssues(values)) {
+    context.addIssue({code: "custom", path: [issue.path], message: issue.message});
+  }
+});
+
+/**
+ * The course on its own, to tell whether there is one worth saving yet.
+ *
+ * The course step comes after the photos, and the photos need a saved
+ * profile, so a new trainer's first save has no course in it.
+ */
+const courseSchema = trainerDraftShape
+  .pick({
+    trade_id: true,
+    programme_title: true,
+    fee: true,
+    duration_weeks: true,
+    instalments_allowed: true,
+    instalment_note: true,
+    hours_per_week: true,
+    weekly_schedule: true,
+    capacity: true,
+    fee_includes_tools: true,
+    fee_includes_materials: true,
+    fee_includes_ppe: true,
+    fee_includes_certificate: true,
+    certificate_awarded: true,
+    intake_start_date: true,
+    places_offered: true,
   })
   .superRefine((values, context) => {
-    if (values.places_offered && !values.intake_start_date) {
-      context.addIssue({
-        code: "custom",
-        path: ["intake_start_date"],
-        message: v("startDateBeforePlaces"),
-      });
-    }
-    if (values.fee_includes_certificate && !values.certificate_awarded) {
-      context.addIssue({
-        code: "custom",
-        path: ["certificate_awarded"],
-        message: v("certificateRequired"),
-      });
-    }
-    if (values.instalments_allowed && !values.instalment_note) {
-      context.addIssue({
-        code: "custom",
-        path: ["instalment_note"],
-        message: v("instalmentNoteRequired"),
-      });
+    for (const issue of courseIssues(values)) {
+      context.addIssue({code: "custom", path: [issue.path], message: issue.message});
     }
   });
 
@@ -229,56 +267,73 @@ function optionalNumber(value: string): number | null {
   return value === "" ? null : Number(value);
 }
 
+/**
+ * The save request for what has been filled in so far.
+ *
+ * It refuses nothing. Each step checks its own fields before it saves and
+ * the server checks the rest, so this only shapes the values. It used to
+ * check the whole form, and a new trainer's first save — on the way to the
+ * photos, before the course step — failed on course fields they had not
+ * reached yet, without a word on screen.
+ *
+ * The course goes only once it is complete, and as null until then. The API
+ * leaves whatever course it already has alone, and still asks for one before
+ * the profile can be submitted.
+ */
 export function trainerProfilePayload(raw: TrainerDraftForm) {
-  const values = trainerDraftSchema.parse(raw);
+  const course = courseSchema.safeParse(raw);
 
   return {
-    full_name: values.full_name,
-    role: values.role,
-    id_document_type: values.id_document_type,
-    id_document_number: values.id_document_number,
-    name: values.name,
-    owner_name: values.owner_name,
-    contact_phone: toGhanaE164(values.contact_phone),
-    area_id: Number(values.area_id),
-    address: values.address,
-    landmark: values.landmark,
-    latitude: Number(values.latitude),
-    longitude: Number(values.longitude),
-    year_established: optionalNumber(values.year_established),
-    premises_tenure: values.premises_tenure,
-    trainer_count: optionalNumber(values.trainer_count),
-    trainee_count: optionalNumber(values.trainee_count),
-    declared_accurate: values.declared_accurate,
-    site_visit_consent: values.site_visit_consent,
-    data_consent: values.data_consent,
-    programme: {
-      trade_id: Number(values.trade_id),
-      title: values.programme_title,
-      fee: values.fee,
-      instalments_allowed: values.instalments_allowed,
-      instalment_note: values.instalment_note,
-      duration_weeks: Number(values.duration_weeks),
-      hours_per_week: optionalNumber(values.hours_per_week),
-      weekly_schedule: values.weekly_schedule,
-      capacity: optionalNumber(values.capacity),
-      fee_includes_tools: values.fee_includes_tools,
-      fee_includes_materials: values.fee_includes_materials,
-      fee_includes_ppe: values.fee_includes_ppe,
-      fee_includes_certificate: values.fee_includes_certificate,
-      certificate_awarded: values.certificate_awarded,
-      // places_remaining is not sent. It is the counter that moves as trainees
-      // enrol; the API seeds it from the offer when the intake is created and
-      // owns it from then on. Posting it meant every edit silently reset a
-      // half-full course back to empty.
-      intake: values.intake_start_date
-        ? {
-            start_date: values.intake_start_date,
-            places_offered: optionalNumber(values.places_offered),
-            is_open: true,
-          }
-        : null,
-    },
+    full_name: raw.full_name.trim(),
+    role: raw.role,
+    id_document_type: raw.id_document_type,
+    id_document_number: raw.id_document_number.trim(),
+    name: raw.name.trim(),
+    owner_name: raw.owner_name.trim(),
+    contact_phone: toGhanaE164(raw.contact_phone),
+    area_id: Number(raw.area_id),
+    address: raw.address.trim(),
+    landmark: raw.landmark.trim(),
+    latitude: Number(raw.latitude.trim()),
+    longitude: Number(raw.longitude.trim()),
+    year_established: optionalNumber(raw.year_established.trim()),
+    premises_tenure: raw.premises_tenure,
+    trainer_count: optionalNumber(raw.trainer_count.trim()),
+    trainee_count: optionalNumber(raw.trainee_count.trim()),
+    declared_accurate: raw.declared_accurate,
+    site_visit_consent: raw.site_visit_consent,
+    data_consent: raw.data_consent,
+    programme: course.success ? programmePayload(course.data) : null,
+  };
+}
+
+function programmePayload(values: z.infer<typeof courseSchema>) {
+  return {
+    trade_id: Number(values.trade_id),
+    title: values.programme_title,
+    fee: values.fee,
+    instalments_allowed: values.instalments_allowed,
+    instalment_note: values.instalment_note,
+    duration_weeks: Number(values.duration_weeks),
+    hours_per_week: optionalNumber(values.hours_per_week),
+    weekly_schedule: values.weekly_schedule,
+    capacity: optionalNumber(values.capacity),
+    fee_includes_tools: values.fee_includes_tools,
+    fee_includes_materials: values.fee_includes_materials,
+    fee_includes_ppe: values.fee_includes_ppe,
+    fee_includes_certificate: values.fee_includes_certificate,
+    certificate_awarded: values.certificate_awarded,
+    // places_remaining is not sent. It is the counter that moves as trainees
+    // enrol; the API seeds it from the offer when the intake is created and
+    // owns it from then on. Posting it meant every edit silently reset a
+    // half-full course back to empty.
+    intake: values.intake_start_date
+      ? {
+          start_date: values.intake_start_date,
+          places_offered: optionalNumber(values.places_offered),
+          is_open: true,
+        }
+      : null,
   };
 }
 

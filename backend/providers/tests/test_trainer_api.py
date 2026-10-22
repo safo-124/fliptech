@@ -1288,3 +1288,140 @@ def test_a_draft_cannot_be_confirmed(csrf_client, monkeypatch, catalogue):
     )
 
     assert response.status_code == 409
+
+
+# --- saving before the course step ---------------------------------------------
+#
+# The wizard saves the workshop on the way to the photos, because photographs
+# upload against a saved row, and the course step comes after them. So a new
+# trainer's first save has no course in it, and must still go through.
+
+
+def jpeg_upload(name="workshop.jpg"):
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (40, 30), "grey").save(buffer, format="JPEG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
+
+
+@pytest.mark.django_db
+def test_the_workshop_saves_before_the_course_and_photos_can_follow(
+    csrf_client, monkeypatch, catalogue, settings, tmp_path
+):
+    settings.MEDIA_ROOT = tmp_path
+    login_trainer(csrf_client, monkeypatch)
+    headers = authenticated_csrf(csrf_client)
+
+    saved = csrf_client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue, programme=None),
+        content_type="application/json",
+        **headers,
+    )
+
+    assert saved.status_code == 200, saved.content
+    assert saved.json()["profile"]["programme"] is None
+    provider = Provider.objects.get()
+    assert provider.status == Provider.Status.DRAFT
+    assert not Programme.objects.exists()
+
+    photo = csrf_client.post(
+        reverse("trainer-photo-upload"),
+        {"image": jpeg_upload(), "kind": "workshop"},
+        **headers,
+    )
+    assert photo.status_code == 201, photo.content
+    assert provider.photos.count() == 1
+
+    # Still asked for before review, just not before the photos.
+    blockers = csrf_client.get(reverse("trainer-profile")).json()["blockers"]
+    assert "Add at least one course." in blockers
+
+
+@pytest.mark.django_db
+def test_a_save_without_a_course_keeps_the_course_already_saved(
+    csrf_client, monkeypatch, catalogue
+):
+    """Back to fix the workshop and forward again: no course in the save is not
+    a request to delete the one on file."""
+    login_trainer(csrf_client, monkeypatch)
+    headers = authenticated_csrf(csrf_client)
+    url = reverse("trainer-profile")
+    csrf_client.put(url, profile_payload(catalogue), content_type="application/json", **headers)
+
+    again = csrf_client.put(
+        url,
+        profile_payload(catalogue, name="Renamed Academy", programme=None),
+        content_type="application/json",
+        **headers,
+    )
+
+    assert again.status_code == 200, again.content
+    assert again.json()["profile"]["programme"]["title"] == "Practical arc welding"
+    assert Provider.objects.get().name == "Renamed Academy"
+    programme = Programme.objects.get()
+    assert programme.title == "Practical arc welding"
+    assert Intake.objects.filter(programme=programme).count() == 1
+
+
+@pytest.mark.django_db
+def test_a_profile_without_a_course_cannot_be_submitted(csrf_client, monkeypatch, catalogue):
+    login_trainer(csrf_client, monkeypatch)
+    headers = authenticated_csrf(csrf_client)
+    csrf_client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue, programme=None),
+        content_type="application/json",
+        **headers,
+    )
+    attach_review_files(Provider.objects.get(), TrainerAccount.objects.get().user)
+
+    submitted = csrf_client.post(
+        reverse("trainer-profile-submit"), content_type="application/json", **headers
+    )
+
+    assert submitted.status_code == 400
+    assert submitted.json()["blockers"] == ["Add at least one course."]
+    assert Provider.objects.get().status == Provider.Status.DRAFT
+
+
+# --- outside the test's own transaction -----------------------------------------
+#
+# Every other test here runs inside a transaction. A write that locks rows
+# without opening a transaction of its own therefore passes all of them, and
+# fails on every real request: the profile save did, from September until it
+# was noticed, because its decorator had ended up on a helper two functions
+# up. These run the way a request does.
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_real_request_can_save_the_profile(csrf_client, monkeypatch, catalogue):
+    login_trainer(csrf_client, monkeypatch)
+
+    saved = csrf_client.put(
+        reverse("trainer-profile"),
+        profile_payload(catalogue),
+        content_type="application/json",
+        **authenticated_csrf(csrf_client),
+    )
+
+    assert saved.status_code == 200, saved.content
+    assert Provider.objects.count() == Programme.objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_trainer_email_sign_in_opens_its_own_transaction():
+    from providers.trainer_auth import account_for_verified_email
+
+    account = account_for_verified_phone(phone=PHONE, verified_at=timezone.now())
+    account.email = "owner@example.com"
+    account.save(update_fields=["email", "updated_at"])
+
+    signed_in = account_for_verified_email(email="owner@example.com", verified_at=timezone.now())
+
+    assert signed_in == account
+    assert signed_in.email_verified_at is not None

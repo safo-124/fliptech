@@ -1031,6 +1031,7 @@
     "goesPublic": "The workshop name, contact details, location and course go public only after staff approval. Your sign-in phone and your ID never appear on the site.",
     "stillNeeded": "Still needed before you can send",
     "submitting": "Submitting…",
-    "submit": "Submit for review"
+    "submit": "Submit for review",
+    "saving": "Saving…"
   }
 }
