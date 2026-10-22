@@ -31,6 +31,8 @@ from django.views.decorators.http import require_POST
 from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
+from core.site_links import provider_page_url
+
 from . import admin_upload, queues
 from .admin_outbox import OwnerMessagesAdminMixin
 from .lifecycle import (
@@ -391,6 +393,14 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
             *self.outbox_urls(),
         ]
         return custom + super().get_urls()
+
+    def view_on_site(self, obj):
+        """Where "View on site" goes: the listing as trainees see it, once published.
+
+        The page staff edit most had no way to it, while its own courses and
+        intakes did. A draft has no public page yet, so it gets no link.
+        """
+        return provider_page_url(obj)
 
     @admin.display(description="Status", ordering="status")
     def status_summary(self, obj):

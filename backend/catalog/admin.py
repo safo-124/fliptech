@@ -28,6 +28,7 @@ from django.utils.html import format_html
 from simple_history.admin import SimpleHistoryAdmin
 from simple_history.utils import bulk_update_with_history
 
+from core.site_links import provider_page_url, public_site_url
 from providers.models import Provider
 
 from . import queues
@@ -430,7 +431,8 @@ class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
         )
 
     def view_on_site(self, obj):
-        return f"/trades/{obj.slug}"
+        # Only an active trade has a page; an inactive one would be a 404.
+        return public_site_url(f"trades/{obj.slug}") if obj.is_active else None
 
     @admin.action(description="Activate selected trades", permissions=("change",))
     def activate_trades(self, request, queryset):
@@ -637,7 +639,8 @@ class ProgrammeAdmin(CatalogWorkspaceMixin, SimpleHistoryAdmin):
         )
 
     def view_on_site(self, obj):
-        return f"/{obj.provider.area.slug}/{obj.provider.slug}"
+        # A course is shown on its provider's page, which exists once published.
+        return provider_page_url(obj.provider)
 
     @admin.action(description="Activate selected programmes", permissions=("change",))
     def activate_programmes(self, request, queryset):
@@ -875,8 +878,7 @@ class IntakeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
         )
 
     def view_on_site(self, obj):
-        provider = obj.programme.provider
-        return f"/{provider.area.slug}/{provider.slug}"
+        return provider_page_url(obj.programme.provider)
 
     @admin.action(description="Open selected future intakes", permissions=("change",))
     def open_intakes(self, request, queryset):

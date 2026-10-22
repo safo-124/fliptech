@@ -10,8 +10,6 @@ superusers see it. Three things are deliberately not ordinary admin actions:
   confirmation, never the stock delete button.
 """
 
-from urllib.parse import urljoin, urlsplit, urlunsplit
-
 from django.conf import settings
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -24,6 +22,7 @@ from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 from simple_history.admin import SimpleHistoryAdmin
 
+from core.site_links import public_site_url
 from enquiries.models import Enquiry, Enrolment
 
 from .erasure import erase_personal_data
@@ -35,26 +34,14 @@ from .support import (
     start_support_session,
 )
 
-LOOPBACK_HOSTS = {"localhost", "127.0.0.1"}
-
 
 def trainee_dashboard_url(request=None):
     """Where staff land in support mode.
 
-    In development, keep the loopback name staff used for the back office
-    (localhost or 127.0.0.1). Browsers treat the two as different sites and
-    would not send the staff session cookie across them.
+    The request is passed so a development link keeps the loopback name staff
+    used for the back office; see core/site_links.py.
     """
-    base = settings.PUBLIC_SITE_URL
-    if not base:
-        return "/trainee"
-    parts = urlsplit(base)
-    if request is not None and parts.hostname in LOOPBACK_HOSTS:
-        request_host = request.get_host().rsplit(":", 1)[0]
-        if request_host in LOOPBACK_HOSTS and request_host != parts.hostname:
-            netloc = request_host + (f":{parts.port}" if parts.port else "")
-            base = urlunsplit(parts._replace(netloc=netloc))
-    return urljoin(base.rstrip("/") + "/", "trainee")
+    return public_site_url("trainee", request)
 
 
 class ReadOnlyInline(admin.TabularInline):

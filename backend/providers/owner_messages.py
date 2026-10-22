@@ -11,12 +11,11 @@ replaces the Send button and nothing else.
   which uses the helpers below for the number and the links.
 """
 
-from urllib.parse import urljoin
-
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from core.site_links import public_site_url
 from enquiries.whatsapp import chat_url
 
 from .dashboard import make_dashboard_token
@@ -34,10 +33,9 @@ def site_link(path):
     None when PUBLIC_SITE_URL is unset: a relative path in a WhatsApp message
     is a link to nowhere, and it is better to leave the line out.
     """
-    base = settings.PUBLIC_SITE_URL
-    if not base:
+    if not settings.PUBLIC_SITE_URL:
         return None
-    return urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+    return public_site_url(path)
 
 
 def dashboard_link(provider):

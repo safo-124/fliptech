@@ -52,16 +52,22 @@ class SkillsHubAdminSite(AdminSite):
     login_template = "admin/skillshub_login.html"
 
     def each_context(self, request):
-        """Adds the flag the login template needs.
+        """Adds the flag the login template needs, and the public site's address.
 
-        each_context rather than a context processor: this is one boolean used
-        by one template inside the admin, and a processor would compute it on
-        every render of every page in the project.
+        each_context rather than a context processor: these are used only
+        inside the admin, and a processor would compute them on every render of
+        every page in the project.
         """
         from django.conf import settings
 
+        from .site_links import public_site_url
+
         context = super().each_context(request)
         context["staff_email_login_enabled"] = getattr(settings, "STAFF_EMAIL_LOGIN_ENABLED", False)
+        # "View site" in the top bar. Django's default is "/", which is the
+        # site only where Caddy puts both on one domain; in development it is
+        # this Django server's own 404. See core/site_links.py.
+        context["site_url"] = public_site_url("/", request)
         return context
 
     def index(self, request, extra_context=None):
