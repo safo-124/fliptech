@@ -86,22 +86,30 @@
 
     {% if back_office %}
       {% if back_office.code_queues %}
-        {# First, because somebody is usually waiting with the code box open. #}
+        {% comment %}
+          First, because somebody is usually waiting with the code box open.
+          Shown while codes are relayed even with none waiting, so the counts
+          only appear when there is something to send.
+        {% endcomment %}
         <details class="sb-group" open data-sb-group aria-labelledby="sb-code-queues-label" data-nav-search-group>
           <summary class="sb-group-label" id="sb-code-queues-label">
             <span>{% translate 'Sign-in codes' %}</span>
-            <span class="sb-label-count">{{ back_office.code_queues|length }}</span>
+            {% if back_office.code_queues.0.count %}
+              <span class="sb-label-count">{{ back_office.code_queues|length }}</span>
+            {% endif %}
             <svg class="sb-group-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
           </summary>
           <ul class="sb-menu">
             {% for queue in back_office.code_queues %}
               <li data-nav-search-item data-nav-search-text="{{ queue.label }}">
-                <a class="sb-item sb-queue{% if request.path == queue.url %} is-active{% endif %}"
+                <a class="sb-item sb-queue{% if not queue.count %} sb-queue--idle{% endif %}{% if request.path == queue.url %} is-active{% endif %}"
                    href="{{ queue.url }}"
                    {% if request.path == queue.url %}aria-current="page"{% endif %}>
                   <span class="sb-queue-dot" aria-hidden="true"></span>
                   <span class="sb-item-text">{{ queue.label }}</span>
-                  <span class="sb-count" aria-label="{% blocktranslate with count=queue.count %}{{ count }} items{% endblocktranslate %}">{{ queue.count }}</span>
+                  {% if queue.count %}
+                    <span class="sb-count" aria-label="{% blocktranslate with count=queue.count %}{{ count }} items{% endblocktranslate %}">{{ queue.count }}</span>
+                  {% endif %}
                 </a>
               </li>
             {% endfor %}

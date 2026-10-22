@@ -911,6 +911,12 @@ input:focus, textarea:focus, select:focus, .vTextField:focus {
   background: var(--primary);
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent);
 }
+/* A queue listed with nothing in it: still a link, no longer a call to act. */
+.sb-queue--idle .sb-queue-dot {
+  background: var(--muted-foreground);
+  box-shadow: none;
+  opacity: 0.5;
+}
 .sb-count {
   min-width: 23px;
   padding: 1px 6px;

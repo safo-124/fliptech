@@ -178,15 +178,64 @@ def test_an_expired_code_is_not_shown(client, django_user_model, groups, relayin
     assert text.body == ""
 
 
+# The sidebar group itself; the words "Sign-in codes" also appear in a tooltip.
+GROUP = 'id="sb-code-queues-label"'
+
+
+def code_queues(client):
+    response = client.get(reverse("admin:index"))
+    return response, response.context["back_office"]["code_queues"]
+
+
 @pytest.mark.django_db
 def test_the_sidebar_counts_codes_waiting(client, django_user_model, groups, relaying):
     send_sms(PHONE, "482913 is your code")
     client.force_login(staff(django_user_model, "lead", groups["lead"]))
 
-    html = client.get(reverse("admin:index")).content.decode()
+    response, queues = code_queues(client)
 
-    assert "Codes to send" in html
-    assert page_url() in html
+    assert [(q["label"], q["count"], q["url"]) for q in queues] == [
+        ("Codes to send", 1, page_url())
+    ]
+    assert GROUP in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_the_sidebar_offers_the_page_with_nothing_waiting(
+    client, django_user_model, groups, relaying
+):
+    """Staff go looking for it when somebody says a code is on its way."""
+    client.force_login(staff(django_user_model, "lead", groups["lead"]))
+
+    response, queues = code_queues(client)
+
+    assert [(q["label"], q["count"]) for q in queues] == [("Codes to send", 0)]
+    html = response.content.decode()
+    assert GROUP in html
+    assert "sb-queue--idle" in html
+
+
+@pytest.mark.django_db
+def test_the_sidebar_has_no_codes_group_unless_relaying(
+    client, django_user_model, groups, settings
+):
+    settings.SMS_PROVIDER = "console"
+    client.force_login(staff(django_user_model, "lead", groups["lead"]))
+
+    response, queues = code_queues(client)
+
+    assert queues == []
+    assert GROUP not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_a_field_officer_has_no_codes_group(client, django_user_model, groups, relaying):
+    client.force_login(staff(django_user_model, "officer", groups["officer"]))
+
+    response, queues = code_queues(client)
+
+    assert queues == []
+    assert GROUP not in response.content.decode()
 
 
 @pytest.mark.django_db

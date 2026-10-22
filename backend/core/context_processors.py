@@ -164,14 +164,17 @@ def _codes_to_send(user):
     worth something for ten minutes and somebody is usually waiting for it, so
     a badge a minute behind is a badge that matters. It is one indexed count,
     and only when codes are being relayed at all.
+
+    Listed even with nothing waiting, unlike the other queues. Staff open this
+    page because somebody says they are waiting for a code, often before it
+    has arrived, and a link that appears only once there is something in it is
+    a link nobody can find at that moment.
     """
     if settings.SMS_PROVIDER != "backoffice" or not user.has_perm("core.view_relayedtext"):
         return []
     from core.relay import waiting
 
     count = waiting().count()
-    if not count:
-        return []
     return [
         {
             "key": "codes_to_send",
