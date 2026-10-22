@@ -157,6 +157,31 @@ def _snapshot():
     }
 
 
+def _codes_to_send(user):
+    """Sign-in codes waiting for staff to send them by hand. See core/relay.py.
+
+    Counted on every request rather than from the cached snapshot: a code is
+    worth something for ten minutes and somebody is usually waiting for it, so
+    a badge a minute behind is a badge that matters. It is one indexed count,
+    and only when codes are being relayed at all.
+    """
+    if settings.SMS_PROVIDER != "backoffice" or not user.has_perm("core.view_relayedtext"):
+        return []
+    from core.relay import waiting
+
+    count = waiting().count()
+    if not count:
+        return []
+    return [
+        {
+            "key": "codes_to_send",
+            "label": "Codes to send",
+            "count": count,
+            "url": reverse("admin:core_relayedtext_changelist"),
+        }
+    ]
+
+
 def back_office(request):
     match = getattr(request, "resolver_match", None)
     if match is None or match.app_name != "admin":
@@ -186,6 +211,7 @@ def back_office(request):
         "back_office": {
             "brand": settings.BRAND_NAME,
             **snapshot,
+            "code_queues": _codes_to_send(user),
             # Custom links must follow the same permission boundary as
             # AdminSite's native app list. The cached counts are global, but
             # each request receives only the queues that user may open.

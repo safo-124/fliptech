@@ -29,11 +29,16 @@ PROVIDER_ALERTS_SEND = False
 INERT_BACKENDS = {"console", "dummy", "locmem", ""}
 
 
+# Backends that reach the person, but by a member of staff rather than the
+# server. Counted as delivering, and named for what they are.
+STAFF_RELAYED_BACKENDS = {"backoffice": "sent by staff from the back office"}
+
+
 def _channel(name, setting_value, carries):
     live = setting_value not in INERT_BACKENDS
     return {
         "name": name,
-        "provider": setting_value or "unset",
+        "provider": STAFF_RELAYED_BACKENDS.get(setting_value, setting_value or "unset"),
         "live": live,
         "carries": carries,
     }

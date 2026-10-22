@@ -396,6 +396,11 @@ TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 # premium range to farm carrier revenue — is a direct cash loss, and django-axes
 # does not cover it because it only guards login.
 
+# console     writes each text to the log (development)
+# backoffice  shows each code in the back office for staff to send by hand —
+#             a stand-in for demonstrations until a gateway is registered;
+#             see core/relay.py
+# arkesel / hubtel  the real gateways, not implemented until a sender ID exists
 SMS_PROVIDER = env("SMS_PROVIDER", default="console")
 SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
 

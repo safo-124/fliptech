@@ -42,6 +42,9 @@ FIELD_OFFICER_PERMISSIONS = [
 # and is the only role that sees trainee accounts. Trainee phone numbers belong
 # to people who are often young, so field officers do not get them by default.
 OPERATIONS_LEAD_EXTRA = [
+    # Sign-in codes sent by hand while SMS_PROVIDER=backoffice. Whoever can
+    # read one can sign in as its owner, so not a field officer's page.
+    ("core", "relayedtext", ["view", "change"]),
     ("trainees", "traineeaccount", ["view", "change"]),
     ("trainees", "savedprovider", ["view"]),
     ("trainees", "supportsession", ["view"]),

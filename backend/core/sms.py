@@ -33,6 +33,25 @@ class ConsoleSMSBackend(SMSBackend):
         return True
 
 
+class BackOfficeSMSBackend(SMSBackend):
+    """Showcase. Puts the text in the back office for staff to send by hand.
+
+    For demonstrating the product before a gateway exists: the person still
+    gets their code, from a member of staff. See core/relay.py, including who
+    may see these codes and why they are wiped once expired.
+
+    The code is not written to the log, unlike the console backend: the back
+    office is the one place it is shown, behind a permission.
+    """
+
+    def send(self, to: str, message: str) -> bool:
+        from .relay import queue_text
+
+        queue_text(to, message)
+        logger.info("Text to %s queued in the back office for staff to send", to)
+        return True
+
+
 class ArkeselSMSBackend(SMSBackend):
     """Arkesel, Ghana. Left unimplemented until a sender ID is registered.
 
@@ -55,6 +74,7 @@ class HubtelSMSBackend(SMSBackend):
 
 _BACKENDS = {
     "console": ConsoleSMSBackend,
+    "backoffice": BackOfficeSMSBackend,
     "arkesel": ArkeselSMSBackend,
     "hubtel": HubtelSMSBackend,
 }

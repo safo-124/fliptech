@@ -300,5 +300,10 @@ set in `backend/.env`.
 - **Media is on local disk** until R2 credentials are set. Storage switches
   automatically when they appear.
 - **SMS and WhatsApp are inert.** `SMS_PROVIDER=console` logs codes instead of
-  sending them, pending sender-ID registration and Meta verification.
+  sending them, pending sender-ID registration and Meta verification. To show
+  the product to people before then, set `SMS_PROVIDER=backoffice` in
+  `backend/.env` and restart the API: every sign-in code then appears on the
+  back office's **Codes to send** page (operations lead and superusers only),
+  where staff send it on by WhatsApp or text and mark it sent. A code there
+  works for 10 minutes and is wiped from the database after that.
 - **No staging.** Every deploy goes straight to the machine trainees will use.

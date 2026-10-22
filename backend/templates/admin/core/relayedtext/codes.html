@@ -1,0 +1,140 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% comment %}
+  Codes to send. With SMS_PROVIDER=backoffice the server does not send sign-in
+  codes itself; each one waits here and a member of staff sends it on. See
+  core/relay.py.
+
+  The page reloads itself every 15 seconds while it is on screen, so a code a
+  visitor has just asked for appears without anybody pressing refresh — the
+  person is usually waiting with the code box open.
+{% endcomment %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .relay-code {
+      font: 700 1.6rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0.18em;
+    }
+    .relay-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .relay-actions .button, .relay-actions button { min-height: 44px; }
+    .relay-table td { vertical-align: middle; }
+  </style>
+{% endblock %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; {% translate 'Codes to send' %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    {% if relaying %}
+      <p class="help" style="margin-bottom: 16px">
+        {% blocktranslate %}
+          The server cannot send text messages yet, so each sign-in code waits here. Send it to
+          the person yourself — WhatsApp or a text from your phone — then mark it as sent. A
+          code works for {{ lifetime_minutes }} minutes and disappears from this page after
+          that.
+        {% endblocktranslate %}
+      </p>
+    {% else %}
+      <ul class="messagelist">
+        <li class="warning">
+          {% blocktranslate %}
+            Codes only come here when SMS_PROVIDER is set to “backoffice”. It is currently
+            “{{ provider }}”, so new codes are not being added to this page.
+          {% endblocktranslate %}
+        </li>
+      </ul>
+    {% endif %}
+
+    <div class="module">
+      <h2>{% blocktranslate count counter=waiting|length %}Waiting to send ({{ counter }}){% plural %}Waiting to send ({{ counter }}){% endblocktranslate %}</h2>
+      {% if waiting %}
+        <table class="relay-table" style="width: 100%">
+          <thead>
+            <tr>
+              <th scope="col">{% translate 'Send to' %}</th>
+              <th scope="col">{% translate 'Code' %}</th>
+              <th scope="col">{% translate 'Works for' %}</th>
+              <th scope="col"><span class="visually-hidden">{% translate 'Send' %}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in waiting %}
+              <tr>
+                <td><strong>{{ row.text.to }}</strong></td>
+                <td><span class="relay-code">{{ row.code|default:"—" }}</span></td>
+                <td>{% blocktranslate count counter=row.minutes_left %}{{ counter }} more minute{% plural %}{{ counter }} more minutes{% endblocktranslate %}</td>
+                <td>
+                  <div class="relay-actions">
+                    <a class="button" href="{{ row.whatsapp }}" target="_blank" rel="noopener">{% translate 'WhatsApp' %}</a>
+                    <a class="button" href="{{ row.sms }}">{% translate 'Text message' %}</a>
+                    {% if row.code %}
+                      <button type="button" class="button" data-copy="{{ row.code }}">{% translate 'Copy code' %}</button>
+                    {% endif %}
+                    {% if can_mark %}
+                      <form method="post" action="{% url 'admin:core_relayedtext_sent' row.text.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="button default">{% translate 'Mark as sent' %}</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="padding: 12px">{% translate 'No codes waiting. When somebody asks for a sign-in code, it appears here. This page checks every 15 seconds.' %}</p>
+      {% endif %}
+    </div>
+
+    {% if sent %}
+      <div class="module" style="margin-top: 16px">
+        <h2>{% translate 'Sent, still valid' %}</h2>
+        <table class="relay-table" style="width: 100%">
+          <thead>
+            <tr>
+              <th scope="col">{% translate 'Sent to' %}</th>
+              <th scope="col">{% translate 'Code' %}</th>
+              <th scope="col">{% translate 'By' %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sent %}
+              <tr>
+                <td>{{ row.text.to }}</td>
+                <td><span class="relay-code">{{ row.code|default:"—" }}</span></td>
+                <td>{{ row.text.relayed_by|default:"—" }}, {{ row.text.relayed_at|time:"H:i" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+
+  <script>
+    document.querySelectorAll("[data-copy]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var label = button.textContent;
+        navigator.clipboard.writeText(button.dataset.copy).then(function () {
+          button.textContent = "{% translate 'Copied' %}";
+          setTimeout(function () { button.textContent = label; }, 1500);
+        });
+      });
+    });
+    // Reload while visible so new codes appear on their own. Skipped while a
+    // button has focus, so a reload never lands in the middle of a tap.
+    setInterval(function () {
+      var busy = document.activeElement && document.activeElement.tagName === "BUTTON";
+      if (document.visibilityState === "visible" && !busy) window.location.reload();
+    }, 15000);
+  </script>
+{% endblock %}
