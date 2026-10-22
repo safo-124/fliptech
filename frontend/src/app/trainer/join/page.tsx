@@ -1,9 +1,10 @@
 import type {Metadata} from "next";
 import {Clock3, ShieldCheck, Smartphone} from "lucide-react";
 import {getTranslations} from "next-intl/server";
+import {Suspense} from "react";
 
 import {Badge} from "@/components/ui/badge";
-import {TrainerJoinWizard} from "@/components/trainer/TrainerJoinWizard";
+import {TrainerJoinWizard, TrainerJoinWizardLoading} from "@/components/trainer/TrainerJoinWizard";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("TrainerPages");
@@ -46,7 +47,12 @@ export default async function TrainerJoinPage() {
           </div>
         </div>
       </header>
-      <TrainerJoinWizard />
+      {/* The wizard reads ?new=1 to tell a sign-up from a sign-in, and a
+          component reading the query string needs a Suspense boundary on a
+          statically rendered page. */}
+      <Suspense fallback={<TrainerJoinWizardLoading />}>
+        <TrainerJoinWizard />
+      </Suspense>
     </div>
   );
 }

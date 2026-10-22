@@ -18,7 +18,7 @@ const CHOICES = [
     points: ["enquiries", "save", "noPassword"],
   },
   {
-    href: "/trainer/join",
+    href: "/trainer/join?new=1",
     Icon: Building2,
     role: "trainer",
     points: ["profile", "confirmed", "enquiries"],

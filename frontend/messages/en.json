@@ -902,6 +902,8 @@
     "signInPhoneTitle": "Sign in with your phone",
     "signInEmailLead": "For an address already on your account. We email a one-time code.",
     "signInPhoneLead": "We will text you a one-time code. No password is needed.",
+    "joinTitle": "Create your trainer account",
+    "joinLead": "This is the whole sign-up: your mobile number, then the code we text you. No password. If you already have a trainer account, this signs you into it.",
     "emailLabel": "Email address",
     "emailHelp": "This works only for an address you already added to your account. If you have not added one, sign in with your phone number.",
     "phoneLabel": "Mobile number",

@@ -62,7 +62,7 @@ export function SiteHeader() {
             size="sm"
             className="hidden text-white/75 hover:bg-white/10 hover:text-white md:inline-flex"
           >
-            <Link href="/trainer/join">
+            <Link href="/trainer/join?new=1">
               <Building2 aria-hidden />
               {t("listWorkshop")}
             </Link>

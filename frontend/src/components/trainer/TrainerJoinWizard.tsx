@@ -22,6 +22,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import Link from "next/link";
+import {useSearchParams} from "next/navigation";
 import {useTranslations} from "next-intl";
 import {useEffect, useMemo, useRef, useState, type RefObject} from "react";
 import {useForm, type FieldPath} from "react-hook-form";
@@ -437,6 +438,11 @@ function ExistingProfile({
   );
 }
 
+/** Also the page's Suspense fallback while the query string is read. */
+export function TrainerJoinWizardLoading() {
+  return <LoadingCard />;
+}
+
 function LoadingCard() {
   const t = useTranslations("TrainerJoinWizard");
   return (
@@ -461,6 +467,12 @@ export function TrainerJoinWizard() {
   const t = useTranslations("TrainerJoinWizard");
   const tValidation = useTranslations("Validation");
   const tFormat = useTranslations("Format");
+  // Which door they came through. There is only one flow — passwordless means
+  // signing up and signing in are the same act — but somebody who clicked
+  // "Sign up as a trainer" and landed on "Sign in with your phone" reasonably
+  // concludes they are in the wrong place and that they need an account first.
+  // The flow does not change; the framing does. Same as the trainee sign-up.
+  const joining = useSearchParams().get("new") === "1";
   const [step, setStep] = useState<Step>("phone");
   /**
    * Which identifier the sign-in step is using.
@@ -946,10 +958,18 @@ export function TrainerJoinWizard() {
             tabIndex={-1}
             className="scroll-mt-24 text-xl font-bold tracking-tight outline-none"
           >
-            {authMethod === "email" ? t("signInEmailTitle") : t("signInPhoneTitle")}
+            {authMethod === "email"
+              ? t("signInEmailTitle")
+              : joining
+                ? t("joinTitle")
+                : t("signInPhoneTitle")}
           </h2>
           <CardDescription>
-            {authMethod === "email" ? t("signInEmailLead") : t("signInPhoneLead")}
+            {authMethod === "email"
+              ? t("signInEmailLead")
+              : joining
+                ? t("joinLead")
+                : t("signInPhoneLead")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={requestCode} noValidate aria-busy={busy}>
@@ -1022,27 +1042,35 @@ export function TrainerJoinWizard() {
               {busy ? t("sendingCode") : t("continue")}
               {!busy ? <ArrowRight aria-hidden="true" /> : null}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                setAuthMethod(authMethod === "email" ? "phone" : "email");
-                setError(null);
-              }}
-            >
-              {authMethod === "email" ? (
-                <>
-                  <Smartphone aria-hidden="true" />
-                  {t("usePhone")}
-                </>
-              ) : (
-                <>
-                  <Mail aria-hidden="true" />
-                  {t("useEmail")}
-                </>
-              )}
-            </Button>
+            {/* Hidden for somebody joining. account_for_verified_email never
+                creates a trainer account — email is a second door into one
+                that exists — so offering it to a first-time trainer is a door
+                that cannot open: they would type their address, get a code,
+                and be told to use their phone. A returning trainer who came in
+                through a sign-up link is signed in by the phone step anyway. */}
+            {joining ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setAuthMethod(authMethod === "email" ? "phone" : "email");
+                  setError(null);
+                }}
+              >
+                {authMethod === "email" ? (
+                  <>
+                    <Smartphone aria-hidden="true" />
+                    {t("usePhone")}
+                  </>
+                ) : (
+                  <>
+                    <Mail aria-hidden="true" />
+                    {t("useEmail")}
+                  </>
+                )}
+              </Button>
+            )}
           </CardFooter>
         </form>
       </Card>
