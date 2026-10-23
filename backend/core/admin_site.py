@@ -77,7 +77,7 @@ class SkillsHubAdminSite(AdminSite):
             **(extra_context or {}),
             "panel": self.build_panel(request),
             # What is reaching anyone, first: the response rate two cards down
-            # is meaningless while workshops are never told an enquiry arrived.
+            # means nothing for any channel that is not actually delivering.
             "delivery": delivery.status(),
             "activity": activity.recent(request.user),
         }
@@ -429,6 +429,12 @@ class SkillsHubAdminSite(AdminSite):
         }
 
         panel["people"] = self.build_people(request, now, last_30, work, all_providers)
+
+        # Whether this month's enrolment number has been asked for, workshop by
+        # workshop. See enquiries/check_ins.py.
+        from enquiries import check_ins
+
+        panel["check_ins"] = check_ins.summary(today)
 
         if request.user.is_superuser:
             active = Subscription.objects.filter(state="active", period_end__gte=today)

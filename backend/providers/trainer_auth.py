@@ -1,7 +1,9 @@
 """Creation and lookup of passwordless trainer identities."""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from django.utils.translation import gettext as _
 
 from core.identities import create_dedicated_user, user_is_unprivileged
 
@@ -41,10 +43,13 @@ def account_for_verified_phone(*, phone, verified_at):
 
     if account.approval_status == TrainerAccount.Approval.DECLINED:
         raise TrainerAccountDisabled(
-            "This trainer sign-up was not approved. Contact Fliptech if you think this is a mistake."
+            _(
+                "This trainer sign-up was not approved. Contact %(brand)s if you think this is a mistake."
+            )
+            % {"brand": settings.BRAND_NAME}
         )
     if not account.is_active or not user_is_unprivileged(account.user):
-        raise TrainerAccountDisabled("This trainer account has been disabled.")
+        raise TrainerAccountDisabled(_("This trainer account has been disabled."))
 
     account.phone_verified_at = verified_at
     account.save(update_fields=["phone_verified_at", "updated_at"])
@@ -74,17 +79,21 @@ def account_for_verified_email(*, email, verified_at):
     )
     if account is None:
         raise TrainerAccountDisabled(
-            "That address is not on a trainer account. Sign in with your phone number, "
-            "then add your email from your dashboard."
+            _(
+                "That address is not on a trainer account. Sign in with your phone number, "
+                "then add your email from your dashboard."
+            )
         )
 
     if account.approval_status == TrainerAccount.Approval.DECLINED:
         raise TrainerAccountDisabled(
-            "This trainer sign-up was not approved. Contact Fliiptech if you think this "
-            "is a mistake."
+            _(
+                "This trainer sign-up was not approved. Contact %(brand)s if you think this is a mistake."
+            )
+            % {"brand": settings.BRAND_NAME}
         )
     if not account.is_active or not user_is_unprivileged(account.user):
-        raise TrainerAccountDisabled("This trainer account has been disabled.")
+        raise TrainerAccountDisabled(_("This trainer account has been disabled."))
 
     account.email_verified_at = verified_at
     account.save(update_fields=["email_verified_at", "updated_at"])

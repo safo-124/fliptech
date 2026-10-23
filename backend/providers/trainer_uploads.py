@@ -20,6 +20,7 @@ file.
 import logging
 
 from django.db import transaction
+from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
@@ -62,12 +63,12 @@ def _editable_provider_or_error(account):
     provider = get_owned_profile(account)
     if provider is None:
         return None, Response(
-            {"detail": "Create your workshop details before adding files."},
+            {"detail": _("Create your workshop details before adding files.")},
             status=status.HTTP_409_CONFLICT,
         )
     if provider.status not in EDITABLE_STATUSES:
         return None, Response(
-            {"detail": "This listing is locked while it is being reviewed."},
+            {"detail": _("This listing is locked while it is being reviewed.")},
             status=status.HTTP_409_CONFLICT,
         )
     return provider, None
@@ -94,7 +95,7 @@ class TrainerPhotoUploadView(APIView):
         from .trainer_views import IsActiveTrainer, _account
 
         if not IsActiveTrainer().has_permission(request, self):
-            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": _("Not a trainer.")}, status=status.HTTP_403_FORBIDDEN)
 
         account = _account(request)
         provider, error = _editable_provider_or_error(account)
@@ -117,7 +118,10 @@ class TrainerPhotoUploadView(APIView):
         if provider.photos.filter(kind=kind).count() >= MAX_PHOTOS_PER_KIND:
             label = ProviderPhoto.Kind(kind).label.lower()
             return Response(
-                {"detail": f"You can add up to {MAX_PHOTOS_PER_KIND} photos of {label}."},
+                {
+                    "detail": _("You can add up to %(count)s photos of %(kind)s.")
+                    % {"count": MAX_PHOTOS_PER_KIND, "kind": label}
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -133,7 +137,7 @@ class TrainerPhotoUploadView(APIView):
         except Exception:
             logger.exception("Trainer photograph upload failed for provider %s", provider.pk)
             return Response(
-                {"detail": "That image could not be read. Try another."},
+                {"detail": _("That image could not be read. Try another.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -144,7 +148,7 @@ class TrainerPhotoUploadView(APIView):
             # metadata it arrived with.
             photo.delete()
             return Response(
-                {"detail": "That file is not a readable image."},
+                {"detail": _("That file is not a readable image.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -168,7 +172,7 @@ class TrainerPhotoDeleteView(APIView):
         from .trainer_views import IsActiveTrainer, _account
 
         if not IsActiveTrainer().has_permission(request, self):
-            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": _("Not a trainer.")}, status=status.HTTP_403_FORBIDDEN)
 
         account = _account(request)
         provider, error = _editable_provider_or_error(account)
@@ -179,7 +183,7 @@ class TrainerPhotoDeleteView(APIView):
         # listing is a 404 rather than a deletion.
         photo = provider.photos.filter(pk=photo_id).first()
         if photo is None:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _("Not found.")}, status=status.HTTP_404_NOT_FOUND)
         photo.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -204,7 +208,7 @@ class TrainerIdentityDocumentView(APIView):
         from .trainer_views import IsActiveTrainer, _account
 
         if not IsActiveTrainer().has_permission(request, self):
-            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": _("Not a trainer.")}, status=status.HTTP_403_FORBIDDEN)
 
         account = _account(request)
         provider, error = _editable_provider_or_error(account)
@@ -235,7 +239,7 @@ class TrainerIdentityDocumentView(APIView):
             except Exception:
                 logger.exception("Trainer identity upload failed for provider %s", provider.pk)
                 return Response(
-                    {"detail": "That file could not be read. Try another."},
+                    {"detail": _("That file could not be read. Try another.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -268,7 +272,7 @@ class TrainerLogoView(APIView):
         from .trainer_views import IsActiveTrainer, _account
 
         if not IsActiveTrainer().has_permission(request, self):
-            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": _("Not a trainer.")}, status=status.HTTP_403_FORBIDDEN)
 
         provider, error = _editable_provider_or_error(_account(request))
         if error is not None:
@@ -285,7 +289,7 @@ class TrainerLogoView(APIView):
         except Exception:
             logger.exception("Logo upload failed for provider %s", provider.pk)
             return Response(
-                {"detail": "That image could not be read. Try another."},
+                {"detail": _("That image could not be read. Try another.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -296,7 +300,7 @@ class TrainerLogoView(APIView):
         if not provider.logo.name.lower().endswith((".jpg", ".png")):
             provider.logo.delete(save=True)
             return Response(
-                {"detail": "That file is not a readable image."},
+                {"detail": _("That file is not a readable image.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -307,7 +311,7 @@ class TrainerLogoView(APIView):
         from .trainer_views import IsActiveTrainer, _account
 
         if not IsActiveTrainer().has_permission(request, self):
-            return Response({"detail": "Not a trainer."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": _("Not a trainer.")}, status=status.HTTP_403_FORBIDDEN)
 
         provider, error = _editable_provider_or_error(_account(request))
         if error is not None:

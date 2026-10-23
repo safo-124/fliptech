@@ -14,17 +14,23 @@ make that field work recordable:
 from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.db.models import Case, CharField, Count, DecimalField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
-from django.urls import reverse
+from django.http import Http404, HttpResponseRedirect
+from django.shortcuts import get_object_or_404
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.timesince import timesince
+from django.views.decorators.http import require_POST
 from import_export.admin import ExportActionMixin
 
-from . import queues
-from .models import Enquiry, EnquiryOutcome, Enrolment, PhoneVerification
+from . import check_ins, queues
+from .models import Enquiry, EnquiryOutcome, Enrolment, MonthlyCheckIn, PhoneVerification
 
 
 def trainee_account_link(obj):
@@ -134,6 +140,7 @@ class EnquiryAdmin(admin.ModelAdmin):
         "message",
         "phone_verified_at",
         "trainee_account",
+        "workshop_alert",
         "created_at",
         "updated_at",
     )
@@ -164,12 +171,26 @@ class EnquiryAdmin(admin.ModelAdmin):
                 )
             },
         ),
-        ("Delivery", {"fields": ("state",)}),
+        ("Delivery", {"fields": ("state", "workshop_alert")}),
     )
 
     @admin.display(description="Trainee account")
     def trainee_account(self, obj):
         return trainee_account_link(obj)
+
+    @admin.display(description="Workshop told")
+    def workshop_alert(self, obj):
+        """Whether an officer has sent the workshop its WhatsApp alert yet."""
+        notice = obj.owner_alerts.select_related("sent_by").first()
+        if notice is None:
+            return "—"
+        if notice.sent_at is None:
+            return format_html(
+                'Not yet — waiting on <a href="{}">Messages to send</a>',
+                reverse("admin:providers_provider_messages"),
+            )
+        sent = timezone.localtime(notice.sent_at).strftime("%d %b %Y, %H:%M")
+        return f"{sent}, by {notice.sent_by}" if notice.sent_by else sent
 
     def get_queryset(self, request):
         """Annotate the furthest honest outcome for fast display and sorting."""
@@ -601,3 +622,113 @@ class PhoneVerificationAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(MonthlyCheckIn)
+class MonthlyCheckInAdmin(admin.ModelAdmin):
+    """The record of each month's conversation with each paying workshop.
+
+    The list is the history. The work is on the "Check-ins due" page, which
+    the sidebar links to: who still needs asking this month, a WhatsApp link
+    to ask them, and one tap to record what they said. See check_ins.py.
+    """
+
+    list_display = ("provider", "month", "outcome", "checked_by", "updated_at")
+    list_filter = ("outcome", "month")
+    search_fields = ("provider__name",)
+    date_hierarchy = "month"
+    list_select_related = ("provider", "checked_by")
+    autocomplete_fields = ("provider",)
+    readonly_fields = ("checked_by", "created_at", "updated_at")
+    fields = ("provider", "month", "outcome", "note", "checked_by", "created_at", "updated_at")
+
+    def get_urls(self):
+        return [
+            path(
+                "due/",
+                self.admin_site.admin_view(self.due_view),
+                name="enquiries_monthlycheckin_due",
+            ),
+            path(
+                "due/<int:provider_id>/<str:outcome>/",
+                self.admin_site.admin_view(require_POST(self.record_view)),
+                name="enquiries_monthlycheckin_record",
+            ),
+            *super().get_urls(),
+        ]
+
+    def save_model(self, request, obj, form, change):
+        obj.checked_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def due_view(self, request):
+        if not request.user.has_perm("enquiries.view_monthlycheckin"):
+            raise PermissionDenied
+        from providers.owner_messages import greeting, owner_phone
+
+        from .whatsapp import chat_url
+
+        today = timezone.localdate()
+        month = check_ins.month_start(today)
+        missed = set(check_ins.missed_last_month(today).values_list("pk", flat=True))
+        latest = {}
+        for row in MonthlyCheckIn.objects.filter(month__lt=month).order_by("month"):
+            latest[row.provider_id] = row
+        this_month = {
+            row.provider_id: row
+            for row in MonthlyCheckIn.objects.filter(month=month).select_related("checked_by")
+        }
+
+        due = []
+        for provider in check_ins.due(today).select_related("area").order_by("name"):
+            ask = (
+                f"{greeting(provider)}this is {settings.BRAND_NAME} Skills Hub with our monthly "
+                f"check-in for {provider.name}. Did anyone start a course with you in "
+                f"{month:%B}? Did anyone finish one, and would you recommend them for paid work?"
+            )
+            due.append(
+                {
+                    "provider": provider,
+                    "phone": owner_phone(provider),
+                    "ask_url": chat_url(owner_phone(provider), ask),
+                    "last": latest.get(provider.pk),
+                    "not_reached": this_month.get(provider.pk),
+                    "missed_last_month": provider.pk in missed,
+                    "recorded": check_ins.enrolments_recorded(provider, month),
+                    "add_enrolment": (
+                        f"{reverse('admin:enquiries_enrolment_add')}?provider={provider.pk}"
+                    ),
+                }
+            )
+        done = [
+            row for row in this_month.values() if row.outcome != MonthlyCheckIn.Outcome.NOT_REACHED
+        ]
+        return TemplateResponse(
+            request,
+            "admin/enquiries/monthlycheckin/due.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": f"Monthly check-ins, {month:%B %Y}",
+                "opts": self.model._meta,
+                "month": month,
+                "due": due,
+                "done": sorted(done, key=lambda row: row.provider.name),
+                "paying": check_ins.paying_providers(today).count(),
+                "outcomes": MonthlyCheckIn.Outcome,
+                "can_record": request.user.has_perm("enquiries.add_monthlycheckin"),
+            },
+        )
+
+    def record_view(self, request, provider_id, outcome):
+        if not request.user.has_perm("enquiries.add_monthlycheckin"):
+            raise PermissionDenied
+        if outcome not in MonthlyCheckIn.Outcome.values:
+            raise Http404
+        provider = get_object_or_404(check_ins.paying_providers(), pk=provider_id)
+        try:
+            check_in = check_ins.record(provider, outcome, actor=request.user)
+        except check_ins.CheckInRefused as refusal:
+            self.message_user(request, str(refusal), level=messages.WARNING)
+        else:
+            self.message_user(request, f"{provider.name}: {check_in.get_outcome_display()}.")
+        return HttpResponseRedirect(reverse("admin:enquiries_monthlycheckin_due"))

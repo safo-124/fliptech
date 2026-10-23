@@ -10,6 +10,7 @@ from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
 from django.db.models import Avg, Count, Max, Min
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext as _
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
@@ -43,11 +44,11 @@ def _point_from_query(params):
     if lat is None and lng is None:
         return None
     if lat is None or lng is None:
-        raise ValidationError({"detail": "Provide both lat and lng, or neither."})
+        raise ValidationError({"detail": _("Provide both lat and lng, or neither.")})
     try:
         return Point(float(lng), float(lat), srid=4326)
     except (TypeError, ValueError) as exc:
-        raise ValidationError({"detail": "lat and lng must be numbers."}) from exc
+        raise ValidationError({"detail": _("lat and lng must be numbers.")}) from exc
 
 
 def _radius_from_query(params):
@@ -63,11 +64,14 @@ def _radius_from_query(params):
     try:
         radius_km = float(raw)
     except (TypeError, ValueError) as exc:
-        raise ValidationError({"detail": "radius_km must be a number."}) from exc
+        raise ValidationError({"detail": _("radius_km must be a number.")}) from exc
     # `not (a < x <= b)` rather than two comparisons, so NaN is refused too.
     if not (0 < radius_km <= MAX_RADIUS_KM):
         raise ValidationError(
-            {"detail": f"radius_km must be more than 0 and at most {MAX_RADIUS_KM}."}
+            {
+                "detail": _("radius_km must be more than 0 and at most %(max)s.")
+                % {"max": MAX_RADIUS_KM}
+            }
         )
     return radius_km
 
@@ -105,7 +109,7 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
                 min_lng, min_lat, max_lng, max_lat = (float(v) for v in bbox.split(","))
             except ValueError as exc:
                 raise ValidationError(
-                    {"detail": "bbox must be minLng,minLat,maxLng,maxLat."}
+                    {"detail": _("bbox must be minLng,minLat,maxLng,maxLat.")}
                 ) from exc
             queryset = queryset.filter(
                 location__within=Polygon.from_bbox((min_lng, min_lat, max_lng, max_lat))
@@ -216,7 +220,7 @@ class TradeAreaSummaryView(APIView):
     def get(self, request):
         trade = request.query_params.get("trade")
         if not trade:
-            raise ValidationError({"detail": "trade is required."})
+            raise ValidationError({"detail": _("trade is required.")})
 
         programmes = Programme.objects.filter(
             is_active=True,

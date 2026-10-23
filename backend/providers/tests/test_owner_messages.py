@@ -174,7 +174,7 @@ def test_a_second_send_does_not_message_the_owner_again(client, django_user_mode
     publish_provider(pending, actor=None)
     notice = OwnerNotice.objects.get()
     first = staff(django_user_model, "first")
-    owner_messages.mark_live_sent(notice, actor=first)
+    owner_messages.mark_notice_sent(notice, actor=first)
     client.force_login(staff(django_user_model, "officer", groups["officer"]))
 
     response = client.post(reverse("admin:providers_provider_send_live_notice", args=[notice.pk]))
@@ -204,7 +204,7 @@ def test_clearing_sent_at_puts_a_notice_back_in_the_queue(
     publish_provider(pending, actor=None)
     notice = OwnerNotice.objects.get()
     officer = staff(django_user_model, "officer", groups["officer"])
-    owner_messages.mark_live_sent(notice, actor=officer)
+    owner_messages.mark_notice_sent(notice, actor=officer)
     client.force_login(officer)
 
     client.post(

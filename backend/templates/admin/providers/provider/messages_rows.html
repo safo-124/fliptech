@@ -1,9 +1,9 @@
 {% load i18n %}
 {% comment %}
   One table of messages waiting to be sent. Included by messages.html for each
-  kind; `rows` carry a provider, a send_to number and the `when` shown under
-  `date_label`. `send_url` is the URL name that records and opens WhatsApp
-  for one row.
+  kind; `rows` carry a provider, a send_to number, the `when` shown under
+  `date_label` in `date_format`, and optionally a `detail` line. `send_url`
+  is the URL name that records and opens WhatsApp for one row.
 {% endcomment %}
 <table style="width: 100%">
   <thead>
@@ -20,8 +20,9 @@
         <td>
           <a href="{% url 'admin:providers_provider_change' row.provider.pk %}">{{ row.provider.name }}</a>
           <div class="mini quiet">{{ row.provider.area.name }}</div>
+          {% if row.detail %}<div class="mini quiet">{{ row.detail }}</div>{% endif %}
         </td>
-        <td>{{ row.when|date:"j M Y"|default:_("Never") }}</td>
+        <td>{{ row.when|date:date_format|default:_("Never") }}</td>
         <td>{{ row.send_to }}</td>
         <td>
           {% if can_send %}

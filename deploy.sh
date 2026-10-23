@@ -66,6 +66,19 @@ echo "==> Back-office roles"
 echo "==> Static files"
 ( cd backend && run_as "$VENV/bin/python" manage.py collectstatic --noinput --clear >/dev/null )
 
+echo "==> Translations"
+# The API's messages in Twi and Ga, once backend/locale holds any. Needs GNU
+# gettext; without it, or without a catalogue, everything stays in English.
+if compgen -G "backend/locale/*/LC_MESSAGES/django.po" >/dev/null; then
+  if command -v msgfmt >/dev/null; then
+    ( cd backend && run_as "$VENV/bin/python" manage.py compilemessages --ignore=.venv >/dev/null )
+  else
+    echo "    backend/locale has translations but gettext is missing: sudo apt install gettext" >&2
+  fi
+else
+  echo "    none yet"
+fi
+
 echo "==> Deployment checks"
 # --deploy surfaces missing HSTS, insecure cookies and a debug-mode leak. It is
 # advisory here rather than fatal, but it should be read.
@@ -86,12 +99,17 @@ cd frontend
 run_as pnpm install --frozen-lockfile --prod=false
 # NEXT_PUBLIC_* values are inlined at build time, not read at run time, so the
 # build has to see them. Changing the domain or brand name means rebuilding.
+# `sudo` passes on only what is named below, so a new NEXT_PUBLIC_ setting has
+# to be added here too, or .env.production sets it and the build never sees it.
 set -a; . ./.env.production; set +a
 run_as env \
   NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-}" \
   NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-}" \
   NEXT_PUBLIC_BRAND_NAME="${NEXT_PUBLIC_BRAND_NAME:-Fliptech}" \
   NEXT_PUBLIC_MEDIA_HOST="${NEXT_PUBLIC_MEDIA_HOST:-}" \
+  NEXT_PUBLIC_MAP_TILE_URL="${NEXT_PUBLIC_MAP_TILE_URL:-}" \
+  NEXT_PUBLIC_MAP_TILE_ATTRIBUTION="${NEXT_PUBLIC_MAP_TILE_ATTRIBUTION:-}" \
+  NEXT_PUBLIC_LOCALES="${NEXT_PUBLIC_LOCALES:-}" \
   pnpm build
 cd ..
 

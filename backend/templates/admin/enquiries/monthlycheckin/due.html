@@ -1,0 +1,136 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% comment %}
+  Check-ins due: the paying workshops still to be asked this month, and what
+  the ones already asked said. See enquiries/check_ins.py.
+
+  "Ask on WhatsApp" only opens a chat with the question typed; nothing is
+  recorded until the officer presses one of the three answers. Enrolments
+  are added through the normal enrolment form first, and only then can
+  "Enrolments reported" be pressed.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; {% translate 'Check-ins due' %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p class="help" style="margin-bottom: 16px">
+      {% blocktranslate %}
+        Ask each paying workshop who started a course this month, who finished, and whether they
+        would recommend each graduate for paid work. Add each enrolment, then record the answer.
+        A month in which nobody enrolled is recorded too: otherwise it looks like a month nobody asked.
+      {% endblocktranslate %}
+    </p>
+
+    {% if not paying %}
+      <ul class="messagelist">
+        <li class="info">
+          {% translate 'No workshop has a paid subscription running, so nobody is due a check-in. Subscriptions are recorded under Billing.' %}
+        </li>
+      </ul>
+    {% endif %}
+
+    <div class="module">
+      <h2>{% blocktranslate count counter=due|length %}Still to ask ({{ counter }}){% plural %}Still to ask ({{ counter }}){% endblocktranslate %}</h2>
+      {% if due %}
+        <table style="width: 100%">
+          <thead>
+            <tr>
+              <th scope="col">{% translate 'Workshop' %}</th>
+              <th scope="col">{% translate 'Last check-in' %}</th>
+              <th scope="col">{% translate 'Enrolments added this month' %}</th>
+              <th scope="col"><span class="visually-hidden">{% translate 'Record the answer' %}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in due %}
+              <tr>
+                <td>
+                  <a href="{% url 'admin:providers_provider_change' row.provider.pk %}">{{ row.provider.name }}</a>
+                  <div class="mini quiet">{{ row.provider.area.name }} · {{ row.phone }}</div>
+                  {% if row.missed_last_month %}
+                    <div class="mini" style="color: var(--sh-caution)">{% translate 'No answer last month' %}</div>
+                  {% endif %}
+                  {% if row.not_reached %}
+                    <div class="mini" style="color: var(--sh-caution)">
+                      {% blocktranslate with when=row.not_reached.updated_at|date:"j M" %}Not reached on {{ when }}{% endblocktranslate %}
+                    </div>
+                  {% endif %}
+                  <a class="mini" href="{{ row.ask_url }}" target="_blank" rel="noopener">{% translate 'Ask on WhatsApp' %}</a>
+                </td>
+                <td>
+                  {% if row.last %}
+                    {{ row.last.month|date:"F Y" }}
+                    <div class="mini quiet">{{ row.last.get_outcome_display }}</div>
+                  {% else %}
+                    {% translate 'Never' %}
+                  {% endif %}
+                </td>
+                <td>
+                  {{ row.recorded }}
+                  <div><a class="mini" href="{{ row.add_enrolment }}">{% translate 'Add an enrolment' %}</a></div>
+                </td>
+                <td>
+                  {% if can_record %}
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                      <form method="post" action="{% url 'admin:enquiries_monthlycheckin_record' row.provider.pk outcomes.REPORTED %}">
+                        {% csrf_token %}
+                        <button type="submit" class="button default" style="min-height: 44px"{% if not row.recorded %} disabled title="{% translate 'Add the enrolments first' %}"{% endif %}>
+                          {% translate 'Enrolments reported' %}
+                        </button>
+                      </form>
+                      <form method="post" action="{% url 'admin:enquiries_monthlycheckin_record' row.provider.pk outcomes.NONE %}">
+                        {% csrf_token %}
+                        <button type="submit" class="button" style="min-height: 44px">{% translate 'Nobody enrolled' %}</button>
+                      </form>
+                      <form method="post" action="{% url 'admin:enquiries_monthlycheckin_record' row.provider.pk outcomes.NOT_REACHED %}">
+                        {% csrf_token %}
+                        <button type="submit" class="button" style="min-height: 44px">{% translate 'Could not reach them' %}</button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% elif paying %}
+        <p style="padding: 12px">{% translate 'Nothing left to ask. Every paying workshop has answered for this month.' %}</p>
+      {% endif %}
+    </div>
+
+    <div class="module" style="margin-top: 16px">
+      <h2>{% blocktranslate count counter=done|length %}Answered this month ({{ counter }}){% plural %}Answered this month ({{ counter }}){% endblocktranslate %}</h2>
+      {% if done %}
+        <table style="width: 100%">
+          <thead>
+            <tr>
+              <th scope="col">{% translate 'Workshop' %}</th>
+              <th scope="col">{% translate 'Answer' %}</th>
+              <th scope="col">{% translate 'By' %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in done %}
+              <tr>
+                <td><a href="{% url 'admin:enquiries_monthlycheckin_change' row.pk %}">{{ row.provider.name }}</a></td>
+                <td>{{ row.get_outcome_display }}</td>
+                <td>{{ row.checked_by|default:"—" }}<div class="mini quiet">{{ row.updated_at|date:"j M" }}</div></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="padding: 12px">{% translate 'No answers recorded yet this month.' %}</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

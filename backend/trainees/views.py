@@ -13,6 +13,7 @@ from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
@@ -107,7 +108,7 @@ class TraineeCodeRequestView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -164,7 +165,7 @@ class TraineeCodeVerifyView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many attempts. Wait a minute and try again."},
+                {"detail": _("Too many attempts. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -261,12 +262,12 @@ class TraineeCloseAccountView(TraineeView):
     def post(self, request):
         if self.ctx.is_support:
             return Response(
-                {"detail": "Only the trainee can close their own account."},
+                {"detail": _("Only the trainee can close their own account.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         if request.data.get("confirm") is not True:
             return Response(
-                {"detail": "Confirm that you want to close your account."},
+                {"detail": _("Confirm that you want to close your account.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         account = self.ctx.account
@@ -346,7 +347,7 @@ class TraineeAvatarView(TraineeView):
         ctx = self.ctx
         if not ctx.can_write:
             return Response(
-                {"detail": "Support view is read-only. Nothing was changed."},
+                {"detail": _("Support view is read-only. Nothing was changed.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -362,7 +363,7 @@ class TraineeAvatarView(TraineeView):
         except Exception:
             logger.exception("Avatar upload failed for trainee %s", account.pk)
             return Response(
-                {"detail": "That image could not be read. Try another."},
+                {"detail": _("That image could not be read. Try another.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -373,7 +374,7 @@ class TraineeAvatarView(TraineeView):
         if not account.avatar.name.lower().endswith(".jpg"):
             account.avatar.delete(save=True)
             return Response(
-                {"detail": "That file is not a readable image."},
+                {"detail": _("That file is not a readable image.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -384,7 +385,7 @@ class TraineeAvatarView(TraineeView):
         ctx = self.ctx
         if not ctx.can_write:
             return Response(
-                {"detail": "Support view is read-only. Nothing was changed."},
+                {"detail": _("Support view is read-only. Nothing was changed.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         if ctx.account.avatar:

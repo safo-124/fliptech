@@ -17,6 +17,7 @@ from django.contrib.auth import login
 from django.db import IntegrityError
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
@@ -73,7 +74,7 @@ class TrainerEmailCodeRequestView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -107,7 +108,7 @@ class TrainerEmailCodeVerifyView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many attempts. Wait a minute and try again."},
+                {"detail": _("Too many attempts. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -156,7 +157,7 @@ class TrainerAddEmailRequestView(APIView):
         # receives mail a stranger triggered.
         if TrainerAccount.objects.filter(email=email).exclude(pk=account.pk).exists():
             return Response(
-                {"detail": "That address is already on another account."},
+                {"detail": _("That address is already on another account.")},
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -168,7 +169,7 @@ class TrainerAddEmailRequestView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -212,7 +213,7 @@ class TrainerAddEmailConfirmView(APIView):
         except IntegrityError:
             # Claimed between the check above and this save.
             return Response(
-                {"detail": "That address is already on another account."},
+                {"detail": _("That address is already on another account.")},
                 status=status.HTTP_409_CONFLICT,
             )
 

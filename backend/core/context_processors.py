@@ -27,7 +27,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.urls import reverse
 
-CACHE_KEY = "back-office:sidebar:v5"
+CACHE_KEY = "back-office:sidebar:v6"
 CACHE_SECONDS = 60
 
 
@@ -76,7 +76,15 @@ def _snapshot():
         approval_status=TrainerAccount.Approval.PENDING, is_active=True
     ).count()
 
+    from enquiries import check_ins
+    from providers.models import Complaint
+
+    check_ins_due = check_ins.summary().due
+    complaints_new = Complaint.objects.filter(status=Complaint.Status.NEW).count()
+
     return {
+        "check_ins_due": check_ins_due,
+        "complaints_new": complaints_new,
         "trainer_queues": (
             [
                 {
@@ -185,6 +193,38 @@ def _codes_to_send(user):
     ]
 
 
+def _complaints_queue(count):
+    """Reports from the "Report a problem" link nobody has dealt with yet."""
+    if not count:
+        return []
+    return [
+        {
+            "key": "complaints_new",
+            "label": "New complaints",
+            "count": count,
+            "url": f"{reverse('admin:providers_complaint_changelist')}?status__exact=new",
+        }
+    ]
+
+
+def _check_ins_queue(count):
+    """Paying workshops still to be asked this month. See enquiries/check_ins.py.
+
+    Its own page rather than a filter, like Messages to send: each row is a
+    conversation to have, not a record to edit.
+    """
+    if not count:
+        return []
+    return [
+        {
+            "key": "check_ins_due",
+            "label": "Check-ins due",
+            "count": count,
+            "url": reverse("admin:enquiries_monthlycheckin_due"),
+        }
+    ]
+
+
 def back_office(request):
     match = getattr(request, "resolver_match", None)
     if match is None or match.app_name != "admin":
@@ -218,7 +258,21 @@ def back_office(request):
             # Custom links must follow the same permission boundary as
             # AdminSite's native app list. The cached counts are global, but
             # each request receives only the queues that user may open.
-            "queues": snapshot["queues"] if can_view_providers else [],
+            "queues": [
+                # A report about a workshop, possibly about a trainee's safety,
+                # goes first.
+                *(
+                    _complaints_queue(snapshot["complaints_new"])
+                    if user.has_perm("providers.view_complaint")
+                    else []
+                ),
+                *(snapshot["queues"] if can_view_providers else []),
+                *(
+                    _check_ins_queue(snapshot["check_ins_due"])
+                    if user.has_perm("enquiries.view_monthlycheckin")
+                    else []
+                ),
+            ],
             "enquiry_queues": (snapshot["enquiry_queues"] if can_view_enquiries else []),
             "programme_queues": (snapshot["programme_queues"] if can_view_programmes else []),
             "intake_queues": snapshot["intake_queues"] if can_view_intakes else [],

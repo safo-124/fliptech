@@ -85,3 +85,40 @@ def request_provider_changes(provider, *, actor, note):
         reason="Changes requested during review",
         fields=["status", "review_note"],
     )
+
+
+@transaction.atomic
+def suspend_complained_about(complaint, *, actor):
+    """Suspend the listing a complaint is about, with the complaint as the reason.
+
+    Section 09 requires the reason logged. Here it is the complaint's own
+    reference and category, and the suspension and the complaint point at
+    each other, so either one leads to the other when a decision is
+    challenged. Suspending an already suspended listing still records this
+    complaint against a suspension rather than leaving it loose.
+    """
+    from .models import Complaint, Suspension
+
+    complaint = Complaint.objects.select_for_update().get(pk=complaint.pk)
+    provider = Provider.objects.select_for_update().get(pk=complaint.provider_id)
+    now = timezone.now()
+
+    suspension = Suspension.objects.filter(provider=provider, lifted_at__isnull=True).first()
+    if suspension is None:
+        reason = f"Complaint {complaint.reference}: {complaint.get_category_display()}"
+        suspension = Suspension.objects.create(
+            provider=provider,
+            reason=reason[:200],
+            detail=complaint.detail,
+            raised_by=actor,
+            started_at=now,
+        )
+        provider.status = Provider.Status.SUSPENDED
+        _save_transition(provider, actor=actor, reason=f"Suspended: {reason}", fields=["status"])
+
+    complaint.suspension = suspension
+    complaint.status = Complaint.Status.SUSPENDED
+    complaint.handled_by = actor
+    complaint.handled_at = now
+    complaint.save(update_fields=["suspension", "status", "handled_by", "handled_at", "updated_at"])
+    return suspension

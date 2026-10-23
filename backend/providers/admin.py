@@ -40,8 +40,10 @@ from .lifecycle import (
     publish_provider,
     request_provider_changes,
     submit_provider,
+    suspend_complained_about,
 )
 from .models import (
+    Complaint,
     GovernmentStatus,
     ListingConfirmation,
     OwnerNotice,
@@ -621,6 +623,85 @@ class GovernmentStatusAdmin(SimpleHistoryAdmin):
     autocomplete_fields = ("provider",)
 
 
+@admin.register(Complaint)
+class ComplaintAdmin(admin.ModelAdmin):
+    """Reports from the "Report a problem" link on every listing.
+
+    What the reporter wrote is read-only: it is the record, and the reason a
+    suspension can point to. Staff set the status and a note, or suspend the
+    listing with the action below, which links the two. Held by the operations
+    lead and superusers: a report can carry the reporter's phone number.
+    """
+
+    list_display = (
+        "reference",
+        "provider",
+        "category",
+        "urgent",
+        "status",
+        "created_at",
+    )
+    list_filter = ("status", "category", "created_at")
+    search_fields = ("reference", "provider__name", "detail")
+    list_select_related = ("provider",)
+    actions = ("suspend_listing",)
+    fields = (
+        "reference",
+        "provider",
+        "category",
+        "detail",
+        "reporter_name",
+        "reporter_phone",
+        "created_at",
+        "status",
+        "resolution_note",
+        "suspension",
+        "handled_by",
+        "handled_at",
+    )
+    readonly_fields = (
+        "reference",
+        "provider",
+        "category",
+        "detail",
+        "reporter_name",
+        "reporter_phone",
+        "created_at",
+        "suspension",
+        "handled_by",
+        "handled_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_suspend_permission(self, request):
+        return request.user.has_perm("providers.add_suspension")
+
+    @admin.display(description="Urgent", boolean=True)
+    def urgent(self, obj):
+        return obj.is_urgent
+
+    def save_model(self, request, obj, form, change):
+        if "status" in form.changed_data:
+            obj.handled_by = request.user
+            obj.handled_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="Suspend the listing", permissions=["suspend"])
+    def suspend_listing(self, request, queryset):
+        for complaint in queryset.select_related("provider"):
+            suspend_complained_about(complaint, actor=request.user)
+        self.message_user(
+            request,
+            "Suspended, with each complaint recorded as the reason. Lift a suspension from "
+            "Suspensions when the workshop has put things right.",
+        )
+
+
 @admin.register(Suspension)
 class SuspensionAdmin(admin.ModelAdmin):
     """Moderation. Section 09 requires the reason to be logged, so it is required."""
@@ -629,6 +710,23 @@ class SuspensionAdmin(admin.ModelAdmin):
     list_filter = ("started_at", "lifted_at")
     search_fields = ("provider__name", "reason")
     autocomplete_fields = ("provider", "raised_by")
+    readonly_fields = ("complaints_behind",)
+
+    @admin.display(description="Complaints behind it")
+    def complaints_behind(self, obj):
+        if obj.pk is None:
+            return "—"
+        complaints = obj.complaints.all()
+        if not complaints:
+            return "None: raised by staff directly."
+        return format_html_join(
+            ", ",
+            '<a href="{}">{}</a>',
+            (
+                (reverse("admin:providers_complaint_change", args=[c.pk]), c.reference)
+                for c in complaints
+            ),
+        )
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -678,9 +776,9 @@ class ListingConfirmationAdmin(admin.ModelAdmin):
 
 @admin.register(OwnerNotice)
 class OwnerNoticeAdmin(admin.ModelAdmin):
-    """The record of owners told their listing is live.
+    """The record of owners told their listing is live, or that someone enquired.
 
-    Created by publishing, sent from Messages to send. The only edit is
+    Created by publishing or by an enquiry, sent from Messages to send. The only edit is
     clearing "sent at", which puts a notice back in the queue for an officer
     who opened WhatsApp and backed out without sending.
     """
@@ -688,8 +786,8 @@ class OwnerNoticeAdmin(admin.ModelAdmin):
     list_display = ("provider", "kind", "created_at", "sent_at", "sent_by")
     list_filter = ("kind", "sent_at")
     search_fields = ("provider__name",)
-    fields = ("provider", "kind", "created_at", "sent_at", "sent_by")
-    readonly_fields = ("provider", "kind", "created_at", "sent_by")
+    fields = ("provider", "kind", "enquiry", "created_at", "sent_at", "sent_by")
+    readonly_fields = ("provider", "kind", "enquiry", "created_at", "sent_by")
     list_select_related = ("provider", "sent_by")
 
     def has_add_permission(self, request):

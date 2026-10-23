@@ -1,10 +1,11 @@
 """WhatsApp messages staff send to workshop owners from the back office.
 
-Two messages go to owners today, and both are queued by the system and sent by
-a person with a wa.me link: business-initiated WhatsApp needs Cloud API
+Three messages go to owners today, all queued by the system and sent by a
+person with a wa.me link: business-initiated WhatsApp needs Cloud API
 credentials nobody has yet, and SMS is not built. When a real sender exists it
 replaces the Send button and nothing else.
 
+* "Someone has enquired" — queued with every enquiry. It lives here.
 * "Your listing is live" — Section 09's last onboarding step, queued when a
   listing is published. It lives here.
 * The 90-day check of fees and intake dates — see providers/freshness.py,
@@ -16,7 +17,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.site_links import public_site_url
-from enquiries.whatsapp import chat_url
+from enquiries.models import Enquiry
+from enquiries.whatsapp import chat_url, provider_to_trainee
 
 from .dashboard import make_dashboard_token
 from .models import OwnerNotice, Provider
@@ -62,6 +64,68 @@ def dashboard_lines(provider):
 
 def greeting(provider):
     return f"Hello {provider.owner_name}, " if provider.owner_name else "Hello, "
+
+
+# --- "Someone has enquired" ---------------------------------------------------
+
+
+def queue_enquiry_alert(enquiry):
+    """Queue the alert for an enquiry that has just been sent.
+
+    Called in the same transaction as the enquiry is created. One per
+    enquiry: the constraint on OwnerNotice holds that even against a retry.
+    """
+    notice, _ = OwnerNotice.objects.get_or_create(
+        enquiry=enquiry,
+        defaults={"provider": enquiry.provider, "kind": OwnerNotice.Kind.NEW_ENQUIRY},
+    )
+    return notice
+
+
+def enquiry_alerts_waiting():
+    """Unsent alerts a workshop can still act on, oldest first.
+
+    Oldest first because this is the queue where an hour matters: a trainee
+    who asked three workshops tends to go with whoever answers first. Not for
+    an enquiry since marked as spam, nor for a listing suspended since.
+    """
+    return (
+        OwnerNotice.objects.filter(
+            kind=OwnerNotice.Kind.NEW_ENQUIRY,
+            sent_at__isnull=True,
+            provider__status=Provider.Status.PUBLISHED,
+            enquiry__state=Enquiry.State.SENT,
+        )
+        .select_related("provider", "provider__area", "enquiry", "enquiry__programme")
+        .order_by("created_at", "pk")
+    )
+
+
+def enquiry_message(enquiry):
+    provider = enquiry.provider
+    course = f'"{enquiry.programme.title}"' if enquiry.programme else "your training"
+    text = (
+        f"{greeting(provider)}this is {settings.BRAND_NAME} Skills Hub. Someone has enquired "
+        f"about {course} at {provider.name}. Their reference is {enquiry.reference_code}."
+    )
+    details = []
+    if enquiry.trainee_name:
+        details.append(f"Name: {enquiry.trainee_name}")
+    details.append(f"Phone: {enquiry.trainee_phone}")
+    if enquiry.message:
+        details.append(f"Their message: {enquiry.message}")
+    text += "\n\n" + "\n".join(details)
+    # The reply opens WhatsApp to the trainee with a greeting that names the
+    # workshop and quotes the reference, because the trainee asked several.
+    text += (
+        "\n\nReply to them on WhatsApp, as soon as you can — trainees often ask more "
+        f"than one workshop:\n{provider_to_trainee(enquiry)}"
+    )
+    return text + dashboard_lines(provider)
+
+
+def enquiry_alert_url(notice):
+    return chat_url(owner_phone(notice.provider), enquiry_message(notice.enquiry))
 
 
 # --- "Your listing is live" ---------------------------------------------------
@@ -119,7 +183,7 @@ def live_url(provider):
 
 
 @transaction.atomic
-def mark_live_sent(notice, *, actor, now=None):
+def mark_notice_sent(notice, *, actor, now=None):
     """Stamp a notice as sent. False if someone else sent it first."""
     now = now or timezone.now()
     updated = OwnerNotice.objects.filter(pk=notice.pk, sent_at__isnull=True).update(

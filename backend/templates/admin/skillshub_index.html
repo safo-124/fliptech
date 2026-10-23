@@ -586,6 +586,34 @@
   <h2>Outcomes and activity</h2>
   <div class="sh-grid">
 
+    {% with check=panel.check_ins %}
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Monthly check-in, {{ check.month|date:"F" }}</div>
+        <div class="sh-title">{% if check.paying %}{{ check.answered }} <span class="sh-of">/ {{ check.paying }} asked</span>{% else %}—{% endif %}</div>
+        {% if check.paying %}
+          <div class="sh-action">
+            <span class="sh-badge {% if check.due %}warn{% else %}good{% endif %}">{{ check.due }} to ask</span>
+          </div>
+        {% endif %}
+      </div>
+      {% if check.paying %}
+        <div class="sh-rows">
+          <div class="sh-row"><span>Not reached yet</span><span class="sh-n {% if check.not_reached %}warn{% endif %}">{{ check.not_reached }}</span></div>
+          <div class="sh-row"><span>No answer last month</span><span class="sh-n {% if check.missed_last_month %}bad{% endif %}">{{ check.missed_last_month }}</span></div>
+        </div>
+      {% endif %}
+      <div class="sh-foot">
+        {% if check.paying %}
+          <a class="sh-foot-strong" href="{% url 'admin:enquiries_monthlycheckin_due' %}">Check-ins due</a>
+          <div class="sh-foot-muted">Enrolments are only known by asking. A month nobody asked about would look the same as a month nobody enrolled.</div>
+        {% else %}
+          <div class="sh-foot-muted">No workshop has a paid subscription running, so nobody is due a check-in yet.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endwith %}
+
     <div class="sh-card w4">
       <div class="sh-head">
         <div class="sh-desc">Graduate record</div>
@@ -625,7 +653,8 @@
     </div>
     {% endif %}
 
-    <div class="sh-card {% if panel.is_super %}w4{% else %}w8{% endif %}">
+    {# Fills the row beside the check-in and graduate cards, or takes the next one. #}
+    <div class="sh-card {% if panel.is_super %}w12{% else %}w4{% endif %}">
       <div class="sh-head"><div class="sh-desc">{% translate 'Recent actions' %}</div></div>
       {% get_admin_log 10 as admin_log for_user user %}
       {% if not admin_log %}

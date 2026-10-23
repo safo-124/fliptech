@@ -4,12 +4,12 @@ Rate limiting here is a spend control, not just an abuse control. Every code is
 a paid SMS, and django-axes does not help because it only guards staff login.
 """
 
-import logging
-
 from django.conf import settings
 from django.contrib.auth import login
+from django.db import transaction
 from django.middleware.csrf import get_token
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.network import canonical_client_ip, ratelimit_client_ip
+from providers.owner_messages import queue_enquiry_alert
 from trainees.access import own_trainee_account
 from trainees.auth import TraineeAccountDisabled, account_for_verified_phone
 from trainees.models import TraineeAccount
@@ -29,8 +30,6 @@ from .serializers import (
     OTPRequestSerializer,
     OTPVerifySerializer,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _signed_in_as(request, phone):
@@ -60,7 +59,7 @@ class OTPRequestView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -132,25 +131,25 @@ class EnquiryCreateView(APIView):
 
         if not (_signed_in_as(request, phone) or phone_is_trusted(request.session, phone)):
             return Response(
-                {"detail": "Verify this phone number before sending an enquiry."},
+                {"detail": _("Verify this phone number before sending an enquiry.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         programme = serializer.validated_data["programme"]
-        enquiry = Enquiry.objects.create(
-            provider=programme.provider,
-            trainee_phone=phone,
-            phone_verified_at=timezone.now(),
-            state=Enquiry.State.SENT,
-            trainee=TraineeAccount.objects.filter(phone=phone, is_active=True).first(),
-            **serializer.validated_data,
-        )
-
-        # Alerting the provider is a business-initiated WhatsApp template and is
-        # billed per message, with SMS as the fallback. Both need credentials
-        # that do not exist yet, so this is logged rather than pretended.
-        logger.info(
-            "Provider alert pending for enquiry %s to %s", enquiry.reference_code, enquiry.provider
-        )
+        # The enquiry and the alert telling the workshop about it are one
+        # write: an enquiry nobody is queued to tell the workshop about is the
+        # failure this alert exists to end.
+        with transaction.atomic():
+            enquiry = Enquiry.objects.create(
+                provider=programme.provider,
+                trainee_phone=phone,
+                phone_verified_at=timezone.now(),
+                state=Enquiry.State.SENT,
+                trainee=TraineeAccount.objects.filter(phone=phone, is_active=True).first(),
+                **serializer.validated_data,
+            )
+            # Sent by an officer from Messages to send, until there are
+            # WhatsApp Cloud API credentials to send it from the server.
+            queue_enquiry_alert(enquiry)
 
         return Response(EnquiryConfirmationSerializer(enquiry).data, status=status.HTTP_201_CREATED)

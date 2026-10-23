@@ -38,12 +38,24 @@
     {% endif %}
 
     <div class="module">
+      <h2>{% blocktranslate count counter=enquiries|length %}New enquiry ({{ counter }}){% plural %}New enquiries ({{ counter }}){% endblocktranslate %}</h2>
+      <p class="help" style="padding: 8px 12px 0">
+        {% translate 'A trainee has asked about a course. Tell the workshop now: a trainee who asked three workshops tends to go with whoever answers first.' %}
+      </p>
+      {% if enquiries %}
+        {% include "admin/providers/provider/messages_rows.html" with rows=enquiries can_send=can_send_live send_url="admin:providers_provider_send_enquiry_alert" date_label=_("Received") date_format="j M, H:i" %}
+      {% else %}
+        <p style="padding: 12px">{% translate 'Nothing waiting. Every workshop has been told about its enquiries.' %}</p>
+      {% endif %}
+    </div>
+
+    <div class="module" style="margin-top: 16px">
       <h2>{% blocktranslate count counter=live|length %}Listing is live ({{ counter }}){% plural %}Listings are live ({{ counter }}){% endblocktranslate %}</h2>
       <p class="help" style="padding: 8px 12px 0">
         {% translate 'Just published. Tell the owner, with a link to check their listing.' %}
       </p>
       {% if live %}
-        {% include "admin/providers/provider/messages_rows.html" with rows=live can_send=can_send_live send_url="admin:providers_provider_send_live_notice" date_label=_("Published") %}
+        {% include "admin/providers/provider/messages_rows.html" with rows=live can_send=can_send_live send_url="admin:providers_provider_send_live_notice" date_label=_("Published") date_format="j M Y" %}
       {% else %}
         <p style="padding: 12px">{% translate 'Nothing waiting. Every owner has been told their listing is live.' %}</p>
       {% endif %}
@@ -55,7 +67,7 @@
         {% translate 'Published listings due their check of fees and intake dates. When the owner replies, record it under “Sent, waiting for a reply”.' %}
       </p>
       {% if checks %}
-        {% include "admin/providers/provider/messages_rows.html" with rows=checks can_send=can_send_checks send_url="admin:providers_provider_send_prompt" date_label=_("Last confirmed") %}
+        {% include "admin/providers/provider/messages_rows.html" with rows=checks can_send=can_send_checks send_url="admin:providers_provider_send_prompt" date_label=_("Last confirmed") date_format="j M Y" %}
       {% else %}
         <p style="padding: 12px">{% translate 'Nothing waiting. Every listing due a check has been prompted.' %}</p>
       {% endif %}

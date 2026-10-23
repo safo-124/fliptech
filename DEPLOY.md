@@ -158,6 +158,73 @@ the prerequisite, not the signup.
 
 ---
 
+## Map tiles
+
+Until this is done the maps load their tiles from OpenStreetMap's own servers.
+That is a free community service with no guarantee, and its usage policy asks
+busy sites to use a tile provider instead.
+
+1. Pick a provider and create an account. MapTiler, Stadia Maps and
+   Thunderforest all serve the raster tiles the site uses; free tiers and
+   terms differ, so check them for a commercial site at your traffic. Choose a
+   light, quiet style: the soft-grey treatment the site gives OpenStreetMap's
+   tiles is switched off for a provider's own style.
+2. In the provider's dashboard, restrict the key to your domain. It is visible
+   in the page, as every tile key is; the restriction is what protects it.
+3. Add both lines to `/opt/fliptech/frontend/.env.production`, copying the
+   exact URL template and attribution the provider gives you. For example:
+
+   ```
+   NEXT_PUBLIC_MAP_TILE_URL=https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=YOUR_KEY
+   NEXT_PUBLIC_MAP_TILE_ATTRIBUTION=&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors
+   ```
+
+4. `./deploy.sh`. These are fixed at build time, so editing the file alone
+   changes nothing.
+
+## Error monitoring
+
+Sentry is wired into the API and starts as soon as it has a key. It is sent
+no personal data: no cookies, users or IP addresses, and no request bodies,
+which carry phone numbers.
+
+1. Create a Sentry project for Django and copy its DSN.
+2. Add to `/opt/fliptech/backend/.env`:
+
+   ```
+   SENTRY_DSN=https://…
+   SENTRY_ENVIRONMENT=production
+   ```
+
+   Use `staging` on a staging server, so its errors are not read as ones
+   trainees saw.
+3. `sudo systemctl restart fliptech-api`. No rebuild needed.
+
+The Next.js side is not in Sentry; its errors are in
+`journalctl -u fliptech-web`. Adding Sentry's browser SDK would cost the search
+page roughly a sixth of its 200 KB budget.
+
+---
+
+## Switching on Twi or Ga
+
+Translations are added as they are done; see `frontend/messages/README.md`
+for the site's text and `backend/locale/README.md` for the API's messages.
+Whatever a language has not translated yet is shown in English, so it can be
+switched on before it is finished — on staging first, so translators can
+check their work in place.
+
+1. `/opt/fliptech/frontend/.env.production`: `NEXT_PUBLIC_LOCALES=en,tw`
+2. `/opt/fliptech/backend/.env`: `INTERFACE_LANGUAGES=tw`
+3. Once there are server translations: `sudo apt install gettext`
+4. `./deploy.sh` — the site's languages are fixed at build time, and the
+   deploy compiles any server translations.
+
+The footer then offers the language, each named in itself. The choice is a
+cookie, not a change of address, so no indexed URL moves.
+
+---
+
 ## How it fits together
 
 | Piece | Where |

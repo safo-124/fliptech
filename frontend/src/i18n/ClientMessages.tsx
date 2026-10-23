@@ -10,11 +10,14 @@
  * Providers do not merge: a client component under this provider sees only the
  * namespaces listed, so list every namespace the subtree's client components
  * use, including shared ones like Format.
+ *
+ * The provider brings next-intl's message formatter with it, about 12 KB. For
+ * a subtree only some visitors see, use client-intl.ts instead.
  */
 
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages } from "next-intl/server";
 
+import { pickMessages } from "./client-intl";
 import type { ClientNamespace } from "./namespaces";
 
 export async function ClientMessages({
@@ -24,9 +27,7 @@ export async function ClientMessages({
   namespaces: readonly ClientNamespace[];
   children: React.ReactNode;
 }) {
-  const all = await getMessages();
-  const picked = Object.fromEntries(
-    namespaces.map((namespace) => [namespace, all[namespace]]),
-  ) as Partial<typeof all>;
-  return <NextIntlClientProvider messages={picked}>{children}</NextIntlClientProvider>;
+  return (
+    <NextIntlClientProvider messages={await pickMessages(namespaces)}>{children}</NextIntlClientProvider>
+  );
 }

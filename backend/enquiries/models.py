@@ -316,3 +316,48 @@ class Enrolment(TimeStampedModel):
     @property
     def is_graduate(self):
         return self.completed_on is not None
+
+
+class MonthlyCheckIn(TimeStampedModel):
+    """The monthly conversation with a paying workshop, including the empty ones.
+
+    Enrolments, completions and recommendations can only be collected by
+    asking each paying workshop once a month, and that number decides whether
+    subscriptions renew. Enrolment rows record what a workshop reported; this
+    records that somebody asked. Without it a month in which nobody enrolled
+    and a month in which nobody asked both look like no rows at all, and the
+    enrolment total cannot be trusted. See enquiries/check_ins.py.
+    """
+
+    class Outcome(models.TextChoices):
+        REPORTED = "reported", "Enrolments reported"
+        NONE = "none", "Asked — nobody enrolled"
+        NOT_REACHED = "not_reached", "Could not reach them"
+
+    provider = models.ForeignKey(
+        "providers.Provider", on_delete=models.CASCADE, related_name="check_ins"
+    )
+    # Always the first of the month; save() makes it so.
+    month = models.DateField(help_text="The month this check-in covers.")
+    outcome = models.CharField(max_length=20, choices=Outcome.choices)
+    note = models.CharField(max_length=300, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        ordering = ["-month", "provider__name"]
+        verbose_name = "monthly check-in"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "month"], name="one_check_in_per_provider_month"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.provider.name}, {self.month:%B %Y}: {self.get_outcome_display()}"
+
+    def save(self, *args, **kwargs):
+        if self.month:
+            self.month = self.month.replace(day=1)
+        super().save(*args, **kwargs)

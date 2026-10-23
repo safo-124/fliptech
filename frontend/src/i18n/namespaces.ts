@@ -10,14 +10,16 @@ import type messages from "../../messages/en.json";
 
 export type ClientNamespace = keyof typeof messages;
 
-/** The account link in the site header, on every page. */
-export const HEADER_CLIENT_NAMESPACES = ["AccountNav"] as const satisfies readonly ClientNamespace[];
-
-/** The map on the search page and the /map page. */
+/**
+ * The map on the search page and the /map page.
+ *
+ * The header's account link and the search page's map panel are not here on
+ * purpose: they take their few labels as props from the server, so the
+ * message formatter is not on every page. See AccountNav.
+ */
 export const MAP_CLIENT_NAMESPACES = [
   "MapView",
   "MapLoader",
-  "SearchMapPanel",
   "Format",
 ] as const satisfies readonly ClientNamespace[];
 
@@ -25,6 +27,9 @@ export const MAP_CLIENT_NAMESPACES = [
 export const PROFILE_CLIENT_NAMESPACES = [
   "SaveProviderButton",
 ] as const satisfies readonly ClientNamespace[];
+
+/** "Report a problem" with a listing. */
+export const REPORT_CLIENT_NAMESPACES = ["ReportProblem"] as const satisfies readonly ClientNamespace[];
 
 /** The enquiry page, which is a client component throughout. */
 export const ENQUIRY_CLIENT_NAMESPACES = [

@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import environ
+from django.conf.locale import LANG_INFO
 
 from core.media import derive_public_origin
 
@@ -133,6 +134,8 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # The visitor's language on the API only. See Internationalisation below.
+    "core.middleware.ApiLanguageMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -242,11 +245,36 @@ CSRF_COOKIE_SAMESITE = "Lax"
 # --------------------------------------------------------------------------
 # English at version 1, strings externalised so Twi and Ga become possible
 # later without a rewrite (Section 10).
+#
+# The public site's language is a cookie its footer sets (frontend
+# src/i18n/config.ts), and the API answers in the same one, so a trainee
+# reading Twi is not shown an error in English. Only under /api/: the back
+# office stays in English whatever cookie a member of staff's browser carries.
+# See core.middleware.ApiLanguageMiddleware.
+#
+# INTERFACE_LANGUAGES is the server's half of the site's NEXT_PUBLIC_LOCALES,
+# and the two should name the same languages. A language switched on before
+# its catalogue under locale/ is compiled simply stays English, message by
+# message: `makemessages -l tw -l gaa` to start one, `compilemessages` to use
+# it. Both need GNU gettext installed.
 
 LANGUAGE_CODE = "en-gb"
 TIME_ZONE = "Africa/Accra"
 USE_I18N = True
 USE_TZ = True
+
+# Neither language ships with Django, so it is told their names.
+LANG_INFO.setdefault("tw", {"bidi": False, "code": "tw", "name": "Twi", "name_local": "Twi"})
+LANG_INFO.setdefault("gaa", {"bidi": False, "code": "gaa", "name": "Ga", "name_local": "Ga"})
+
+_LANGUAGE_NAMES = {"en-gb": "English", "tw": "Twi", "gaa": "Ga"}
+_interface = {"en-gb"} | {
+    code.strip() for code in env.list("INTERFACE_LANGUAGES", default=[]) if code.strip()
+}
+LANGUAGES = [(code, name) for code, name in _LANGUAGE_NAMES.items() if code in _interface]
+LOCALE_PATHS = [BASE_DIR / "locale"]
+# next-intl's cookie, so the site and the API agree without a second one.
+LANGUAGE_COOKIE_NAME = "NEXT_LOCALE"
 
 PHONENUMBER_DEFAULT_REGION = "GH"
 PHONENUMBER_DEFAULT_FORMAT = "E164"
@@ -501,10 +529,16 @@ if env("SENTRY_DSN"):
 
     sentry_sdk.init(
         dsn=env("SENTRY_DSN"),
+        # So a staging error is not read as one trainees saw.
+        environment=env("SENTRY_ENVIRONMENT", default="production"),
         traces_sample_rate=0.1,
         # Phone numbers are personal data under Act 843. Do not ship PII to a
-        # third-party error tracker by default.
+        # third-party error tracker: not cookies, users or IP addresses
+        # (send_default_pii), and not request bodies either. The Django
+        # integration attaches those regardless of send_default_pii, and every
+        # enquiry, sign-in and complaint body carries a phone number.
         send_default_pii=False,
+        max_request_body_size="never",
     )
 
 

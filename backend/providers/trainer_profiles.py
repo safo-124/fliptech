@@ -2,11 +2,13 @@
 
 from uuid import uuid4
 
+from django.conf import settings
 from django.contrib.gis.geos import Point
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.text import slugify
+from django.utils.translation import gettext as _
 
 from catalog.models import Intake, Programme
 
@@ -70,7 +72,7 @@ def owned_profile_queryset(account):
 def get_owned_profile(account):
     profiles = list(owned_profile_queryset(account)[:2])
     if len(profiles) > 1:
-        raise TrainerProfileConflict("This account has more than one provider profile.")
+        raise TrainerProfileConflict(_("This account has more than one provider profile."))
     return profiles[0] if profiles else None
 
 
@@ -205,16 +207,17 @@ def save_owned_profile(*, account, actor, validated_data):
         .select_related("provider")[:2]
     )
     if len(memberships) > 1:
-        raise TrainerProfileConflict("This account has more than one provider profile.")
+        raise TrainerProfileConflict(_("This account has more than one provider profile."))
 
     provider = memberships[0].provider if memberships else None
     if provider is not None:
         provider = Provider.objects.select_for_update().get(pk=provider.pk)
         if provider.status not in EDITABLE_STATUSES:
             raise TrainerProfileConflict(
-                "This listing is locked while it is being reviewed."
+                _("This listing is locked while it is being reviewed.")
                 if provider.status == Provider.Status.PENDING_APPROVAL
-                else "This listing has been suspended. Contact Fliiptech."
+                else _("This listing has been suspended. Contact %(brand)s.")
+                % {"brand": settings.BRAND_NAME}
             )
 
     programme_data = validated_data.pop("programme", None)
@@ -324,7 +327,7 @@ def save_owned_profile(*, account, actor, validated_data):
     programmes = list(Programme.objects.select_for_update().filter(provider=provider)[:2])
     if len(programmes) > 1:
         raise TrainerProfileConflict(
-            "This profile has multiple programmes and needs staff help before it can be edited."
+            _("This profile has multiple programmes and needs staff help before it can be edited.")
         )
 
     if programmes:
@@ -342,7 +345,7 @@ def save_owned_profile(*, account, actor, validated_data):
     intakes = list(Intake.objects.select_for_update().filter(programme=programme)[:2])
     if len(intakes) > 1:
         raise TrainerProfileConflict(
-            "This programme has multiple intakes and needs staff help before it can be edited."
+            _("This programme has multiple intakes and needs staff help before it can be edited.")
         )
 
     if intake_data is None:
@@ -391,11 +394,11 @@ def submission_blockers(provider, account):
     blockers = []
 
     if not account.full_name.strip():
-        blockers.append("Add your full name.")
+        blockers.append(_("Add your full name."))
     if not account.role:
-        blockers.append("Say whether you are the owner, the manager or the lead trainer.")
+        blockers.append(_("Say whether you are the owner, the manager or the lead trainer."))
     if not account.id_document_type or not account.id_document_number.strip():
-        blockers.append("Add your ID type and number.")
+        blockers.append(_("Add your ID type and number."))
 
     # The document itself, not just the number. Section 10 keeps it in private
     # storage; this only asks whether a row exists.
@@ -403,28 +406,28 @@ def submission_blockers(provider, account):
         provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
     ).exists()
     if not has_id:
-        blockers.append("Upload a photo of your ID.")
+        blockers.append(_("Upload a photo of your ID."))
 
     from .models import ProviderPhoto
 
     kinds = set(provider.photos.values_list("kind", flat=True))
     if ProviderPhoto.Kind.WORKSHOP not in kinds:
-        blockers.append("Add at least one photo of the workshop itself.")
+        blockers.append(_("Add at least one photo of the workshop itself."))
     if ProviderPhoto.Kind.WORK not in kinds:
-        blockers.append("Add at least one photo of work you have done.")
+        blockers.append(_("Add at least one photo of work you have done."))
 
     if not provider.programmes.exists():
-        blockers.append("Add at least one course.")
+        blockers.append(_("Add at least one course."))
 
     if not provider.landmark.strip():
-        blockers.append("Add the nearest landmark, so we can find the workshop.")
+        blockers.append(_("Add the nearest landmark, so we can find the workshop."))
 
     if provider.declared_accurate_at is None:
-        blockers.append("Confirm that the fees and dates you entered are correct.")
+        blockers.append(_("Confirm that the fees and dates you entered are correct."))
     if provider.site_visit_consent_at is None:
-        blockers.append("Agree to a Fliiptech site visit.")
+        blockers.append(_("Agree to a Fliiptech site visit."))
     if account.data_consent_at is None:
-        blockers.append("Accept how we handle your personal information.")
+        blockers.append(_("Accept how we handle your personal information."))
 
     return blockers
 
@@ -569,7 +572,7 @@ def confirm_listing_is_current(provider, *, actor):
     from .models import ListingConfirmation
 
     if provider.status != Provider.Status.PUBLISHED:
-        raise TrainerProfileConflict("Only a published listing can be confirmed.")
+        raise TrainerProfileConflict(_("Only a published listing can be confirmed."))
 
     from .freshness import open_prompt
 

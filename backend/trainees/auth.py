@@ -3,6 +3,7 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from core.identities import create_dedicated_user, user_is_unprivileged
 
@@ -133,7 +134,7 @@ def account_for_verified_phone(*, phone, verified_at, display_name="", profile=N
             )
 
     if not account.is_active or not user_is_unprivileged(account.user):
-        raise TraineeAccountDisabled("This account has been switched off. Contact support.")
+        raise TraineeAccountDisabled(_("This account has been switched off. Contact support."))
 
     fields = ["phone_verified_at", "last_seen_at", "updated_at"]
     account.phone_verified_at = verified_at
@@ -180,12 +181,14 @@ def account_for_verified_email(*, email, verified_at):
     )
     if account is None:
         raise TraineeAccountDisabled(
-            "That address is not on an account yet. Sign in with your phone number, "
-            "then add your email from your account page."
+            _(
+                "That address is not on an account yet. Sign in with your phone number, "
+                "then add your email from your account page."
+            )
         )
 
     if not account.is_active or not user_is_unprivileged(account.user):
-        raise TraineeAccountDisabled("This account has been switched off. Contact support.")
+        raise TraineeAccountDisabled(_("This account has been switched off. Contact support."))
 
     account.email_verified_at = verified_at
     account.last_seen_at = timezone.now()

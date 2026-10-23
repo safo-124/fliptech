@@ -1,7 +1,7 @@
 """API routes consumed by the Next.js frontend.
 
-Everything under /api/ is public and read-only except the enquiry endpoints and
-the tokenised dashboard.
+Everything under /api/ is public and read-only except the enquiry and complaint
+endpoints, the tokenised dashboard, and the signed-in trainee and trainer areas.
 """
 
 from django.urls import include, path
@@ -11,6 +11,7 @@ from catalog.views import TradeViewSet
 from core.whoami import WhoAmIView
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
+from providers.complaint_views import ComplaintCreateView
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
 from providers.trainer_dashboard_views import (
     TrainerEnquiryRepliedView,
@@ -164,6 +165,8 @@ urlpatterns = [
     path("enquiries/request-code/", OTPRequestView.as_view(), name="otp-request"),
     path("enquiries/verify-code/", OTPVerifyView.as_view(), name="otp-verify"),
     path("enquiries/", EnquiryCreateView.as_view(), name="enquiry-create"),
+    # "Report a problem" on every listing. Anonymous, rate-limited, read by staff.
+    path("complaints/", ComplaintCreateView.as_view(), name="complaint-create"),
     # Provider dashboard, reached by a tokenised WhatsApp link.
     path("dashboard/<str:token>/", ProviderDashboardView.as_view(), name="provider-dashboard"),
     path(

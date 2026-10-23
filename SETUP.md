@@ -604,7 +604,26 @@ only ships the utilities actually used.
 
 ### Page weight: passes, with little room left
 
-Measured over the wire, gzipped, images excluded:
+**Now checked on every push.** `frontend/e2e/budget.spec.ts` loads the search
+page at phone size in Chromium, against a production build and a real API, and
+fails the build over 200 KB of HTML, CSS and JavaScript or a first paint over
+three seconds on 3G (WebPageTest's profile: 1.6 Mbps, 300 ms). Run it locally
+with `pnpm test:budget` against `next build && next start`; it skips itself on
+the dev server. On 2026-10-23 it measured **194.3 KB** and a **1.06 s** first
+paint.
+
+It caught a real overage when added: 206 KB. The interface text had moved into
+next-intl, and next-intl's client provider imports its ~12 KB message
+formatter the moment it loads, so every page that rendered `ClientMessages`
+around anything paid for it — on the search page, for a map only a desktop
+shows. The header's account link and the map panel now take their labels from
+the server, and the map brings its own provider inside its lazy chunk
+(`SearchMapWithMessages`, `i18n/client-intl.ts`). Note the import trap that
+cost the most time: Next bundles every client component a page's imports can
+reach, rendered or not, so even importing a helper from `ClientMessages.tsx`
+put the provider back.
+
+The original measurement, over the wire, gzipped, images excluded:
 
 ```
 HTML   6.8 KB
@@ -850,8 +869,10 @@ allow both: `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1` and
   Afterwards, `sudo chown -R $USER /opt/venvs/skillshub`.
 - **No admin superuser.** Creating one sets a password, so run it yourself:
   `python manage.py createsuperuser`, then `python manage.py setup_groups`.
-- **Provider alerts are not sent.** The WhatsApp template and SMS fallback are
-  logged, pending Meta business verification and a registered sender ID.
+- **Provider alerts are sent by staff, not the server.** Every enquiry queues
+  an alert on the back office's "Messages to send" page, and an officer sends
+  it on WhatsApp. The server sends it itself once Meta business verification
+  and a registered sender ID exist.
 - **Background photo upload**, as above.
 - **Map tile provider unchosen**, as above.
 - **Stages 4 to 6** of the build order: scheduled freshness prompts, staleness

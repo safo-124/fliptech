@@ -8,6 +8,12 @@
       "port": 3100
     },
     {
+      "name": "skills-hub-web-prod",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd frontend && node node_modules/next/dist/bin/next start --port 3200"],
+      "port": 3200
+    },
+    {
       "name": "skills-hub-api",
       "runtimeExecutable": "wsl",
       "runtimeArgs": [

@@ -41,17 +41,18 @@ def test_an_unset_provider_is_not_quietly_treated_as_working(settings):
     assert "Text messages" in broken
 
 
-def test_workshop_alerts_are_reported_as_not_built(settings):
+def test_workshop_alerts_are_reported_as_sent_by_staff(settings):
     settings.SMS_PROVIDER = "arkesel"
     settings.EMAIL_PROVIDER = "smtp"
 
     status = delivery.status()
 
-    # Every channel that can be configured is live, and it still is not all
-    # fine, because nothing tells a workshop an enquiry arrived.
-    assert status["all_live"] is False
-    assert status["response_rate_is_misleading"] is True
-    assert [channel["name"] for channel in status["broken"]] == ["Workshop alerts"]
+    alerts = next(c for c in status["channels"] if c["name"] == "Workshop alerts")
+    assert alerts["live"] is True
+    assert alerts["provider"] == "sent by staff from the back office"
+    # Workshops are told now, so the reply rate means something again.
+    assert status["response_rate_is_misleading"] is False
+    assert status["all_live"] is True
 
 
 @pytest.mark.django_db
@@ -62,33 +63,5 @@ def test_the_dashboard_says_so(client, django_user_model, settings):
     body = client.get(reverse("admin:index")).content.decode()
 
     assert "Some messages are not being delivered" in body
-    assert "measures how many answered a message nobody sent them" in body
-
-
-@pytest.mark.django_db
-def test_sending_an_enquiry_still_sends_nothing(monkeypatch, client, settings):
-    """The tripwire for PROVIDER_ALERTS_SEND.
-
-    It is a hard-coded False because there is nothing to inspect: the view
-    writes a log line where the send would go. If somebody makes that a real
-    send and leaves the flag alone, the dashboard would go on telling staff
-    that workshops are not being told while they are — so this fails instead.
-    """
-    if delivery.PROVIDER_ALERTS_SEND:
-        pytest.skip("Alerts are implemented; this tripwire has done its job.")
-
-    from core import sms
-
-    sent = []
-    monkeypatch.setattr(sms, "send_sms", lambda to, message: sent.append(to))
-
-    # Not a full enquiry POST: this asserts a negative, and the cheapest honest
-    # way to do that is to prove the send path is untouched by the module that
-    # would use it.
-    import enquiries.views
-
-    assert not hasattr(enquiries.views, "send_sms"), (
-        "enquiries.views imports send_sms, so an alert may now be sent. "
-        "Set core.delivery.PROVIDER_ALERTS_SEND = True."
-    )
-    assert sent == []
+    assert "writing to the server log rather than sending" in body
+    assert "measures how many answered a message nobody sent them" not in body

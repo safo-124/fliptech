@@ -24,6 +24,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db.models import F
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from core.mail import send_email
 from core.sms import send_sms
@@ -54,19 +55,25 @@ def _also_email(email, code):
     the per-address daily cap would mean five phone sign-ins locked somebody
     out of the email door they had not even used.
     """
-    minutes = settings.OTP_TTL_SECONDS // 60
-    brand = settings.BRAND_NAME
+    values = {
+        "code": code,
+        "brand": settings.BRAND_NAME,
+        "minutes": settings.OTP_TTL_SECONDS // 60,
+    }
     try:
         send_email(
             email,
-            f"{code} is your {brand} Skills Hub code",
-            f"{code} is your {brand} Skills Hub sign-in code.\n\n"
-            f"It expires in {minutes} minutes and can be used once.\n\n"
-            "We sent it to your phone as well, in case the text does not "
-            "arrive.\n\n"
-            "If you did not try to sign in, you can ignore this message. "
-            "Nothing has happened to your account, and whoever typed your "
-            "number cannot get in without this code.\n",
+            _("%(code)s is your %(brand)s Skills Hub code") % values,
+            _(
+                "%(code)s is your %(brand)s Skills Hub sign-in code.\n\n"
+                "It expires in %(minutes)s minutes and can be used once.\n\n"
+                "We sent it to your phone as well, in case the text does not "
+                "arrive.\n\n"
+                "If you did not try to sign in, you can ignore this message. "
+                "Nothing has happened to your account, and whoever typed your "
+                "number cannot get in without this code.\n"
+            )
+            % values,
         )
     except Exception:
         # Logged rather than swallowed silently: a mail backend that is failing
@@ -92,12 +99,12 @@ def request_code(
     if PhoneVerification.objects.filter(phone=phone, created_at__gte=since).count() >= (
         settings.OTP_MAX_PER_PHONE_PER_DAY
     ):
-        raise OTPError("Too many codes requested for this number today. Try again tomorrow.")
+        raise OTPError(_("Too many codes requested for this number today. Try again tomorrow."))
 
     if ip_address and PhoneVerification.objects.filter(
         ip_address=ip_address, created_at__gte=since
     ).count() >= (settings.OTP_MAX_PER_IP_PER_DAY):
-        raise OTPError("Too many codes requested from this connection today.")
+        raise OTPError(_("Too many codes requested from this connection today."))
 
     code = _generate_code()
     verification = PhoneVerification.objects.create(
@@ -110,7 +117,12 @@ def request_code(
 
     send_sms(
         phone,
-        f"{code} is your {settings.BRAND_NAME} Skills Hub code. It expires in 10 minutes.",
+        _("%(code)s is your %(brand)s Skills Hub code. It expires in %(minutes)s minutes.")
+        % {
+            "code": code,
+            "brand": settings.BRAND_NAME,
+            "minutes": settings.OTP_TTL_SECONDS // 60,
+        },
     )
     if email:
         _also_email(email, code)
@@ -143,10 +155,10 @@ def verify_code(
         if challenge_id is not None:
             spent = spent.filter(challenge_id=challenge_id)
         if spent.filter(verified_at__isnull=False).exists():
-            raise OTPError("That code has already been used. Request a new one.")
-        raise OTPError("No code was requested for this number.")
+            raise OTPError(_("That code has already been used. Request a new one."))
+        raise OTPError(_("No code was requested for this number."))
     if verification.is_expired:
-        raise OTPError("That code has expired. Request a new one.")
+        raise OTPError(_("That code has expired. Request a new one."))
     # The limit check and increment are one conditional database operation.
     # Two simultaneous guesses against the last available attempt cannot both
     # pass by reading the same stale counter.
@@ -156,10 +168,10 @@ def verify_code(
         attempts__lt=settings.OTP_MAX_ATTEMPTS,
     ).update(attempts=F("attempts") + 1)
     if not attempted:
-        raise OTPError("Too many incorrect attempts. Request a new code.")
+        raise OTPError(_("Too many incorrect attempts. Request a new code."))
 
     if not check_password(code, verification.code_hash):
-        raise OTPError("That code is not correct.")
+        raise OTPError(_("That code is not correct."))
 
     verified_at = timezone.now()
     # Consuming the challenge is conditional, so two correct requests racing
@@ -169,7 +181,7 @@ def verify_code(
         verified_at__isnull=True,
     ).update(verified_at=verified_at)
     if not consumed:
-        raise OTPError("That code has already been used. Request a new one.")
+        raise OTPError(_("That code has already been used. Request a new one."))
     verification.verified_at = verified_at
     verification.attempts += 1
     return verification

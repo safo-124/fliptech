@@ -1,29 +1,21 @@
 """Whether messages are actually reaching anyone.
 
 The back office reports enquiry counts and a response rate as though the
-workshop had been told an enquiry arrived. Today it has not been: SMS and
-email default to the console backend, and the provider alert in
-enquiries/views.py is a log line, because a business-initiated WhatsApp
-template needs credentials nobody has yet.
+workshop had been told an enquiry arrived. For a long time it had not been:
+the alert was a log line, because a business-initiated WhatsApp template needs
+credentials nobody has yet. An operations lead reading "40% replied" would
+have concluded providers were slow, when they had never been told.
 
-So an operations lead reads "40% replied" and concludes providers are slow.
-They are not slow; they were never told. Acting on that number means chasing
-workshops over messages that were never sent, which is worse than having no
-number at all.
+Every enquiry now queues an alert that an officer sends from Messages to send
+(providers/owner_messages.py), so workshops are told, by a person rather than
+the server. SMS and email still default to the console backend, which writes
+to the log and reaches nobody.
 
 This module answers "what is actually being delivered" in one place so the
 dashboard can say it out loud.
 """
 
 from django.conf import settings
-
-# Whether an enquiry causes the workshop to be told.
-#
-# Hard-coded because there is nothing to inspect: enquiries/views.py writes a
-# log line where the send would go. Flip this when that becomes a real send,
-# and test_delivery.py will hold you to it — it fails if an enquiry ever
-# reaches a send function while this says False.
-PROVIDER_ALERTS_SEND = False
 
 # Backends that write somewhere a developer can read and a user cannot.
 INERT_BACKENDS = {"console", "dummy", "locmem", ""}
@@ -63,10 +55,13 @@ def status():
             "Sign-in codes for anyone using an email address instead of a phone.",
         ),
     ]
+    # Queued with every enquiry and sent by an officer, so every workshop is
+    # told. Becomes a server send when there are WhatsApp Cloud API
+    # credentials, and this entry with it.
     alerts = {
         "name": "Workshop alerts",
-        "provider": "not built" if not PROVIDER_ALERTS_SEND else "live",
-        "live": PROVIDER_ALERTS_SEND,
+        "provider": STAFF_RELAYED_BACKENDS["backoffice"],
+        "live": True,
         "carries": "Telling a workshop that somebody has enquired.",
     }
     channels.append(alerts)

@@ -26,6 +26,7 @@ import {
   Camera,
   Clock3,
   FileCheck2,
+  Flag,
   GraduationCap,
   Info,
   MapPin,
@@ -567,6 +568,18 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
           </Alert>
         </div>
       )}
+
+      {/* Quiet, but on every listing: a complaint is how a bad workshop is
+          found, and the person who has one should not have to hunt. */}
+      <div className="border-t border-[var(--color-border)] px-5 py-4 sm:px-7 lg:px-10">
+        <Link
+          href={`/${provider.area_slug}/${provider.slug}/report`}
+          className="inline-flex min-h-11 items-center gap-2 text-sm text-[var(--color-muted-foreground)] underline-offset-4 hover:text-[var(--color-foreground)] hover:underline"
+        >
+          <Flag className="size-4" aria-hidden="true" />
+          {t("reportProblem")}
+        </Link>
+      </div>
     </article>
   );
 }

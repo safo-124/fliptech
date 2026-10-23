@@ -1,6 +1,7 @@
 """Input validation for passwordless trainer profile onboarding."""
 
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
@@ -18,7 +19,7 @@ class RejectUnknownFieldsMixin:
             unknown = set(data) - set(self.fields)
             if unknown:
                 raise serializers.ValidationError(
-                    dict.fromkeys(sorted(unknown), "This field is not accepted.")
+                    dict.fromkeys(sorted(unknown), _("This field is not accepted."))
                 )
         return super().to_internal_value(data)
 
@@ -62,7 +63,7 @@ class TrainerIntakeInputSerializer(RejectUnknownFieldsMixin, serializers.Seriali
         # on a step they were not asked to revisit.
         if value == self.context.get("current_intake_start_date"):
             return value
-        raise serializers.ValidationError("Choose a future intake date.")
+        raise serializers.ValidationError(_("Choose a future intake date."))
 
 
 class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

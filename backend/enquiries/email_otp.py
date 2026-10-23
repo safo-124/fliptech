@@ -26,6 +26,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db.models import F
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from core.mail import send_email
 
@@ -61,14 +62,14 @@ def request_code(
         EmailVerification.objects.filter(email=email, created_at__gte=since).count()
         >= MAX_PER_EMAIL_PER_DAY
     ):
-        raise OTPError("Too many codes requested for this address today. Try again tomorrow.")
+        raise OTPError(_("Too many codes requested for this address today. Try again tomorrow."))
 
     if (
         ip_address
         and EmailVerification.objects.filter(ip_address=ip_address, created_at__gte=since).count()
         >= settings.OTP_MAX_PER_IP_PER_DAY
     ):
-        raise OTPError("Too many codes requested from this connection today.")
+        raise OTPError(_("Too many codes requested from this connection today."))
 
     code = _generate_code()
     verification = EmailVerification.objects.create(
@@ -120,10 +121,10 @@ def verify_code(
         if challenge_id is not None:
             spent = spent.filter(challenge_id=challenge_id)
         if spent.filter(verified_at__isnull=False).exists():
-            raise OTPError("That code has already been used. Request a new one.")
-        raise OTPError("No code was requested for this address.")
+            raise OTPError(_("That code has already been used. Request a new one."))
+        raise OTPError(_("No code was requested for this address."))
     if verification.is_expired:
-        raise OTPError("That code has expired. Request a new one.")
+        raise OTPError(_("That code has expired. Request a new one."))
 
     # The limit check and increment are one conditional database operation, so
     # two simultaneous guesses against the last available attempt cannot both
@@ -134,10 +135,10 @@ def verify_code(
         attempts__lt=settings.OTP_MAX_ATTEMPTS,
     ).update(attempts=F("attempts") + 1)
     if not attempted:
-        raise OTPError("Too many incorrect attempts. Request a new code.")
+        raise OTPError(_("Too many incorrect attempts. Request a new code."))
 
     if not check_password(code, verification.code_hash):
-        raise OTPError("That code is not correct.")
+        raise OTPError(_("That code is not correct."))
 
     verified_at = timezone.now()
     # Consuming the challenge is conditional, so two correct requests racing
@@ -147,7 +148,7 @@ def verify_code(
         verified_at__isnull=True,
     ).update(verified_at=verified_at)
     if not consumed:
-        raise OTPError("That code has already been used. Request a new one.")
+        raise OTPError(_("That code has already been used. Request a new one."))
 
     verification.verified_at = verified_at
     verification.attempts += 1

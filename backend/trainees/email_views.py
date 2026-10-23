@@ -22,6 +22,7 @@ from django.contrib.auth import login
 from django.db import IntegrityError
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
@@ -74,7 +75,7 @@ class TraineeEmailCodeRequestView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -108,7 +109,7 @@ class TraineeEmailCodeVerifyView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many attempts. Wait a minute and try again."},
+                {"detail": _("Too many attempts. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -158,12 +159,12 @@ class TraineeAddEmailRequestView(TraineeView):
 
         if not self.ctx.can_write:
             return Response(
-                {"detail": "Support view is read-only."}, status=status.HTTP_403_FORBIDDEN
+                {"detail": _("Support view is read-only.")}, status=status.HTTP_403_FORBIDDEN
             )
 
         if TraineeAccount.objects.filter(email=email).exclude(pk=self.ctx.account.pk).exists():
             return Response(
-                {"detail": "That address is already on another account."},
+                {"detail": _("That address is already on another account.")},
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -175,7 +176,7 @@ class TraineeAddEmailRequestView(TraineeView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -200,7 +201,7 @@ class TraineeAddEmailConfirmView(TraineeView):
 
         if not self.ctx.can_write:
             return Response(
-                {"detail": "Support view is read-only."}, status=status.HTTP_403_FORBIDDEN
+                {"detail": _("Support view is read-only.")}, status=status.HTTP_403_FORBIDDEN
             )
 
         try:
@@ -221,7 +222,7 @@ class TraineeAddEmailConfirmView(TraineeView):
         except IntegrityError:
             # Claimed by someone else between the check above and this save.
             return Response(
-                {"detail": "That address is already on another account."},
+                {"detail": _("That address is already on another account.")},
                 status=status.HTTP_409_CONFLICT,
             )
 

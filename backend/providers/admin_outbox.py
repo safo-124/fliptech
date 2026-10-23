@@ -1,9 +1,11 @@
 """The back office's "Messages to send" page: WhatsApp messages to owners.
 
 The system decides who needs a message; an officer sends it from their own
-phone with a wa.me link. Two kinds share the page because they are the same
+phone with a wa.me link. Three kinds share the page because they are the same
 job for the person holding the phone:
 
+* "Someone has enquired", queued with every enquiry, and first on the page
+  because it is the one where an hour matters. See providers/owner_messages.py.
 * "Your listing is live", queued when a listing is published (Section 09's
   last onboarding step). See providers/owner_messages.py.
 * The 90-day check of fees and intake dates, queued nightly by
@@ -32,7 +34,11 @@ from .models import ListingConfirmation, OwnerNotice, Provider
 
 def waiting_count():
     """Everything an officer could send right now. Drives the sidebar badge."""
-    return owner_messages.live_notices_waiting().count() + freshness.waiting_to_send().count()
+    return (
+        owner_messages.enquiry_alerts_waiting().count()
+        + owner_messages.live_notices_waiting().count()
+        + freshness.waiting_to_send().count()
+    )
 
 
 class OwnerMessagesAdminMixin:
@@ -42,6 +48,11 @@ class OwnerMessagesAdminMixin:
                 "messages/",
                 self.admin_site.admin_view(self.messages_view),
                 name="providers_provider_messages",
+            ),
+            path(
+                "messages/enquiry/<int:notice_id>/send/",
+                self.admin_site.admin_view(require_POST(self.send_enquiry_alert_view)),
+                name="providers_provider_send_enquiry_alert",
             ),
             path(
                 "messages/live/<int:notice_id>/send/",
@@ -59,13 +70,18 @@ class OwnerMessagesAdminMixin:
         if not request.user.has_perm("providers.view_provider"):
             raise PermissionDenied
 
+        enquiries = list(owner_messages.enquiry_alerts_waiting())
+        for row in enquiries:
+            row.when = row.created_at
+            course = row.enquiry.programme.title if row.enquiry.programme else ""
+            row.detail = " · ".join(filter(None, [row.enquiry.reference_code, course]))
         live = list(owner_messages.live_notices_waiting())
         for row in live:
             row.when = row.provider.published_at
         checks = list(freshness.waiting_to_send())
         for row in checks:
             row.when = row.provider.last_confirmed_at
-        for row in (*live, *checks):
+        for row in (*enquiries, *live, *checks):
             row.send_to = owner_messages.owner_phone(row.provider)
 
         awaiting_reply = (
@@ -84,6 +100,7 @@ class OwnerMessagesAdminMixin:
                 **self.admin_site.each_context(request),
                 "title": "Messages to send",
                 "opts": self.model._meta,
+                "enquiries": enquiries,
                 "live": live,
                 "checks": checks,
                 "awaiting_reply": awaiting_reply,
@@ -98,6 +115,26 @@ class OwnerMessagesAdminMixin:
         self.message_user(request, text, level=messages.WARNING)
         return HttpResponseRedirect(reverse("admin:providers_provider_messages"))
 
+    def send_enquiry_alert_view(self, request, notice_id):
+        if not request.user.has_perm("providers.change_ownernotice"):
+            raise PermissionDenied
+        notice = get_object_or_404(
+            OwnerNotice.objects.select_related("provider", "enquiry", "enquiry__programme"),
+            pk=notice_id,
+        )
+        if not owner_messages.enquiry_alerts_waiting().filter(pk=notice.pk).exists():
+            return self._back_to_outbox(
+                request,
+                f"{notice.provider.name} is no longer waiting to hear about this enquiry. "
+                "Someone else may have sent it, the enquiry was marked as spam, or the "
+                "listing is no longer live.",
+            )
+        if not owner_messages.mark_notice_sent(notice, actor=request.user):
+            return self._back_to_outbox(
+                request, f"The alert to {notice.provider.name} was already sent."
+            )
+        return HttpResponseRedirect(owner_messages.enquiry_alert_url(notice))
+
     def send_live_notice_view(self, request, notice_id):
         if not request.user.has_perm("providers.change_ownernotice"):
             raise PermissionDenied
@@ -110,7 +147,7 @@ class OwnerMessagesAdminMixin:
                 f"{notice.provider.name} is no longer waiting to be told. Someone else may "
                 "have sent it, or the listing is no longer live.",
             )
-        if not owner_messages.mark_live_sent(notice, actor=request.user):
+        if not owner_messages.mark_notice_sent(notice, actor=request.user):
             return self._back_to_outbox(
                 request, f"The message to {notice.provider.name} was already sent."
             )

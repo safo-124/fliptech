@@ -2,7 +2,6 @@
 
 import {UserPlus, UserRound} from "lucide-react";
 import Link from "next/link";
-import {useTranslations} from "next-intl";
 import {useEffect, useState} from "react";
 
 import {Button} from "@/components/ui/button";
@@ -21,9 +20,14 @@ import {getWhoami} from "@/lib/session-api";
  * Signed out is the first render, which is what the server sends and what the
  * great majority of visitors are, so nothing moves for them and the page needs
  * no JavaScript to be correct. The swap costs one small request per page load.
+ *
+ * The labels arrive already translated, from the header. Translating here
+ * would put next-intl's message formatter on every page — about 12 KB, on a
+ * search page with a 200 KB budget — for three fixed strings.
  */
-export function AccountNav() {
-  const t = useTranslations("AccountNav");
+export type AccountNavLabels = {myAccount: string; account: string; signUp: string};
+
+export function AccountNav({labels}: {labels: AccountNavLabels}) {
   const [account, setAccount] = useState<{
     href: string;
     name: string;
@@ -91,14 +95,14 @@ export function AccountNav() {
       <Button asChild variant="onBand" size="default" className="px-3 sm:px-4">
         <Link href="/trainee">
           <UserRound aria-hidden />
-          <span className="hidden sm:inline">{t("myAccount")}</span>
-          <span className="sm:hidden">{t("account")}</span>
+          <span className="hidden sm:inline">{labels.myAccount}</span>
+          <span className="sm:hidden">{labels.account}</span>
         </Link>
       </Button>
       <Button asChild variant="warm" size="default" className="px-3 sm:px-4">
         <Link href="/join">
           <UserPlus aria-hidden />
-          {t("signUp")}
+          {labels.signUp}
         </Link>
       </Button>
     </>

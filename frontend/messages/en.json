@@ -37,7 +37,8 @@
     "browseProviders": "Browse providers",
     "exploreMap": "Explore map",
     "forTrainers": "For trainers",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "language": "Language"
   },
   "AccountNav": {
     "myAccount": "My account",
@@ -223,7 +224,8 @@
     "directionsLabel": "Directions to {name}, opens Google Maps",
     "locationHeading": "Where to find it",
     "locationMapLabel": "Map showing where {name} is",
-    "locationNote": "A pin can be a street or so out. Ask the workshop for the last few turns when you get in touch."
+    "locationNote": "A pin can be a street or so out. Ask the workshop for the last few turns when you get in touch.",
+    "reportProblem": "Report a problem with this listing"
   },
   "SaveProviderButton": {
     "save": "Save",
@@ -1038,5 +1040,36 @@
     "submitting": "Submitting…",
     "submit": "Submit for review",
     "saving": "Saving…"
+  },
+  "ReportProblem": {
+    "title": "Report a problem",
+    "pageTitle": "Report a problem with {name}",
+    "lead": "Tell us what is wrong with {name}. We read every report, and we can take a listing down while we look into it.",
+    "backToListing": "Back to {name}",
+    "categoryLegend": "What is wrong?",
+    "categoryRequired": "Choose what is wrong.",
+    "categories": {
+      "money": "They asked for money that was not agreed",
+      "unsafe": "Someone was unsafe, abusive or exploited trainees",
+      "not_there": "The workshop is closed or not at this place",
+      "wrong_details": "The fees, dates or details are wrong",
+      "other": "Something else"
+    },
+    "emergency": "If someone is in danger now, call the police on 191 or the emergency line on 112 first.",
+    "detailLabel": "What happened?",
+    "detailHelp": "Dates, amounts and what was said help us act quickly.",
+    "detailRequired": "Tell us a little more: at least a sentence.",
+    "nameLabel": "Your name",
+    "phoneLabel": "Your phone number",
+    "optional": "(optional)",
+    "phoneInvalid": "Enter a Ghana number, like 024 123 4567, or leave it empty.",
+    "privacy": "Only leave a number if you are happy for us to call you back. The workshop never sees your name or number.",
+    "submit": "Send report",
+    "sending": "Sending…",
+    "failed": "Your report could not be sent. Check your connection and try again.",
+    "sentTitle": "Thank you. We have your report.",
+    "sentBody": "We read every report. If you left a number we may call you, and the workshop never sees your details.",
+    "referenceLabel": "Your reference",
+    "quoteReference": "Quote it if you contact us about this report."
   }
 }

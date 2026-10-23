@@ -108,6 +108,15 @@ pnpm test
 pnpm build
 ```
 
+CI also runs the browser tests in `frontend/e2e` against a production build
+and a real API with the demo data. That includes `e2e/budget.spec.ts`, which
+fails the build if the search page goes over 200 KB or takes longer than three
+seconds to first paint on 3G. To run them locally, start the API and
+`pnpm build && pnpm start`, then `pnpm test:e2e` (or `pnpm test:budget` for
+the budgets alone). The back-office tests need `ADMIN_E2E_USERNAME` and
+`ADMIN_E2E_PASSWORD` for a local staff account, and `BACK_OFFICE_URL`.
+Chrome already on the machine works: set `PLAYWRIGHT_BROWSER_CHANNEL=chrome`.
+
 ## Management commands
 
 | Command | What it does |

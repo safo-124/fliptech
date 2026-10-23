@@ -32,7 +32,7 @@ import { ProviderCard } from "@/components/ProviderCard";
 import { SearchMapPanel } from "@/components/SearchMapPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ClientMessages } from "@/i18n/ClientMessages";
+import { clientIntl } from "@/i18n/client-intl";
 import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { buildQuery, getTrades, searchProviders, type SearchParams } from "@/lib/api";
 import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
@@ -89,12 +89,14 @@ export default async function SearchPage({
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
 
-  const [trades, results, regionNames, t, tCoverage] = await Promise.all([
+  const [trades, results, regionNames, t, tCoverage, tMap, mapIntl] = await Promise.all([
     getTrades().catch(() => ({ results: [] })),
     searchProviders(params).catch(() => null),
     launchedRegionNames(),
     getTranslations("SearchPage"),
     getTranslations("Coverage"),
+    getTranslations("SearchMapPanel"),
+    clientIntl(MAP_CLIENT_NAMESPACES),
   ]);
   // "in Greater Accra" while that is the only live region, "across Ghana"
   // once naming them stops being readable.
@@ -258,9 +260,14 @@ export default async function SearchPage({
 
                   <aside className="hidden lg:block" aria-label={t("mapOfPage")}>
                     <div className="sticky top-[5.5rem]">
-                      <ClientMessages namespaces={MAP_CLIENT_NAMESPACES}>
-                        <SearchMapPanel providers={results.results} />
-                      </ClientMessages>
+                      {/* No ClientMessages here: its provider would load the
+                          message formatter on every phone. The map brings its
+                          own, lazily. See SearchMapWithMessages. */}
+                      <SearchMapPanel
+                        providers={results.results}
+                        labels={{ loading: tMap("loading"), onThisPage: tMap("onThisPage") }}
+                        intl={mapIntl}
+                      />
                     </div>
                   </aside>
                 </div>

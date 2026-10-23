@@ -23,6 +23,7 @@ import logging
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from core.images import (  # noqa: F401  (re-exported for existing callers)
@@ -60,7 +61,7 @@ def _may_edit(request):
 def upload_photo(request, provider_id):
     """Accept one photograph for an already-saved provider."""
     if not _may_edit(request):
-        return JsonResponse({"detail": "You cannot edit providers."}, status=403)
+        return JsonResponse({"detail": _("You cannot edit providers.")}, status=403)
 
     provider = get_object_or_404(Provider, pk=provider_id)
     upload = request.FILES.get("image")
@@ -83,7 +84,7 @@ def upload_photo(request, provider_id):
         photo.save()
     except Exception:
         logger.exception("Photograph upload failed for provider %s", provider_id)
-        return JsonResponse({"detail": "That image could not be read. Try another."}, status=400)
+        return JsonResponse({"detail": _("That image could not be read. Try another.")}, status=400)
 
     if not photo.exif_stripped:
         # strip_exif returns None for anything Pillow cannot decode. A file that
@@ -91,7 +92,7 @@ def upload_photo(request, provider_id):
         # would be served from the public bucket with whatever metadata it
         # carries.
         photo.delete()
-        return JsonResponse({"detail": "That file is not a readable image."}, status=400)
+        return JsonResponse({"detail": _("That file is not a readable image.")}, status=400)
 
     return JsonResponse(_photo_payload(photo), status=201)
 
@@ -100,7 +101,7 @@ def upload_photo(request, provider_id):
 @require_POST
 def delete_photo(request, provider_id, photo_id):
     if not _may_edit(request):
-        return JsonResponse({"detail": "You cannot edit providers."}, status=403)
+        return JsonResponse({"detail": _("You cannot edit providers.")}, status=403)
 
     photo = get_object_or_404(ProviderPhoto, pk=photo_id, provider_id=provider_id)
     photo.delete()
@@ -111,7 +112,7 @@ def delete_photo(request, provider_id, photo_id):
 @require_POST
 def caption_photo(request, provider_id, photo_id):
     if not _may_edit(request):
-        return JsonResponse({"detail": "You cannot edit providers."}, status=403)
+        return JsonResponse({"detail": _("You cannot edit providers.")}, status=403)
 
     photo = get_object_or_404(ProviderPhoto, pk=photo_id, provider_id=provider_id)
     photo.caption = (request.POST.get("caption") or "")[:200]

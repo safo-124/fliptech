@@ -6,8 +6,6 @@ import {AccountNav} from "@/components/AccountNav";
 import {BrandMark} from "@/components/BrandMark";
 import {BrandShards} from "@/components/BrandShards";
 import {Button} from "@/components/ui/button";
-import {ClientMessages} from "@/i18n/ClientMessages";
-import {HEADER_CLIENT_NAMESPACES} from "@/i18n/namespaces";
 import {BRAND} from "@/lib/brand";
 
 /**
@@ -23,6 +21,7 @@ import {BRAND} from "@/lib/brand";
  */
 export function SiteHeader() {
   const t = useTranslations("SiteHeader");
+  const tAccount = useTranslations("AccountNav");
   return (
     <header className="band sticky top-0 isolate z-[1000] overflow-hidden">
       {/* Small and low-contrast here: the header is 4rem tall and the nav sits
@@ -67,9 +66,13 @@ export function SiteHeader() {
               {t("listWorkshop")}
             </Link>
           </Button>
-          <ClientMessages namespaces={HEADER_CLIENT_NAMESPACES}>
-            <AccountNav />
-          </ClientMessages>
+          <AccountNav
+            labels={{
+              myAccount: tAccount("myAccount"),
+              account: tAccount("account"),
+              signUp: tAccount("signUp"),
+            }}
+          />
         </nav>
       </div>
     </header>

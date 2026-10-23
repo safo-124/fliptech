@@ -22,21 +22,30 @@
  *
  * The viewport is read with useSyncExternalStore rather than an effect, so
  * there is no setState-in-effect cascade on mount.
+ *
+ * Its own two labels arrive translated from the page, for the same reason:
+ * translating here would load next-intl's message formatter on every phone
+ * too. The map itself still translates, inside the chunk only a desktop loads.
  */
 
 import dynamic from "next/dynamic";
 import { MapPinned } from "lucide-react";
-import { useTranslations } from "next-intl";
-import { useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ClientIntl } from "@/i18n/client-intl";
 import type { ProviderCard } from "@/lib/types";
 
 const DESKTOP_QUERY = "(min-width: 1024px)";
 
+export type SearchMapPanelLabels = { loading: string; onThisPage: string };
+
+// next/dynamic's `loading` takes no props, so its label comes through context.
+const LoadingLabel = createContext("");
+
 function PanelLoading() {
-  const t = useTranslations("SearchMapPanel");
+  const label = useContext(LoadingLabel);
   return (
     <div
       className="relative grid h-full place-items-center overflow-hidden bg-[var(--color-muted)]/35 text-sm text-[var(--color-muted-foreground)]"
@@ -48,13 +57,14 @@ function PanelLoading() {
         <span className="grid size-11 place-items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
           <MapPinned className="size-5" aria-hidden="true" />
         </span>
-        {t("loading")}
+        {label}
       </span>
     </div>
   );
 }
 
-const MapView = dynamic(() => import("./MapView"), {
+// The map and its messages provider together: see SearchMapWithMessages.
+const MapView = dynamic(() => import("./SearchMapWithMessages"), {
   ssr: false,
   loading: PanelLoading,
 });
@@ -73,15 +83,25 @@ function useIsDesktop() {
   );
 }
 
-export function SearchMapPanel({ providers }: { providers: ProviderCard[] }) {
-  const t = useTranslations("SearchMapPanel");
+export function SearchMapPanel({
+  providers,
+  labels,
+  intl,
+}: {
+  providers: ProviderCard[];
+  labels: SearchMapPanelLabels;
+  /** For the map's own provider, rendered inside its lazy chunk. */
+  intl: ClientIntl;
+}) {
   const isDesktop = useIsDesktop();
 
   if (!isDesktop) return null;
 
   return (
     <Card className="h-[clamp(30rem,calc(100dvh-6.5rem),54rem)] overflow-hidden rounded-2xl border-[var(--color-border-strong)] shadow-[var(--shadow-lg)]">
-      <MapView providers={providers} fillParent scopeLabel={t("onThisPage")} />
+      <LoadingLabel.Provider value={labels.loading}>
+        <MapView intl={intl} providers={providers} fillParent scopeLabel={labels.onThisPage} />
+      </LoadingLabel.Provider>
     </Card>
   );
 }

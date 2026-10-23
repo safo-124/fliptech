@@ -6,6 +6,7 @@ the most expensive mistake available in this project, so the response carries a
 wa.me handover link and nothing more.
 """
 
+from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
@@ -46,10 +47,10 @@ class EnquiryCreateSerializer(serializers.ModelSerializer):
         intake = attrs.get("intake")
         if intake and intake.programme_id != programme.id:
             raise serializers.ValidationError(
-                {"intake_id": "That intake is not on this programme."}
+                {"intake_id": _("That intake is not on this programme.")}
             )
         if programme.provider.status != programme.provider.Status.PUBLISHED:
-            raise serializers.ValidationError({"programme_id": "This listing is not available."})
+            raise serializers.ValidationError({"programme_id": _("This listing is not available.")})
         return attrs
 
 

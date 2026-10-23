@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
@@ -55,9 +56,9 @@ def _account(request):
     try:
         account = request.user.trainer_account
     except TrainerAccount.DoesNotExist as exc:
-        raise PermissionDenied("A verified trainer session is required.") from exc
+        raise PermissionDenied(_("A verified trainer session is required.")) from exc
     if not account.is_active:
-        raise PermissionDenied("This trainer account has been disabled.")
+        raise PermissionDenied(_("This trainer account has been disabled."))
     return account
 
 
@@ -121,7 +122,7 @@ class TrainerOTPRequestView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many requests. Wait a minute and try again."},
+                {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -171,7 +172,7 @@ class TrainerOTPVerifyView(APIView):
             increment=True,
         ):
             return Response(
-                {"detail": "Too many attempts. Wait a minute and try again."},
+                {"detail": _("Too many attempts. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -259,14 +260,14 @@ class TrainerProfileSubmitView(APIView):
         if provider is None:
             # There is no object identifier in the public contract, and the
             # generic response reveals nothing about another trainer's record.
-            raise NotFound("No trainer profile exists.")
+            raise NotFound(_("No trainer profile exists."))
         # A super admin is about to be asked whether this is a real workshop
         # run by the person who submitted it. Everything that decision rests on
         # has to be present before the queue is worth their time.
         blockers = submission_blockers(provider, account)
         if blockers:
             return Response(
-                {"detail": "This listing is not ready to send.", "blockers": blockers},
+                {"detail": _("This listing is not ready to send."), "blockers": blockers},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
@@ -293,7 +294,7 @@ class TrainerConfirmListingView(APIView):
         account = _account(request)
         provider = _profile_for(account)
         if provider is None:
-            raise NotFound("No trainer profile exists.")
+            raise NotFound(_("No trainer profile exists."))
 
         try:
             confirm_listing_is_current(provider, actor=request.user)

@@ -14,6 +14,8 @@ Two rules from DATA_MODEL.md shape this module and should survive refactoring:
    see the note on ProviderEvidence.
 """
 
+import secrets
+
 from django.conf import settings
 from django.contrib.gis.db import models as gis_models
 from django.contrib.postgres.indexes import GinIndex
@@ -620,7 +622,8 @@ class OwnerNotice(TimeStampedModel):
     """A WhatsApp message the system asks staff to send to a workshop owner.
 
     Section 09 sends the owner a link to review their own listing when it
-    goes live. A business-initiated WhatsApp message needs Cloud API
+    goes live, and Section 09 again has the workshop told when a trainee
+    enquires. A business-initiated WhatsApp message needs Cloud API
     credentials nobody has yet, so the system queues the notice and an
     officer sends it from the back office with a wa.me link, the same way
     as the 90-day prompts. See providers/owner_messages.py.
@@ -630,9 +633,19 @@ class OwnerNotice(TimeStampedModel):
 
     class Kind(models.TextChoices):
         LISTING_LIVE = "listing_live", "Listing is live"
+        NEW_ENQUIRY = "new_enquiry", "New enquiry"
 
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="owner_notices")
     kind = models.CharField(max_length=30, choices=Kind.choices)
+    # The enquiry a NEW_ENQUIRY notice is about. One notice per enquiry, so
+    # a retried request cannot have the workshop told twice.
+    enquiry = models.ForeignKey(
+        "enquiries.Enquiry",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="owner_alerts",
+    )
     sent_at = models.DateTimeField(null=True, blank=True)
     sent_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -644,6 +657,13 @@ class OwnerNotice(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["enquiry"],
+                condition=models.Q(enquiry__isnull=False),
+                name="one_owner_alert_per_enquiry",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.get_kind_display()}: {self.provider.name}"
@@ -672,3 +692,79 @@ class Suspension(TimeStampedModel):
     def __str__(self):
         state = "active" if self.lifted_at is None else "lifted"
         return f"{self.provider.name} suspension ({state})"
+
+
+def complaint_reference():
+    """Quotable over the phone, like an enquiry reference, and told apart by its prefix."""
+    alphabet = "23456789BCDFGHJKLMNPQRSTVWXYZ"
+    return "RP-" + "".join(secrets.choice(alphabet) for _ in range(6))
+
+
+class Complaint(TimeStampedModel):
+    """Somebody telling us a listing is wrong, or worse.
+
+    Section 09 suspends a listing on a complaint, with the reason logged. This
+    is the complaint itself, kept in the words it arrived in, so a suspension
+    can be traced back to what a person actually said and a workshop
+    challenging one can be shown it. A suspension raised from a complaint
+    points back here.
+
+    It arrives from the "Report a problem" link on every listing. The
+    reporter's name and number are optional, and never shown to the workshop.
+    Staff decide what follows: a public form that suspended a listing by
+    itself would let anyone take a competitor off the site.
+    """
+
+    class Category(models.TextChoices):
+        WRONG_DETAILS = "wrong_details", "The fees, dates or details are wrong"
+        NOT_THERE = "not_there", "The workshop is closed or not at this place"
+        MONEY = "money", "They asked for money that was not agreed"
+        UNSAFE = "unsafe", "Unsafe, abusive or exploiting trainees"
+        OTHER = "other", "Something else"
+
+    # A trainee's safety, or their money, before a wrong intake date.
+    URGENT = {Category.MONEY, Category.UNSAFE}
+
+    class Status(models.TextChoices):
+        NEW = "new", "New"
+        RESOLVED = "resolved", "Resolved with the workshop"
+        NO_ACTION = "no_action", "Looked into, no action needed"
+        SUSPENDED = "suspended", "Listing suspended"
+
+    reference = models.CharField(
+        max_length=12, unique=True, default=complaint_reference, editable=False
+    )
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="complaints")
+    category = models.CharField(max_length=20, choices=Category.choices)
+    detail = models.TextField()
+    reporter_name = models.CharField(max_length=120, blank=True)
+    reporter_phone = PhoneNumberField(blank=True)
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)
+    resolution_note = models.CharField(max_length=300, blank=True)
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    handled_at = models.DateTimeField(null=True, blank=True)
+    suspension = models.ForeignKey(
+        Suspension,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="complaints",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.reference} about {self.provider.name}"
+
+    @property
+    def is_urgent(self):
+        return self.category in self.URGENT

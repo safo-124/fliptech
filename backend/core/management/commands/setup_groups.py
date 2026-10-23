@@ -35,6 +35,9 @@ FIELD_OFFICER_PERMISSIONS = [
     ("enquiries", "enquiry", ["view", "change"]),
     ("enquiries", "enquiryoutcome", ["add", "change", "view"]),
     ("enquiries", "enrolment", ["add", "change", "view"]),
+    # The monthly conversation with each paying workshop, field work like the
+    # enrolments it collects.
+    ("enquiries", "monthlycheckin", ["add", "change", "view"]),
     ("billing", "subscription", ["view"]),
 ]
 
@@ -53,6 +56,9 @@ OPERATIONS_LEAD_EXTRA = [
     ("enquiries", "phoneverification", ["view"]),
     ("providers", "provider", ["delete"]),
     ("providers", "suspension", ["add", "change", "view"]),
+    # Reports from the public. A report can carry the reporter's number, and
+    # the decision it leads to is a suspension, which is the lead's to make.
+    ("providers", "complaint", ["view", "change"]),
     ("providers", "providerevidence", ["delete"]),
     ("geography", "area", ["add", "change"]),
     ("geography", "region", ["add", "change"]),

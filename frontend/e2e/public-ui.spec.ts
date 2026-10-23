@@ -86,7 +86,8 @@ test.describe("public discovery UI", () => {
     await page.goto(`${publicSite}${providerHref}`);
 
     await expect(page.getByRole("heading", {level: 1})).toBeVisible();
-    await expect(page.getByRole("heading", {name: /fliptech verification/i})).toBeVisible();
+    // The brand is configurable (Fliptech, Fliiptech), so match either spelling.
+    await expect(page.getByRole("heading", {name: /fli+ptech verification/i})).toBeVisible();
     await expect(page.getByRole("heading", {name: /government status/i})).toBeVisible();
     const enquire = page.getByRole("link", {name: /enquire about this course/i}).first();
     await expect(enquire).toBeVisible();
