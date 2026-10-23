@@ -20,7 +20,6 @@ from django.contrib.gis.admin import GISModelAdmin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Prefetch
 from django.http import HttpResponseRedirect
-from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
@@ -834,30 +833,30 @@ class TrainerAccountAdmin(admin.ModelAdmin):
         a one-click decline from a list is how that note ends up empty. So yes
         is one click and no is a deliberate trip to the record.
 
-        A form rather than a link because this changes state: a GET that
+        A POST rather than a link because this changes state: a GET that
         confirms an account would be followed by every crawler and prefetcher
         that ever sees the page.
+
+        A button with formaction, not a form of its own. The whole result
+        table already sits inside the changelist's form, and HTML has no
+        nested forms: the parser drops the inner <form> tag, so the button
+        submitted the changelist instead and nothing was confirmed. Then the
+        inner </form> closed the changelist's form early, cutting every row
+        below the first off from the bulk actions. formaction sends the
+        changelist's own form, CSRF token included, to the confirm URL.
         """
         if obj.approval_status == TrainerAccount.Approval.CONFIRMED:
             return format_html('<span class="row-decided">Confirmed</span>')
 
         return format_html(
-            '<form method="post" action="{}" class="row-decide">'
-            '<input type="hidden" name="csrfmiddlewaretoken" value="{}">'
-            '<button type="submit" class="row-confirm">Confirm</button>'
-            "</form>"
+            '<span class="row-decide">'
+            '<button type="submit" class="row-confirm" formaction="{}" formmethod="post">'
+            "Confirm</button>"
+            "</span>"
             '<a class="row-review" href="{}">Review</a>',
             reverse("admin:providers_traineraccount_confirm", args=[obj.pk]),
-            get_token(self._request) if self._request else "",
             reverse("admin:providers_traineraccount_change", args=[obj.pk]),
         )
-
-    def changelist_view(self, request, extra_context=None):
-        # The row buttons need a CSRF token, and admin.display gets no request.
-        self._request = request
-        return super().changelist_view(request, extra_context=extra_context)
-
-    _request = None
 
     def get_urls(self):
         return [

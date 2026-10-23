@@ -1,5 +1,7 @@
 """Trainer sign-ups are confirmed by the super admin before a listing goes live."""
 
+from html.parser import HTMLParser
+
 import pytest
 from django.contrib.auth.models import Group
 from django.contrib.gis.geos import Point
@@ -235,6 +237,77 @@ def test_staff_without_the_permission_cannot_confirm_from_the_row(client, django
     account.refresh_from_db()
     assert response.status_code in (302, 403)
     assert account.approval_status == TrainerAccount.Approval.PENDING
+
+
+class FormReader(HTMLParser):
+    """What a browser makes of the forms on a page.
+
+    Records a <form> opened inside another, which a browser silently drops,
+    and which form each submit button and hidden input belongs to.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.open_form = None
+        self.nested = []
+        self.buttons = []
+        self.tokens = {}
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "form":
+            if self.open_form is not None:
+                self.nested.append(attrs)
+                return
+            self.open_form = attrs.get("id") or "(unnamed)"
+        elif tag == "button" and attrs.get("type") == "submit":
+            self.buttons.append({**attrs, "in_form": self.open_form})
+        elif tag == "input" and attrs.get("name") == "csrfmiddlewaretoken":
+            self.tokens[self.open_form] = attrs.get("value")
+
+    def handle_endtag(self, tag):
+        if tag == "form":
+            self.open_form = None
+
+
+@pytest.mark.django_db
+def test_the_row_confirm_button_works_in_a_browser(django_user_model):
+    """The row button has to confirm as the page is actually rendered.
+
+    It was a <form> inside the changelist's <form>. Browsers drop the inner
+    one, so clicking Confirm resubmitted the list and nothing changed. The
+    tests above POST straight to the URL and never noticed. This one reads
+    the page the way a browser does, then submits what the button submits,
+    with CSRF enforced as it is for a real browser.
+    """
+    from django.test import Client
+
+    account = account_for_verified_phone(phone="+233240000504", verified_at=timezone.now())
+    browser = Client(enforce_csrf_checks=True)
+    admin = django_user_model.objects.create_superuser("browseradmin", password="x")
+    browser.force_login(admin)
+
+    page = browser.get(
+        reverse("admin:providers_traineraccount_changelist"),
+        {"approval_status__exact": "pending"},
+    )
+    reader = FormReader()
+    reader.feed(page.content.decode())
+
+    assert reader.nested == []
+    [button] = [b for b in reader.buttons if b.get("formaction") == confirm_url(account)]
+    assert button["in_form"] == "changelist-form"
+    assert button["formmethod"] == "post"
+
+    response = browser.post(
+        button["formaction"],
+        {"csrfmiddlewaretoken": reader.tokens["changelist-form"]},
+    )
+
+    account.refresh_from_db()
+    assert response.status_code == 302
+    assert account.approval_status == TrainerAccount.Approval.CONFIRMED
+    assert account.approval_decided_by == admin
 
 
 # --------------------------------------------------------------------------
