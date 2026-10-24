@@ -58,20 +58,25 @@
     }
   },
   "FilterBar": {
-    "chooseTrade": "Choose a trade",
-    "clearFilters": "Clear filters",
-    "filterByTrade": "Filter by trade",
-    "allTrades": "All trades",
-    "searchLabel": "Search providers or skills",
-    "searchPlaceholder": "Try welding, sewing or plumbing",
+    "sentence": "I want to learn <trade></trade> in <area></area>, costing <fee></fee>, for <places></places>.",
+    "tradeLabel": "Trade",
+    "areaLabel": "Area",
     "maximumFee": "Maximum fee",
-    "anyFee": "Any fee",
     "placesNeeded": "Places needed",
-    "justMe": "Just me",
-    "groupOf": "Group of {size} or more",
-    "visitedBy": "Visited by {brand}",
-    "siteCheck": "A {brand} site check",
-    "showProviders": "Show providers"
+    "anyTrade": "any trade",
+    "anyArea": "any area",
+    "anyAmount": "any amount",
+    "upTo": "up to {fee}",
+    "justMe": "just me",
+    "groupOf": "a group of {size} or more",
+    "searchLabel": "Search a workshop or skill",
+    "searchPlaceholder": "Or search a workshop or skill, like braids",
+    "visitedOnly": "Only workshops {brand} has visited",
+    "showWorkshops": "Show workshops",
+    "clearFilters": "Clear",
+    "filterByTrade": "Trades",
+    "allTrades": "All trades",
+    "workshopCount": "{count, plural, one {# workshop} other {# workshops}}"
   },
   "ProviderCard": {
     "feeFrom": "Fee from",
@@ -117,7 +122,8 @@
     "boardTitle": "Starting soon",
     "boardNote": "The next courses with places",
     "boardPlaces": "{count, plural, one {# place left} other {# places left}}",
-    "boardOpen": "Places open"
+    "boardOpen": "Places open",
+    "heroCount": "{count, plural, one {# workshop} other {# workshops}} {coverage}"
   },
   "MapView": {
     "clusterTitle": "{count} providers. Open to zoom in.",

@@ -28,16 +28,42 @@ test.describe("public discovery UI", () => {
         name: /find training that fits your plans and your pocket/i,
       }),
     ).toBeVisible();
-    await expect(page.getByLabel(/search providers or skills/i)).toBeVisible();
-    await expect(page.getByLabel(/maximum fee/i)).toBeVisible();
-    await expect(page.getByRole("checkbox", {name: /visited by/i})).toBeVisible();
-    await expect(page.getByRole("button", {name: /show providers/i})).toBeVisible();
+    await expect(page.getByLabel(/search a workshop or skill/i)).toBeVisible();
+    await expect(page.getByLabel("Maximum fee")).toBeVisible();
+    await expect(page.getByRole("checkbox", {name: /has visited/i})).toBeVisible();
+    await expect(page.getByRole("button", {name: /show workshops/i})).toBeVisible();
     await expect(page.locator("article").first()).toBeVisible();
     await expect(page.locator("[data-provider-map]")).toHaveCount(0);
 
     await expectMinimumTapHeight(page, "#provider-search");
-    await expectMinimumTapHeight(page, "#maximum-fee");
+    for (const blank of ["trade", "area", "max_fee", "places"]) {
+      await expectMinimumTapHeight(page, `select[name="${blank}"]`);
+    }
     await expectMinimumTapHeight(page, 'button[type="submit"]');
+    await expectNoPageOverflow(page);
+  });
+
+  test("searches by finishing the sentence, or by tapping a trade", async ({page}) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({width: 375, height: 812});
+    await page.goto(publicSite);
+
+    // The phone's own picker, so a plain choice and a submit, with no script.
+    const trade = page.getByLabel("Trade", {exact: true});
+    const firstTrade = await trade.locator("option").nth(1).getAttribute("value");
+    await trade.selectOption(firstTrade!);
+    await page.getByLabel("Maximum fee").selectOption("2500");
+    await page.getByRole("button", {name: /show workshops/i}).click();
+    await expect(page).toHaveURL(new RegExp(`trade=${firstTrade}`));
+    await expect(page).toHaveURL(/max_fee=2500/);
+    await expect(page.getByLabel("Trade", {exact: true})).toHaveValue(firstTrade!);
+
+    // A tile keeps the rest of the sentence and changes only the trade.
+    const tiles = page.getByRole("navigation", {name: "Trades"});
+    await expect(tiles.locator('[aria-current="page"]')).toHaveCount(1);
+    await tiles.getByRole("link", {name: /all trades/i}).click();
+    await expect(page).not.toHaveURL(/trade=/);
+    await expect(page).toHaveURL(/max_fee=2500/);
     await expectNoPageOverflow(page);
   });
 

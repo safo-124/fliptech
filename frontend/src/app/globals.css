@@ -280,6 +280,132 @@ body {
     vertical-align: 0.1em;
   }
 
+  /* The search as a sentence to finish: "I want to learn [welding] in
+     [Madina]…". Each blank is the phone's own <select>, restyled as an
+     underlined word with a chevron, so it costs no JavaScript and opens the
+     phone's own picker. See FilterBar. */
+  .sentence {
+    font-size: 1.125rem;
+    line-height: 2.1;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--color-foreground);
+  }
+  @media (min-width: 640px) {
+    .sentence {
+      font-size: 1.375rem;
+    }
+  }
+  .blank {
+    position: relative;
+    display: inline-block;
+  }
+  .blank select {
+    appearance: none;
+    /* Sized to the chosen option rather than the longest one, where the
+       browser can; elsewhere it falls back to the longest. */
+    field-sizing: content;
+    max-width: 100%;
+    min-height: 2.75rem;
+    padding: 0 1.15em 0 0.15em;
+    border: 0;
+    border-bottom: 2px solid currentColor;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .blank select:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  .blank::after {
+    content: "";
+    position: absolute;
+    right: 0.2em;
+    top: 50%;
+    width: 0.6em;
+    height: 0.6em;
+    translate: 0 -40%;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    pointer-events: none;
+  }
+
+  /* A checkbox drawn as a switch: "only workshops someone has visited". */
+  .switch {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 2.75rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .switch::before {
+    content: "";
+    position: absolute;
+    left: 0.1875rem;
+    top: 0.1875rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 999px;
+    background: white;
+    transition: translate 0.15s;
+  }
+  .switch:checked {
+    background: var(--color-visit);
+  }
+  .switch:checked::before {
+    translate: 1.25rem 0;
+  }
+  .switch:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* A trade as a tile in its own colour, under the search. See FilterBar. */
+  .trade-tile {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.125rem;
+    min-height: 4.5rem;
+    height: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 2px solid transparent;
+    border-radius: 0.875rem;
+    background: var(--trade-bg);
+    color: var(--trade-fg);
+    font-size: 0.8125rem;
+    line-height: 1.2;
+    font-weight: 700;
+    transition: border-color 0.15s, translate 0.15s;
+  }
+  .trade-tile:hover {
+    translate: 0 -1px;
+  }
+  .trade-tile[aria-current="page"] {
+    border-color: var(--trade-fg);
+  }
+  .trade-tile::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-bottom: auto;
+    border-radius: 999px;
+    background: var(--trade-strong);
+  }
+  .trade-tile small {
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0.8;
+  }
+
   /* A split-flap cell from a departures board, for the intakes board's dates.
      The line across the middle is the split; each cell flips down into place
      as the page arrives, staggered by its row. See IntakesBoard. */

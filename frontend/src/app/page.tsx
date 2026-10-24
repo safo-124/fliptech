@@ -38,6 +38,7 @@ import { clientIntl } from "@/i18n/client-intl";
 import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import {
   buildQuery,
+  getAllRegions,
   getTrades,
   getUpcomingIntakes,
   searchProviders,
@@ -97,15 +98,17 @@ export default async function SearchPage({
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
 
+  const unfiltered = !Object.entries(params).some(([key, value]) => value && key !== "page");
   // The departures board belongs to browsing, not to a search someone has
   // narrowed: it shows on the plain first page only, and is not even fetched
   // otherwise.
-  const showBoard = !Object.entries(params).some(([key, value]) => value && key !== "page")
-    && (!params.page || params.page === "1");
+  const showBoard = unfiltered && (!params.page || params.page === "1");
 
-  const [trades, results, regionNames, t, tCoverage, tMap, mapIntl, upcoming] = await Promise.all([
+  const [trades, results, regions, regionNames, t, tCoverage, tMap, mapIntl, upcoming] = await Promise.all([
     getTrades().catch(() => ({ results: [] })),
     searchProviders(params).catch(() => null),
+    // The same request launchedRegionNames makes, so it is fetched once.
+    getAllRegions().catch(() => []),
     launchedRegionNames(),
     getTranslations("SearchPage"),
     getTranslations("Coverage"),
@@ -127,26 +130,48 @@ export default async function SearchPage({
   const resultTitle =
     groupSize > 0 ? t("withRoomFor", { title: tradeTitle, size: groupSize }) : tradeTitle;
   const searchedTrade = trades.results.find((trade) => trade.slug === params.trade) ?? null;
+  // The places the sentence offers: areas with a workshop in them, so no
+  // choice leads to an empty page.
+  const areas = regions
+    .flatMap((region) => region.areas)
+    .filter((area) => area.provider_count > 0)
+    .map((area) => ({ slug: area.slug, name: area.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const boardInHero = showBoard && upcoming.length > 0;
 
   return (
     <>
+      {/* The hero, the search and the board share one positioning context: on
+          a wide screen the board sits in the hero's right half, and on a phone
+          it follows the trade tiles. One element, placed by CSS, so it is not
+          rendered twice. */}
+      <div className="relative">
       {/* The hero continues the header's indigo rather than sitting below it as
           a separate light block, so the brand reads as one field the page
-          emerges from. The filter card then breaks the band's lower edge,
+          emerges from. The search card then breaks the band's lower edge,
           which is what stops this looking like a stock hero-over-form. */}
-      <section className="band relative isolate overflow-hidden pb-20 sm:pb-24">
+      <section
+        className={`band relative isolate overflow-hidden pb-20 sm:pb-24 ${boardInHero ? "xl:min-h-[25rem]" : ""}`}
+      >
         <div
           className="surface-grid pointer-events-none absolute inset-0 opacity-[0.07]"
           aria-hidden="true"
         />
-        {/* Anchored bottom-right, behind the filter card that overlaps this
-            band's edge, so the wedges read as depth rather than as clutter. */}
-        <BrandShards className="pointer-events-none absolute -bottom-10 right-0 h-[19rem] w-[22rem] opacity-70 sm:h-[23rem] sm:w-[28rem]" />
+        {/* Anchored bottom-right, behind the search card that overlaps this
+            band's edge, so the wedges read as depth rather than as clutter.
+            Where the board takes the hero's right half, it replaces them. Not
+            on a phone, where the headline and the sentence fill the width and
+            the wedges only crowd them. */}
+        <BrandShards
+          className={`pointer-events-none absolute -bottom-10 right-0 h-[19rem] w-[22rem] opacity-70 max-sm:hidden sm:h-[23rem] sm:w-[28rem] ${boardInHero ? "xl:hidden" : ""}`}
+        />
         <div className="app-shell relative z-10 pt-8 sm:pt-10 lg:pt-14">
           <div className="max-w-3xl">
             <span className="badge border-white/20 bg-white/10 text-white/80 backdrop-blur-sm">
               <MapPin aria-hidden="true" className="size-3.5" />
-              {t("heroBadge", { coverage })}
+              {unfiltered && results
+                ? t("heroCount", { count: results.count, coverage })
+                : t("heroBadge", { coverage })}
             </span>
             <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.05] tracking-[-0.035em] text-white sm:text-4xl lg:text-[3.25rem]">
               {t.rich("heroTitle", {
@@ -157,7 +182,9 @@ export default async function SearchPage({
                 ),
               })}
             </h1>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 sm:text-base sm:leading-7">
+            {/* Not on a phone, where the search should start on the first
+                screen and the headline already says it. */}
+            <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 max-sm:hidden sm:text-base sm:leading-7">
               {t("heroLead")}
             </p>
           </div>
@@ -166,14 +193,27 @@ export default async function SearchPage({
 
       {/* Pulled up over the band's edge. -mt matches the pb above. */}
       <div className="app-shell relative z-20 -mt-14 sm:-mt-16">
-        <FilterBar trades={trades.results} params={params} />
+        <FilterBar
+          trades={trades.results}
+          areas={areas}
+          params={params}
+          total={unfiltered && results ? results.count : null}
+        />
       </div>
 
-      {showBoard && upcoming.length > 0 ? (
-        <div className="app-shell pt-6 sm:pt-8">
-          <IntakesBoard intakes={upcoming} />
+      {boardInHero ? (
+        <div className="xl:pointer-events-none xl:absolute xl:inset-x-0 xl:top-0 xl:z-10">
+          <div className="app-shell pt-6 sm:pt-8 xl:flex xl:justify-end xl:pt-14">
+            <div className="xl:pointer-events-auto xl:w-[25rem]">
+              <IntakesBoard
+                intakes={upcoming}
+                className="xl:bg-none xl:bg-white/[0.07] xl:ring-1 xl:ring-white/15"
+              />
+            </div>
+          </div>
         </div>
       ) : null}
+      </div>
 
       {/* pb-24 on phones clears the floating map button below, so it never
           covers the last result card. */}

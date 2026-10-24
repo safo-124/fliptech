@@ -18,12 +18,22 @@ const MONTH = new Intl.DateTimeFormat("en-GH", { month: "short", timeZone: "UTC"
  * at a published workshop. Server-rendered and a few hundred bytes: no
  * script, so the search page's budget barely notices it.
  */
-export function IntakesBoard({ intakes }: { intakes: UpcomingIntake[] }) {
+export function IntakesBoard({
+  intakes,
+  className = "",
+}: {
+  intakes: UpcomingIntake[];
+  /** For the hero, where the board sits on the band rather than being one. */
+  className?: string;
+}) {
   const t = useTranslations("SearchPage");
   if (intakes.length === 0) return null;
 
   return (
-    <section aria-labelledby="intakes-board-heading" className="band overflow-hidden rounded-2xl px-4 py-3.5 sm:px-5">
+    <section
+      aria-labelledby="intakes-board-heading"
+      className={`band overflow-hidden rounded-2xl px-4 py-3.5 sm:px-5 ${className}`}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2
           id="intakes-board-heading"
