@@ -46,6 +46,10 @@ function mediaPatterns(): RemotePattern[] {
     // development entries above still apply.
   }
 
+  // Teaching videos' stills. Fetched by the optimiser, so a visitor's phone
+  // asks YouTube for nothing until they press play. See lib/youtube.ts.
+  patterns.push({ protocol: "https", hostname: "i.ytimg.com", port: "", pathname: "/vi/**" });
+
   // A separate bucket hostname, once photographs move off the app server.
   if (process.env.NEXT_PUBLIC_MEDIA_HOST) {
     patterns.push({

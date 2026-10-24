@@ -29,6 +29,7 @@ import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
 import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
 import type {TrainerTab} from "@/components/trainer/TrainerNav";
 import {TRAINER_TAB_KEYS, useTrainerTabs} from "@/components/trainer/TrainerNav";
+import {TrainerVideos} from "@/components/trainer/TrainerVideos";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
 import {Button} from "@/components/ui/button";
@@ -622,6 +623,8 @@ export function TrainerDashboard() {
           onToggleReplied={markReplied}
         />
       ) : null}
+
+      {tab === "videos" ? <TrainerVideos listingLive={profile.status === "published"} /> : null}
 
       {tab === "account" ? (
         <TrainerAccount

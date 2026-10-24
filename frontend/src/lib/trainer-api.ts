@@ -10,6 +10,7 @@ import type {
   TrainerPhoto,
   TrainerProfile,
   TrainerSession,
+  TrainerVideo,
 } from "./types";
 
 const API_URL =
@@ -250,6 +251,22 @@ export function deleteTrainerLogo() {
 
 export function deleteTrainerPhoto(photoId: number) {
   return trainerFetch<null>(`/api/trainer/profile/photos/${photoId}/`, {method: "DELETE"});
+}
+
+export function getTrainerVideos() {
+  return trainerFetch<TrainerVideo[]>("/api/trainer/profile/videos/");
+}
+
+/** A YouTube link, as pasted. The server keeps only the video's id. */
+export function addTrainerVideo(url: string, title: string) {
+  return trainerFetch<TrainerVideo>("/api/trainer/profile/videos/", {
+    method: "POST",
+    body: JSON.stringify({url, title}),
+  });
+}
+
+export function deleteTrainerVideo(videoId: number) {
+  return trainerFetch<null>(`/api/trainer/profile/videos/${videoId}/`, {method: "DELETE"});
 }
 
 /**

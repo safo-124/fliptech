@@ -1,11 +1,11 @@
 "use client";
 
-import {Building2, LayoutDashboard, MessageCircle, UserRound} from "lucide-react";
+import {Building2, LayoutDashboard, MessageCircle, UserRound, Video} from "lucide-react";
 import {useTranslations} from "next-intl";
 
 import type {DashboardTab} from "@/components/dashboard/DashboardNav";
 
-export type TrainerTab = "overview" | "enquiries" | "listing" | "account";
+export type TrainerTab = "overview" | "enquiries" | "listing" | "videos" | "account";
 
 /** The trainer workspace's sections, rendered by the shells in
  *  components/dashboard/DashboardNav.tsx that the trainee account also uses.
@@ -14,6 +14,7 @@ const TRAINER_TAB_ICONS = [
   {key: "overview", Icon: LayoutDashboard},
   {key: "enquiries", Icon: MessageCircle},
   {key: "listing", Icon: Building2},
+  {key: "videos", Icon: Video},
   {key: "account", Icon: UserRound},
 ] as const satisfies ReadonlyArray<Pick<DashboardTab<TrainerTab>, "key" | "Icon">>;
 

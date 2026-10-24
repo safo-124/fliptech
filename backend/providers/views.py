@@ -8,7 +8,7 @@ from django.contrib.auth import get_user
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
-from django.db.models import Avg, Count, Max, Min
+from django.db.models import Avg, Count, Max, Min, Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
 from django_ratelimit.core import is_ratelimited
@@ -26,7 +26,7 @@ from core.network import canonical_client_ip, ratelimit_client_ip
 from geography.models import Area, Region
 
 from .filters import ProviderFilter
-from .models import Provider
+from .models import Provider, ProviderVideo
 from .profile_views import record_view
 from .serializers import ProviderDetailSerializer, ProviderListSerializer
 
@@ -141,8 +141,13 @@ class ProviderBySlugView(RetrieveAPIView):
     serializer_class = ProviderDetailSerializer
 
     def get_object(self):
+        # Videos only here, not in with_related: the search list never shows
+        # them, and every list request would pay for the extra query.
+        shown_videos = Prefetch(
+            "videos", queryset=ProviderVideo.objects.shown(), to_attr="shown_videos"
+        )
         return get_object_or_404(
-            Provider.objects.published().for_card().with_related(),
+            Provider.objects.published().for_card().with_related().prefetch_related(shown_videos),
             area__slug=self.kwargs["area_slug"],
             slug=self.kwargs["slug"],
         )

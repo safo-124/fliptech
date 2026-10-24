@@ -90,10 +90,14 @@ export type GovernmentStatusDetail = {
   source_note: string;
 } | null;
 
+/** A teaching video on a listing. Only approved ones reach the public API. */
+export type ProviderVideo = { id: number; youtube_id: string; title: string };
+
 export type ProviderDetail = ProviderCard & {
   address: string;
   owner_name: string;
   photos: { id: number; kind: ProviderPhotoKind; image: string; caption: string }[];
+  videos: ProviderVideo[];
   programmes: Programme[];
   verifications: Verification[];
   government_status_detail: GovernmentStatusDetail;
@@ -233,6 +237,17 @@ export type TrainerPhoto = {
   kind: ProviderPhotoKind;
   url: string;
   caption: string;
+};
+
+/** Mirrors ProviderVideo.Status in backend/providers/models.py. */
+export type TrainerVideoStatus = "pending" | "approved" | "rejected";
+
+/** One of the trainer's own videos, with where it stands in review. */
+export type TrainerVideo = ProviderVideo & {
+  status: TrainerVideoStatus;
+  /** Why it was turned down, written for the trainer to act on. */
+  review_note: string;
+  created_at: string;
 };
 
 /**

@@ -295,6 +295,10 @@ export default function PrivacyPage() {
                 "Workshop photographs may be stored with a cloud storage provider. They are public content either way",
               ],
               [
+                "YouTube (Google)",
+                "Workshops' teaching videos are hosted on YouTube. Nothing is loaded from YouTube until you press play on one; from then, YouTube's own terms cover that video",
+              ],
+              [
                 "Error monitoring",
                 "If enabled, it is configured not to send personal information — no phone numbers, no names",
               ],

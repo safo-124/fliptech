@@ -8,7 +8,7 @@ from rest_framework import serializers
 from catalog.models import Trade
 from geography.models import Area
 
-from .models import PremisesTenure, ProviderPhoto, TrainerAccount
+from .models import PremisesTenure, ProviderPhoto, ProviderVideo, TrainerAccount
 
 
 class RejectUnknownFieldsMixin:
@@ -209,6 +209,18 @@ class TrainerPhotoSerializer(serializers.Serializer):
     kind = serializers.CharField()
     url = serializers.CharField()
     caption = serializers.CharField()
+
+
+class TrainerVideoInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # The link as pasted. Only the video id is kept; see providers/videos.py.
+    url = serializers.CharField(max_length=500)
+    title = serializers.CharField(max_length=100)
+
+
+class TrainerVideoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProviderVideo
+        fields = ["id", "youtube_id", "title", "status", "review_note", "created_at"]
 
 
 class TrainerLogoUploadSerializer(serializers.Serializer):

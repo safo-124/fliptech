@@ -51,10 +51,12 @@ from .models import (
     ProviderEvidence,
     ProviderMembership,
     ProviderPhoto,
+    ProviderVideo,
     Suspension,
     TrainerAccount,
     Verification,
 )
+from .videos import parse_youtube_id
 
 # The queue definitions stay in queues.py because they also drive the sidebar
 # and dashboard counts. This copy is deliberately presentation-only: it gives
@@ -809,6 +811,145 @@ class ProviderPhotoAdmin(admin.ModelAdmin):
     search_fields = ("provider__name",)
     autocomplete_fields = ("provider",)
     readonly_fields = ("exif_stripped",)
+
+
+class ProviderVideoForm(forms.ModelForm):
+    """Staff can add a video for a workshop from its link, as the trainer would."""
+
+    link = forms.CharField(
+        required=False,
+        help_text="The YouTube link, as the workshop sent it. Only the video's id is kept.",
+    )
+
+    class Meta:
+        model = ProviderVideo
+        fields = ("provider", "title", "status", "review_note")
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.instance.pk is None:
+            youtube_id = parse_youtube_id(cleaned.get("link"))
+            provider = cleaned.get("provider")
+            if youtube_id is None:
+                self.add_error("link", "That is not a link to a YouTube video.")
+            elif provider and provider.videos.filter(youtube_id=youtube_id).exists():
+                self.add_error("link", "That video is already on this listing.")
+            else:
+                self.instance.youtube_id = youtube_id
+        if (
+            cleaned.get("status") == ProviderVideo.Status.REJECTED
+            and not (cleaned.get("review_note") or "").strip()
+        ):
+            self.add_error(
+                "review_note",
+                "Say what would need to change. The workshop sees this note, and "
+                '"not approved" on its own gives them nothing to fix.',
+            )
+        return cleaned
+
+
+@admin.register(ProviderVideo)
+class ProviderVideoAdmin(admin.ModelAdmin):
+    """Teaching videos linked from YouTube, each watched before it is shown.
+
+    Approve from the list once watched. Turning one down is done on its page,
+    with a note the workshop will read. What to check: it is the workshop's own
+    video rather than someone else's reposted; anyone on camera, such as the
+    client whose hair is being done, can be seen to be taking part willingly; no
+    child appears without a guardian; chemicals, heat and tools are handled
+    safely; and it teaches something, rather than only advertising.
+    """
+
+    form = ProviderVideoForm
+    list_display = ("thumbnail", "title", "provider", "status", "created_at")
+    list_display_links = ("thumbnail", "title")
+    list_filter = ("status",)
+    search_fields = ("title", "provider__name")
+    list_select_related = ("provider",)
+    autocomplete_fields = ("provider",)
+    actions = ("approve_videos",)
+
+    def get_fields(self, request, obj=None):
+        if obj is None:
+            fields = ["provider", "link", "title"]
+            # Deciding is the reviewer's job: whoever may only add a video
+            # cannot approve the one they are adding.
+            if self.has_change_permission(request):
+                fields += ["status", "review_note"]
+            return fields
+        return [
+            "player",
+            "provider",
+            "title",
+            "youtube_link",
+            "added_by",
+            "created_at",
+            "status",
+            "review_note",
+            "reviewed_by",
+            "reviewed_at",
+        ]
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = [
+            "player",
+            "youtube_link",
+            "added_by",
+            "created_at",
+            "reviewed_by",
+            "reviewed_at",
+        ]
+        return readonly + (["provider"] if obj is not None else [])
+
+    @admin.display(description="Preview")
+    def thumbnail(self, obj):
+        return format_html(
+            '<img src="{}" alt="" width="120" height="68" loading="lazy" '
+            'style="object-fit:cover;border-radius:6px">',
+            obj.thumbnail_url,
+        )
+
+    @admin.display(description="Video")
+    def player(self, obj):
+        return format_html(
+            '<iframe src="{}" title="{}" width="480" height="270" '
+            'style="max-width:100%;border:0;border-radius:8px" '
+            'allow="encrypted-media; picture-in-picture; fullscreen" '
+            'referrerpolicy="strict-origin-when-cross-origin"></iframe>',
+            obj.embed_url,
+            obj.title,
+        )
+
+    @admin.display(description="On YouTube")
+    def youtube_link(self, obj):
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener noreferrer">{}</a>',
+            obj.watch_url,
+            obj.watch_url,
+        )
+
+    def save_model(self, request, obj, form, change):
+        if obj.pk is None:
+            obj.added_by = request.user
+        if "status" in form.changed_data:
+            decided = obj.status != ProviderVideo.Status.PENDING
+            obj.reviewed_by = request.user if decided else None
+            obj.reviewed_at = timezone.now() if decided else None
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="Approve selected videos", permissions=["change"])
+    def approve_videos(self, request, queryset):
+        approved = queryset.exclude(status=ProviderVideo.Status.APPROVED).update(
+            status=ProviderVideo.Status.APPROVED,
+            review_note="",
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+        self.message_user(
+            request,
+            f"{approved} video(s) approved. They show on their listings now, "
+            "if the listing itself is published.",
+        )
 
 
 @admin.register(ProviderEvidence)

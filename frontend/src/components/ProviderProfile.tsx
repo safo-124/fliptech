@@ -37,6 +37,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { ProviderLocationMap } from "@/components/ProviderLocationMap";
+import { VideoLesson } from "@/components/VideoLesson";
 import { SaveProviderButton } from "@/components/trainee/SaveProviderButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -372,6 +373,42 @@ function Location({ provider }: { provider: ProviderDetail }) {
   );
 }
 
+/**
+ * The workshop teaching, on video. Only ones staff have watched reach here.
+ *
+ * Straight after the courses, because it answers the question the courses
+ * raise: a fee and a duration say what is on offer, and a minute of the
+ * trainer at work says whether they can actually teach it.
+ */
+function Videos({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
+  if (provider.videos.length === 0) return null;
+
+  return (
+    <section aria-labelledby="videos-heading" className="lg:order-1">
+      <h2 id="videos-heading" className="text-2xl font-bold tracking-tight">
+        {t("videosTitle")}
+      </h2>
+      <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
+        {t("videosCaption", { brand: BRAND })}
+      </p>
+
+      <ul className="mt-4 grid gap-5 sm:grid-cols-2">
+        {provider.videos.map((video) => (
+          <li key={video.id}>
+            <VideoLesson
+              youtubeId={video.youtube_id}
+              title={video.title}
+              playLabel={t("playVideo", { title: video.title })}
+            />
+            <p className="mt-2 text-sm font-semibold leading-5">{video.title}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function PhotoStrip({
   photos,
   title,
@@ -536,6 +573,8 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
 
         <div className="space-y-9 lg:order-1">
           <Programmes provider={provider} />
+
+          <Videos provider={provider} />
 
           <Location provider={provider} />
 

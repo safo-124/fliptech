@@ -225,7 +225,10 @@
     "locationHeading": "Where to find it",
     "locationMapLabel": "Map showing where {name} is",
     "locationNote": "A pin can be a street or so out. Ask the workshop for the last few turns when you get in touch.",
-    "reportProblem": "Report a problem with this listing"
+    "reportProblem": "Report a problem with this listing",
+    "videosTitle": "Watch them teach",
+    "videosCaption": "Short videos from the workshop, each one watched by {brand} before it appears here. Nothing downloads until you press play, and a video uses data while it plays.",
+    "playVideo": "Play the video: {title}"
   },
   "SaveProviderButton": {
     "save": "Save",
@@ -695,6 +698,10 @@
     "account": {
       "label": "Account",
       "short": "Account"
+    },
+    "videos": {
+      "label": "Teaching videos",
+      "short": "Videos"
     }
   },
   "TrainerAccountNotice": {
@@ -1071,5 +1078,46 @@
     "sentBody": "We read every report. If you left a number we may call you, and the workshop never sees your details.",
     "referenceLabel": "Your reference",
     "quoteReference": "Quote it if you contact us about this report."
+  },
+  "TrainerVideos": {
+    "title": "Teaching videos",
+    "lead": "A minute of you teaching shows a trainee what they will learn better than any photograph. Put the video on YouTube first (unlisted is fine), then paste its link here. {brand} watches every video before it appears on your listing.",
+    "tipsTitle": "Before you film",
+    "tips": {
+      "short": "Keep each video short: one to five minutes.",
+      "light": "Film in daylight, with the phone held sideways.",
+      "own": "Show your own teaching, not videos made by someone else.",
+      "consent": "Ask anyone you film before you post it, and leave children out unless a parent agrees."
+    },
+    "linkLabel": "YouTube link",
+    "linkHelp": "In YouTube, open the video, tap Share, then Copy link.",
+    "titleLabel": "What it shows",
+    "titlePlaceholder": "Cornrows for beginners",
+    "add": "Add video",
+    "adding": "Adding…",
+    "linkRequired": "Paste the video’s link.",
+    "titleRequired": "Say what the video shows.",
+    "addFailed": "That video could not be added. Check your connection and try again.",
+    "removeFailed": "That video could not be removed. Try again.",
+    "loadFailed": "Your videos could not be loaded. Check your connection and try again.",
+    "loading": "Loading your videos…",
+    "full": "You have {max} videos, the most a listing can have. Remove one to add another.",
+    "empty": "No videos yet. Once {brand} has watched one you add, trainees can play it on your listing.",
+    "count": "{count, plural, one {# video} other {# videos}} of {max}.",
+    "notLive": "Approved videos show once your listing is live.",
+    "status": {
+      "pending": "Waiting for review",
+      "approved": "On your listing",
+      "rejected": "Not approved"
+    },
+    "statusNote": {
+      "pending": "It appears on your listing once {brand} has watched it.",
+      "approved": "Trainees can play it on your listing.",
+      "rejected": "{brand} did not approve this video. Remove it, and add another."
+    },
+    "reviewNote": "What to change: {note}",
+    "watch": "Watch on YouTube",
+    "remove": "Remove",
+    "removeLabel": "Remove “{title}”"
   }
 }

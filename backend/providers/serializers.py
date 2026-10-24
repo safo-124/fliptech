@@ -14,7 +14,7 @@ from catalog.models import Intake, Programme
 from core.media import public_url
 from geography.models import Area, Region
 
-from .models import GovernmentStatus, Provider, ProviderPhoto, Verification
+from .models import GovernmentStatus, Provider, ProviderPhoto, ProviderVideo, Verification
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -236,11 +236,19 @@ class ProviderListSerializer(serializers.ModelSerializer):
         return public_url(photo.image.url, self.context.get("request"))
 
 
+class ProviderVideoSerializer(serializers.ModelSerializer):
+    # The id only: the page builds the thumbnail and player addresses itself.
+    class Meta:
+        model = ProviderVideo
+        fields = ["id", "youtube_id", "title"]
+
+
 class ProviderDetailSerializer(ProviderListSerializer):
     """The profile screen. Everything above the fold answers one question:
     should I trust this workshop with my money."""
 
     photos = ProviderPhotoSerializer(many=True, read_only=True)
+    videos = serializers.SerializerMethodField()
     programmes = serializers.SerializerMethodField()
     verifications = VerificationBadgeSerializer(many=True, read_only=True)
     government_status_detail = serializers.SerializerMethodField()
@@ -251,11 +259,21 @@ class ProviderDetailSerializer(ProviderListSerializer):
             "address",
             "owner_name",
             "photos",
+            "videos",
             "programmes",
             "verifications",
             "government_status_detail",
             "contact_phone",
         ]
+
+    @extend_schema_field(ProviderVideoSerializer(many=True))
+    def get_videos(self, obj):
+        """Approved videos only. Anything waiting for review, or turned down, is
+        not public. ProviderBySlugView prefetches them; anything else queries."""
+        videos = getattr(obj, "shown_videos", None)
+        if videos is None:
+            videos = obj.videos.shown()
+        return ProviderVideoSerializer(videos, many=True).data
 
     @extend_schema_field(ProgrammeSerializer(many=True))
     def get_programmes(self, obj):

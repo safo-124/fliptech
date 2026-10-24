@@ -418,6 +418,85 @@ class ProviderPhoto(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class ProviderVideoQuerySet(models.QuerySet):
+    def shown(self):
+        return self.filter(status=ProviderVideo.Status.APPROVED)
+
+
+class ProviderVideo(TimeStampedModel):
+    """A short video of the workshop teaching, hosted on YouTube.
+
+    A photograph of a finished braid says the work is good; a minute of the
+    trainer doing it says whether they can teach, which is what a trainee is
+    paying for. Trades like hairdressing can be shown almost entirely this way.
+
+    Only the YouTube video id is kept, never the link as pasted: the page
+    builds every address from the id, so nothing a trainer types ends up in an
+    href or an iframe. YouTube hosts, encodes and streams the video, which is
+    what keeps it cheap for a trainee on prepaid data. See providers/videos.py.
+
+    Reviewed one by one, separately from the listing. A published workshop can
+    add a video without its listing going back for review, and the video waits
+    on its own until staff have watched it.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Waiting for review"
+        APPROVED = "approved", "Shown on the listing"
+        REJECTED = "rejected", "Not approved"
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="videos")
+    youtube_id = models.CharField("YouTube video id", max_length=11)
+    title = models.CharField(max_length=100)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
+    # Shown to the trainer when a video is not approved, so it says what to fix.
+    review_note = models.CharField(max_length=300, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    objects = ProviderVideoQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "youtube_id"], name="one_link_per_video_per_provider"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.provider.name})"
+
+    @property
+    def watch_url(self):
+        return f"https://www.youtube.com/watch?v={self.youtube_id}"
+
+    @property
+    def embed_url(self):
+        # The no-cookie domain: YouTube sets nothing in the visitor's browser
+        # until they actually press play.
+        return f"https://www.youtube-nocookie.com/embed/{self.youtube_id}"
+
+    @property
+    def thumbnail_url(self):
+        return f"https://i.ytimg.com/vi/{self.youtube_id}/hqdefault.jpg"
+
+
 class ProviderEvidence(TimeStampedModel):
     """Verification evidence and owner identification. Never publicly served.
 

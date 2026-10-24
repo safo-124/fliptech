@@ -19,6 +19,8 @@ OPERATIONS_LEAD = "Operations lead"
 FIELD_OFFICER_PERMISSIONS = [
     ("providers", "provider", ["add", "change", "view"]),
     ("providers", "providerphoto", ["add", "change", "view", "delete"]),
+    # Adding a workshop's video for them, never approving one: see below.
+    ("providers", "providervideo", ["add", "view"]),
     ("providers", "providerevidence", ["add", "change", "view"]),
     ("providers", "verification", ["add", "change", "view"]),
     ("providers", "governmentstatus", ["add", "change", "view"]),
@@ -59,6 +61,8 @@ OPERATIONS_LEAD_EXTRA = [
     # Reports from the public. A report can carry the reporter's number, and
     # the decision it leads to is a suspension, which is the lead's to make.
     ("providers", "complaint", ["view", "change"]),
+    # Approving a teaching video puts it on a public listing, like publishing.
+    ("providers", "providervideo", ["change"]),
     ("providers", "providerevidence", ["delete"]),
     ("geography", "area", ["add", "change"]),
     ("geography", "region", ["add", "change"]),

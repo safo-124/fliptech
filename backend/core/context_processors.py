@@ -27,7 +27,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.urls import reverse
 
-CACHE_KEY = "back-office:sidebar:v6"
+CACHE_KEY = "back-office:sidebar:v7"
 CACHE_SECONDS = 60
 
 
@@ -77,14 +77,16 @@ def _snapshot():
     ).count()
 
     from enquiries import check_ins
-    from providers.models import Complaint
+    from providers.models import Complaint, ProviderVideo
 
     check_ins_due = check_ins.summary().due
     complaints_new = Complaint.objects.filter(status=Complaint.Status.NEW).count()
+    videos_waiting = ProviderVideo.objects.filter(status=ProviderVideo.Status.PENDING).count()
 
     return {
         "check_ins_due": check_ins_due,
         "complaints_new": complaints_new,
+        "videos_waiting": videos_waiting,
         "trainer_queues": (
             [
                 {
@@ -207,6 +209,20 @@ def _complaints_queue(count):
     ]
 
 
+def _videos_queue(count):
+    """Teaching videos waiting to be watched before they show. See ProviderVideo."""
+    if not count:
+        return []
+    return [
+        {
+            "key": "videos_waiting",
+            "label": "Videos to review",
+            "count": count,
+            "url": f"{reverse('admin:providers_providervideo_changelist')}?status__exact=pending",
+        }
+    ]
+
+
 def _check_ins_queue(count):
     """Paying workshops still to be asked this month. See enquiries/check_ins.py.
 
@@ -267,6 +283,12 @@ def back_office(request):
                     else []
                 ),
                 *(snapshot["queues"] if can_view_providers else []),
+                # Only for whoever can approve one: the queue is a decision.
+                *(
+                    _videos_queue(snapshot["videos_waiting"])
+                    if user.has_perm("providers.change_providervideo")
+                    else []
+                ),
                 *(
                     _check_ins_queue(snapshot["check_ins_due"])
                     if user.has_perm("enquiries.view_monthlycheckin")

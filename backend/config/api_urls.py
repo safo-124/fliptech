@@ -30,6 +30,7 @@ from providers.trainer_uploads import (
     TrainerPhotoDeleteView,
     TrainerPhotoUploadView,
 )
+from providers.trainer_videos import TrainerVideoDeleteView, TrainerVideosView
 from providers.trainer_views import (
     TrainerConfirmListingView,
     TrainerLogoutView,
@@ -119,6 +120,13 @@ urlpatterns = [
         "trainer/profile/identity/",
         TrainerIdentityDocumentView.as_view(),
         name="trainer-identity-document",
+    ),
+    # Teaching videos, linked from YouTube and reviewed one by one.
+    path("trainer/profile/videos/", TrainerVideosView.as_view(), name="trainer-videos"),
+    path(
+        "trainer/profile/videos/<int:video_id>/",
+        TrainerVideoDeleteView.as_view(),
+        name="trainer-video-delete",
     ),
     # Screen 5 for a signed-in trainer. The tokenised route below still works
     # for a provider staff onboarded who has never signed in.
