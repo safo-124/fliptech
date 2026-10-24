@@ -3,13 +3,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import {SiteFooter} from "@/components/SiteFooter";
 import {SiteHeader} from "@/components/SiteHeader";
-import {BRAND} from "@/lib/brand";
+import {BRAND, BRAND_COLOURS} from "@/lib/brand";
 
 import "@fontsource-variable/inter";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Layout");
+  const tHeader = await getTranslations("SiteHeader");
   return {
     title: {
       default: t("titleDefault", { brand: BRAND }),
@@ -21,15 +22,26 @@ export async function generateMetadata(): Promise<Metadata> {
     // page, where it can be specific without narrowing the whole product.
     description: t("description"),
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"),
+    // Drawn from the header's mark; see app/icons. The manifest that makes the
+    // site installable is app/manifest.ts, which Next links by itself.
+    icons: {
+      icon: [{url: "/icons/mark.svg", type: "image/svg+xml"}],
+      apple: [{url: "/icons/apple-touch-icon.png", sizes: "180x180"}],
+    },
+    // What an iPhone uses when the site is added to its home screen.
+    appleWebApp: {capable: true, title: tHeader("productName"), statusBarStyle: "default"},
   };
 }
 
 // Fonts are self-hosted via @fontsource so the app does not depend on a font
 // service, and the page does not block on a third-party connection.
+//
+// The theme colour is the header band's indigo: Android tints the browser bar
+// with it, and an installed site's title bar is this colour.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#14181f",
+  themeColor: BRAND_COLOURS.deep,
 };
 
 /**
@@ -71,6 +83,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
+
+        {/* The offline worker, public/sw.js. Registered after load, so it never
+            competes with the page for a slow connection, and a few bytes
+            inline rather than a client component. Not in development, where it
+            would serve kept copies over hot reload. */}
+        {process.env.NODE_ENV === "production" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html:
+                'if("serviceWorker"in navigator)addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})',
+            }}
+          />
+        )}
       </body>
     </html>
   );

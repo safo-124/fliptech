@@ -646,6 +646,30 @@ about ninety per cent of the allowance before a line of product code. Section 05
 justifies Next.js on server rendering for the generated pages, which is sound;
 this is the cost side of that trade and it should be stated to whoever signs off.
 
+### Installable, and open with no signal
+
+The site is a web app a phone can install: Android Chrome offers "Install app",
+and an iPhone's "Add to Home Screen" gets a proper icon and name. It opens from
+the home screen without the address bar, under the header's indigo. Nothing
+comes from a store, so there is nothing to update separately.
+
+- `app/manifest.ts` is the manifest. `app/icons/[name]` draws the favicon and
+  every app icon from the header's own mark (`lib/brand-mark.ts`) at build
+  time, so a brand change reaches the home-screen icon by itself.
+- `public/sw.js` is the service worker, registered by the layout in production
+  only. Pages always come from the network first. Public pages a visitor has
+  opened (search, listings, trades, the map) are kept, up to 40, and still open
+  with no signal; anything else shows `/offline` instead of the browser's
+  error. Signed-in and personal pages are never kept, and Django's paths are
+  never touched. Its header comment says how to switch it off on a live site.
+- The manifest and the offline page are English only: each is fetched once and
+  kept, so neither can follow the language cookie.
+
+Registration is a one-line inline script after load, not a client component,
+so the search page still passes its budget. `e2e/installable.spec.ts` checks the
+manifest and icons, then goes offline in a production build and confirms what
+is and is not kept.
+
 ### The URL collision, and how it is resolved
 
 Section 04 specifies `/tema/welding-training` and
