@@ -1279,3 +1279,16 @@
 
   .cat-queue-card.is-active { outline: 2px solid Highlight; outline-offset: -3px; }
 }
+
+/* A trade's colour in the trade list, matching the public site's trade accents
+   (frontend globals.css). See catalog.models.Trade.Colour. */
+.trade-look { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.trade-look--spark { background: #fde3cc; color: #7a3a05; }
+.trade-look--dye { background: #d9e4f2; color: #0c447c; }
+.trade-look--coral { background: #fbe3dc; color: #8a3b25; }
+.trade-look--timber { background: #ecdfcf; color: #5c3d1e; }
+.trade-look--signal { background: #fbefc4; color: #633806; }
+.trade-look--steel { background: #e1e7ec; color: #2f4553; }
+.trade-look--clay { background: #f4ddd6; color: #7a2e1b; }
+.trade-look--leaf { background: #e2efd9; color: #2f5a12; }
+.trade-look--violet { background: #ece6fb; color: #47208f; }

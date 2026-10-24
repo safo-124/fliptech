@@ -54,6 +54,7 @@ export const TRAINEE_CLIENT_NAMESPACES = [
 /** /trainer: the join wizard, the dashboard and the account pages. */
 export const TRAINER_CLIENT_NAMESPACES = [
   "TrainerJoinWizard",
+  "TeachingLanguages",
   "TrainerDashboard",
   "TrainerEnquiries",
   "TrainerVideos",

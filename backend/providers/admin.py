@@ -241,8 +241,32 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
     ]
 
     fieldsets = (
-        ("Workshop", {"fields": ("name", "slug", "area", "address", "landmark", "location")}),
+        (
+            "Workshop",
+            {
+                "fields": ("name", "slug", "area", "address", "landmark", "directions", "location"),
+                "description": (
+                    "The landmark is private, for the field officer. The directions are public: "
+                    "they lead the listing's 'find the gate' card."
+                ),
+            },
+        ),
         ("Contact", {"fields": ("owner_name", "owner_phone", "contact_phone")}),
+        (
+            "The master",
+            {
+                "fields": (
+                    "lead_trainer_name",
+                    "in_trade_since",
+                    "apprentices_trained",
+                    "teaching_languages",
+                ),
+                "description": (
+                    "Public: the portrait strip on the listing. Upload the portrait itself as a "
+                    "photo of kind 'The lead trainer'."
+                ),
+            },
+        ),
         (
             "What the trainer told us",
             {
@@ -806,10 +830,14 @@ class OwnerNoticeAdmin(admin.ModelAdmin):
 
 @admin.register(ProviderPhoto)
 class ProviderPhotoAdmin(admin.ModelAdmin):
-    list_display = ("provider", "caption", "display_order", "exif_stripped", "created_at")
-    list_filter = ("exif_stripped",)
+    """Where staff pair a 'before' with the finished work: set the kind to
+    "The same work, before" and choose the work photo it goes with."""
+
+    list_display = ("provider", "kind", "caption", "display_order", "exif_stripped", "created_at")
+    list_filter = ("kind", "exif_stripped")
     search_fields = ("provider__name",)
     autocomplete_fields = ("provider",)
+    raw_id_fields = ("shows_before_of",)
     readonly_fields = ("exif_stripped",)
 
 

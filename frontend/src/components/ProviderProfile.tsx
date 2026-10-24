@@ -19,24 +19,29 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  BadgeCheck,
   Banknote,
   Building2,
   CalendarDays,
   Camera,
   Clock3,
-  FileCheck2,
+  DoorOpen,
   Flag,
   GraduationCap,
   Info,
   MapPin,
   Navigation,
+  ReceiptText,
   ShieldCheck,
+  Signal,
   Wrench,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
+import { BeforeAfter } from "@/components/BeforeAfter";
+import { ListenButton } from "@/components/ListenButton";
 import { ProviderLocationMap } from "@/components/ProviderLocationMap";
+import { Stamp, initialsOf } from "@/components/Stamp";
+import { TradeChip } from "@/components/TradeChip";
 import { VideoLesson } from "@/components/VideoLesson";
 import { SaveProviderButton } from "@/components/trainee/SaveProviderButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -49,7 +54,8 @@ import { PROFILE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { BRAND } from "@/lib/brand";
 import { directionsUrl, hasPin } from "@/lib/directions";
 import { formatDate, formatDuration, formatFee } from "@/lib/format";
-import type { ProviderDetail } from "@/lib/types";
+import { isTeachingLanguage } from "@/lib/teaching-languages";
+import type { Programme, ProviderDetail } from "@/lib/types";
 
 /**
  * A government status worded from its code, so it can be translated. A code
@@ -73,6 +79,28 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/** The site visit as a stamp: visited, when and by whom, or an empty outline. */
+function VisitStamp({ provider, className }: { provider: ProviderDetail; className?: string }) {
+  const t = useTranslations("ProviderProfile");
+  const latestVisit = provider.verifications[0] ?? null;
+  if (!latestVisit) {
+    return <Stamp tone="muted" empty lines={[t("stampNotVisited")]} className={className} />;
+  }
+  return (
+    <Stamp
+      tone="visit"
+      className={className}
+      lines={[
+        t("stampVisited"),
+        formatDate(latestVisit.visited_on),
+        ...(latestVisit.officer
+          ? [t("stampOfficer", { initials: initialsOf(latestVisit.officer) })]
+          : []),
+      ]}
+    />
+  );
+}
+
 function VerificationBlock({ provider }: { provider: ProviderDetail }) {
   const t = useTranslations("ProviderProfile");
   const latestVisit = provider.verifications[0] ?? null;
@@ -85,16 +113,7 @@ function VerificationBlock({ provider }: { provider: ProviderDetail }) {
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-visit-bg)] text-[var(--color-visit)]">
               <ShieldCheck className="size-5" aria-hidden="true" />
             </div>
-            <Badge variant={latestVisit ? "visit" : "warning"}>
-              {latestVisit ? (
-                <>
-                  <BadgeCheck aria-hidden="true" />
-                  {t("siteVisited")}
-                </>
-              ) : (
-                t("notVisited")
-              )}
-            </Badge>
+            <VisitStamp provider={provider} />
           </div>
           <h2 id="fliptech-verification-heading" className="mt-4 text-base font-bold">
             {t("verificationHeading", { brand: BRAND })}
@@ -144,10 +163,11 @@ function GovernmentBlock({ provider }: { provider: ProviderDetail }) {
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-gov-bg)] text-[var(--color-gov)]">
               <Building2 className="size-5" aria-hidden="true" />
             </div>
-            <Badge variant={government ? "government" : "secondary"}>
-              <FileCheck2 aria-hidden="true" />
-              {government ? t("documentRecord") : t("noRecordClaimed")}
-            </Badge>
+            {government ? (
+              <Stamp tone="gov" lines={[t("stampOnRecord"), t("documentRecord")]} />
+            ) : (
+              <Stamp tone="muted" empty lines={[t("stampNotClaimed")]} />
+            )}
           </div>
           <h2 id="government-status-heading" className="mt-4 text-base font-bold">
             {t("governmentHeading")}
@@ -186,6 +206,114 @@ function GovernmentBlock({ provider }: { provider: ProviderDetail }) {
   );
 }
 
+const RECEIPT_TONE = {
+  plain: "text-[var(--color-foreground)]",
+  included: "text-[var(--color-visit)]",
+  extra: "text-[var(--color-warn)]",
+} as const;
+
+/** One line of the receipt. Green only for what the fee covers; amber for what it does not. */
+function ReceiptRow({
+  label,
+  value,
+  tone = "plain",
+}: {
+  label: string;
+  value: string;
+  tone?: keyof typeof RECEIPT_TONE;
+}) {
+  return (
+    <div className="flex items-baseline gap-2 py-1.5">
+      <dt className="min-w-0">{label}</dt>
+      {/* Dotted leader, as on a printed receipt. */}
+      <span aria-hidden="true" className="min-w-4 flex-1 translate-y-[-3px] border-b border-dotted border-[var(--color-border-strong)]" />
+      <dd className={`shrink-0 font-semibold tabular-nums ${RECEIPT_TONE[tone]}`}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * What a course really costs, laid out like a receipt.
+ *
+ * Hidden costs are the commonest complaint about apprenticeships: a fee that
+ * looks cheaper until the trainee is told to buy their own tools and
+ * materials. So each thing the fee might cover is a line marked included or
+ * extra, the workshop's estimate for the extras is a line of its own, and the
+ * bottom line is a total to plan for — or, without an estimate, says plainly
+ * that the extras still have to be asked about.
+ */
+function FeeReceipt({ programme }: { programme: Programme }) {
+  const t = useTranslations("ProviderProfile");
+  const tFormat = useTranslations("Format");
+  const covered = [
+    ["tools", programme.fee_includes_tools],
+    ["materials", programme.fee_includes_materials],
+    ["ppe", programme.fee_includes_ppe],
+  ] as const;
+  const certificateExtra = Boolean(programme.certificate_awarded) && !programme.fee_includes_certificate;
+  const anythingExtra = covered.some(([, included]) => !included) || certificateExtra;
+  const extraCosts = programme.extra_costs ? Number(programme.extra_costs) : null;
+  const total = extraCosts !== null ? (Number(programme.fee) + extraCosts).toFixed(2) : null;
+
+  return (
+    <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 pb-3 pt-3.5">
+      <p className="flex items-center gap-2 text-sm font-bold">
+        <ReceiptText className="size-4 text-[var(--color-brand)]" aria-hidden="true" />
+        {t("receiptTitle")}
+      </p>
+      <dl className="mt-1.5 text-sm">
+        <ReceiptRow label={t("receiptFee")} value={formatFee(programme.fee, tFormat)} />
+        {covered.map(([key, included]) => (
+          <ReceiptRow
+            key={key}
+            label={t(`receiptItems.${key}`)}
+            value={included ? t("included") : t("extra")}
+            tone={included ? "included" : "extra"}
+          />
+        ))}
+        <ReceiptRow
+          label={programme.certificate_awarded || t("receiptItems.certificate")}
+          value={
+            !programme.certificate_awarded
+              ? t("noneAwarded")
+              : programme.fee_includes_certificate
+                ? t("included")
+                : t("extra")
+          }
+          tone={
+            !programme.certificate_awarded
+              ? "plain"
+              : programme.fee_includes_certificate
+                ? "included"
+                : "extra"
+          }
+        />
+        {extraCosts !== null ? (
+          <ReceiptRow
+            label={programme.extra_costs_note || t("receiptItems.otherCosts")}
+            value={t("about", { amount: formatFee(programme.extra_costs, tFormat) })}
+            tone="extra"
+          />
+        ) : null}
+      </dl>
+      {/* The tear line. */}
+      <div className="mt-2 flex items-baseline justify-between gap-3 border-t-2 border-dashed border-[var(--color-border-strong)] pt-2.5 text-base font-bold">
+        <span>
+          {total !== null ? t("planFor") : anythingExtra ? t("feePlusExtras") : t("allIncluded")}
+        </span>
+        <span className="tabular-nums">{formatFee(total ?? programme.fee, tFormat)}</span>
+      </div>
+      {total === null && anythingExtra ? (
+        <p className="mt-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+          {t("askAboutExtras")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function Programmes({ provider }: { provider: ProviderDetail }) {
   const t = useTranslations("ProviderProfile");
   const tFormat = useTranslations("Format");
@@ -213,7 +341,7 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
                   <div className="p-5 sm:p-6">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <Badge variant="secondary">{programme.trade}</Badge>
+                        <TradeChip name={programme.trade} colour={programme.trade_colour} />
                         <h3 className="mt-3 text-xl font-bold tracking-tight">
                           {programme.title}
                         </h3>
@@ -257,6 +385,8 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
                         </dd>
                       </div>
                     </dl>
+
+                    <FeeReceipt programme={programme} />
 
                     {/* A plain list, not prose. */}
                     <dl className="mt-4 rounded-xl border border-[var(--color-border)] px-4">
@@ -324,10 +454,120 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
  * one — which a picture of a tidy yard does not answer.
  */
 /**
+ * The master or madam who teaches: portrait, years in the trade, apprentices
+ * trained and the languages the teaching is done in.
+ *
+ * In Ghanaian apprenticeship a trainee chooses the master as much as the
+ * shop, so this leads the listing's main column. Everything here was given by
+ * the workshop as public; nothing shows that it left blank.
+ */
+function MasterStrip({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
+  const tLanguage = useTranslations("TeachingLanguages");
+  const master = provider.master;
+  if (!master) return null;
+
+  const name = master.name || t("theMaster");
+  const facts = [
+    master.years_in_trade !== null ? t("yearsInTrade", { count: master.years_in_trade }) : null,
+    master.apprentices_trained !== null
+      ? t("apprenticesTrained", { count: master.apprentices_trained })
+      : null,
+  ].filter((fact): fact is string => fact !== null);
+  const languages = master.languages.filter(isTeachingLanguage);
+
+  return (
+    <section
+      aria-labelledby="master-heading"
+      className="flex items-center gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 sm:gap-5 sm:p-5 lg:order-1"
+    >
+      {master.portrait ? (
+        <Image
+          src={master.portrait}
+          alt={t("portraitAlt", { name })}
+          width={96}
+          height={96}
+          sizes="96px"
+          className="size-20 shrink-0 rounded-full object-cover ring-4 ring-[var(--color-brand-soft)] sm:size-24"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="grid size-20 shrink-0 place-items-center rounded-full bg-[var(--color-brand-soft)] text-2xl font-bold text-[var(--color-brand-strong)] sm:size-24"
+        >
+          {initialsOf(name).replaceAll(".", "") || <GraduationCap className="size-8" />}
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
+          {t("whoTeaches")}
+        </p>
+        <h2 id="master-heading" className="mt-0.5 break-words text-xl font-bold tracking-tight">
+          {name}
+        </h2>
+        {facts.length ? (
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{facts.join(" · ")}</p>
+        ) : null}
+        {languages.length ? (
+          <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-[var(--color-muted-foreground)]">{t("teachesIn")}</span>
+            {languages.map((code) => (
+              <span key={code} className="badge bg-[var(--color-background)] font-semibold">
+                {tLanguage(code)}
+              </span>
+            ))}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * "Find the gate": the workshop's own directions in large type, and a photo
+ * of the way in, ahead of the map.
+ *
+ * People here navigate by landmarks — "opposite the lorry station, blue gate"
+ * — far more than by street addresses, and a pin can be a street out. The
+ * directions are written by the workshop for the public, never the private
+ * landmark: see Provider.directions.
+ */
+function FindTheGate({ provider }: { provider: ProviderDetail }) {
+  const t = useTranslations("ProviderProfile");
+  if (!provider.directions && !provider.entrance_photo) return null;
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] sm:flex">
+      {provider.entrance_photo ? (
+        <Image
+          src={provider.entrance_photo}
+          alt={t("entranceAlt", { name: provider.name })}
+          width={480}
+          height={320}
+          loading="lazy"
+          sizes="(max-width: 640px) 100vw, 240px"
+          className="aspect-[3/2] w-full object-cover sm:w-60 sm:shrink-0"
+        />
+      ) : null}
+      <div className="p-4 sm:p-5">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
+          <DoorOpen className="size-4" aria-hidden="true" />
+          {t("findTheGate")}
+        </p>
+        <p className="mt-1.5 text-lg font-bold leading-snug">
+          {provider.directions || t("entranceOnly")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Where the workshop is. Someone choosing between two of them is also
  * choosing a journey, and the address alone does not find a workshop in
  * Accra. The landmark would, but it is not shown: trainers were told it is
- * how the field officer finds them, not that it would be public.
+ * how the field officer finds them, not that it would be public. What the
+ * workshop writes as public directions leads instead, in FindTheGate.
  */
 function Location({ provider }: { provider: ProviderDetail }) {
   const t = useTranslations("ProviderProfile");
@@ -342,6 +582,8 @@ function Location({ provider }: { provider: ProviderDetail }) {
         {provider.address ? `${provider.address}, ` : ""}
         {provider.area}
       </p>
+
+      <FindTheGate provider={provider} />
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--color-border)]">
         <ProviderLocationMap
@@ -382,7 +624,9 @@ function Location({ provider }: { provider: ProviderDetail }) {
  */
 function Videos({ provider }: { provider: ProviderDetail }) {
   const t = useTranslations("ProviderProfile");
-  if (provider.videos.length === 0) return null;
+  // ?? because a response cached before videos existed has no such field.
+  const videos = provider.videos ?? [];
+  if (videos.length === 0) return null;
 
   return (
     <section aria-labelledby="videos-heading" className="lg:order-1">
@@ -394,7 +638,7 @@ function Videos({ provider }: { provider: ProviderDetail }) {
       </p>
 
       <ul className="mt-4 grid gap-5 sm:grid-cols-2">
-        {provider.videos.map((video) => (
+        {videos.map((video) => (
           <li key={video.id}>
             <VideoLesson
               youtubeId={video.youtube_id}
@@ -402,6 +646,12 @@ function Videos({ provider }: { provider: ProviderDetail }) {
               playLabel={t("playVideo", { title: video.title })}
             />
             <p className="mt-2 text-sm font-semibold leading-5">{video.title}</p>
+            {/* What the tap costs, said before it is spent: this user pays
+                for data in small bundles. */}
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
+              <Signal className="size-3.5 shrink-0" aria-hidden="true" />
+              {t("videoDataCost")}
+            </p>
           </li>
         ))}
       </ul>
@@ -420,6 +670,7 @@ function PhotoStrip({
   caption: string;
   headingId: string;
 }) {
+  const t = useTranslations("ProviderProfile");
   if (photos.length === 0) return null;
 
   return (
@@ -430,7 +681,28 @@ function PhotoStrip({
       <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">{caption}</p>
 
       <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {photos.map((photo) => (
+        {photos.map((photo) =>
+          photo.before ? (
+            // A pair takes a whole row on a phone, so the slider is big
+            // enough to drag with a thumb.
+            <li key={photo.id} className="col-span-2">
+              <BeforeAfter
+                before={photo.before}
+                after={photo.image}
+                alt={photo.caption || title}
+                labels={{
+                  before: t("before"),
+                  after: t("after"),
+                  slider: t("beforeAfterSlider", { caption: photo.caption || title }),
+                }}
+              />
+              {photo.caption ? (
+                <p className="mt-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  {photo.caption}
+                </p>
+              ) : null}
+            </li>
+          ) : (
           <li key={photo.id}>
             <Image
               src={photo.image}
@@ -448,14 +720,55 @@ function PhotoStrip({
               </p>
             ) : null}
           </li>
-        ))}
+          ),
+        )}
       </ul>
     </section>
   );
 }
 
+const SPOKEN_NUMBER = new Intl.NumberFormat("en-GH", { maximumFractionDigits: 0 });
+const SPOKEN_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/**
+ * What ListenButton reads: the facts a trainee decides on, as plain spoken
+ * sentences. Money is said as cedis rather than written with a sign a voice
+ * stumbles over, and dates are spelled out.
+ */
+function listeningScript(
+  provider: ProviderDetail,
+  t: ReturnType<typeof useTranslations<"ProviderProfile">>,
+  tFormat: ReturnType<typeof useTranslations<"Format">>,
+) {
+  const cheapest = [...provider.programmes].sort((a, b) => Number(a.fee) - Number(b.fee))[0];
+  const intake = provider.programmes
+    .flatMap((programme) => programme.intakes)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
+  const visit = provider.verifications[0];
+  const spokenDate = (value: string) => SPOKEN_DATE.format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
+  return [
+    t("listen.intro", { name: provider.name, area: provider.area }),
+    cheapest
+      ? t("listen.course", {
+          title: cheapest.title,
+          fee: SPOKEN_NUMBER.format(Number(cheapest.fee)),
+          duration: formatDuration(cheapest.duration_weeks, tFormat),
+        })
+      : null,
+    intake ? t("listen.intake", { date: spokenDate(intake.start_date) }) : null,
+    visit
+      ? t("listen.visited", { brand: BRAND, date: spokenDate(visit.visited_on) })
+      : t("listen.notVisited", { brand: BRAND }),
+    provider.directions ? t("listen.directions", { directions: provider.directions }) : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
   const t = useTranslations("ProviderProfile");
+  const tFormat = useTranslations("Format");
+  const locale = useLocale();
   // The hero should show the place, not a close-up of a gate: someone landing
   // here is still deciding whether this is a real workshop they can get to.
   // Falls back to whatever exists when there is no premises shot.
@@ -486,6 +799,15 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
             </div>
           </div>
         )}
+
+        {/* Pressed onto the photograph's corner: the first thing a trainee
+            sees about a visited workshop is that someone went there. */}
+        {provider.verifications[0] ? (
+          <VisitStamp
+            provider={provider}
+            className="absolute left-3 top-3 bg-white/90 sm:left-5 sm:top-5"
+          />
+        ) : null}
 
         {provider.photos.length > 1 ? (
           <Badge className="absolute bottom-3 right-3 border-white/30 bg-black/70 text-white sm:bottom-5 sm:right-5">
@@ -544,6 +866,11 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <ListenButton
+            script={listeningScript(provider, t, tFormat)}
+            lang={locale === "en" ? "en-GH" : locale}
+            labels={{ listen: t("listen.button"), stop: t("listen.stop"), hint: t("listen.hint") }}
+          />
           <ClientMessages namespaces={PROFILE_CLIENT_NAMESPACES}>
             <SaveProviderButton
               providerId={provider.id}
@@ -572,6 +899,8 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
         </aside>
 
         <div className="space-y-9 lg:order-1">
+          <MasterStrip provider={provider} />
+
           <Programmes provider={provider} />
 
           <Videos provider={provider} />

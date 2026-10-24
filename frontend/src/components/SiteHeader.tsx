@@ -32,7 +32,7 @@ export function SiteHeader() {
           href="/"
           className="group inline-flex min-h-11 items-center gap-2.5 rounded-xl text-white"
         >
-          <BrandMark className="size-9 transition-transform duration-500 group-hover:rotate-90" />
+          <BrandMark motion="open" className="size-9 transition-transform duration-500 group-hover:rotate-90" />
           <span className="leading-tight">
             <span className="block text-[15px] font-bold tracking-tight sm:text-base">
               {t("productName")}

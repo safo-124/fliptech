@@ -670,6 +670,46 @@ so the search page still passes its budget. `e2e/installable.spec.ts` checks the
 manifest and icons, then goes offline in a production build and confirms what
 is and is not kept.
 
+### The design details, and where each one's data comes from
+
+Twelve pieces added together on 24 October 2026, each built around how people
+here find, judge and reach a workshop.
+
+- **Trade colours and pictures.** Each trade has a colour named after its
+  material (`catalog.Trade.colour`; spark, dye, coral, timber and so on),
+  shown as a label on every result card and course, and a slot for its
+  hand-painted signboard picture (`Trade.picture`, uploaded in the back
+  office). Until a sign painter's picture is uploaded the trade's icon shows
+  in its colour. Hex values live in `globals.css` and `lib/trades.ts`; a unit
+  test keeps the two the same.
+- **The opening aperture.** The header's mark opens as a page arrives, and
+  breathes on the loading screen of listing and trade pages. CSS only.
+- **Fees as a receipt.** Each course lists what the fee covers, included or
+  extra, and the workshop's rough figure for the extras
+  (`Programme.extra_costs`), totalled as "plan for about".
+- **Visit stamps.** The site visit and government record are rubber stamps;
+  "not claimed" is the dashed outline of one.
+- **Before and after.** A "before" photo is paired with a photo of finished
+  work (`ProviderPhoto.shows_before_of`) and shown as a slider.
+- **Find the gate.** Public directions (`Provider.directions`) and a photo of
+  the way in lead the location section. The private landmark is never shown:
+  trainers were told it is only for the field officer.
+- **Starting soon.** A departures board of the next three intakes with places,
+  on the unfiltered search page only (`/api/intakes/upcoming/`).
+- **Share cards.** Each listing draws the picture WhatsApp shows when it is
+  shared (`[area]/[slug]/opengraph-image.tsx`); the site has one too.
+- **The master.** Who teaches, years in the trade, apprentices trained and the
+  languages taught in, with a portrait photo, at the top of the listing.
+- **Listen.** The phone reads a listing aloud with its own voice: no data, and
+  shown only where the phone has a voice for the page's language.
+- **Data cost.** Each video says what playing it costs before it is tapped.
+
+Result cards and board rows link with `prefetch={false}`: with a loading
+screen on listing pages, Next fetched every card's listing as it scrolled into
+view, about 60 KB a page of results. The search page measured **199.3 KB** of
+its 200 KB after all of this, so the budget is now effectively spent; the next
+addition to that page needs something taken out.
+
 ### The URL collision, and how it is resolved
 
 Section 04 specifies `/tema/welding-training` and

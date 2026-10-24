@@ -114,6 +114,13 @@ run_as env \
 cd ..
 
 echo "==> Restarting"
+# Next keeps the API responses it fetched in .next/cache/fetch-cache, and a
+# build does not clear it. Left alone, the new site renders each page once
+# from a response shaped by the old API — missing every field this release
+# added — before it refetches. Cleared here, immediately before the restart,
+# so nothing the old site writes in the meantime survives either. It costs
+# one API call per page, once.
+rm -rf frontend/.next/cache/fetch-cache
 # Only now, once every fallible step has succeeded.
 sudo systemctl restart fliptech-api
 sudo systemctl restart fliptech-web

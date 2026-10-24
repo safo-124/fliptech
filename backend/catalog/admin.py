@@ -316,6 +316,7 @@ class CatalogWorkspaceMixin:
 class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
     list_display = (
         "name",
+        "look",
         "inventory_summary",
         "search_readiness",
         "display_order",
@@ -326,7 +327,7 @@ class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name", "slug", "synonyms")
     search_help_text = "Search by trade name, public slug, or alternative search word."
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("picture_preview", "created_at", "updated_at")
     actions = ("activate_trades", "deactivate_trades")
     change_list_template = "admin/catalog/trade/change_list.html"
     change_form_template = "admin/catalog/trade/change_form.html"
@@ -350,9 +351,36 @@ class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
                 "description": "Explain the work plainly for the public trade page.",
             },
         ),
+        (
+            "Look",
+            {
+                "fields": ("colour", "picture", "picture_preview"),
+                "description": (
+                    "The colour marks this trade on result cards, so pick the one named after "
+                    "what the trade works with. The picture is the trade's hand-painted "
+                    "signboard art; until one is uploaded the site shows an icon in the colour."
+                ),
+            },
+        ),
         ("Publication", {"fields": ("display_order", "is_active")}),
         ("Record", {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
     )
+
+    @admin.display(description="Look")
+    def look(self, obj):
+        return format_html(
+            '<span class="trade-look trade-look--{}">{}</span>',
+            obj.colour,
+            "Painted picture" if obj.picture else obj.get_colour_display().split(":")[0],
+        )
+
+    @admin.display(description="Current picture")
+    def picture_preview(self, obj):
+        if not obj.picture:
+            return "None yet."
+        return format_html(
+            '<img src="{}" alt="" width="160" style="border-radius:8px">', obj.picture.url
+        )
 
     def get_queryset(self, request):
         return (
@@ -487,6 +515,25 @@ class ProgrammeAdmin(CatalogWorkspaceMixin, SimpleHistoryAdmin):
             {
                 "fields": ("fee", "instalments_allowed", "instalment_note"),
                 "description": "Show the full fee and explain any instalment arrangement.",
+            },
+        ),
+        (
+            "What the fee covers",
+            {
+                "fields": (
+                    "fee_includes_tools",
+                    "fee_includes_materials",
+                    "fee_includes_ppe",
+                    "fee_includes_certificate",
+                    "certificate_awarded",
+                    "extra_costs",
+                    "extra_costs_note",
+                ),
+                "description": (
+                    "The listing shows these as a receipt, with a total to plan for. Anything "
+                    "not included is marked extra, so add a rough figure for the extras if the "
+                    "workshop gives one."
+                ),
             },
         ),
         (

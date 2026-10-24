@@ -22,6 +22,8 @@ export const BRAND_COLOURS = {
   glow: "#491889",
   /** --color-background, the light canvas. */
   canvas: "#fbf9f5",
+  /** --color-sand, the warm shard the hero's headline is lit with. */
+  sand: "#f3dca5",
   /** The mark's gradient: --color-brand-violet, its midpoint, --color-brand-pink. */
   violet: "#9867e1",
   orchid: "#ca61d1",

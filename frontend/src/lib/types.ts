@@ -42,6 +42,8 @@ export type ProviderCard = {
   primary_photo: string | null;
   /** The workshop's own mark. Null for most: few have one. */
   logo: string | null;
+  /** The trade the card is labelled with: the one searched for, or its cheapest course's. */
+  trade: { name: string; slug: string; colour: string } | null;
   /** Screen 2 plots these. */
   lat: number;
   lng: number;
@@ -62,9 +64,20 @@ export type Programme = {
   title: string;
   trade: string;
   trade_slug: string;
+  /** See lib/trades.ts. */
+  trade_colour: string;
   fee: string;
   instalments_allowed: boolean;
   instalment_note: string;
+  /** What the fee covers, shown as a receipt on the listing. */
+  fee_includes_tools: boolean;
+  fee_includes_materials: boolean;
+  fee_includes_ppe: boolean;
+  fee_includes_certificate: boolean;
+  certificate_awarded: string;
+  /** Roughly what a trainee spends on top of the fee, in cedis, or null if unknown. */
+  extra_costs: string | null;
+  extra_costs_note: string;
   duration_weeks: number;
   hours_per_week: number | null;
   weekly_schedule: string;
@@ -96,7 +109,27 @@ export type ProviderVideo = { id: number; youtube_id: string; title: string };
 export type ProviderDetail = ProviderCard & {
   address: string;
   owner_name: string;
-  photos: { id: number; kind: ProviderPhotoKind; image: string; caption: string }[];
+  /** The workshop and the work. A work photo may carry the same piece `before`. */
+  photos: {
+    id: number;
+    kind: ProviderPhotoKind;
+    image: string;
+    caption: string;
+    before: string | null;
+  }[];
+  /** How a trainee finds the gate, written by the workshop for the public. */
+  directions: string;
+  /** A photo of the way in, for the "find the gate" card. */
+  entrance_photo: string | null;
+  /** The master or madam who teaches, for the portrait strip; null if unknown. */
+  master: {
+    name: string;
+    portrait: string | null;
+    years_in_trade: number | null;
+    apprentices_trained: number | null;
+    /** See lib/teaching-languages.ts. */
+    languages: string[];
+  } | null;
   videos: ProviderVideo[];
   programmes: Programme[];
   verifications: Verification[];
@@ -104,11 +137,28 @@ export type ProviderDetail = ProviderCard & {
   contact_phone: string;
 };
 
+/** One row of the search page's departures board. See UpcomingIntakesView. */
+export type UpcomingIntake = {
+  start_date: string;
+  places_remaining: number | null;
+  course: string;
+  trade: string;
+  trade_colour: string;
+  provider: string;
+  area: string;
+  area_slug: string;
+  slug: string;
+};
+
 export type Trade = {
   id: number;
   name: string;
   slug: string;
   description: string;
+  /** See lib/trades.ts. */
+  colour: string;
+  /** The trade's hand-painted signboard picture, or null until there is one. */
+  picture: string | null;
   provider_count: number;
 };
 
@@ -182,6 +232,9 @@ export type TrainerProgramme = {
   fee_includes_ppe: boolean;
   fee_includes_certificate: boolean;
   certificate_awarded: string;
+  /** Roughly what a trainee spends on top of the fee, in cedis, or null if unknown. */
+  extra_costs: string | null;
+  extra_costs_note: string;
   intake: TrainerIntake | null;
 };
 
@@ -199,6 +252,13 @@ export type TrainerProfile = {
   longitude: number;
   /** The nearest well-known place. What a field officer navigates by. */
   landmark: string;
+  /** Public directions to the gate. The landmark above is private. */
+  directions: string;
+  /** The master who teaches, for the listing's portrait strip. */
+  lead_trainer_name?: string;
+  in_trade_since?: number | null;
+  apprentices_trained?: number | null;
+  teaching_languages?: string[];
   year_established: number | null;
   premises_tenure: TrainerPremisesTenure | "";
   trainer_count: number | null;
@@ -230,13 +290,16 @@ export type TrainerIdDocument = "ghana_card" | "passport" | "voter_id";
 
 /** A public workshop photograph. */
 /** What a photograph shows. Mirrors ProviderPhoto.Kind on the server. */
-export type ProviderPhotoKind = "workshop" | "work";
+/** Mirrors ProviderPhoto.Kind. A "before" is paired with a "work" photo. */
+export type ProviderPhotoKind = "workshop" | "work" | "before" | "entrance" | "portrait";
 
 export type TrainerPhoto = {
   id: number;
   kind: ProviderPhotoKind;
   url: string;
   caption: string;
+  /** For a "before": the id of the finished-work photo it pairs with. */
+  before_of?: number | null;
 };
 
 /** Mirrors ProviderVideo.Status in backend/providers/models.py. */

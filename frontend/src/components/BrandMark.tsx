@@ -18,12 +18,24 @@
 
 import { BLADE_ANGLES, BLADE_PATH, MARK_DOT } from "@/lib/brand-mark";
 
+/**
+ * `motion` makes the aperture move, in CSS alone (globals.css):
+ *
+ *   open     the blades swing open once, as the page arrives: the header
+ *   breathe  they close and open in a loop, while a page is loading
+ *
+ * An aperture opening is the brand's own way of saying "now you can see
+ * clearly", so it does the job a generic spinner would. Both are switched off
+ * for anyone whose device asks for reduced motion.
+ */
 export function BrandMark({
   className = "size-9",
   title,
+  motion,
 }: {
   className?: string;
   title?: string;
+  motion?: "open" | "breathe";
 }) {
   // One gradient id per render would be ideal, but this mark is a singleton in
   // practice and a stable id keeps the markup identical between the server and
@@ -46,17 +58,21 @@ export function BrandMark({
         </linearGradient>
       </defs>
 
-      <g transform="translate(24 24)" fill={`url(#${gradientId})`} stroke={`url(#${gradientId})`}>
-        {BLADE_ANGLES.map((angle) => (
-          <path
-            key={angle}
-            d={BLADE_PATH}
-            transform={`rotate(${angle})`}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-        ))}
-        <circle cx={MARK_DOT.cx} cy="0" r={MARK_DOT.r} />
+      {/* The moving group wraps the translated one: a CSS transform on the
+          translated group itself would replace its translate. */}
+      <g className={motion ? `mark-${motion}` : undefined}>
+        <g transform="translate(24 24)" fill={`url(#${gradientId})`} stroke={`url(#${gradientId})`}>
+          {BLADE_ANGLES.map((angle) => (
+            <path
+              key={angle}
+              d={BLADE_PATH}
+              transform={`rotate(${angle})`}
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+          ))}
+          <circle cx={MARK_DOT.cx} cy="0" r={MARK_DOT.r} />
+        </g>
       </g>
     </svg>
   );

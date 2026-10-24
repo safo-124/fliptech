@@ -1,0 +1,55 @@
+/* A rubber stamp, for what someone actually checked: an office stamp is how
+   "someone official looked at this" reads in Ghana. Double ruled, slightly
+   crooked, and pressed on with a short thump when it appears. The dashed,
+   empty version is the honest "not claimed".
+
+   A module rather than globals.css so it loads only where a stamp is shown,
+   not on the search page, whose CSS counts against a 200 KB budget. Kept in
+   the components layer, like the global classes, so utilities passed in by
+   the caller (position, margins) still win. */
+@layer components {
+  .stamp {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 0.3rem 0.65rem;
+    border: 2px solid currentColor;
+    border-radius: 0.5rem;
+    outline: 1px solid currentColor;
+    outline-offset: 2px;
+    background: color-mix(in oklab, currentColor 7%, transparent);
+    text-align: center;
+    line-height: 1.15;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transform: rotate(-6deg);
+    animation: stamp-in 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  }
+  .line {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .visit { color: var(--color-visit); }
+  .gov { color: var(--color-gov); }
+  .muted { color: var(--color-muted-foreground); }
+  .empty {
+    border-style: dashed;
+    outline: none;
+    background: transparent;
+  }
+  @keyframes stamp-in {
+    from {
+      transform: rotate(-16deg) scale(1.7);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stamp {
+      animation: none;
+    }
+  }
+}

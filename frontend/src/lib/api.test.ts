@@ -19,6 +19,7 @@ function provider(id: number): ProviderCard {
     government_status: {registration_status: "not_claimed", label: "Not claimed"},
     primary_photo: null,
     logo: null,
+    trade: {name: "Welding", slug: "welding", colour: "spark"},
     lat: 5.6037,
     lng: -0.187,
     listing_confirmed_on: null,

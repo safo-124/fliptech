@@ -26,7 +26,7 @@ from core.network import canonical_client_ip, ratelimit_client_ip
 from geography.models import Area, Region
 
 from .filters import ProviderFilter
-from .models import Provider, ProviderVideo
+from .models import Provider, ProviderPhoto, ProviderVideo
 from .profile_views import record_view
 from .serializers import ProviderDetailSerializer, ProviderListSerializer
 
@@ -146,11 +146,87 @@ class ProviderBySlugView(RetrieveAPIView):
         shown_videos = Prefetch(
             "videos", queryset=ProviderVideo.objects.shown(), to_attr="shown_videos"
         )
+        # The one-of-a-kind photos the profile places itself: the way in, for
+        # "find the gate", and the master's portrait.
+        single_photos = Prefetch(
+            "photos",
+            queryset=ProviderPhoto.objects.filter(
+                kind__in=[ProviderPhoto.Kind.ENTRANCE, ProviderPhoto.Kind.PORTRAIT]
+            ).order_by("-created_at"),
+            to_attr="single_photos",
+        )
         return get_object_or_404(
-            Provider.objects.published().for_card().with_related().prefetch_related(shown_videos),
+            Provider.objects.published()
+            .for_card()
+            .with_related()
+            .prefetch_related(shown_videos, single_photos),
             area__slug=self.kwargs["area_slug"],
             slug=self.kwargs["slug"],
         )
+
+
+class UpcomingIntakeSerializer(serializers.Serializer):
+    start_date = serializers.DateField()
+    places_remaining = serializers.IntegerField(allow_null=True)
+    course = serializers.CharField(source="programme.title")
+    trade = serializers.CharField(source="programme.trade.name")
+    trade_colour = serializers.CharField(source="programme.trade.colour")
+    provider = serializers.CharField(source="programme.provider.name")
+    area = serializers.CharField(source="programme.provider.area.name")
+    area_slug = serializers.CharField(source="programme.provider.area.slug")
+    slug = serializers.CharField(source="programme.provider.slug")
+
+
+class UpcomingIntakesView(APIView):
+    """The next courses to start, soonest first: the search page's departures board.
+
+    Only what a trainee could actually join: an open intake, with places left,
+    on an active course at a published workshop. Narrowed by the same trade,
+    area and region a search uses. Not paginated: the board shows a handful.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("trade", str),
+            OpenApiParameter("area", str),
+            OpenApiParameter("region", str),
+            OpenApiParameter("limit", int, description="At most 12. Default 6."),
+        ],
+        responses={200: UpcomingIntakeSerializer(many=True)},
+    )
+    def get(self, request):
+        from django.db.models import Q
+        from django.utils import timezone
+
+        from catalog.models import Intake
+
+        intakes = (
+            Intake.objects.filter(
+                is_open=True,
+                start_date__gte=timezone.localdate(),
+                programme__is_active=True,
+                programme__trade__is_active=True,
+                programme__provider__status=Provider.Status.PUBLISHED,
+            )
+            .filter(Q(places_remaining__isnull=True) | Q(places_remaining__gt=0))
+            .select_related("programme__trade", "programme__provider__area")
+            .order_by("start_date", "pk")
+        )
+        params = request.query_params
+        if params.get("trade"):
+            intakes = intakes.filter(programme__trade__slug=params["trade"])
+        if params.get("area"):
+            intakes = intakes.filter(programme__provider__area__slug=params["area"])
+        if params.get("region"):
+            intakes = intakes.filter(programme__provider__area__region__slug=params["region"])
+        try:
+            limit = max(1, min(12, int(params.get("limit", 6))))
+        except ValueError:
+            limit = 6
+        return Response(UpcomingIntakeSerializer(intakes[:limit], many=True).data)
 
 
 class ProfileViewedView(APIView):

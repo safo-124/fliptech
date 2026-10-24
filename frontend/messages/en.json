@@ -20,7 +20,8 @@
     "titleDefault": "{brand} Skills Hub — find practical skills training in Ghana",
     "titleTemplate": "%s | {brand} Skills Hub",
     "description": "Compare fees, duration and start dates for welding, tailoring, plumbing and other trades training in Ghana.",
-    "skipToContent": "Skip to main content"
+    "skipToContent": "Skip to main content",
+    "loading": "Loading…"
   },
   "SiteHeader": {
     "productName": "Skills Hub",
@@ -112,7 +113,11 @@
     "learnTitle": "I want to learn",
     "learnBody": "Sign up as a trainee",
     "trainTitle": "I train people",
-    "trainBody": "Sign up as a trainer"
+    "trainBody": "Sign up as a trainer",
+    "boardTitle": "Starting soon",
+    "boardNote": "The next courses with places",
+    "boardPlaces": "{count, plural, one {# place left} other {# places left}}",
+    "boardOpen": "Places open"
   },
   "MapView": {
     "clusterTitle": "{count} providers. Open to zoom in.",
@@ -228,7 +233,53 @@
     "reportProblem": "Report a problem with this listing",
     "videosTitle": "Watch them teach",
     "videosCaption": "Short videos from the workshop, each one watched by {brand} before it appears here. Nothing downloads until you press play, and a video uses data while it plays.",
-    "playVideo": "Play the video: {title}"
+    "playVideo": "Play the video: {title}",
+    "receiptTitle": "What you’ll really pay",
+    "receiptFee": "Course fee",
+    "receiptItems": {
+      "tools": "Tools",
+      "materials": "Materials",
+      "ppe": "Safety gear",
+      "certificate": "Certificate",
+      "otherCosts": "Other costs"
+    },
+    "included": "Included",
+    "extra": "Extra",
+    "noneAwarded": "None awarded",
+    "about": "about {amount}",
+    "planFor": "Plan for about",
+    "feePlusExtras": "The fee, plus the extras",
+    "allIncluded": "Everything is included",
+    "askAboutExtras": "Ask the workshop what the extras cost before you pay anything.",
+    "stampVisited": "Visited",
+    "stampOfficer": "Officer {initials}",
+    "stampNotVisited": "Not visited yet",
+    "stampOnRecord": "On record",
+    "stampNotClaimed": "Not claimed",
+    "before": "Before",
+    "after": "After",
+    "beforeAfterSlider": "Drag to compare before and after: {caption}",
+    "findTheGate": "Find the gate",
+    "entranceOnly": "This is the way in.",
+    "entranceAlt": "The entrance to {name}",
+    "whoTeaches": "Who teaches",
+    "theMaster": "The lead trainer",
+    "yearsInTrade": "{count, plural, one {# year} other {# years}} in the trade",
+    "apprenticesTrained": "{count, plural, one {# apprentice} other {# apprentices}} trained",
+    "teachesIn": "Teaches in",
+    "portraitAlt": "{name}, who teaches here",
+    "listen": {
+      "button": "Listen",
+      "stop": "Stop",
+      "hint": "Read aloud by your phone. Uses no data.",
+      "intro": "{name}, in {area}.",
+      "course": "{title}. The fee is {fee} cedis, and it takes {duration}.",
+      "intake": "The next intake starts on {date}.",
+      "visited": "{brand} visited the workshop on {date}.",
+      "notVisited": "{brand} has not visited this workshop yet.",
+      "directions": "To find the gate: {directions}"
+    },
+    "videoDataCost": "Plays only when you tap it · about 3 to 5 MB a minute"
   },
   "SaveProviderButton": {
     "save": "Save",
@@ -304,7 +355,8 @@
     "startDateBeforePlaces": "Add a start date before the number of places",
     "certificateRequired": "Name the certificate the fee covers",
     "instalmentNoteRequired": "Explain the instalment arrangement",
-    "startDateInFuture": "Choose a start date in the future"
+    "startDateInFuture": "Choose a start date in the future",
+    "amountInvalid": "Enter an amount in Ghana cedis, or leave it empty"
   },
   "EnquiryForm": {
     "codeSendFailed": "Could not send the code.",
@@ -1046,7 +1098,27 @@
     "stillNeeded": "Still needed before you can send",
     "submitting": "Submitting…",
     "submit": "Submit for review",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "extraCostsLabel": "Extra costs, in cedis",
+    "extraCostsNoteLabel": "What they are for",
+    "extraCostsNotePlaceholder": "Hair and extensions to practise on",
+    "extraCostsHelp": "Roughly what a trainee spends on top of the fee, for anything it does not cover. Trainees see the fee and the extras together, with a total to plan for. Leave it empty if you are not sure.",
+    "addBefore": "+ Add the same work before it was done (optional)",
+    "beforeAdded": "Before photo added. Trainees can slide between the two.",
+    "directionsLabel": "Directions for trainees",
+    "directionsPlaceholder": "Opposite the lorry station, blue gate with a painted comb",
+    "directionsHelp": "Public: shown on your listing, above the map, so trainees can find your gate. Say what they will see, as you would on the phone. The landmark above stays private.",
+    "entrancePhotoTitle": "A photo of the way in",
+    "entrancePhotoHint": "Your gate or door from the road, as a trainee arriving will see it. It goes beside your directions on the listing.",
+    "masterLegend": "The master who teaches",
+    "masterBody": "Trainees choose who teaches them as much as the workshop. All of this is public: it goes at the top of your listing.",
+    "masterNameLabel": "Their name",
+    "masterNamePlaceholder": "Madam Akosua Mensah",
+    "inTradeSinceLabel": "In the trade since (year)",
+    "apprenticesTrainedLabel": "Apprentices trained so far",
+    "teachingLanguagesLegend": "Languages the teaching is done in",
+    "portraitPhotoTitle": "A photo of the master",
+    "portraitPhotoHint": "Their face, in good light. It goes beside their name at the top of your listing."
   },
   "ReportProblem": {
     "title": "Report a problem",
@@ -1119,5 +1191,27 @@
     "watch": "Watch on YouTube",
     "remove": "Remove",
     "removeLabel": "Remove “{title}”"
+  },
+  "ShareCard": {
+    "siteTitle": "Find practical skills training in Ghana",
+    "siteLead": "Compare fees, start dates and workshops someone has actually visited.",
+    "tradeTitle": "{trade} training in {place}",
+    "tradeLead": "Compare fees, start dates and workshops someone has actually visited.",
+    "feeFrom": "Fee from",
+    "length": "Length",
+    "starts": "Starts",
+    "startsWithPlaces": "{date}, {count, plural, one {# place left} other {# left}}",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "askThem": "Ask",
+    "visited": "Visited"
+  },
+  "TeachingLanguages": {
+    "en": "English",
+    "tw": "Twi",
+    "fat": "Fante",
+    "gaa": "Ga",
+    "ee": "Ewe",
+    "ha": "Hausa",
+    "dag": "Dagbani"
   }
 }

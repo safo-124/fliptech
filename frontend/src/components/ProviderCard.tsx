@@ -37,6 +37,7 @@ import { Card } from "@/components/ui/card";
 import { formatDate, formatDistance, formatDuration, formatFee } from "@/lib/format";
 import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
+import { TradeChip } from "./TradeChip";
 import { TrustBadges } from "./TrustBadges";
 
 function Fact({
@@ -102,6 +103,11 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
       >
         <Link
           href={`/${provider.area_slug}/${provider.slug}`}
+          // Not prefetched. Next fetches every card's listing as it scrolls
+          // into view, and a page of twenty results came to about 60 KB of
+          // listings nobody had tapped, on prepaid data. The listing's
+          // loading screen still arrives first when one is tapped.
+          prefetch={false}
           className="flex h-full flex-col p-4 focus-visible:outline-offset-[-2px] sm:p-[1.125rem]"
         >
           <div className="flex gap-3.5">
@@ -158,6 +164,13 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
                   {distance ? ` · ${distance}` : ""}
                 </span>
               </p>
+              {provider.trade ? (
+                <TradeChip
+                  name={provider.trade.name}
+                  colour={provider.trade.colour}
+                  className="mt-2"
+                />
+              ) : null}
             </div>
           </div>
 

@@ -45,6 +45,7 @@ from providers.views import (
     ProviderBySlugView,
     ProviderViewSet,
     TradeAreaSummaryView,
+    UpcomingIntakesView,
 )
 
 router = DefaultRouter()
@@ -157,6 +158,8 @@ urlpatterns = [
     # Public page data. Registered before the router so the two-segment provider
     # address does not collide with the router's detail route.
     path("pages/summary/", TradeAreaSummaryView.as_view(), name="trade-area-summary"),
+    # The search page's departures board: the next courses to start.
+    path("intakes/upcoming/", UpcomingIntakesView.as_view(), name="upcoming-intakes"),
     # The profile page reporting that it was opened, for the dashboard's
     # profile views. Before the router, which owns providers/<pk>/.
     path(

@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ApiError, getProvider, searchProviders } from "@/lib/api";
+import { BRAND } from "@/lib/brand";
 import { formatFeeRange, titleCase } from "@/lib/format";
 import { loadGeneratedTradePage } from "@/lib/generated-page";
 
@@ -72,10 +73,19 @@ export async function generateMetadata({
 
   const provider = await getProvider(area, slug).catch(() => null);
   if (!provider) return { title: t("notFound") };
+  const description = t("providerDescription", { name: provider.name, area: provider.area });
   return {
     title: provider.name,
-    description: t("providerDescription", { name: provider.name, area: provider.area }),
+    description,
     alternates: { canonical: `/${area}/${slug}` },
+    // What WhatsApp writes under the share card (opengraph-image.tsx beside
+    // this file draws the card itself).
+    openGraph: {
+      title: provider.name,
+      description,
+      type: "website",
+      siteName: `${BRAND} Skills Hub`,
+    },
   };
 }
 

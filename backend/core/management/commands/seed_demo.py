@@ -29,13 +29,14 @@ from providers.models import (
     Verification,
 )
 
+# (name, slug, synonyms, colour). See catalog.models.Trade.Colour.
 TRADES = [
-    ("Welding", "welding", ["welder", "fabrication", "arc welding"]),
-    ("Tailoring", "tailoring", ["sewing", "dressmaking", "fashion"]),
-    ("Plumbing", "plumbing", ["pipe fitting", "plumber"]),
-    ("Auto mechanics", "auto-mechanics", ["fitter", "mechanic", "car repair"]),
-    ("Hairdressing", "hairdressing", ["barbering", "salon", "beauty"]),
-    ("Electrical installation", "electrical-installation", ["electrician", "wiring"]),
+    ("Welding", "welding", ["welder", "fabrication", "arc welding"], "spark"),
+    ("Tailoring", "tailoring", ["sewing", "dressmaking", "fashion"], "dye"),
+    ("Plumbing", "plumbing", ["pipe fitting", "plumber"], "clay"),
+    ("Auto mechanics", "auto-mechanics", ["fitter", "mechanic", "car repair"], "steel"),
+    ("Hairdressing", "hairdressing", ["barbering", "salon", "beauty"], "coral"),
+    ("Electrical installation", "electrical-installation", ["electrician", "wiring"], "signal"),
 ]
 
 # Real places in Greater Accra.
@@ -186,9 +187,9 @@ class Command(BaseCommand):
         trades = [
             Trade.objects.update_or_create(
                 slug=slug,
-                defaults={"name": name, "synonyms": syn, "display_order": i},
+                defaults={"name": name, "synonyms": syn, "display_order": i, "colour": colour},
             )[0]
-            for i, (name, slug, syn) in enumerate(TRADES)
+            for i, (name, slug, syn, colour) in enumerate(TRADES)
         ]
 
         count = options["providers"]

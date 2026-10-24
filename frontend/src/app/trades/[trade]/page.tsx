@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { ProviderCard } from "@/components/ProviderCard";
+import { TradeArt } from "@/components/TradeArt";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,15 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
             className="absolute -bottom-40 right-40 size-72 rounded-full bg-[var(--color-visit-bg)] blur-3xl"
           />
 
-          <div className="relative max-w-3xl">
+          {/* The trade's painted signboard picture, beside the heading on a wide
+              screen and above it on a phone. */}
+          <TradeArt
+            colour={found.colour}
+            picture={found.picture}
+            className="relative mb-5 size-24 sm:absolute sm:right-8 sm:top-8 sm:mb-0 sm:size-36 lg:right-12 lg:top-12 lg:size-44"
+            sizes="(max-width: 640px) 96px, 176px"
+          />
+          <div className="relative max-w-3xl sm:pr-40 lg:pr-52">
             <Badge variant="secondary" className="mb-4">
               <BookOpenCheck aria-hidden="true" />
               {t("tradeGuide")}

@@ -493,6 +493,10 @@ def serialize_profile(provider, account=None):
             "fee_includes_ppe": programme.fee_includes_ppe,
             "fee_includes_certificate": programme.fee_includes_certificate,
             "certificate_awarded": programme.certificate_awarded,
+            "extra_costs": (
+                format(programme.extra_costs, ".2f") if programme.extra_costs is not None else None
+            ),
+            "extra_costs_note": programme.extra_costs_note,
             "intake": (
                 {
                     "id": intake.pk,
@@ -520,6 +524,11 @@ def serialize_profile(provider, account=None):
         },
         "address": provider.address,
         "landmark": provider.landmark,
+        "directions": provider.directions,
+        "lead_trainer_name": provider.lead_trainer_name,
+        "in_trade_since": provider.in_trade_since,
+        "apprentices_trained": provider.apprentices_trained,
+        "teaching_languages": provider.teaching_languages,
         "year_established": provider.year_established,
         "premises_tenure": provider.premises_tenure,
         "trainer_count": provider.trainer_count,
@@ -548,6 +557,8 @@ def serialize_profile(provider, account=None):
                 "kind": photo.kind,
                 "url": photo.image.url,
                 "caption": photo.caption,
+                # For a 'before': the finished-work photo it pairs with.
+                "before_of": photo.shows_before_of_id,
             }
             for photo in provider.photos.all()
         ],

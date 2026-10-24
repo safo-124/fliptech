@@ -35,7 +35,7 @@ def demo_slugs():
     return {
         f"{area_slug}-{trade_slug}-{suffix.lower().replace(' ', '-')}"
         for _, area_slug, _, _ in AREAS
-        for _, trade_slug, _ in TRADES
+        for _, trade_slug, *_ in TRADES
         for suffix in WORKSHOP_SUFFIXES
     }
 

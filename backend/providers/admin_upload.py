@@ -75,7 +75,10 @@ def upload_photo(request, provider_id):
     # as premises is cosmetic, while the reverse would let a picture of a yard
     # satisfy "show me the work".
     kind = request.POST.get("kind")
-    if kind not in ProviderPhoto.Kind.values:
+    # Not BEFORE: a 'before' has to be paired with a photo of the finished
+    # work, which this quick upload cannot ask for. Staff pair one on the
+    # photograph's own page instead.
+    if kind not in ProviderPhoto.Kind.values or kind == ProviderPhoto.Kind.BEFORE:
         kind = ProviderPhoto.Kind.WORKSHOP
 
     photo = ProviderPhoto(provider=provider, kind=kind, uploaded_by=request.user)

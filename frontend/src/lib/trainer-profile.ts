@@ -47,6 +47,13 @@ const trainerDraftShape = z.object({
   // Required. A street address does not find a workshop in Accra and a phone
   // GPS pin can be tens of metres out; the field officer navigates by this.
   landmark: requiredText("landmarkRequired", 200),
+  // Public, unlike the landmark: see Provider.directions in the backend.
+  directions: z.string().trim().max(300, v("tooLong")),
+  // The master who teaches. All optional; see Provider.lead_trainer_name.
+  lead_trainer_name: z.string().trim().max(120, v("tooLong")),
+  in_trade_since: optionalWholeNumber,
+  apprentices_trained: optionalWholeNumber,
+  teaching_languages: z.array(z.string()),
   latitude: coordinate(
     {required: "latitudeRequired", invalid: "latitudeInvalid", range: "latitudeRange"},
     -90,
@@ -89,6 +96,13 @@ const trainerDraftShape = z.object({
   fee_includes_ppe: z.boolean(),
   fee_includes_certificate: z.boolean(),
   certificate_awarded: z.string().trim().max(200, v("tooLong")),
+  // What a trainee spends on top of the fee. Optional: "extra" with no figure
+  // is still honest, a guessed figure is not.
+  extra_costs: z
+    .string()
+    .trim()
+    .regex(/^(?:\d+(?:\.\d{1,2})?)?$/, v("amountInvalid")),
+  extra_costs_note: z.string().trim().max(200, v("tooLong")),
   intake_start_date: z.string(),
   places_offered: optionalWholeNumber,
 });
@@ -146,6 +160,8 @@ const courseSchema = trainerDraftShape
     fee_includes_ppe: true,
     fee_includes_certificate: true,
     certificate_awarded: true,
+    extra_costs: true,
+    extra_costs_note: true,
     intake_start_date: true,
     places_offered: true,
   })
@@ -200,6 +216,11 @@ export const EMPTY_TRAINER_DRAFT: TrainerDraftForm = {
   area_id: "",
   address: "",
   landmark: "",
+  directions: "",
+  lead_trainer_name: "",
+  in_trade_since: "",
+  apprentices_trained: "",
+  teaching_languages: [],
   latitude: "",
   longitude: "",
   year_established: "",
@@ -223,6 +244,8 @@ export const EMPTY_TRAINER_DRAFT: TrainerDraftForm = {
   fee_includes_ppe: false,
   fee_includes_certificate: false,
   certificate_awarded: "",
+  extra_costs: "",
+  extra_costs_note: "",
   intake_start_date: "",
   places_offered: "",
 };
@@ -294,6 +317,11 @@ export function trainerProfilePayload(raw: TrainerDraftForm) {
     area_id: Number(raw.area_id),
     address: raw.address.trim(),
     landmark: raw.landmark.trim(),
+    directions: raw.directions.trim(),
+    lead_trainer_name: raw.lead_trainer_name.trim(),
+    in_trade_since: optionalNumber(raw.in_trade_since.trim()),
+    apprentices_trained: optionalNumber(raw.apprentices_trained.trim()),
+    teaching_languages: raw.teaching_languages,
     latitude: Number(raw.latitude.trim()),
     longitude: Number(raw.longitude.trim()),
     year_established: optionalNumber(raw.year_established.trim()),
@@ -323,6 +351,8 @@ function programmePayload(values: z.infer<typeof courseSchema>) {
     fee_includes_ppe: values.fee_includes_ppe,
     fee_includes_certificate: values.fee_includes_certificate,
     certificate_awarded: values.certificate_awarded,
+    extra_costs: values.extra_costs || null,
+    extra_costs_note: values.extra_costs_note,
     // places_remaining is not sent. It is the counter that moves as trainees
     // enrol; the API seeds it from the offer when the intake is created and
     // owns it from then on. Posting it meant every edit silently reset a
@@ -354,6 +384,18 @@ function baseDraftFrom(profile: TrainerProfile) {
     area_id: String(profile.area.id),
     address: profile.address,
     landmark: profile.landmark,
+    // ?? because a profile saved before these existed has none of them.
+    directions: profile.directions ?? "",
+    lead_trainer_name: profile.lead_trainer_name ?? "",
+    in_trade_since:
+      profile.in_trade_since === null || profile.in_trade_since === undefined
+        ? ""
+        : String(profile.in_trade_since),
+    apprentices_trained:
+      profile.apprentices_trained === null || profile.apprentices_trained === undefined
+        ? ""
+        : String(profile.apprentices_trained),
+    teaching_languages: profile.teaching_languages ?? [],
     latitude: String(profile.latitude),
     longitude: String(profile.longitude),
     year_established:
@@ -393,6 +435,9 @@ export function draftFromTrainerProfile(profile: TrainerProfile): TrainerDraftFo
     fee_includes_ppe: programme.fee_includes_ppe,
     fee_includes_certificate: programme.fee_includes_certificate,
     certificate_awarded: programme.certificate_awarded,
+    // ?? because a profile saved before these existed has neither.
+    extra_costs: programme.extra_costs ?? "",
+    extra_costs_note: programme.extra_costs_note ?? "",
     intake_start_date: programme.intake?.start_date ?? "",
     places_offered:
       programme.intake?.places_offered === null || programme.intake?.places_offered === undefined

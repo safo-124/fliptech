@@ -8,7 +8,13 @@ from rest_framework import serializers
 from catalog.models import Trade
 from geography.models import Area
 
-from .models import PremisesTenure, ProviderPhoto, ProviderVideo, TrainerAccount
+from .models import (
+    PremisesTenure,
+    ProviderPhoto,
+    ProviderVideo,
+    TeachingLanguage,
+    TrainerAccount,
+)
 
 
 class RejectUnknownFieldsMixin:
@@ -101,6 +107,17 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     certificate_awarded = serializers.CharField(
         max_length=200, required=False, allow_blank=True, default=""
     )
+    extra_costs = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        allow_null=True,
+        default=None,
+    )
+    extra_costs_note = serializers.CharField(
+        max_length=200, required=False, allow_blank=True, default=""
+    )
     capacity = serializers.IntegerField(
         min_value=1,
         required=False,
@@ -156,6 +173,40 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
         allow_blank=True,
         default="",
     )
+    # Public, unlike the landmark above. See Provider.directions.
+    directions = serializers.CharField(
+        max_length=300,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+
+    # The master who teaches, for the listing's portrait strip.
+    lead_trainer_name = serializers.CharField(
+        max_length=120, required=False, allow_blank=True, default=""
+    )
+    in_trade_since = serializers.IntegerField(
+        min_value=1940, max_value=2100, required=False, allow_null=True, default=None
+    )
+    apprentices_trained = serializers.IntegerField(
+        min_value=0, max_value=10000, required=False, allow_null=True, default=None
+    )
+    teaching_languages = serializers.ListField(
+        child=serializers.ChoiceField(choices=TeachingLanguage.choices),
+        required=False,
+        default=list,
+        max_length=len(TeachingLanguage.choices),
+    )
+
+    def validate_in_trade_since(self, value):
+        if value is not None and value > timezone.localdate().year:
+            raise serializers.ValidationError(_("That year has not happened yet."))
+        return value
+
+    def validate_teaching_languages(self, value):
+        # Once each, in the order offered.
+        return [code for code in TeachingLanguage.values if code in value]
+
     latitude = serializers.FloatField(min_value=-90, max_value=90)
     longitude = serializers.FloatField(min_value=-180, max_value=180)
 
@@ -202,6 +253,8 @@ class TrainerPhotoUploadSerializer(serializers.Serializer):
         choices=ProviderPhoto.Kind.choices, required=False, allow_blank=True
     )
     caption = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    # For kind=before: the photo of the finished work it pairs with.
+    before_of = serializers.IntegerField(required=False)
 
 
 class TrainerPhotoSerializer(serializers.Serializer):
@@ -209,6 +262,7 @@ class TrainerPhotoSerializer(serializers.Serializer):
     kind = serializers.CharField()
     url = serializers.CharField()
     caption = serializers.CharField()
+    before_of = serializers.IntegerField(allow_null=True)
 
 
 class TrainerVideoInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

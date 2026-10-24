@@ -1,5 +1,4 @@
-import {SSR_HEADERS} from "./api";
-import {browserApiUrl} from "./api-origin";
+import {API_URL, TrainerApiError, trainerFetch} from "./trainer-fetch";
 import type {
   Paginated,
   ProviderPhotoKind,
@@ -13,92 +12,10 @@ import type {
   TrainerVideo,
 } from "./types";
 
-const API_URL =
-  typeof window === "undefined"
-    ? (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
-    : browserApiUrl();
+// Re-exported: callers have always imported these from here. See trainer-fetch.ts.
+export {TrainerApiError, trainerFetch} from "./trainer-fetch";
 
 const MAX_REFERENCE_PAGES = 100;
-
-type ErrorMap = Record<string, string>;
-
-export class TrainerApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly fields: ErrorMap = {},
-  ) {
-    super(message);
-  }
-}
-
-function csrfToken(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function flattenErrors(value: unknown, prefix = "", output: ErrorMap = {}): ErrorMap {
-  if (typeof value === "string") {
-    output[prefix || "detail"] = value;
-    return output;
-  }
-  if (Array.isArray(value)) {
-    const messages = value.filter((item): item is string => typeof item === "string");
-    if (messages.length) output[prefix || "detail"] = messages.join(" ");
-    value
-      .filter((item) => typeof item === "object" && item !== null)
-      .forEach((item) => flattenErrors(item, prefix, output));
-    return output;
-  }
-  if (typeof value === "object" && value !== null) {
-    for (const [key, nested] of Object.entries(value)) {
-      flattenErrors(nested, prefix ? `${prefix}.${key}` : key, output);
-    }
-  }
-  return output;
-}
-
-export async function trainerFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const method = (init.method ?? "GET").toUpperCase();
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  // Empty in the browser, which is where this module actually runs today. It
-  // matters only if one of these calls is ever moved to the server, where the
-  // loopback hop to gunicorn needs it — see SSR_HEADERS.
-  for (const [name, value] of Object.entries(SSR_HEADERS)) headers.set(name, value);
-  if (init.body !== undefined && !(init.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    const token = csrfToken();
-    if (token) headers.set("X-CSRFToken", token);
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      method,
-      headers,
-      credentials: "include",
-      cache: "no-store",
-    });
-  } catch {
-    throw new TrainerApiError("Could not reach Skills Hub. Check your connection and try again.", 0);
-  }
-
-  const data: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const fields = flattenErrors(data);
-    throw new TrainerApiError(
-      fields.detail ?? Object.values(fields)[0] ?? "Something went wrong. Try again.",
-      response.status,
-      fields,
-    );
-  }
-  return data as T;
-}
 
 export function getTrainerSession() {
   return trainerFetch<TrainerSession>("/api/trainer/session/me/");
@@ -224,11 +141,14 @@ export async function uploadTrainerPhoto(
   file: File,
   kind: ProviderPhotoKind = "workshop",
   caption = "",
+  beforeOf?: number,
 ) {
   const form = new FormData();
   form.append("image", file);
   form.append("kind", kind);
   if (caption) form.append("caption", caption);
+  // A "before" names the finished-work photo it pairs with.
+  if (beforeOf !== undefined) form.append("before_of", String(beforeOf));
   return trainerFetch<TrainerPhoto>("/api/trainer/profile/photos/", {
     method: "POST",
     body: form,

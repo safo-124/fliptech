@@ -18,7 +18,9 @@ import secrets
 
 from django.conf import settings
 from django.contrib.gis.db import models as gis_models
+from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
+from django.core.exceptions import ValidationError
 from django.core.files.storage import storages
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
@@ -84,8 +86,16 @@ class ProviderQuerySet(models.QuerySet):
             .order_by("start_date", "pk")
         )
 
+        # The gallery and the card's picture: the workshop and the work. A
+        # 'before' rides on the work photo it belongs to, and the entrance
+        # photo is the profile's own (ProviderBySlugView), so neither turns up
+        # as a card's picture or loose in a gallery.
+        gallery = ProviderPhoto.objects.filter(
+            kind__in=[ProviderPhoto.Kind.WORKSHOP, ProviderPhoto.Kind.WORK]
+        ).select_related("before")
+
         return self.select_related("area", "area__region", "government_status").prefetch_related(
-            "photos",
+            Prefetch("photos", queryset=gallery),
             "verifications",
             Prefetch(
                 "programmes",
@@ -94,6 +104,23 @@ class ProviderQuerySet(models.QuerySet):
                 .prefetch_related(Prefetch("intakes", queryset=public_intakes)),
             ),
         )
+
+
+class TeachingLanguage(models.TextChoices):
+    """The languages a workshop teaches in, by their ISO 639 codes.
+
+    A trainee who left school early may follow Twi far better than English,
+    and a workshop that teaches in Ewe or Hausa is worth finding for someone
+    who speaks it. Ghana's widely spoken languages, not an exhaustive list.
+    """
+
+    ENGLISH = "en", "English"
+    TWI = "tw", "Twi"
+    FANTE = "fat", "Fante"
+    GA = "gaa", "Ga"
+    EWE = "ee", "Ewe"
+    HAUSA = "ha", "Hausa"
+    DAGBANI = "dag", "Dagbani"
 
 
 class PremisesTenure(models.TextChoices):
@@ -148,6 +175,40 @@ class Provider(TimeStampedModel):
         max_length=200,
         blank=True,
         help_text="The nearest well-known place. For example: behind Tema Community 1 market.",
+    )
+    # The public counterpart of `landmark`, written by the workshop for
+    # trainees. Separate on purpose: trainers were told the landmark is how a
+    # field officer finds them, not that it would be published, so it never
+    # is. This one is asked for as public, and leads the listing's "find the
+    # gate" card, above the map, because people here navigate by landmarks.
+    directions = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text=(
+            "Public. How a trainee finds the gate. For example: opposite the lorry "
+            "station, blue gate with a painted comb."
+        ),
+    )
+
+    # The master. In Ghanaian apprenticeship a trainee chooses the master or
+    # madam as much as the shop, and the person who teaches is not always the
+    # owner on the record above. All optional and all public: the listing
+    # shows them as a portrait strip, beside a portrait photo (ProviderPhoto
+    # of kind PORTRAIT).
+    lead_trainer_name = models.CharField(
+        max_length=120, blank=True, help_text="The master or madam who does the teaching."
+    )
+    in_trade_since = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="The year they started working in the trade."
+    )
+    apprentices_trained = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Roughly how many apprentices they have trained."
+    )
+    teaching_languages = ArrayField(
+        models.CharField(max_length=4, choices=TeachingLanguage.choices),
+        default=list,
+        blank=True,
+        help_text="The languages the teaching is done in.",
     )
 
     # Asked because they are the questions a workshop that does not exist
@@ -381,6 +442,17 @@ class ProviderPhoto(TimeStampedModel):
 
         WORKSHOP = "workshop", "The workshop"
         WORK = "work", "Work they have done"
+        # The same piece before the work, paired with a WORK photo through
+        # shows_before_of. A braid next to the hair it started as, a gate next
+        # to the rust it replaced: the pair shows skill in a way two unrelated
+        # photographs cannot. Shown only as half of that pair, never alone.
+        BEFORE = "before", "The same work, before"
+        # The gate or door a trainee walks through, for the "find the gate"
+        # card. One per workshop; a new one replaces the old.
+        ENTRANCE = "entrance", "The way in"
+        # The master or madam who teaches, for the listing's portrait strip.
+        # One per workshop; a new one replaces the old.
+        PORTRAIT = "portrait", "The lead trainer"
 
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="photos")
     kind = models.CharField(
@@ -388,6 +460,14 @@ class ProviderPhoto(TimeStampedModel):
         choices=Kind.choices,
         default=Kind.WORKSHOP,
         db_index=True,
+    )
+    shows_before_of = models.OneToOneField(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="before",
+        help_text="For a 'before' photo: the photo of the finished work it goes with.",
     )
     image = models.ImageField(upload_to="providers/%Y/%m/")
     caption = models.CharField(max_length=200, blank=True)
@@ -406,6 +486,23 @@ class ProviderPhoto(TimeStampedModel):
 
     def __str__(self):
         return f"Photo of {self.provider.name}"
+
+    def clean(self):
+        """A 'before' belongs to one photo of this workshop's finished work; nothing else pairs."""
+        super().clean()
+        if self.kind != self.Kind.BEFORE:
+            if self.shows_before_of_id is not None:
+                raise ValidationError({"shows_before_of": "Only a 'before' photo is paired."})
+            return
+        paired = self.shows_before_of
+        if paired is None:
+            raise ValidationError(
+                {"shows_before_of": "Choose the finished work this comes before."}
+            )
+        if paired.kind != self.Kind.WORK or paired.provider_id != self.provider_id:
+            raise ValidationError(
+                {"shows_before_of": "Pair it with a photo of this workshop's finished work."}
+            )
 
     def save(self, *args, **kwargs):
         # `_committed` is False only for a freshly assigned upload, so editing a

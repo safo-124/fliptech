@@ -238,6 +238,110 @@ body {
     filter: saturate(0.35) brightness(1.04) contrast(0.95);
   }
 
+  /* Each trade's accent, named after what the trade works with, so a column
+     of results can be scanned by trade before a word is read. The names are
+     catalog.models.Trade.Colour; the back office's swatches use the same
+     values (admin_catalog.css). Set on an element, then read as
+     --trade-bg (tint), --trade-fg (text on the tint) and --trade-strong. */
+  .trade-spark { --trade-bg: #fde3cc; --trade-fg: #7a3a05; --trade-strong: #e8730c; }
+  .trade-dye { --trade-bg: #d9e4f2; --trade-fg: #0c447c; --trade-strong: #2f6fb5; }
+  .trade-coral { --trade-bg: #fbe3dc; --trade-fg: #8a3b25; --trade-strong: #e0806b; }
+  .trade-timber { --trade-bg: #ecdfcf; --trade-fg: #5c3d1e; --trade-strong: #9a6a3a; }
+  .trade-signal { --trade-bg: #fbefc4; --trade-fg: #633806; --trade-strong: #d9a406; }
+  .trade-steel { --trade-bg: #e1e7ec; --trade-fg: #2f4553; --trade-strong: #5b7a8e; }
+  .trade-clay { --trade-bg: #f4ddd6; --trade-fg: #7a2e1b; --trade-strong: #b5523a; }
+  .trade-leaf { --trade-bg: #e2efd9; --trade-fg: #2f5a12; --trade-strong: #5c9a2d; }
+  .trade-violet { --trade-bg: #ece6fb; --trade-fg: #47208f; --trade-strong: #9867e1; }
+
+  /* The trade's name in its colour, with a dot. See TradeChip. */
+  .trade-chip {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-radius: 999px;
+    padding: 0.125rem 0.625rem;
+    background: var(--trade-bg);
+    color: var(--trade-fg);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+  }
+  .trade-chip::before {
+    content: "";
+    display: inline-block;
+    width: 0.375rem;
+    height: 0.375rem;
+    margin-right: 0.375rem;
+    border-radius: 999px;
+    background: var(--trade-strong);
+    vertical-align: 0.1em;
+  }
+
+  /* A split-flap cell from a departures board, for the intakes board's dates.
+     The line across the middle is the split; each cell flips down into place
+     as the page arrives, staggered by its row. See IntakesBoard. */
+  .flap {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.6ch;
+    padding: 0.2rem 0.35rem;
+    border-radius: 0.3rem;
+    background:
+      linear-gradient(to bottom, transparent calc(50% - 0.5px), oklch(0 0 0 / 0.45) 50%, transparent calc(50% + 0.5px)),
+      oklch(0.17 0.07 292);
+    color: oklch(0.98 0.01 90);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    transform-origin: 50% 0;
+    animation: flap 0.55s cubic-bezier(0.3, 0.9, 0.4, 1) both;
+  }
+  @keyframes flap {
+    from {
+      transform: perspective(160px) rotateX(-90deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flap {
+      animation: none;
+    }
+  }
+
+  /* The aperture mark in motion. See BrandMark. Both rotate about the centre of
+     the mark's 48-unit grid. */
+  .mark-open,
+  .mark-breathe {
+    transform-box: view-box;
+    transform-origin: 24px 24px;
+  }
+  .mark-open {
+    animation: mark-open 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .mark-breathe {
+    animation: mark-breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes mark-open {
+    from {
+      transform: rotate(-120deg) scale(0.35);
+      opacity: 0.2;
+    }
+  }
+  @keyframes mark-breathe {
+    50% {
+      transform: rotate(60deg) scale(0.6);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mark-open,
+    .mark-breathe {
+      animation: none;
+    }
+  }
+
   .scrollbar-none {
     scrollbar-width: none;
   }

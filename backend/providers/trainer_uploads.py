@@ -115,6 +115,25 @@ class TrainerPhotoUploadView(APIView):
         if kind not in ProviderPhoto.Kind.values:
             kind = ProviderPhoto.Kind.WORKSHOP
 
+        # A 'before' is half of a pair, so it names the finished-work photo it
+        # goes with: one of this listing's own, without a 'before' already.
+        before_of = None
+        if kind == ProviderPhoto.Kind.BEFORE:
+            before_of = (
+                provider.photos.filter(
+                    pk=request.data.get("before_of") or 0,
+                    kind=ProviderPhoto.Kind.WORK,
+                    before__isnull=True,
+                ).first()
+                if str(request.data.get("before_of") or "").isdigit()
+                else None
+            )
+            if before_of is None:
+                return Response(
+                    {"detail": _("Choose the photo of the finished work this comes before.")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         if provider.photos.filter(kind=kind).count() >= MAX_PHOTOS_PER_KIND:
             label = ProviderPhoto.Kind(kind).label.lower()
             return Response(
@@ -128,6 +147,7 @@ class TrainerPhotoUploadView(APIView):
         photo = ProviderPhoto(
             provider=provider,
             kind=kind,
+            shows_before_of=before_of,
             uploaded_by=request.user,
             caption=(request.data.get("caption") or "")[:200],
         )
@@ -152,12 +172,19 @@ class TrainerPhotoUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # A workshop has one way in and one master: a new photo of either
+        # replaces the last.
+        if kind in (ProviderPhoto.Kind.ENTRANCE, ProviderPhoto.Kind.PORTRAIT):
+            for old in provider.photos.filter(kind=kind).exclude(pk=photo.pk):
+                old.delete()
+
         return Response(
             {
                 "id": photo.pk,
                 "kind": photo.kind,
                 "caption": photo.caption,
                 "url": photo.image.url,
+                "before_of": photo.shows_before_of_id,
             },
             status=status.HTTP_201_CREATED,
         )

@@ -28,13 +28,21 @@ import { getTranslations } from "next-intl/server";
 
 import { BrandShards } from "@/components/BrandShards";
 import { FilterBar } from "@/components/FilterBar";
+import { IntakesBoard } from "@/components/IntakesBoard";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SearchMapPanel } from "@/components/SearchMapPanel";
+import { TradeArt } from "@/components/TradeArt";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { clientIntl } from "@/i18n/client-intl";
 import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
-import { buildQuery, getTrades, searchProviders, type SearchParams } from "@/lib/api";
+import {
+  buildQuery,
+  getTrades,
+  getUpcomingIntakes,
+  searchProviders,
+  type SearchParams,
+} from "@/lib/api";
 import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
 import { BRAND } from "@/lib/brand";
 import { titleCase } from "@/lib/format";
@@ -89,7 +97,13 @@ export default async function SearchPage({
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
 
-  const [trades, results, regionNames, t, tCoverage, tMap, mapIntl] = await Promise.all([
+  // The departures board belongs to browsing, not to a search someone has
+  // narrowed: it shows on the plain first page only, and is not even fetched
+  // otherwise.
+  const showBoard = !Object.entries(params).some(([key, value]) => value && key !== "page")
+    && (!params.page || params.page === "1");
+
+  const [trades, results, regionNames, t, tCoverage, tMap, mapIntl, upcoming] = await Promise.all([
     getTrades().catch(() => ({ results: [] })),
     searchProviders(params).catch(() => null),
     launchedRegionNames(),
@@ -97,6 +111,7 @@ export default async function SearchPage({
     getTranslations("Coverage"),
     getTranslations("SearchMapPanel"),
     clientIntl(MAP_CLIENT_NAMESPACES),
+    showBoard ? getUpcomingIntakes().catch(() => []) : Promise.resolve([]),
   ]);
   // "in Greater Accra" while that is the only live region, "across Ghana"
   // once naming them stops being readable.
@@ -111,6 +126,7 @@ export default async function SearchPage({
     : t("allProviders");
   const resultTitle =
     groupSize > 0 ? t("withRoomFor", { title: tradeTitle, size: groupSize }) : tradeTitle;
+  const searchedTrade = trades.results.find((trade) => trade.slug === params.trade) ?? null;
 
   return (
     <>
@@ -152,6 +168,12 @@ export default async function SearchPage({
       <div className="app-shell relative z-20 -mt-14 sm:-mt-16">
         <FilterBar trades={trades.results} params={params} />
       </div>
+
+      {showBoard && upcoming.length > 0 ? (
+        <div className="app-shell pt-6 sm:pt-8">
+          <IntakesBoard intakes={upcoming} />
+        </div>
+      ) : null}
 
       {/* pb-24 on phones clears the floating map button below, so it never
           covers the last result card. */}
@@ -227,9 +249,21 @@ export default async function SearchPage({
             {results.count === 0 ? (
               <Card className="grid min-h-64 place-items-center border-dashed p-6 text-center">
                 <div className="max-w-md">
-                  <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]">
-                    <SearchX className="size-5" aria-hidden="true" />
-                  </span>
+                  {/* The searched trade's own picture when there is one to
+                      show: an empty search for welding still looks like
+                      welding, not like an error. */}
+                  {searchedTrade ? (
+                    <TradeArt
+                      colour={searchedTrade.colour}
+                      picture={searchedTrade.picture}
+                      className="mx-auto size-20"
+                      sizes="80px"
+                    />
+                  ) : (
+                    <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]">
+                      <SearchX className="size-5" aria-hidden="true" />
+                    </span>
+                  )}
                   <h3 className="mt-4 text-lg font-semibold">{t("noMatchTitle")}</h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
                     {t("noMatchBody")}

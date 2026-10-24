@@ -14,7 +14,7 @@ def test_every_trade_the_seeder_uses_has_photographs():
     out of the manifest means those providers silently fall back to panels."""
     from core.management.commands.seed_demo import TRADES
 
-    seeded = {slug for _, slug, _ in TRADES}
+    seeded = {slug for _, slug, *_ in TRADES}
 
     assert seeded == set(trade_photos.PHOTOS)
 

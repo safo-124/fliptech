@@ -48,6 +48,7 @@ import {Skeleton} from "@/components/ui/skeleton";
 import {Textarea} from "@/components/ui/textarea";
 import {validationMessage} from "@/i18n/validation";
 import {BRAND} from "@/lib/brand";
+import {TEACHING_LANGUAGES} from "@/lib/teaching-languages";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {
   getTrainerReferenceData,
@@ -118,6 +119,11 @@ const WORKSHOP_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "area_id",
   "address",
   "landmark",
+  "directions",
+  "lead_trainer_name",
+  "in_trade_since",
+  "apprentices_trained",
+  "teaching_languages",
   "latitude",
   "longitude",
   "year_established",
@@ -141,6 +147,8 @@ const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "fee_includes_ppe",
   "fee_includes_certificate",
   "certificate_awarded",
+  "extra_costs",
+  "extra_costs_note",
   "intake_start_date",
   "places_offered",
 ];
@@ -167,6 +175,11 @@ const API_FIELD_NAMES: Record<string, FieldPath<TrainerDraftForm>> = {
   area_id: "area_id",
   address: "address",
   landmark: "landmark",
+  directions: "directions",
+  lead_trainer_name: "lead_trainer_name",
+  in_trade_since: "in_trade_since",
+  apprentices_trained: "apprentices_trained",
+  teaching_languages: "teaching_languages",
   latitude: "latitude",
   longitude: "longitude",
   year_established: "year_established",
@@ -182,6 +195,8 @@ const API_FIELD_NAMES: Record<string, FieldPath<TrainerDraftForm>> = {
   "programme.hours_per_week": "hours_per_week",
   "programme.weekly_schedule": "weekly_schedule",
   "programme.capacity": "capacity",
+  "programme.extra_costs": "extra_costs",
+  "programme.extra_costs_note": "extra_costs_note",
   "programme.intake.start_date": "intake_start_date",
   "programme.intake.places_offered": "places_offered",
 };
@@ -219,6 +234,60 @@ const MAX_PHOTOS_PER_KIND = 8;
  * arrays means one upload response updates the right group without the caller
  * having to know which.
  */
+/**
+ * Under a photo of finished work: the same piece before it was done, or a way
+ * to add one. Optional, and shown to trainees as a before-and-after slider.
+ */
+function BeforePair({
+  work,
+  photos,
+  onAddBefore,
+  onRemove,
+}: {
+  work: TrainerPhoto;
+  photos: TrainerPhoto[];
+  onAddBefore: (file: File, workId: number) => void;
+  onRemove: (photoId: number) => void;
+}) {
+  const t = useTranslations("TrainerJoinWizard");
+  const before = photos.find((photo) => photo.kind === "before" && photo.before_of === work.id);
+  if (before) {
+    return (
+      <div className="mt-1.5 flex items-center gap-2 text-xs">
+        {/* eslint-disable-next-line @next/next/no-img-element -- as above */}
+        <img
+          src={before.url}
+          alt=""
+          className="size-10 rounded-md border border-[var(--color-border)] object-cover"
+        />
+        <span className="min-w-0 flex-1 text-[var(--color-muted-foreground)]">{t("beforeAdded")}</span>
+        <button
+          type="button"
+          onClick={() => onRemove(before.id)}
+          className="min-h-11 px-1 font-medium underline underline-offset-4"
+        >
+          {t("remove")}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <label className="mt-1 flex min-h-11 cursor-pointer items-center text-xs font-medium text-[var(--color-brand-strong)] underline-offset-4 hover:underline">
+      <input
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) onAddBefore(file, work.id);
+        }}
+      />
+      {t("addBefore")}
+    </label>
+  );
+}
+
 function PhotoGroup({
   kind,
   title,
@@ -226,7 +295,10 @@ function PhotoGroup({
   photos,
   uploading,
   onAdd,
+  onAddBefore,
   onRemove,
+  optional = false,
+  max = MAX_PHOTOS_PER_KIND,
 }: {
   kind: ProviderPhotoKind;
   title: string;
@@ -234,7 +306,11 @@ function PhotoGroup({
   photos: TrainerPhoto[];
   uploading: boolean;
   onAdd: (file: File, kind: ProviderPhotoKind) => void;
+  /** For finished work: each photo can be paired with the same piece before. */
+  onAddBefore?: (file: File, workId: number) => void;
   onRemove: (photoId: number) => void;
+  optional?: boolean;
+  max?: number;
 }) {
   const t = useTranslations("TrainerJoinWizard");
   const mine = photos.filter((photo) => photo.kind === kind);
@@ -244,7 +320,7 @@ function PhotoGroup({
     <fieldset disabled={uploading} className="space-y-3">
       <legend className="text-sm font-semibold">
         {title}
-        <RequiredCue />
+        {optional ? <> <OptionalCue /></> : <RequiredCue />}
       </legend>
       <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">{hint}</p>
 
@@ -270,12 +346,20 @@ function PhotoGroup({
               >
                 {t("remove")}
               </Button>
+              {onAddBefore ? (
+                <BeforePair
+                  work={photo}
+                  photos={photos}
+                  onAddBefore={onAddBefore}
+                  onRemove={onRemove}
+                />
+              ) : null}
             </li>
           ))}
         </ul>
       ) : null}
 
-      {mine.length < MAX_PHOTOS_PER_KIND ? (
+      {mine.length < max ? (
         <div className="space-y-2">
           <Label htmlFor={inputId} className="sr-only">
             {t("addPhotoLabel", {title})}
@@ -297,7 +381,7 @@ function PhotoGroup({
             }}
           />
           <p className="text-xs text-[var(--color-muted-foreground)]">
-            {t("photosAdded", {count: mine.length, max: MAX_PHOTOS_PER_KIND})}
+            {t("photosAdded", {count: mine.length, max})}
           </p>
         </div>
       ) : null}
@@ -487,6 +571,7 @@ export function TrainerJoinWizard() {
   const t = useTranslations("TrainerJoinWizard");
   const tValidation = useTranslations("Validation");
   const tFormat = useTranslations("Format");
+  const tLanguage = useTranslations("TeachingLanguages");
   // Which door they came through. There is only one flow — passwordless means
   // signing up and signing in are the same act — but somebody who clicked
   // "Sign up as a trainer" and landed on "Sign in with your phone" reasonably
@@ -803,12 +888,18 @@ export function TrainerJoinWizard() {
     }
   }
 
-  async function addPhoto(file: File, kind: ProviderPhotoKind) {
+  async function addPhoto(file: File, kind: ProviderPhotoKind, beforeOf?: number) {
     setUploadError(null);
     setUploading(true);
     try {
-      const photo = await uploadTrainerPhoto(file, kind);
-      setPhotos((current) => [...current, photo]);
+      const photo = await uploadTrainerPhoto(file, kind, "", beforeOf);
+      // A new photo of the way in, or of the master, replaces the last, on
+      // the server and here.
+      const replaces = kind === "entrance" || kind === "portrait";
+      setPhotos((current) => [
+        ...current.filter((existing) => !replaces || existing.kind !== kind),
+        photo,
+      ]);
     } catch (reason) {
       setUploadError(reason instanceof Error ? reason.message : t("photoUploadFailed"));
     } finally {
@@ -820,7 +911,10 @@ export function TrainerJoinWizard() {
     setUploadError(null);
     try {
       await deleteTrainerPhoto(photoId);
-      setPhotos((current) => current.filter((photo) => photo.id !== photoId));
+      // Removing finished work removes its 'before' with it, on the server too.
+      setPhotos((current) =>
+        current.filter((photo) => photo.id !== photoId && photo.before_of !== photoId),
+      );
     } catch (reason) {
       setUploadError(reason instanceof Error ? reason.message : t("photoRemoveFailed"));
     }
@@ -1474,6 +1568,88 @@ export function TrainerJoinWizard() {
                 <FieldError id="landmark-error" message={errors.landmark?.message} />
               </div>
 
+              {/* Public, unlike the landmark above, and said so: trainers were
+                  told the landmark is only for the field officer. */}
+              <div className="space-y-2">
+                <Label htmlFor="directions">
+                  {t("directionsLabel")} <OptionalCue />
+                </Label>
+                <Input
+                  id="directions"
+                  {...register("directions")}
+                  placeholder={t("directionsPlaceholder")}
+                  aria-invalid={Boolean(errors.directions)}
+                  aria-describedby={describedBy(
+                    "directions-help",
+                    errors.directions && "directions-error",
+                  )}
+                />
+                <p id="directions-help" className="text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  {t("directionsHelp")}
+                </p>
+                <FieldError id="directions-error" message={errors.directions?.message} />
+              </div>
+
+              {/* The master. In apprenticeship a trainee chooses the master as
+                  much as the shop, and it is not always the owner. */}
+              <fieldset className="grid gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:grid-cols-3 sm:p-5">
+                <legend className="px-1.5 text-sm font-semibold">
+                  {t("masterLegend")} <OptionalCue />
+                </legend>
+                <p className="text-xs leading-5 text-[var(--color-muted-foreground)] sm:col-span-3">
+                  {t("masterBody")}
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="lead_trainer_name">{t("masterNameLabel")}</Label>
+                  <Input
+                    id="lead_trainer_name"
+                    {...register("lead_trainer_name")}
+                    placeholder={t("masterNamePlaceholder")}
+                    aria-invalid={Boolean(errors.lead_trainer_name)}
+                  />
+                  <FieldError id="master-name-error" message={errors.lead_trainer_name?.message} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="in_trade_since">{t("inTradeSinceLabel")}</Label>
+                  <Input
+                    id="in_trade_since"
+                    inputMode="numeric"
+                    {...register("in_trade_since")}
+                    placeholder="2012"
+                    aria-invalid={Boolean(errors.in_trade_since)}
+                  />
+                  <FieldError id="in-trade-since-error" message={errors.in_trade_since?.message} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apprentices_trained">{t("apprenticesTrainedLabel")}</Label>
+                  <Input
+                    id="apprentices_trained"
+                    inputMode="numeric"
+                    {...register("apprentices_trained")}
+                    placeholder="40"
+                    aria-invalid={Boolean(errors.apprentices_trained)}
+                  />
+                  <FieldError
+                    id="apprentices-trained-error"
+                    message={errors.apprentices_trained?.message}
+                  />
+                </div>
+                <fieldset className="sm:col-span-3">
+                  <legend className="text-sm font-medium">{t("teachingLanguagesLegend")}</legend>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {TEACHING_LANGUAGES.map((code) => (
+                      <label
+                        key={code}
+                        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm"
+                      >
+                        <input type="checkbox" value={code} {...register("teaching_languages")} />
+                        {tLanguage(code)}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </fieldset>
+
               <fieldset className="grid gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:grid-cols-2 sm:p-5">
                 <legend className="px-1.5 text-sm font-semibold">{t("aboutWorkshop")}</legend>
                 <p className="text-xs leading-5 text-[var(--color-muted-foreground)] sm:col-span-2">
@@ -1732,7 +1908,38 @@ export function TrainerJoinWizard() {
                 photos={photos}
                 uploading={uploading}
                 onAdd={addPhoto}
+                onAddBefore={(file, workId) => void addPhoto(file, "before", workId)}
                 onRemove={removePhoto}
+              />
+
+              <Separator />
+
+              {/* The way in, for the listing's "find the gate" card. */}
+              <PhotoGroup
+                kind="entrance"
+                title={t("entrancePhotoTitle")}
+                hint={t("entrancePhotoHint")}
+                photos={photos}
+                uploading={uploading}
+                onAdd={addPhoto}
+                onRemove={removePhoto}
+                optional
+                max={1}
+              />
+
+              <Separator />
+
+              {/* The master's portrait, for the listing's portrait strip. */}
+              <PhotoGroup
+                kind="portrait"
+                title={t("portraitPhotoTitle")}
+                hint={t("portraitPhotoHint")}
+                photos={photos}
+                uploading={uploading}
+                onAdd={addPhoto}
+                onRemove={removePhoto}
+                optional
+                max={1}
               />
 
               <Separator />
@@ -2024,6 +2231,43 @@ export function TrainerJoinWizard() {
                     />
                   </div>
                 ) : null}
+
+                {/* The extras as money. Trainees see the fee, what it covers
+                    and this as a receipt, with a total to plan for. */}
+                <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <Label htmlFor="extra_costs">
+                      {t("extraCostsLabel")} <OptionalCue />
+                    </Label>
+                    <Input
+                      id="extra_costs"
+                      inputMode="decimal"
+                      {...register("extra_costs")}
+                      placeholder="300"
+                      aria-invalid={Boolean(errors.extra_costs)}
+                      aria-describedby={describedBy(
+                        "extra-costs-help",
+                        errors.extra_costs && "extra-costs-error",
+                      )}
+                    />
+                    <FieldError id="extra-costs-error" message={errors.extra_costs?.message} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="extra_costs_note">{t("extraCostsNoteLabel")}</Label>
+                    <Input
+                      id="extra_costs_note"
+                      {...register("extra_costs_note")}
+                      placeholder={t("extraCostsNotePlaceholder")}
+                      aria-invalid={Boolean(errors.extra_costs_note)}
+                    />
+                  </div>
+                  <p
+                    id="extra-costs-help"
+                    className="text-xs leading-5 text-[var(--color-muted-foreground)] sm:col-span-2"
+                  >
+                    {t("extraCostsHelp")}
+                  </p>
+                </div>
               </fieldset>
 
               <fieldset className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:p-5">

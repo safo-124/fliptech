@@ -35,17 +35,27 @@ class ProviderPhotoSerializer(serializers.ModelSerializer):
     # Not the plain ImageField: DRF would build the URL from the request, and
     # a server-rendered request arrives on loopback. See core/media.py.
     image = serializers.SerializerMethodField()
+    before = serializers.SerializerMethodField()
 
     class Meta:
         model = ProviderPhoto
         # kind lets the profile show the workshop and the work as two groups.
         # A picture of a tidy yard and a picture of a finished gate answer
         # different questions, and one undifferentiated gallery loses that.
-        fields = ["id", "kind", "image", "caption"]
+        fields = ["id", "kind", "image", "caption", "before"]
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_image(self, obj):
         return public_url(obj.image.url, self.context.get("request")) if obj.image else None
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_before(self, obj):
+        """The same work before it was done, for the before-and-after slider."""
+        try:
+            before = obj.before
+        except ProviderPhoto.DoesNotExist:
+            return None
+        return public_url(before.image.url, self.context.get("request")) if before.image else None
 
 
 class VerificationBadgeSerializer(serializers.ModelSerializer):
@@ -100,6 +110,7 @@ class IntakeSerializer(serializers.ModelSerializer):
 class ProgrammeSerializer(serializers.ModelSerializer):
     trade = serializers.CharField(source="trade.name", read_only=True)
     trade_slug = serializers.CharField(source="trade.slug", read_only=True)
+    trade_colour = serializers.CharField(source="trade.colour", read_only=True)
     intakes = serializers.SerializerMethodField()
 
     class Meta:
@@ -109,9 +120,19 @@ class ProgrammeSerializer(serializers.ModelSerializer):
             "title",
             "trade",
             "trade_slug",
+            "trade_colour",
             "fee",
             "instalments_allowed",
             "instalment_note",
+            # The receipt on the listing: what the fee covers, and roughly what
+            # the rest costs.
+            "fee_includes_tools",
+            "fee_includes_materials",
+            "fee_includes_ppe",
+            "fee_includes_certificate",
+            "certificate_awarded",
+            "extra_costs",
+            "extra_costs_note",
             "duration_weeks",
             "hours_per_week",
             "weekly_schedule",
@@ -155,6 +176,7 @@ class ProviderListSerializer(serializers.ModelSerializer):
 
     primary_photo = serializers.SerializerMethodField()
     logo = serializers.SerializerMethodField()
+    trade = serializers.SerializerMethodField()
     # Screen 2 plots these. Without them the map has nothing to draw, which is
     # why they are on the list serializer rather than only on the detail one.
     lat = serializers.SerializerMethodField()
@@ -179,11 +201,31 @@ class ProviderListSerializer(serializers.ModelSerializer):
             "government_status",
             "primary_photo",
             "logo",
+            "trade",
             "lat",
             "lng",
             "listing_confirmed_on",
             "is_stale",
         ]
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_trade(self, obj):
+        """The trade the card is marked with: name, slug and colour, or null.
+
+        The one being searched for when the search names a trade, so a welding
+        search never shows a workshop's cheaper plumbing course as its label.
+        Otherwise the trade of its cheapest course, the one "fee from" quotes.
+        Read from the prefetched courses, so it adds no query.
+        """
+        programmes = [p for p in obj.programmes.all() if p.is_active and p.trade.is_active]
+        if not programmes:
+            return None
+        request = self.context.get("request")
+        wanted = request.query_params.get("trade") if request is not None else None
+        chosen = next((p for p in programmes if p.trade.slug == wanted), None) or min(
+            programmes, key=lambda p: (p.fee, p.pk)
+        )
+        return {"name": chosen.trade.name, "slug": chosen.trade.slug, "colour": chosen.trade.colour}
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_distance_m(self, obj):
@@ -248,6 +290,8 @@ class ProviderDetailSerializer(ProviderListSerializer):
     should I trust this workshop with my money."""
 
     photos = ProviderPhotoSerializer(many=True, read_only=True)
+    entrance_photo = serializers.SerializerMethodField()
+    master = serializers.SerializerMethodField()
     videos = serializers.SerializerMethodField()
     programmes = serializers.SerializerMethodField()
     verifications = VerificationBadgeSerializer(many=True, read_only=True)
@@ -257,6 +301,10 @@ class ProviderDetailSerializer(ProviderListSerializer):
     class Meta(ProviderListSerializer.Meta):
         fields = ProviderListSerializer.Meta.fields + [
             "address",
+            # Public directions, never the private landmark: see Provider.directions.
+            "directions",
+            "entrance_photo",
+            "master",
             "owner_name",
             "photos",
             "videos",
@@ -265,6 +313,42 @@ class ProviderDetailSerializer(ProviderListSerializer):
             "government_status_detail",
             "contact_phone",
         ]
+
+    def _single_photo_url(self, obj, kind):
+        """The newest photo of a one-per-workshop kind. ProviderBySlugView prefetches them."""
+        photos = getattr(obj, "single_photos", None)
+        if photos is None:
+            photos = obj.photos.filter(kind=kind).order_by("-created_at")
+        photo = next((photo for photo in photos if photo.kind == kind), None)
+        return public_url(photo.image.url, self.context.get("request")) if photo else None
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_entrance_photo(self, obj):
+        """The way in, for the "find the gate" card."""
+        return self._single_photo_url(obj, ProviderPhoto.Kind.ENTRANCE)
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_master(self, obj):
+        """The master or madam who teaches, for the portrait strip; null if unknown.
+
+        Years in the trade are worked out here from the year they started, so
+        the figure does not go stale the way a typed "12 years" would.
+        """
+        from django.utils import timezone
+
+        portrait = self._single_photo_url(obj, ProviderPhoto.Kind.PORTRAIT)
+        if not (obj.lead_trainer_name or portrait or obj.in_trade_since):
+            return None
+        years = (
+            max(0, timezone.localdate().year - obj.in_trade_since) if obj.in_trade_since else None
+        )
+        return {
+            "name": obj.lead_trainer_name,
+            "portrait": portrait,
+            "years_in_trade": years,
+            "apprentices_trained": obj.apprentices_trained,
+            "languages": obj.teaching_languages,
+        }
 
     @extend_schema_field(ProviderVideoSerializer(many=True))
     def get_videos(self, obj):

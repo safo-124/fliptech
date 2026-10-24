@@ -13,14 +13,55 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from simple_history.models import HistoricalRecords
 
+from core.images import has_transparency, strip_exif, stripped_name
 from core.models import TimeStampedModel
+
+# Shown at most a few hundred pixels across: on the trade page, in empty states
+# and on share cards.
+MAX_TRADE_PICTURE_EDGE = 1024
+
+
+def prepare_trade_picture(django_file):
+    """(content, is_png) for a trade's painted picture; (None, False) if unreadable."""
+    as_png = has_transparency(django_file)
+    content = strip_exif(django_file, max_edge=MAX_TRADE_PICTURE_EDGE, keep_transparency=True)
+    return (content, as_png) if content is not None else (None, False)
 
 
 class Trade(TimeStampedModel):
     """Welding, tailoring, plumbing and so on. A fixed list, never free text."""
 
+    class Colour(models.TextChoices):
+        """Each trade's accent, taken from what the trade works with.
+
+        Someone scanning a column of results looks for their trade before they
+        read a name, and a colour is found faster than a word. Named after the
+        material rather than the hue, so the choice for a new trade is obvious.
+        The hex values live in the site's stylesheet (frontend globals.css).
+        """
+
+        SPARK = "spark", "Spark orange: welding, metalwork"
+        DYE = "dye", "Dye blue: tailoring, textiles"
+        CORAL = "coral", "Coral: hair and beauty"
+        TIMBER = "timber", "Timber brown: carpentry, furniture"
+        SIGNAL = "signal", "Signal yellow: electrical, solar"
+        STEEL = "steel", "Steel blue-grey: mechanics, machines"
+        CLAY = "clay", "Clay red: building, plumbing, tiling"
+        LEAF = "leaf", "Leaf green: food, farming"
+        VIOLET = "violet", "Brand violet: anything else"
+
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
+    colour = models.CharField(max_length=10, choices=Colour.choices, default=Colour.VIOLET)
+    # The trade's hand-painted signboard picture, in the style of Ghana's
+    # painted barber and salon signs. Commissioned from a sign painter, so most
+    # trades have none at first: the site shows the trade's icon in its colour
+    # until one is uploaded.
+    picture = models.ImageField(
+        upload_to="trades/",
+        blank=True,
+        help_text="The hand-painted signboard picture for this trade. Square, 600px or larger.",
+    )
 
     # Plain full-text search will not match "welder" to "welding", "sewing" to
     # "tailoring", or "fitter" to "auto mechanic" — and that is how people
@@ -45,6 +86,16 @@ class Trade(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # A photographed painting carries the phone's metadata like any other
+        # photograph. Re-encoded only when freshly uploaded, and kept as PNG if
+        # the painter's file has a transparent background.
+        if self.picture and not self.picture._committed:
+            content, as_png = prepare_trade_picture(self.picture)
+            if content is not None:
+                self.picture.save(stripped_name(self.picture.name, png=as_png), content, save=False)
+        super().save(*args, **kwargs)
 
 
 class Programme(TimeStampedModel):
@@ -92,6 +143,24 @@ class Programme(TimeStampedModel):
         max_length=200,
         blank=True,
         help_text="What the trainee receives on completion. Left blank if nothing is awarded.",
+    )
+
+    # What the fee leaves out, as money. The four booleans above can only say
+    # "extra"; a trainee weighing GHC1,800 against GHC2,000 needs to know the
+    # first also means GHC300 of hair to practise on. The listing shows the
+    # fee, what it covers and this as a receipt, with a total to plan for.
+    extra_costs = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="Roughly what a trainee spends on top of the fee, in cedis. Blank if unknown.",
+    )
+    extra_costs_note = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="What that money is for. For example: hair and extensions to practise on.",
     )
 
     is_active = models.BooleanField(default=True)

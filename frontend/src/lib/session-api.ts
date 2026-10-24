@@ -6,7 +6,7 @@
  * portal's whole client into the bundle of the search page.
  */
 
-import {trainerFetch} from "./trainer-api";
+import {trainerFetch} from "./trainer-fetch";
 import type {Whoami} from "./types";
 
 export function getWhoami() {

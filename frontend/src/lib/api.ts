@@ -16,6 +16,7 @@ import type {
   ProviderDetail,
   Region,
   Trade,
+  UpcomingIntake,
 } from "./types";
 
 /**
@@ -178,6 +179,13 @@ export async function searchAllProviders(params: SearchParams = {}) {
 
 export function getProvider(area: string, slug: string) {
   return fetchJson<ProviderDetail>(`/api/providers/${area}/${slug}/`);
+}
+
+/** The next courses to start, for the departures board on the search page. */
+// Three: what a phone shows, and each row more counts against the search
+// page's 200 KB budget.
+export function getUpcomingIntakes(limit = 3) {
+  return fetchJson<UpcomingIntake[]>(`/api/intakes/upcoming/?limit=${limit}`);
 }
 
 export function getTrades() {
