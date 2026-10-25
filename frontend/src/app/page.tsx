@@ -45,6 +45,7 @@ import {
   type SearchParams,
 } from "@/lib/api";
 import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
+import { toMapProviders } from "@/lib/map-provider";
 import { BRAND } from "@/lib/brand";
 import { titleCase } from "@/lib/format";
 
@@ -338,7 +339,7 @@ export default async function SearchPage({
                           message formatter on every phone. The map brings its
                           own, lazily. See SearchMapWithMessages. */}
                       <SearchMapPanel
-                        providers={results.results}
+                        providers={toMapProviders(results.results)}
                         labels={{ loading: tMap("loading"), onThisPage: tMap("onThisPage") }}
                         intl={mapIntl}
                       />

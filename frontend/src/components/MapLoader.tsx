@@ -17,7 +17,7 @@ import { List, MapPinned, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ProviderCard } from "@/lib/types";
+import type { MapProvider } from "@/lib/map-provider";
 
 /**
  * Placeholder sizing.
@@ -129,7 +129,7 @@ export function MapLoader({
   fill = false,
   immersive = false,
 }: {
-  providers: ProviderCard[];
+  providers: MapProvider[];
   listHref?: string;
   /** Take the parent's height rather than a fixed fraction of the viewport. */
   fill?: boolean;

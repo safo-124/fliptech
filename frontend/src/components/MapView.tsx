@@ -30,13 +30,13 @@ import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
 import { formatFee } from "@/lib/format";
 import { softTilesClass, TILE_ATTRIBUTION, TILE_URL } from "@/lib/map-tiles";
-import type { ProviderCard } from "@/lib/types";
+import type { MapProvider } from "@/lib/map-provider";
 
 import { clusterIcon, pinIcon } from "./map/pins";
 
 type ClusterPoint = {
   type: "Feature";
-  properties: { cluster: false; provider: ProviderCard };
+  properties: { cluster: false; provider: MapProvider };
   geometry: { type: "Point"; coordinates: [number, number] };
 };
 
@@ -50,7 +50,7 @@ function viewportOf(map: L.Map): Viewport {
   };
 }
 
-function Clusters({ providers }: { providers: ProviderCard[] }) {
+function Clusters({ providers }: { providers: MapProvider[] }) {
   const map = useMap();
   const t = useTranslations("MapView");
   const tFormat = useTranslations("Format");
@@ -188,7 +188,7 @@ function MapAccessibility({
   return null;
 }
 
-function hasValidCoordinates(provider: ProviderCard) {
+function hasValidCoordinates(provider: MapProvider) {
   return (
     Number.isFinite(provider.lat) &&
     Number.isFinite(provider.lng) &&
@@ -205,7 +205,7 @@ export default function MapView({
   immersive = false,
   scopeLabel,
 }: {
-  providers: ProviderCard[];
+  providers: MapProvider[];
   /** Fill the parent's height instead of a fixed viewport fraction. Used by the
       search-page side panel, which is already height-constrained. */
   fillParent?: boolean;

@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { buildQuery, searchAllProviders, type SearchParams } from "@/lib/api";
+import { toMapProviders } from "@/lib/map-provider";
 import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -233,7 +234,12 @@ export default async function MapPage({
             header. From lg it goes back to being a card in the grid. */}
         <div className="relative -mx-3 h-[calc(100dvh-4rem)] overflow-hidden bg-[var(--color-card)] lg:mx-0 lg:h-auto lg:rounded-2xl lg:border lg:border-[var(--color-border-strong)] lg:shadow-[var(--shadow-lg)]">
           <ClientMessages namespaces={MAP_CLIENT_NAMESPACES}>
-            <MapLoader providers={mappableProviders} listHref={listHref} fill immersive />
+            <MapLoader
+              providers={toMapProviders(mappableProviders)}
+              listHref={listHref}
+              fill
+              immersive
+            />
           </ClientMessages>
 
           {/* Back to the list. The header's List/Map switch is off-screen on a

@@ -35,7 +35,7 @@ import { createContext, useContext, useSyncExternalStore } from "react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ClientIntl } from "@/i18n/client-intl";
-import type { ProviderCard } from "@/lib/types";
+import type { MapProvider } from "@/lib/map-provider";
 
 const DESKTOP_QUERY = "(min-width: 1024px)";
 
@@ -88,7 +88,7 @@ export function SearchMapPanel({
   labels,
   intl,
 }: {
-  providers: ProviderCard[];
+  providers: MapProvider[];
   labels: SearchMapPanelLabels;
   /** For the map's own provider, rendered inside its lazy chunk. */
   intl: ClientIntl;
