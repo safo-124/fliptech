@@ -50,7 +50,7 @@ export function SiteHeader() {
             size="sm"
             className="hidden text-white/75 hover:bg-white/10 hover:text-white sm:inline-flex"
           >
-            <Link href="/">
+            <Link href="/training">
               {t("findTraining")}
               <ArrowRight aria-hidden />
             </Link>
