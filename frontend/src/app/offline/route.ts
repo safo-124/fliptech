@@ -53,7 +53,7 @@ a{border:1px solid #e0dcd4;background:#fff;color:${deep}}
 <p>This page needs a connection, and your phone does not have one right now. Pages you have opened on this phone before still work without one.</p>
 <div class="actions">
 <button type="button" onclick="location.reload()">Try again</button>
-<a href="/">Search for training</a>
+<a href="/training">Search for training</a>
 </div>
 </div>
 </main>

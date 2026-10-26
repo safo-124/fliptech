@@ -176,7 +176,7 @@ export function TraineeOverview({
             {t("readyBody")}
           </p>
           <Button asChild variant="brand" className="mx-auto mt-5">
-            <Link href="/">
+            <Link href="/training">
               {t("findTraining")}
               <ArrowRight aria-hidden="true" />
             </Link>

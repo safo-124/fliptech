@@ -179,7 +179,7 @@ function Empty({title, text}: {title: string; text: string}) {
       <p className="font-semibold">{title}</p>
       <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{text}</p>
       <Button asChild variant="outline" className="mx-auto mt-4">
-        <Link href="/">
+        <Link href="/training">
           {t("findTraining")}
           <ArrowRight aria-hidden="true" />
         </Link>

@@ -1,6 +1,8 @@
 import {expect, test, type Page} from "@playwright/test";
 
 const publicSite = process.env.PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
+/** Results moved off `/` when the landing page took it. */
+const searchPage = `${publicSite}/training`;
 
 async function expectNoPageOverflow(page: Page) {
   const hasOverflow = await page.evaluate(
@@ -20,7 +22,7 @@ test.describe("public discovery UI", () => {
   test("keeps filters and comparison cards usable on a phone", async ({page}) => {
     test.setTimeout(60_000);
     await page.setViewportSize({width: 375, height: 812});
-    await page.goto(publicSite);
+    await page.goto(searchPage);
 
     await expect(
       page.getByRole("heading", {
@@ -46,7 +48,7 @@ test.describe("public discovery UI", () => {
   test("searches by finishing the sentence, or by tapping a trade", async ({page}) => {
     test.setTimeout(60_000);
     await page.setViewportSize({width: 375, height: 812});
-    await page.goto(publicSite);
+    await page.goto(searchPage);
 
     // The phone's own picker, so a plain choice and a submit, with no script.
     const trade = page.getByLabel("Trade", {exact: true});
@@ -72,7 +74,7 @@ test.describe("public discovery UI", () => {
   }) => {
     test.setTimeout(60_000);
     await page.setViewportSize({width: 1440, height: 1000});
-    await page.goto(`${publicSite}/?q=Accra&max_fee=2500&verified_only=true`);
+    await page.goto(`${searchPage}?q=Accra&max_fee=2500&verified_only=true`);
 
     const viewSwitch = page.getByRole("navigation", {name: /choose results view/i});
     await expect(viewSwitch).toBeVisible();
@@ -95,7 +97,7 @@ test.describe("public discovery UI", () => {
   test("stays balanced at the tablet breakpoint", async ({page}) => {
     test.setTimeout(60_000);
     await page.setViewportSize({width: 768, height: 1024});
-    await page.goto(publicSite);
+    await page.goto(searchPage);
 
     await expect(page.locator("article").first()).toBeVisible();
     await expect(page.locator("[data-provider-map]")).toHaveCount(0);
@@ -105,7 +107,7 @@ test.describe("public discovery UI", () => {
   test("keeps the provider and enquiry journey clear on a phone", async ({page}) => {
     test.setTimeout(60_000);
     await page.setViewportSize({width: 390, height: 844});
-    await page.goto(publicSite);
+    await page.goto(searchPage);
 
     const providerHref = await page.locator("article a").first().getAttribute("href");
     expect(providerHref).toBeTruthy();

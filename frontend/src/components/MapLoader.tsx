@@ -125,7 +125,7 @@ class MapErrorBoundary extends Component<
 
 export function MapLoader({
   providers,
-  listHref = "/",
+  listHref = "/training",
   fill = false,
   immersive = false,
 }: {

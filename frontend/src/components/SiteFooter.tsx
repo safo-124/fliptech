@@ -71,7 +71,7 @@ export async function SiteFooter() {
           ) : null}
         </div>
         <nav className="flex gap-5 text-xs font-medium text-white/75" aria-label={t("footerNavigation")}>
-          <Link href="/" className="hover:text-white hover:underline">{t("browseProviders")}</Link>
+          <Link href="/training" className="hover:text-white hover:underline">{t("browseProviders")}</Link>
           <Link href="/map" className="hover:text-white hover:underline">{t("exploreMap")}</Link>
           <Link href="/trainer/join" className="hover:text-white hover:underline">{t("forTrainers")}</Link>
           <Link href="/privacy" className="hover:text-white hover:underline">{t("privacy")}</Link>

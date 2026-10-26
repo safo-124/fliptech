@@ -65,7 +65,7 @@ function EnquiryFlow() {
     return (
       <EnquiryPageFrame>
         <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
-          <Link href="/">
+          <Link href="/training">
             <ArrowLeft aria-hidden="true" />
             {t("backToSearch")}
           </Link>
@@ -80,7 +80,7 @@ function EnquiryFlow() {
               {t("chooseCourseBody")}
             </p>
             <Button asChild variant="brand" className="mt-6">
-              <Link href="/">
+              <Link href="/training">
                 {t("findTraining")}
                 <ArrowRight aria-hidden="true" />
               </Link>
@@ -160,7 +160,7 @@ function EnquiryFlow() {
               </div>
             </div>
             <Button asChild variant="ghost" className="mt-3 w-full">
-              <Link href="/">
+              <Link href="/training">
                 {t("compareMore")}
                 <ArrowRight aria-hidden="true" />
               </Link>
@@ -174,7 +174,7 @@ function EnquiryFlow() {
   return (
     <EnquiryPageFrame>
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
-        <Link href="/">
+        <Link href="/training">
           <ArrowLeft aria-hidden="true" />
           {t("backToSearch")}
         </Link>

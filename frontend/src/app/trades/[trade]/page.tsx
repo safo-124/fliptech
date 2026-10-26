@@ -63,7 +63,7 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
 
       <div className="app-shell relative py-4 sm:py-7 lg:py-10">
         <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3">
-          <Link href="/">
+          <Link href="/training">
             <ArrowLeft aria-hidden="true" />
             {t("searchAll")}
           </Link>
@@ -157,7 +157,7 @@ export default async function TradePage({ params }: { params: Promise<{ trade: s
         )}
 
         <Button asChild variant="outline" className="mt-8 w-full sm:w-auto">
-          <Link href="/">
+          <Link href="/training">
             {t("searchAll")}
             <ArrowRight aria-hidden="true" />
           </Link>

@@ -133,7 +133,7 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
         />
         <div className="app-shell relative pt-3 sm:pt-5">
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2">
-            <Link href="/">
+            <Link href="/training">
               <ArrowLeft aria-hidden="true" />
               {t("backToSearch")}
             </Link>

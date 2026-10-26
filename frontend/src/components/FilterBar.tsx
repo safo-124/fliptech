@@ -39,7 +39,7 @@ function withParam(current: SearchParams, key: keyof SearchParams, value?: strin
   if (value) next.set(key, value);
   else next.delete(key);
   const query = next.toString();
-  return query ? `/?${query}` : "/";
+  return query ? `/training?${query}` : "/training";
 }
 
 const FORM_FIELDS = new Set<keyof SearchParams>([
@@ -104,14 +104,14 @@ export function FilterBar({
       <Card className="relative bg-[var(--color-card)] p-4 shadow-[var(--shadow-lg)] sm:p-6">
         {hasFilters ? (
           <Button asChild variant="ghost" size="sm" className="absolute right-2 top-2 min-h-11">
-            <Link href="/">
+            <Link href="/training">
               <X aria-hidden="true" />
               {t("clearFilters")}
             </Link>
           </Button>
         ) : null}
 
-        <form action="/" method="get">
+        <form action="/training" method="get">
           {preservedParams.map(([key, value]) => (
             <input key={key} type="hidden" name={key} value={value} />
           ))}

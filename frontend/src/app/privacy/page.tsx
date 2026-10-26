@@ -396,7 +396,7 @@ export default function PrivacyPage() {
 
         <div className="border-t border-[var(--color-border)] pt-6">
           <Link
-            href="/"
+            href="/training"
             className="text-sm font-semibold text-[var(--color-brand)] hover:underline"
           >
             Back to finding training

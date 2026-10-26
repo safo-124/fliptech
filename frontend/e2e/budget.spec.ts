@@ -16,6 +16,10 @@ import {expect, test, type Page} from "@playwright/test";
  */
 
 const publicSite = process.env.PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
+// `/` is the landing page; the budget is the results page's, so it is
+// requested directly rather than through the redirect, which would add a
+// round trip to the 3G paint measurement and measure the wrong thing.
+const searchPage = `${publicSite}/training`;
 
 const BUDGET_BYTES = 200 * 1024;
 const FIRST_PAINT_MS = 3_000;
@@ -73,7 +77,7 @@ test.describe("search page budgets", () => {
     await cdp.send("Network.enable");
     await cdp.send("Network.setCacheDisabled", {cacheDisabled: true});
 
-    await page.goto(publicSite, {waitUntil: "load"});
+    await page.goto(searchPage, {waitUntil: "load"});
     test.skip(await isDevServer(page), "Budgets only mean something against a production build.");
 
     const entries = await weigh(page);
@@ -95,7 +99,7 @@ test.describe("search page budgets", () => {
     await cdp.send("Network.setCacheDisabled", {cacheDisabled: true});
     await cdp.send("Network.emulateNetworkConditions", THREE_G);
 
-    await page.goto(publicSite, {waitUntil: "load"});
+    await page.goto(searchPage, {waitUntil: "load"});
     test.skip(await isDevServer(page), "Budgets only mean something against a production build.");
 
     const firstPaint = await page.evaluate(

@@ -38,6 +38,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     { url: site, changeFrequency: "daily", priority: 1 },
+    // The results page, since `/` stopped being it. Listed just under the
+    // front door: it is where every trade and area page sends people, and
+    // where the inventory actually is.
+    { url: `${site}/training`, changeFrequency: "daily", priority: 0.9 },
     // Low priority, but it should be findable: a privacy policy nobody can
     // locate is not published in any useful sense.
     { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.3 },

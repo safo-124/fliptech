@@ -136,7 +136,7 @@ export default async function MapPage({
     ),
   );
   const query = buildQuery(params);
-  const listHref = `/${query}`;
+  const listHref = `/training${query}`;
   const mapHref = `/map${query}`;
   const hasActiveFilters = Object.values(params).some(Boolean);
 

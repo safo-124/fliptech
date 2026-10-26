@@ -60,10 +60,15 @@ const SECTIONS = new Set([
   "trades",
   "trainee",
   "trainer",
+  "training",
 ]);
 
 function keepable(path) {
-  if (path === "/" || path === "/map" || path === "/privacy") return true;
+  // "/training" is the results page; "/" is the landing page that sends
+  // people to it. Both are worth having offline, for different reasons.
+  if (path === "/" || path === "/training" || path === "/map" || path === "/privacy") {
+    return true;
+  }
   if (/^\/trades\/[^/]+\/?$/.test(path)) return true;
   // A listing, /<area>/<workshop>. Not its "report a problem" form, which is
   // a third segment and so never matches.

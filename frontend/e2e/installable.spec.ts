@@ -10,6 +10,8 @@ import {expect, test, type APIRequestContext, type Page} from "@playwright/test"
 
 const publicSite = process.env.PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
 const OFFLINE_HEADING = "You're offline";
+/** Results moved off `/` when the landing page took it. */
+const searchPage = `${publicSite}/training`;
 
 /** Width and height from a PNG's header, which is all a phone checks. */
 async function pngSize(request: APIRequestContext, path: string) {
@@ -85,7 +87,7 @@ test.describe("with no signal", () => {
     context,
   }) => {
     test.setTimeout(60_000);
-    await page.goto(publicSite);
+    await page.goto(searchPage);
     test.skip(!(await hasWorker(page)), "The worker is only registered in a production build.");
     await page.evaluate(() => navigator.serviceWorker.ready);
     // The first visit installs the worker; from here it answers for the page.
@@ -112,7 +114,7 @@ test.describe("with no signal", () => {
 
     await context.setOffline(true);
     try {
-      await page.goto(publicSite);
+      await page.goto(searchPage);
       expect(await heading(page)).toBe(searchHeading);
 
       if (listing) {
