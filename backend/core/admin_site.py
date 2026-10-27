@@ -222,6 +222,60 @@ class SkillsHubAdminSite(AdminSite):
 
     # -- the panel ---------------------------------------------------------
 
+    @staticmethod
+    def build_marketplace(last_30):
+        """The third pillar, in the one place staff look at everything.
+
+        Products are not reviewed one by one — a confirmed seller publishes
+        their own. That makes two numbers worth putting on the front page
+        rather than leaving in a changelist: sellers waiting to be confirmed,
+        because that queue is the only gate there is, and products currently
+        hidden because their seller is not allowed to sell, because those are
+        rows that say "Published" and are not.
+        """
+        from marketplace.models import Product, SellerAccount
+
+        sellers = SellerAccount.objects.all()
+        confirmed = sellers.filter(
+            approval_status=SellerAccount.Approval.CONFIRMED, is_active=True
+        )
+        waiting = sellers.filter(approval_status=SellerAccount.Approval.PENDING).count()
+
+        products = Product.objects.all()
+        live = Product.objects.visible().count()
+        published = products.filter(status=Product.Status.PUBLISHED).count()
+
+        return {
+            "sellers": confirmed.count(),
+            "sellers_waiting": waiting,
+            # A seller with no workshop behind them has nothing on file but a
+            # phone number, so confirming one is a different decision from
+            # confirming a workshop that has already been through the trainer
+            # queue. Worth knowing how much of the queue is which.
+            "traders": confirmed.filter(provider__isnull=True).count(),
+            "workshops_selling": confirmed.filter(provider__isnull=False).count(),
+            "live": live,
+            # Published rows their seller cannot currently show. Not an error:
+            # it is what switching a seller off does. It is here so nobody
+            # reads the published count as what buyers can see.
+            "hidden_by_seller": published - live,
+            "taken_down": products.filter(status=Product.Status.SUSPENDED).count(),
+            "new_30": products.filter(created_at__gte=last_30).count(),
+            "bar": charts.stacked_bar(
+                [
+                    ("Live", live, charts.GOOD),
+                    ("Draft", products.filter(status=Product.Status.DRAFT).count(), charts.MUTED),
+                    ("Hidden", published - live, charts.WARN),
+                    (
+                        "Taken down",
+                        products.filter(status=Product.Status.SUSPENDED).count(),
+                        charts.BAD,
+                    ),
+                ],
+                height=10,
+            ),
+        }
+
     def build_panel(self, request):
         from billing.models import Subscription
         from catalog.models import Trade
@@ -429,6 +483,7 @@ class SkillsHubAdminSite(AdminSite):
         }
 
         panel["people"] = self.build_people(request, now, last_30, work, all_providers)
+        panel["marketplace"] = self.build_marketplace(last_30)
 
         # Whether this month's enrolment number has been asked for, workshop by
         # workshop. See enquiries/check_ins.py.

@@ -455,6 +455,65 @@
 
   </div>
 
+  {# ---- Marketplace ---- #}
+  <h2>Marketplace</h2>
+  <div class="sh-grid">
+
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Sellers</div>
+        <div class="sh-title">{{ panel.marketplace.sellers }} <span class="sh-of">confirmed</span></div>
+        <div class="sh-action">
+          <span class="sh-badge {% if panel.marketplace.sellers_waiting %}warn{% else %}good{% endif %}">
+            {{ panel.marketplace.sellers_waiting }} waiting
+          </span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">
+          {{ panel.marketplace.workshops_selling }} workshop{{ panel.marketplace.workshops_selling|pluralize }},
+          {{ panel.marketplace.traders }} seller{{ panel.marketplace.traders|pluralize }} only
+        </div>
+        <div class="sh-foot-muted">Confirming a seller is the only gate: their products go live by themselves afterwards. Somebody with no workshop behind them has nothing on file but a phone number.</div>
+      </div>
+    </div>
+
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Products a buyer can see</div>
+        <div class="sh-title">{{ panel.marketplace.live }}</div>
+        <div class="sh-action">
+          <span class="sh-badge">{{ panel.marketplace.new_30 }} new in 30 days</span>
+        </div>
+      </div>
+      {{ panel.marketplace.bar }}
+      <div class="sh-foot">
+        <div class="sh-foot-muted">Draft is the seller's own. Hidden is published but their seller is switched off. Taken down is a staff decision.</div>
+      </div>
+    </div>
+
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Needs a look</div>
+        <div class="sh-title">{{ panel.marketplace.taken_down }} <span class="sh-of">taken down</span></div>
+        <div class="sh-action">
+          <span class="sh-badge {% if panel.marketplace.hidden_by_seller %}warn{% else %}good{% endif %}">
+            {{ panel.marketplace.hidden_by_seller }} hidden
+          </span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">
+          <a href="{% url 'admin:marketplace_selleraccount_changelist' %}?approval_status__exact=pending">Confirm sellers</a>
+          &middot;
+          <a href="{% url 'admin:marketplace_product_changelist' %}">All products</a>
+        </div>
+        <div class="sh-foot-muted">"Hidden" means published products whose seller is switched off — rows that say Published and are not.</div>
+      </div>
+    </div>
+
+  </div>
+
   {# ---- Coverage ---- #}
   <h2>Coverage — where to go next</h2>
   <div class="sh-grid">
