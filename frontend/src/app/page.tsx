@@ -195,11 +195,12 @@ export default async function Home({
           soon={t("soon")}
         />
         <Pillar
+          href="/marketplace"
           icon={<Store aria-hidden="true" className="size-5" />}
           tone="dye"
           title={t("pillarMarketTitle")}
           body={t("pillarMarketBody")}
-          soon={t("soon")}
+          action={t("pillarMarketAction")}
         />
       </section>
 
@@ -283,16 +284,11 @@ export default async function Home({
           <p className="mt-2.5 max-w-[70ch] text-sm leading-relaxed text-[var(--color-muted-foreground)]">
             {t("comingBody")}
           </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5">
             <ComingRow
               icon={<PlayCircle aria-hidden="true" className="size-4" />}
               title={t("comingLearningTitle")}
               body={t("comingLearningBody")}
-            />
-            <ComingRow
-              icon={<Store aria-hidden="true" className="size-4" />}
-              title={t("comingMarketTitle")}
-              body={t("comingMarketBody")}
             />
           </div>
         </Card>

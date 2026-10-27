@@ -28,6 +28,18 @@ export const PROFILE_CLIENT_NAMESPACES = [
   "SaveProviderButton",
 ] as const satisfies readonly ClientNamespace[];
 
+/**
+ * The Ask panel on a product page.
+ *
+ * Validation comes with it because the phone field is checked in the browser
+ * before a code is spent, and Format for the cedi amounts the panel echoes.
+ */
+export const MARKETPLACE_CLIENT_NAMESPACES = [
+  "Marketplace",
+  "Validation",
+  "Format",
+] as const satisfies readonly ClientNamespace[];
+
 /** "Report a problem" with a listing. */
 export const REPORT_CLIENT_NAMESPACES = ["ReportProblem"] as const satisfies readonly ClientNamespace[];
 

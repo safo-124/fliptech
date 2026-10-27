@@ -1,4 +1,4 @@
-import {ArrowRight, Building2} from "lucide-react";
+import {ArrowRight, Building2, Store} from "lucide-react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 
@@ -53,6 +53,20 @@ export function SiteHeader() {
             <Link href="/training">
               {t("findTraining")}
               <ArrowRight aria-hidden />
+            </Link>
+          </Button>
+          {/* Shown from sm, like Find training: the two public pillars that
+              exist are the two the header offers. Online learning is not
+              here because there is nothing behind it yet. */}
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="hidden text-white/75 hover:bg-white/10 hover:text-white sm:inline-flex"
+          >
+            <Link href="/marketplace">
+              <Store aria-hidden />
+              {t("marketplace")}
             </Link>
           </Button>
           <Button

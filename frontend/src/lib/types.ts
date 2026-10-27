@@ -500,3 +500,40 @@ export type Whoami = {
   // photos, not a portrait.
   trainee: {name: string; avatar: string | null} | null;
 };
+
+// ---------------------------------------------------------------------------
+// Marketplace
+
+/** The seller as a buyer sees them. No phone number: contacting a seller goes
+    through an enquiry that can be counted and moderated, and printing the
+    number would route around it. */
+export type SellerCard = {
+  id: number;
+  business_name: string;
+  about: string;
+  area: string;
+  area_slug: string;
+  region: string;
+  /** The training listing, when this seller is also a workshop. The strongest
+      thing a buyer can be told: not an anonymous account, a place with an
+      address, and here is the page. */
+  workshop: {name: string; slug: string; area_slug: string} | null;
+};
+
+export type ProductCard = {
+  id: number;
+  name: string;
+  slug: string;
+  /** Null means "price on request", a real answer for something made to order. */
+  price: string | null;
+  availability: "available" | "made_to_order" | "sold_out";
+  trade: {name: string; slug: string; colour: string} | null;
+  photo: string | null;
+  seller: SellerCard;
+  created_at: string;
+};
+
+export type ProductDetail = ProductCard & {
+  description: string;
+  photos: {id: number; image: string | null; caption: string; display_order: number}[];
+};

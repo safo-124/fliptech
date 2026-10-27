@@ -12,9 +12,12 @@ import type {
   AreaSummary,
   DashboardData,
   Paginated,
+  ProductCard,
+  ProductDetail,
   ProviderCard,
   ProviderDetail,
   Region,
+  SellerCard,
   Trade,
   UpcomingIntake,
 } from "./types";
@@ -111,7 +114,7 @@ export type SearchParams = {
   page?: string;
 };
 
-export function buildQuery(params: SearchParams): string {
+export function buildQuery(params: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") search.set(key, value);
@@ -258,4 +261,31 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
     );
   }
   return data as T;
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace
+//
+// Reads only. Asking a seller about something is a write from the browser and
+// lives in marketplace-api.ts, next to the CSRF handling every write needs.
+
+export type MarketplaceParams = {
+  trade?: string;
+  area?: string;
+  region?: string;
+  availability?: string;
+  q?: string;
+  page?: string;
+};
+
+export function searchProducts(params: MarketplaceParams = {}) {
+  return fetchJson<Paginated<ProductCard>>(`/api/products/${buildQuery(params)}`);
+}
+
+export function getProduct(id: string | number) {
+  return fetchJson<ProductDetail>(`/api/products/${id}/`);
+}
+
+export function getSellerShop(id: string | number) {
+  return fetchJson<{seller: SellerCard; products: ProductCard[]}>(`/api/sellers/${id}/`);
 }
