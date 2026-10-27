@@ -46,6 +46,10 @@ class PhoneVerification(TimeStampedModel):
         TRAINEE_ENQUIRY = "trainee_enquiry", "Trainee enquiry"
         TRAINER_ACCESS = "trainer_access", "Trainer access"
         TRAINEE_ACCESS = "trainee_access", "Trainee access"
+        # Kept apart from the others for the usual reason: a code issued to
+        # sign in to a shop must not be replayable against a workshop's
+        # listing or someone's enrolment history.
+        SELLER_ACCESS = "seller_access", "Seller access"
 
     # A public, unguessable handle lets the verification endpoint consume the
     # exact challenge it issued. Phone plus "latest code" is sufficient for the
@@ -99,6 +103,7 @@ class EmailVerification(TimeStampedModel):
     class Purpose(models.TextChoices):
         TRAINEE_ACCESS = "trainee_access", "Trainee access"
         TRAINER_ACCESS = "trainer_access", "Trainer access"
+        SELLER_ACCESS = "seller_access", "Seller access"
         STAFF_ACCESS = "staff_access", "Back-office access"
         # Adding an address to an account that already signs in by phone. Kept
         # apart from the access purposes so a code issued to prove ownership of

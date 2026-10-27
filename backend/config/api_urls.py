@@ -11,6 +11,21 @@ from catalog.views import TradeViewSet
 from core.whoami import WhoAmIView
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
+from marketplace.views import (
+    OwnProductsView,
+    OwnProductView,
+    ProductDetailView,
+    ProductListView,
+    ProductPhotosView,
+    ProductPhotoView,
+    ProductPublishView,
+    SellerDetailView,
+    SellerOTPRequestView,
+    SellerOTPVerifyView,
+    SellerProfileView,
+    SellerSessionView,
+    StartSellingView,
+)
 from providers.complaint_views import ComplaintCreateView
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
 from providers.trainer_dashboard_views import (
@@ -185,5 +200,50 @@ urlpatterns = [
         ProviderEnquiryListView.as_view(),
         name="provider-dashboard-enquiries",
     ),
+    # ----------------------------------------------------------------
+    # Marketplace
+    #
+    # Selling is its own identity, not a flag on a trainer, so it gets its
+    # own session the way the trainer and trainee areas do. A trainer who
+    # ticks "I also sell" verifies a number while signed in and keeps the
+    # login they already have; see marketplace/auth.start_selling.
+    path("seller/session/me/", SellerSessionView.as_view(), name="seller-session-me"),
+    path(
+        "seller/auth/request-code/",
+        SellerOTPRequestView.as_view(),
+        name="seller-otp-request",
+    ),
+    path(
+        "seller/auth/verify-code/",
+        SellerOTPVerifyView.as_view(),
+        name="seller-otp-verify",
+    ),
+    path("seller/account/", SellerProfileView.as_view(), name="seller-profile"),
+    # "I also sell", for a trainer already signed in. No second code: the
+    # number was verified to get into this session.
+    path("trainer/selling/", StartSellingView.as_view(), name="trainer-start-selling"),
+    # The seller's own shelf: every state, including drafts and anything
+    # staff have taken down.
+    path("seller/products/", OwnProductsView.as_view(), name="seller-products"),
+    path("seller/products/<int:pk>/", OwnProductView.as_view(), name="seller-product"),
+    path(
+        "seller/products/<int:pk>/published/",
+        ProductPublishView.as_view(),
+        name="seller-product-publish",
+    ),
+    path(
+        "seller/products/<int:pk>/photos/",
+        ProductPhotosView.as_view(),
+        name="seller-product-photos",
+    ),
+    path(
+        "seller/products/<int:pk>/photos/<int:photo_id>/",
+        ProductPhotoView.as_view(),
+        name="seller-product-photo",
+    ),
+    # What a buyer browses. Reads Product.objects.visible() and nothing else.
+    path("products/", ProductListView.as_view(), name="product-list"),
+    path("products/<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
+    path("sellers/<int:pk>/", SellerDetailView.as_view(), name="seller-detail"),
     path("", include(router.urls)),
 ]

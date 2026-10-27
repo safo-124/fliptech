@@ -236,9 +236,7 @@ class SkillsHubAdminSite(AdminSite):
         from marketplace.models import Product, SellerAccount
 
         sellers = SellerAccount.objects.all()
-        confirmed = sellers.filter(
-            approval_status=SellerAccount.Approval.CONFIRMED, is_active=True
-        )
+        confirmed = sellers.filter(approval_status=SellerAccount.Approval.CONFIRMED, is_active=True)
         waiting = sellers.filter(approval_status=SellerAccount.Approval.PENDING).count()
 
         products = Product.objects.all()

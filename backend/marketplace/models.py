@@ -76,7 +76,10 @@ class SellerAccount(TimeStampedModel):
     # What a buyer sees above the product. Not the person's legal name: a
     # market trader is known by the stall, and "Ama Crafts" is the thing
     # somebody remembers and searches for.
-    business_name = models.CharField(max_length=200)
+    # Blank until they fill it in. The account is created the moment a phone
+    # is verified, the way a trainer's is, so nobody is told "finish this
+    # form" before they can even sign in. `may_sell` is what requires it.
+    business_name = models.CharField(max_length=200, blank=True)
     about = models.TextField(
         blank=True,
         help_text="A few lines about what they make. Shown on the seller's products.",
@@ -89,6 +92,8 @@ class SellerAccount(TimeStampedModel):
         "geography.Area",
         on_delete=models.PROTECT,
         related_name="sellers",
+        null=True,
+        blank=True,
     )
 
     # Set when the seller is a workshop already listed for training. Null for
@@ -145,24 +150,34 @@ class SellerAccount(TimeStampedModel):
 
     @property
     def may_sell(self):
-        """Confirmed and not switched off. What publishing a product asks."""
-        return self.is_active and self.is_confirmed
+        """Everything that has to be true before a product of theirs is public.
+
+        Confirmed and switched on, and the shop actually filled in: a buyer
+        needs a name to recognise and a place to collect from, and a product
+        with neither is not a listing. ProductQuerySet.visible() is the same
+        rule in SQL, and a test holds the two together.
+        """
+        return bool(self.is_active and self.is_confirmed and self.business_name and self.area_id)
 
 
 class ProductQuerySet(models.QuerySet):
     def visible(self):
         """What the public marketplace may show.
 
-        Both halves are load-bearing. A product is published, *and* its seller
-        is still allowed to sell — so suspending a seller takes their whole
-        shelf down in one action rather than leaving published products behind
-        it.
+        Every clause is load-bearing. A product is published, *and* its
+        seller is still allowed to sell — so suspending a seller takes their
+        whole shelf down in one action rather than leaving published products
+        behind it. This is SellerAccount.may_sell expressed in SQL; the two
+        are held together by a test, because a rule that drifts between the
+        Python and the query is how something stays visible after the object
+        says it should not be.
         """
         return self.filter(
             status=Product.Status.PUBLISHED,
             seller__is_active=True,
             seller__approval_status=SellerAccount.Approval.CONFIRMED,
-        )
+            seller__area__isnull=False,
+        ).exclude(seller__business_name="")
 
 
 class Product(TimeStampedModel):

@@ -24,6 +24,7 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
 from .models import Product, ProductPhoto, SellerAccount
@@ -117,8 +118,8 @@ class SellerAccountAdmin(admin.ModelAdmin):
         column is what stops the two being confirmed at the same speed.
         """
         if obj.provider_id:
-            return format_html('<span style="color:#15803d">Workshop</span>')
-        return format_html('<span style="color:#b45309">Seller only</span>')
+            return mark_safe('<span style="color:#15803d">Workshop</span>')
+        return mark_safe('<span style="color:#b45309">Seller only</span>')
 
     @admin.display(description="Sign-up", ordering="approval_status")
     def approval_summary(self, obj):
@@ -159,7 +160,7 @@ class SellerAccountAdmin(admin.ModelAdmin):
         one form and HTML has no nested forms.
         """
         if obj.approval_status == SellerAccount.Approval.CONFIRMED:
-            return format_html('<span class="row-decided">Confirmed</span>')
+            return mark_safe('<span class="row-decided">Confirmed</span>')
         return format_html(
             '<span class="row-decide">'
             '<button type="submit" class="row-confirm" formaction="{}" formmethod="post">'
@@ -184,7 +185,7 @@ class SellerAccountAdmin(admin.ModelAdmin):
                 '<p class="review-empty">Nothing listed yet. '
                 "Confirming lets them publish what they add.</p>"
             )
-        rows = format_html("")
+        rows = mark_safe("")
         for product in products:
             rows += format_html(
                 '<li><a href="{}">{}</a> — {} · {}</li>',
@@ -338,7 +339,7 @@ class ProductAdmin(admin.ModelAdmin):
     @admin.display(description="Price", ordering="price")
     def price_label(self, obj):
         if obj.price is None:
-            return format_html('<span style="color:#6b7280">On request</span>')
+            return mark_safe('<span style="color:#6b7280">On request</span>')
         return f"GH₵{obj.price:,.2f}"
 
     @admin.display(description="Status", ordering="status")
