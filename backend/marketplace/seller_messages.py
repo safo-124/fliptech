@@ -1,0 +1,106 @@
+"""WhatsApp messages staff send to sellers from the back office.
+
+The same arrangement as providers/owner_messages.py, and for the same
+reason: a business-initiated WhatsApp message needs Cloud API credentials
+nobody has yet, so the system queues the message and an officer sends it from
+their own phone with a wa.me link. When a real sender exists it replaces the
+Send button and nothing else.
+
+One message goes to sellers today: "someone asked about your product".
+"""
+
+from django.conf import settings
+from django.utils import timezone
+
+from enquiries.whatsapp import chat_url
+
+from .models import ProductEnquiry, SellerNotice
+
+
+def queue_enquiry_alert(enquiry):
+    """Queue the alert for an enquiry that has just been sent.
+
+    Called in the same transaction as the enquiry. One per enquiry: the
+    constraint on SellerNotice holds that even against a retried request.
+    """
+    notice, _created = SellerNotice.objects.get_or_create(
+        enquiry=enquiry,
+        defaults={"seller": enquiry.seller, "kind": SellerNotice.Kind.NEW_ENQUIRY},
+    )
+    return notice
+
+
+def alerts_waiting():
+    """Unsent alerts a seller can still act on, oldest first.
+
+    Oldest first because this is a queue where an hour matters: somebody
+    asking about a bag will ask the next maker if nobody answers.
+
+    Not for an enquiry since marked as spam, and not for a seller who is no
+    longer selling — asking an officer to message somebody whose shop is
+    switched off wastes the officer's time and confuses the seller.
+    """
+    from .models import SellerAccount
+
+    return (
+        SellerNotice.objects.filter(
+            kind=SellerNotice.Kind.NEW_ENQUIRY,
+            sent_at__isnull=True,
+            enquiry__state=ProductEnquiry.State.SENT,
+            seller__is_active=True,
+            seller__approval_status=SellerAccount.Approval.CONFIRMED,
+        )
+        .select_related("seller", "seller__area", "enquiry", "enquiry__product")
+        .order_by("created_at", "pk")
+    )
+
+
+def seller_to_buyer(enquiry):
+    """The reply, as the seller would open it.
+
+    It opens with who is writing and what it is about, because the buyer
+    asked several makers and a bare "hello" from an unknown number tells them
+    nothing.
+    """
+    greeting = f"Hello {enquiry.buyer_name}, " if enquiry.buyer_name else "Hello, "
+    return chat_url(
+        enquiry.buyer_phone,
+        f"{greeting}this is {enquiry.seller.business_name}, replying about "
+        f"{enquiry.product_name} on {settings.BRAND_NAME} Skills Hub. "
+        f"Your reference is {enquiry.reference_code}.",
+    )
+
+
+def alert_text(enquiry):
+    """What the officer sends the seller.
+
+    It carries the buyer's number, because the seller is the one who has to
+    reply and making them come back to a dashboard to find it is how a reply
+    does not happen.
+    """
+    asked = f'"{enquiry.message}"' if enquiry.message else "no message"
+    return (
+        f"Hello, someone asked about {enquiry.product_name} on "
+        f"{settings.BRAND_NAME} Skills Hub. "
+        f"Reference {enquiry.reference_code}. "
+        f"They said: {asked}. "
+        f"Reply to them on {enquiry.buyer_phone}."
+    )
+
+
+def alert_url(notice):
+    """The wa.me link an officer presses to send this alert."""
+    return chat_url(notice.seller.phone, alert_text(notice.enquiry))
+
+
+def mark_sent(notice, *, by):
+    """Record that an officer sent it.
+
+    Recorded before WhatsApp opens, not after: nothing comes back from wa.me
+    to say the officer pressed send, so recording afterwards would leave
+    every message looking unsent for ever.
+    """
+    notice.sent_at = timezone.now()
+    notice.sent_by = by
+    notice.save(update_fields=["sent_at", "sent_by", "updated_at"])
+    return notice

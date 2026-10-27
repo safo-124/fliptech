@@ -204,3 +204,16 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             "ready_to_sell",
         ]
         read_only_fields = ["phone", "email"]
+
+
+class ProductEnquiryInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    """What a buyer sends when they ask about something.
+
+    The phone is here and not taken from the session, because the session
+    holds every number this browser has proved and the caller has to say
+    which of them is asking. The view checks it against that list.
+    """
+
+    phone = PhoneNumberField()
+    name = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    message = serializers.CharField(max_length=1000, required=False, allow_blank=True)

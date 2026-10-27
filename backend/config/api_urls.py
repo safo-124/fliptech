@@ -15,6 +15,7 @@ from marketplace.views import (
     OwnProductsView,
     OwnProductView,
     ProductDetailView,
+    ProductEnquiryCreateView,
     ProductListView,
     ProductPhotosView,
     ProductPhotoView,
@@ -244,6 +245,11 @@ urlpatterns = [
     # What a buyer browses. Reads Product.objects.visible() and nothing else.
     path("products/", ProductListView.as_view(), name="product-list"),
     path("products/<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
+    path(
+        "products/<int:pk>/enquiries/",
+        ProductEnquiryCreateView.as_view(),
+        name="product-enquiry-create",
+    ),
     path("sellers/<int:pk>/", SellerDetailView.as_view(), name="seller-detail"),
     path("", include(router.urls)),
 ]

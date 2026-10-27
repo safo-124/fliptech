@@ -1,0 +1,79 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% comment %}
+  Messages to sellers: the WhatsApp message a seller gets when somebody asks
+  about one of their products, sent by an officer from their own phone. See
+  marketplace/admin_outbox.py.
+
+  Its own page rather than rows on "Messages to send", which is built around
+  a Provider — half the sellers have no workshop.
+
+  Each Send posts here first, which records the message, and then opens
+  WhatsApp with it typed. Recorded first because nothing comes back from
+  wa.me to say the officer pressed send.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; {% translate 'Messages to sellers' %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p class="help" style="margin-bottom: 16px">
+      {% blocktranslate %}
+        Send opens WhatsApp on this device with the message already typed, addressed to the
+        seller and carrying the buyer’s number. Press send in WhatsApp, then come back here.
+      {% endblocktranslate %}
+    </p>
+
+    <div class="module">
+      <h2>{% blocktranslate count counter=waiting|length %}Someone asked about a product ({{ counter }}){% plural %}People asked about products ({{ counter }}){% endblocktranslate %}</h2>
+      <p class="help" style="padding: 8px 12px 0">
+        {% translate 'Tell the seller now: somebody asking about a bag will ask the next maker if nobody answers.' %}
+      </p>
+      {% if waiting %}
+        <table style="width: 100%">
+          <thead>
+            <tr>
+              <th scope="col">{% translate 'Seller' %}</th>
+              <th scope="col">{% translate 'Received' %}</th>
+              <th scope="col">{% translate 'Send to' %}</th>
+              <th scope="col"><span class="visually-hidden">{% translate 'Send' %}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in waiting %}
+              <tr>
+                <td>
+                  <a href="{% url 'admin:marketplace_selleraccount_change' row.seller.pk %}">{{ row.seller.business_name }}</a>
+                  <div class="mini quiet">{{ row.seller.area.name|default:"—" }}</div>
+                  {% if row.detail %}<div class="mini quiet">{{ row.detail }}</div>{% endif %}
+                </td>
+                <td>{{ row.created_at|date:"j M, H:i" }}</td>
+                <td>{{ row.send_to }}</td>
+                <td>
+                  {% if can_send %}
+                    <form method="post" action="{% url 'admin:marketplace_selleraccount_send_alert' row.pk %}" target="_blank" rel="noopener" data-send-form>
+                      {% csrf_token %}
+                      <button type="submit" class="button default" style="min-height: 44px">
+                        {% translate 'Send on WhatsApp' %}
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="padding: 12px">{% translate 'Nothing waiting. Every seller has been told about their enquiries.' %}</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

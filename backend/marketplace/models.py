@@ -34,6 +34,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 
 from core.images import strip_exif, stripped_name
 from core.models import TimeStampedModel
+from enquiries.models import generate_reference
 
 
 class SellerAccount(TimeStampedModel):
@@ -324,3 +325,105 @@ class ProductPhoto(TimeStampedModel):
                 self.image.save(stripped_name(self.image.name), cleaned, save=False)
                 self.exif_stripped = True
         super().save(*args, **kwargs)
+
+
+class ProductEnquiry(TimeStampedModel):
+    """A buyer asking a seller about something they make.
+
+    No cart and no checkout. Money passes between the two of them, as it does
+    in a market today — but the asking passes through here, because otherwise
+    nobody can answer "is anyone buying?". That question is the whole reason
+    this model exists rather than a wa.me link on the product page: a link
+    works and leaves no trace, and a marketplace you cannot measure is one you
+    cannot decide anything about.
+
+    Verification is the same bargain the training enquiry makes: no account,
+    but one code per browser session, shared with the training flow. A buyer
+    who asked about a course an hour ago does not type another.
+    """
+
+    class State(models.TextChoices):
+        SENT = "sent", "Sent to seller"
+        SPAM = "spam", "Marked as spam"
+
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="enquiries")
+    # SET_NULL, not CASCADE. A seller tidying their shelf must not delete the
+    # evidence that people were asking — that is the number the marketplace
+    # is judged on.
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enquiries",
+    )
+    # What they asked about, kept as text so the row still means something
+    # after the product itself is gone.
+    product_name = models.CharField(max_length=200)
+
+    buyer_phone = PhoneNumberField(db_index=True)
+    buyer_name = models.CharField(max_length=120, blank=True)
+    message = models.TextField(blank=True)
+
+    reference_code = models.CharField(
+        max_length=12, unique=True, default=generate_reference, editable=False
+    )
+    state = models.CharField(max_length=20, choices=State.choices, default=State.SENT)
+    phone_verified_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name_plural = "product enquiries"
+        indexes = [models.Index(fields=["seller", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.reference_code} about {self.product_name}"
+
+
+class SellerNotice(TimeStampedModel):
+    """A WhatsApp message the system asks staff to send a seller.
+
+    The same arrangement as OwnerNotice, and for the same reason: a
+    business-initiated WhatsApp message needs Cloud API credentials nobody
+    has yet, so the system queues it and an officer sends it from their own
+    phone with a wa.me link.
+
+    Its own model rather than OwnerNotice because that one hangs off a
+    Provider, and half the sellers have no workshop.
+    """
+
+    class Kind(models.TextChoices):
+        NEW_ENQUIRY = "new_enquiry", "Someone asked about a product"
+
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="notices")
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    enquiry = models.ForeignKey(
+        ProductEnquiry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="alerts",
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            # One alert per enquiry, so a retried request cannot have the
+            # seller messaged twice about the same question.
+            models.UniqueConstraint(
+                fields=["enquiry"],
+                condition=models.Q(enquiry__isnull=False),
+                name="one_seller_alert_per_enquiry",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.seller}"

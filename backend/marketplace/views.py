@@ -12,6 +12,7 @@ from django.conf import settings
 from django.contrib.auth import login
 from django.db import transaction
 from django.middleware.csrf import get_token
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.text import slugify
 from django.utils.translation import gettext as _
@@ -20,7 +21,7 @@ from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
@@ -30,9 +31,10 @@ from core.images import strip_exif, validate_image_upload
 from core.network import canonical_client_ip, ratelimit_client_ip
 from enquiries.email_otp import may_copy_code_to
 from enquiries.models import PhoneVerification
-from enquiries.otp import OTPError, request_code, verify_code
+from enquiries.otp import OTPError, phone_is_trusted, request_code, verify_code
 from enquiries.serializers import OTPRequestSerializer
 
+from . import seller_messages
 from .auth import (
     SellerAccountDisabled,
     account_for_verified_phone,
@@ -40,11 +42,12 @@ from .auth import (
     own_seller_account,
     start_selling,
 )
-from .models import Product, ProductPhoto, SellerAccount
+from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
 from .serializers import (
     OwnProductSerializer,
     ProductCardSerializer,
     ProductDetailSerializer,
+    ProductEnquiryInputSerializer,
     ProductPhotoSerializer,
     SellerCardSerializer,
     SellerOTPVerifySerializer,
@@ -344,8 +347,6 @@ def _owned_product(request, pk):
     account = _account(request)
     product = account.products.filter(pk=pk).prefetch_related("photos").first()
     if product is None:
-        from rest_framework.exceptions import NotFound
-
         raise NotFound(_("No such product."))
     return account, product
 
@@ -498,8 +499,6 @@ class ProductPhotoView(APIView):
         _seller, product = _owned_product(request, pk)
         photo = product.photos.filter(pk=photo_id).first()
         if photo is None:
-            from rest_framework.exceptions import NotFound
-
             raise NotFound(_("No such picture."))
         photo.image.delete(save=False)
         photo.delete()
@@ -603,8 +602,6 @@ class SellerDetailView(APIView):
         # A seller nobody may see is a 404, not an empty shop: an empty shop
         # confirms the account exists.
         if seller is None or not seller.may_sell:
-            from rest_framework.exceptions import NotFound
-
             raise NotFound(_("No such seller."))
         products = _public_products().filter(seller=seller)
         return Response(
@@ -614,4 +611,81 @@ class SellerDetailView(APIView):
                     products, many=True, context={"request": request}
                 ).data,
             }
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class ProductEnquiryCreateView(APIView):
+    """Ask a seller about a product.
+
+    Anyone can, with no account — but not with no proof. The number has to
+    have been verified by this browser, which is the same bargain the
+    training enquiry makes and, deliberately, the *same* session trust: a
+    buyer who asked about a welding course an hour ago does not type another
+    code to ask about a bag. One verification, both pillars.
+
+    Why verified at all, when it is only a question? Because the seller is
+    told on WhatsApp by a member of staff, and an unverified form is a way to
+    have Fliiptech send messages to strangers on somebody else's behalf.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=ProductEnquiryInputSerializer, responses={201: None})
+    def post(self, request, pk):
+        serializer = ProductEnquiryInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data["phone"]
+
+        product = _public_products().filter(pk=pk).first()
+        if product is None:
+            raise NotFound(_("No such product."))
+
+        if not phone_is_trusted(request.session, phone):
+            return Response(
+                {"detail": _("Verify this phone number before asking about a product.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if is_ratelimited(
+            request,
+            group="product-enquiry",
+            key=ratelimit_client_ip,
+            rate="10/h",
+            increment=True,
+        ):
+            return Response(
+                {"detail": _("Too many enquiries. Try again later.")},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        with transaction.atomic():
+            enquiry = ProductEnquiry.objects.create(
+                seller=product.seller,
+                product=product,
+                # Kept as text as well as a link, so the row still says what
+                # it was about after the seller tidies the product away.
+                product_name=product.name,
+                buyer_phone=phone,
+                buyer_name=serializer.validated_data.get("name", ""),
+                message=serializer.validated_data.get("message", ""),
+                phone_verified_at=timezone.now(),
+            )
+            # In the same transaction as the enquiry: an enquiry nobody is
+            # told about is the failure this whole queue exists to prevent.
+            seller_messages.queue_enquiry_alert(enquiry)
+
+        return Response(
+            {
+                "reference_code": enquiry.reference_code,
+                # Said plainly because it is true and the wait is real: a
+                # person sends this on, so "we have told them" would be a
+                # promise about a queue the buyer cannot see.
+                "detail": _(
+                    "Your question has been sent. The seller will be told and "
+                    "will reply on WhatsApp."
+                ),
+            },
+            status=status.HTTP_201_CREATED,
         )

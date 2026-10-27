@@ -27,13 +27,14 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
-from .models import Product, ProductPhoto, SellerAccount
+from .admin_outbox import SellerMessagesMixin
+from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
 
 CONFIRM_PERM = "marketplace.confirm_seller"
 
 
 @admin.register(SellerAccount)
-class SellerAccountAdmin(admin.ModelAdmin):
+class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
     """Who may sell, and whether anyone has checked them.
 
     Anyone can sign up to sell, so a sign-up is not trusted until someone with
@@ -203,6 +204,10 @@ class SellerAccountAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.confirm_one),
                 name="marketplace_selleraccount_confirm",
             ),
+            # Before super(), because the catch-all "<path:object_id>/" the
+            # default urls end with would otherwise swallow "messages/" and
+            # try to open a seller whose id is the word.
+            *self.outbox_urls(),
             *super().get_urls(),
         ]
 
@@ -374,3 +379,81 @@ class ProductAdmin(admin.ModelAdmin):
     def restore_product(self, request, queryset):
         n = queryset.filter(status=Product.Status.SUSPENDED).update(status=Product.Status.PUBLISHED)
         self.message_user(request, f"{n} product(s) put back.")
+
+
+@admin.register(ProductEnquiry)
+class ProductEnquiryAdmin(admin.ModelAdmin):
+    """Who asked about what, which is the number the marketplace is judged on.
+
+    Read-only but for the spam flag. An enquiry is a record of something that
+    happened; editing the question somebody asked would make the demand
+    figure a thing staff can type rather than a thing that occurred.
+    """
+
+    list_display = (
+        "reference_code",
+        "product_name",
+        "seller",
+        "buyer_phone",
+        "told",
+        "state",
+        "created_at",
+    )
+    list_filter = ("state", "seller__area__region", "created_at")
+    search_fields = ("reference_code", "product_name", "buyer_phone", "seller__business_name")
+    ordering = ("-created_at",)
+    list_select_related = ("seller", "product")
+    actions = ("mark_spam", "mark_not_spam")
+    readonly_fields = (
+        "reference_code",
+        "seller",
+        "product",
+        "product_name",
+        "buyer_phone",
+        "buyer_name",
+        "message",
+        "phone_verified_at",
+        "told",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        (None, {"fields": ("reference_code", "state", "told")}),
+        ("What was asked", {"fields": ("product", "product_name", "message")}),
+        ("Who asked", {"fields": ("buyer_phone", "buyer_name", "phone_verified_at")}),
+        ("Who was asked", {"fields": ("seller",)}),
+        ("Record", {"fields": ("created_at", "updated_at")}),
+    )
+
+    @admin.display(description="Seller told")
+    def told(self, obj):
+        """Whether anyone has actually passed this on.
+
+        The honest version of a reply rate. Counting replies to messages no
+        seller ever received is how the provider dashboard came to report
+        workshops as slow when they had never been told.
+        """
+        notice = obj.alerts.first()
+        if notice is None:
+            return mark_safe('<span style="color:#b91c1c">No alert queued</span>')
+        if notice.sent_at:
+            return format_html(
+                '<span style="color:#15803d">Sent {}</span>',
+                notice.sent_at.strftime("%d %b %H:%M"),
+            )
+        return format_html(
+            '<a href="{}">Waiting to send</a>',
+            reverse("admin:marketplace_selleraccount_messages"),
+        )
+
+    @admin.action(description="Mark as spam")
+    def mark_spam(self, request, queryset):
+        n = queryset.update(state=ProductEnquiry.State.SPAM)
+        self.message_user(
+            request, f"{n} enquiry(s) marked as spam. Their alerts drop out of the queue."
+        )
+
+    @admin.action(description="Not spam after all")
+    def mark_not_spam(self, request, queryset):
+        n = queryset.update(state=ProductEnquiry.State.SENT)
+        self.message_user(request, f"{n} enquiry(s) restored.")
