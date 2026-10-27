@@ -38,7 +38,7 @@ import { ProviderCard } from "@/components/ProviderCard";
 import { TradeArt } from "@/components/TradeArt";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getAllAreas, getTrades, searchProviders } from "@/lib/api";
+import { getAllAreas, getAllTrades, searchProviders } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
 import { searchRedirectTarget } from "@/lib/search-redirect";
@@ -73,7 +73,11 @@ export default async function Home({
   if (moved) permanentRedirect(moved);
 
   const [trades, areas, featured, regionNames, t, tCoverage] = await Promise.all([
-    getTrades().catch(() => ({ results: [] })),
+    // getAllTrades, not getTrades: categories are created by staff in the
+    // back office, so the number is theirs to decide. The paginated call
+    // would quietly stop at twenty and the twenty-first category an admin
+    // added would simply never appear, with nothing to show them why.
+    getAllTrades().catch(() => []),
     getAllAreas().catch(() => []),
     searchProviders({}).catch(() => null),
     launchedRegionNames(),
@@ -146,13 +150,16 @@ export default async function Home({
             </div>
           </form>
 
-          {trades.results.length ? (
+          {trades.length ? (
             <div className="mt-5">
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">
                 {t("popular")}
               </p>
               <div className="mt-2.5 flex flex-wrap gap-2">
-                {trades.results.slice(0, 6).map((trade) => (
+                {/* The first six by the display order staff set, so which
+                    trades lead the hero is an editorial choice in the back
+                    office rather than something hardcoded here. */}
+                {trades.slice(0, 6).map((trade) => (
                   <Link
                     key={trade.slug}
                     href={`/training?trade=${trade.slug}`}
@@ -197,7 +204,7 @@ export default async function Home({
       </section>
 
       {/* ------------------------------------------------------ categories */}
-      {trades.results.length ? (
+      {trades.length ? (
         <section className="app-shell mt-12 sm:mt-16">
           <SectionHead
             title={t("skillsTitle")}
@@ -205,8 +212,24 @@ export default async function Home({
             linkHref="/training"
             linkLabel={t("viewAll")}
           />
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {trades.results.map((trade) => (
+          {/* Not a column count: staff decide how many categories exist, so
+              six was only ever right by accident and a seventh would have
+              left two orphans on the second row.
+
+              auto-fit rather than auto-fill. auto-fill keeps the empty
+              tracks it could fit — at 1280px that laid six tiles into seven
+              columns and left a gap on the right. auto-fit collapses them,
+              so the tiles stretch to fill whatever row they are on.
+
+              11rem rather than something smaller: it caps a desktop row at
+              six, so eight categories fall as 6 + 2 instead of 7 + 1, and
+              the tiles stay big enough for the signboard picture.
+
+              Two fixed columns on a phone, though. 11rem does not fit twice
+              in 351px, so auto-fit alone collapsed the phone to one tile per
+              row and six screens of scrolling. */}
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
+            {trades.map((trade) => (
               <Link
                 key={trade.slug}
                 href={`/trades/${trade.slug}`}
