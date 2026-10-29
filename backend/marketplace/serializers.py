@@ -13,7 +13,7 @@ from rest_framework import serializers
 from core.media import public_url
 from providers.trainer_serializers import RejectUnknownFieldsMixin
 
-from .models import Product, ProductPhoto, SellerAccount
+from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
 
 
 class SellerOTPVerifySerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -217,3 +217,42 @@ class ProductEnquiryInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
     phone = PhoneNumberField()
     name = serializers.CharField(max_length=120, required=False, allow_blank=True)
     message = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+
+
+class OwnEnquirySerializer(serializers.ModelSerializer):
+    """An enquiry as the seller who received it sees it.
+
+    `told` is here because it is the honest thing to show. A seller looking
+    at a question they have not answered deserves to know whether it ever
+    reached their phone — the alternative is them feeling slow about a
+    message nobody passed on.
+    """
+
+    told = serializers.SerializerMethodField()
+    reply_url = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_told(self, obj):
+        notice = next(iter(obj.alerts.all()), None)
+        return bool(notice and notice.sent_at)
+
+    @extend_schema_field(serializers.URLField())
+    def get_reply_url(self, obj):
+        from .seller_messages import seller_to_buyer
+
+        return seller_to_buyer(obj)
+
+    class Meta:
+        model = ProductEnquiry
+        fields = [
+            "id",
+            "reference_code",
+            "product",
+            "product_name",
+            "buyer_phone",
+            "buyer_name",
+            "message",
+            "told",
+            "reply_url",
+            "created_at",
+        ]

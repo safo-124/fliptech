@@ -40,6 +40,15 @@ export const MARKETPLACE_CLIENT_NAMESPACES = [
   "Format",
 ] as const satisfies readonly ClientNamespace[];
 
+/** The seller's sign-in and their own workspace. */
+export const SELLER_CLIENT_NAMESPACES = [
+  "SellerPages",
+  "SellerDashboard",
+  "DashboardNav",
+  "Validation",
+  "Format",
+] as const satisfies readonly ClientNamespace[];
+
 /** "Report a problem" with a listing. */
 export const REPORT_CLIENT_NAMESPACES = ["ReportProblem"] as const satisfies readonly ClientNamespace[];
 

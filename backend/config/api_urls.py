@@ -12,6 +12,7 @@ from core.whoami import WhoAmIView
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from marketplace.views import (
+    OwnEnquiriesView,
     OwnProductsView,
     OwnProductView,
     ProductDetailView,
@@ -21,6 +22,7 @@ from marketplace.views import (
     ProductPhotoView,
     ProductPublishView,
     SellerDetailView,
+    SellerLogoutView,
     SellerOTPRequestView,
     SellerOTPVerifyView,
     SellerProfileView,
@@ -219,12 +221,14 @@ urlpatterns = [
         SellerOTPVerifyView.as_view(),
         name="seller-otp-verify",
     ),
+    path("seller/logout/", SellerLogoutView.as_view(), name="seller-logout"),
     path("seller/account/", SellerProfileView.as_view(), name="seller-profile"),
     # "I also sell", for a trainer already signed in. No second code: the
     # number was verified to get into this session.
     path("trainer/selling/", StartSellingView.as_view(), name="trainer-start-selling"),
     # The seller's own shelf: every state, including drafts and anything
     # staff have taken down.
+    path("seller/enquiries/", OwnEnquiriesView.as_view(), name="seller-enquiries"),
     path("seller/products/", OwnProductsView.as_view(), name="seller-products"),
     path("seller/products/<int:pk>/", OwnProductView.as_view(), name="seller-product"),
     path(

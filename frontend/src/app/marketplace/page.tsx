@@ -130,6 +130,13 @@ export default async function MarketplacePage({
               </Button>
             </div>
           </form>
+
+          <p className="mt-4 text-sm text-white/70">
+            {t("makeSomething")}{" "}
+            <Link href="/sell" className="font-semibold text-white underline underline-offset-4">
+              {t("sellHere")}
+            </Link>
+          </p>
         </div>
       </section>
 
@@ -155,7 +162,7 @@ export default async function MarketplacePage({
               </Button>
             ) : (
               <Button asChild variant="brand" className="mt-5">
-                <Link href="/trainer/join">
+                <Link href="/sell">
                   <Store aria-hidden="true" />
                   {t("sellHere")}
                 </Link>

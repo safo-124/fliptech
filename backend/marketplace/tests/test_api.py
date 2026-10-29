@@ -537,3 +537,99 @@ def test_may_sell_and_visible_agree(client, area, sent, django_user_model):
         in_sql = Product.objects.visible().filter(pk=product.pk).exists()
         assert seller.may_sell is expected, label
         assert in_sql is expected, label
+
+
+# --------------------------------------------------------------------------
+# The seller's own enquiries, and signing out
+
+
+@pytest.mark.django_db
+def test_a_seller_sees_who_asked_about_their_things(client, area, sent):
+    from marketplace.models import ProductEnquiry
+
+    seller = ready_seller(client, area, sent)
+    product = Product.objects.create(
+        seller=seller, name="Bag", slug="bag", status=Product.Status.PUBLISHED
+    )
+    ProductEnquiry.objects.create(
+        seller=seller,
+        product=product,
+        product_name=product.name,
+        buyer_phone="+233201115555",
+        buyer_name="Kofi",
+        message="In blue?",
+        phone_verified_at=timezone.now(),
+    )
+
+    body = client.get(reverse("seller-enquiries")).json()
+
+    assert len(body["results"]) == 1
+    row = body["results"][0]
+    assert row["buyer_phone"] == "+233201115555"
+    assert row["told"] is False
+    assert row["reply_url"].startswith("https://wa.me/")
+
+
+@pytest.mark.django_db
+def test_spam_is_not_shown_to_the_seller(client, area, sent):
+    """Staff marked it spam. Showing the seller the thing staff shielded them
+    from would undo the decision."""
+    from marketplace.models import ProductEnquiry
+
+    seller = ready_seller(client, area, sent)
+    product = Product.objects.create(
+        seller=seller, name="Bag", slug="bag", status=Product.Status.PUBLISHED
+    )
+    ProductEnquiry.objects.create(
+        seller=seller,
+        product=product,
+        product_name=product.name,
+        buyer_phone="+233201115556",
+        phone_verified_at=timezone.now(),
+        state=ProductEnquiry.State.SPAM,
+    )
+
+    assert client.get(reverse("seller-enquiries")).json()["results"] == []
+
+
+@pytest.mark.django_db
+def test_one_seller_cannot_read_anothers_enquiries(client, area, sent, django_user_model):
+    from marketplace.models import ProductEnquiry
+
+    other_user = django_user_model.objects.create_user("other-enq-seller")
+    other = SellerAccount.objects.create(
+        user=other_user,
+        phone="+233201115557",
+        phone_verified_at=timezone.now(),
+        business_name="Adjoa's",
+        area=area,
+        approval_status=SellerAccount.Approval.CONFIRMED,
+    )
+    theirs = Product.objects.create(seller=other, name="Bag", slug="bag")
+    ProductEnquiry.objects.create(
+        seller=other,
+        product=theirs,
+        product_name="Bag",
+        buyer_phone="+233201115558",
+        phone_verified_at=timezone.now(),
+    )
+    ready_seller(client, area, sent)
+
+    assert client.get(reverse("seller-enquiries")).json()["results"] == []
+
+
+@pytest.mark.django_db
+def test_a_stranger_cannot_read_enquiries(client, db):
+    assert client.get(reverse("seller-enquiries")).status_code in (401, 403)
+
+
+@pytest.mark.django_db
+def test_signing_out_ends_the_session(client, area, sent):
+    ready_seller(client, area, sent)
+    assert client.get(reverse("seller-products")).status_code == 200
+
+    response = client.post(reverse("seller-logout"))
+
+    assert response.status_code == 200
+    assert response.json()["authenticated"] is False
+    assert client.get(reverse("seller-products")).status_code in (401, 403)

@@ -9,7 +9,7 @@ that selects whose products are touched.
 """
 
 from django.conf import settings
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.db import transaction
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -44,6 +44,7 @@ from .auth import (
 )
 from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
 from .serializers import (
+    OwnEnquirySerializer,
     OwnProductSerializer,
     ProductCardSerializer,
     ProductDetailSerializer,
@@ -689,3 +690,43 @@ class ProductEnquiryCreateView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class OwnEnquiriesView(APIView):
+    """The questions people have asked this seller.
+
+    Read-only, and scoped to the signed-in seller. Spam is left out: staff
+    marked it spam, and showing a seller the thing staff decided to shield
+    them from would undo the decision.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        account = _account(request)
+        enquiries = (
+            account.enquiries.filter(state=ProductEnquiry.State.SENT)
+            .prefetch_related("alerts")
+            .order_by("-created_at")[:100]
+        )
+        return Response({"results": OwnEnquirySerializer(enquiries, many=True).data})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SellerLogoutView(APIView):
+    """End the session.
+
+    Its own view rather than reusing the trainer's, which is generic enough
+    to work: a seller posting to /api/trainer/logout/ reads as a mistake, and
+    the next person to touch either would have to work out whether it was.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request):
+        logout(request._request)
+        return Response({"authenticated": False, "seller": None})

@@ -75,6 +75,7 @@ export async function SiteFooter() {
           <Link href="/marketplace" className="hover:text-white hover:underline">{t("marketplace")}</Link>
           <Link href="/map" className="hover:text-white hover:underline">{t("exploreMap")}</Link>
           <Link href="/trainer/join" className="hover:text-white hover:underline">{t("forTrainers")}</Link>
+          <Link href="/sell" className="hover:text-white hover:underline">{t("forSellers")}</Link>
           <Link href="/privacy" className="hover:text-white hover:underline">{t("privacy")}</Link>
         </nav>
       </div>
