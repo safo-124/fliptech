@@ -110,8 +110,10 @@ pnpm build
 
 CI also runs the browser tests in `frontend/e2e` against a production build
 and a real API with the demo data. That includes `e2e/budget.spec.ts`, which
-fails the build if the search page goes over 200 KB or takes longer than three
-seconds to first paint on 3G. To run them locally, start the API and
+fails the build if the search page goes over 208 KB or takes longer than three
+seconds to first paint on 3G. (208, raised once from 200 on 2026-10-29 when the
+marketplace's share of the one Tailwind stylesheet pushed it over; the test
+file records why.) To run them locally, start the API and
 `pnpm build && pnpm start`, then `pnpm test:e2e` (or `pnpm test:budget` for
 the budgets alone). The back-office tests need `ADMIN_E2E_USERNAME` and
 `ADMIN_E2E_PASSWORD` for a local staff account, and `BACK_OFFICE_URL`.
