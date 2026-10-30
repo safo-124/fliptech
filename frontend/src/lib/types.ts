@@ -596,3 +596,11 @@ export type ProductDetail = ProductCard & {
   description: string;
   photos: {id: number; image: string | null; caption: string; display_order: number}[];
 };
+
+/** A staff-chosen home page photograph. See backend core.models.HomePicture. */
+export type HomePicture = { url: string; alt: string; credit: string };
+
+/** By place. A place with no picture is absent, and the page falls back. */
+export type HomePictures = Partial<
+  Record<"hero" | "training" | "learning" | "marketplace", HomePicture>
+>;

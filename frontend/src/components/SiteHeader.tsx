@@ -1,104 +1,81 @@
-import {ArrowRight, Building2, PlayCircle, Store} from "lucide-react";
+import {Search} from "lucide-react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 
 import {AccountNav} from "@/components/AccountNav";
 import {BrandMark} from "@/components/BrandMark";
-import {BrandShards} from "@/components/BrandShards";
-import {Button} from "@/components/ui/button";
 import {BRAND} from "@/lib/brand";
 
 /**
- * The indigo band from the logo, carrying the brand on every page.
+ * A white bar with the brand on the left and the site's parts in the middle.
  *
- * Deliberately a band rather than a dark theme. The canvas, the result cards
- * and the map stay light because the trainee reading this is outdoors in
- * direct sun, which is the reason globals.css pins `color-scheme: light`.
- * Indigo at the top and bottom gives the site a brand without taking that back.
+ * Light, like the rest of the canvas: the trainee reading this is often
+ * outdoors in direct sun, which is the reason globals.css pins
+ * `color-scheme: light`. The brand's violet carries the one filled action.
  *
- * The one filled action is warm, not violet: on an indigo field another violet
- * button vanishes, and sand-to-coral is the contrast the logo already makes.
+ * Every link is plain: no active-page highlight, because knowing the current
+ * page would make this a client component on every page, the search page
+ * included, and its budget has no room for that.
  */
 export function SiteHeader() {
   const t = useTranslations("SiteHeader");
   const tAccount = useTranslations("AccountNav");
+  // No display in the shared classes: each link says whether it shows, so
+  // "hidden" is never fighting an "inline-flex" for the same element.
+  const link =
+    "min-h-11 items-center rounded-lg px-2.5 text-sm font-medium text-[var(--color-foreground)]/80 transition-colors hover:text-[var(--color-brand)]";
+
   return (
-    <header className="band sticky top-0 isolate z-[1000] overflow-hidden">
-      {/* Small and low-contrast here: the header is 4rem tall and the nav sits
-          on top of it, so the shards only need to break the flat indigo. */}
-      <BrandShards className="pointer-events-none absolute -right-4 -top-6 h-[9rem] w-[16rem] opacity-25" />
-      <div className="app-shell relative z-10 flex h-16 items-center justify-between gap-3 lg:h-[4.5rem]">
-        <Link
-          href="/"
-          className="group inline-flex min-h-11 items-center gap-2.5 rounded-xl text-white"
-        >
+    <header className="sticky top-0 z-[1000] border-b border-[var(--color-border)] bg-[var(--color-card)]/95 backdrop-blur">
+      <div className="app-shell flex h-16 items-center justify-between gap-3 lg:h-[4.5rem]">
+        <Link href="/" className="group inline-flex min-h-11 items-center gap-2.5 rounded-xl">
           <BrandMark motion="open" className="size-9 transition-transform duration-500 group-hover:rotate-90" />
-          <span className="leading-tight">
-            <span className="block text-[15px] font-bold tracking-tight sm:text-base">
-              {t("productName")}
+          <span className="leading-none">
+            <span className="block text-lg font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)]">
+              {BRAND.toLowerCase()}
             </span>
-            <span className="hidden text-[10px] font-medium uppercase tracking-[0.18em] text-white/60 sm:block">
-              {t("byBrand", {brand: BRAND})}
+            <span className="mt-0.5 block text-[10px] font-extrabold uppercase tracking-[0.16em] text-[var(--color-brand-pink)]">
+              {t("productName")}
             </span>
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1.5" aria-label={t("mainNavigation")}>
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="hidden text-white/75 hover:bg-white/10 hover:text-white sm:inline-flex"
+        <nav className="hidden items-center gap-0.5 md:flex" aria-label={t("mainNavigation")}>
+          {/* Two at tablet width, all five from lg: at 768px anything more
+              beside the account buttons pushes the page sideways. Below md
+              the home page's cards lead into each part. */}
+          <Link href="/" className={`${link} hidden lg:inline-flex`}>
+            {t("home")}
+          </Link>
+          <Link href="/training" className={`${link} inline-flex`}>
+            {t("findTraining")}
+          </Link>
+          <Link href="/learn" className={`${link} hidden lg:inline-flex`}>
+            {t("learn")}
+          </Link>
+          <Link href="/marketplace" className={`${link} inline-flex`}>
+            {t("marketplace")}
+          </Link>
+          <Link href="/trainer/join?new=1" className={`${link} hidden lg:inline-flex`}>
+            {t("becomeProvider")}
+          </Link>
+        </nav>
+
+        <div className="flex items-center gap-1.5">
+          <Link
+            href="/training"
+            aria-label={t("search")}
+            className="hidden size-11 place-items-center rounded-lg text-[var(--color-foreground)]/80 hover:text-[var(--color-brand)] sm:grid"
           >
-            <Link href="/training">
-              {t("findTraining")}
-              <ArrowRight aria-hidden />
-            </Link>
-          </Button>
-          {/* Shown from sm, like Find training. Online learning, the third
-              pillar, waits until lg: a phone has the home page's card for
-              it, and four links would crowd the header at tablet width. */}
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="hidden text-white/75 hover:bg-white/10 hover:text-white sm:inline-flex"
-          >
-            <Link href="/marketplace">
-              <Store aria-hidden />
-              {t("marketplace")}
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="hidden text-white/75 hover:bg-white/10 hover:text-white lg:inline-flex"
-          >
-            <Link href="/learn">
-              <PlayCircle aria-hidden />
-              {t("learn")}
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="hidden text-white/75 hover:bg-white/10 hover:text-white md:inline-flex"
-          >
-            <Link href="/trainer/join?new=1">
-              <Building2 aria-hidden />
-              {t("listWorkshop")}
-            </Link>
-          </Button>
+            <Search aria-hidden className="size-5" />
+          </Link>
           <AccountNav
             labels={{
               myAccount: tAccount("myAccount"),
-              account: tAccount("account"),
               signUp: tAccount("signUp"),
             }}
           />
-        </nav>
+        </div>
       </div>
     </header>
   );

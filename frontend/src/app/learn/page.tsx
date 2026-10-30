@@ -10,18 +10,17 @@
  * backend/providers/learning.py.
  */
 
-import { Clock3, PlayCircle, Video } from "lucide-react";
+import { Video } from "lucide-react";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { BrandShards } from "@/components/BrandShards";
+import { CourseTile } from "@/components/CourseTile";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getAllTrades, listCourses } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
-import type { CourseCard } from "@/lib/types";
 
 export const revalidate = 300;
 
@@ -110,7 +109,7 @@ export default async function LearnPage({
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {results.map((course) => (
                 <li key={course.id}>
-                  <CourseTile course={course} t={t} />
+                  <CourseTile course={course} />
                 </li>
               ))}
             </ul>
@@ -129,55 +128,6 @@ function TradeLink({ href, active, label }: { href: string; active: boolean; lab
       className="rounded-full border border-white/25 px-3.5 py-1.5 text-sm font-semibold text-white/85 transition-colors hover:bg-white/10 aria-[current=page]:border-transparent aria-[current=page]:bg-white aria-[current=page]:text-[var(--color-brand-strong)]"
     >
       {label}
-    </Link>
-  );
-}
-
-function CourseTile({
-  course,
-  t,
-}: {
-  course: CourseCard;
-  t: Awaited<ReturnType<typeof getTranslations<"Learn">>>;
-}) {
-  const hours = (course.total_seconds ?? 0) / 3600;
-  return (
-    <Link
-      href={`/learn/${course.area_slug}/${course.slug}`}
-      className="group block h-full overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-card)]"
-    >
-      <div className="relative grid aspect-video place-items-center bg-black text-white/70">
-        {course.poster ? (
-          <Image
-            src={course.poster}
-            alt=""
-            fill
-            className="object-cover opacity-90 transition-opacity group-hover:opacity-100"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
-          />
-        ) : null}
-        <span aria-hidden="true" className="relative grid size-12 place-items-center rounded-full bg-black/60 text-white ring-2 ring-white/80">
-          <PlayCircle className="size-6" />
-        </span>
-      </div>
-      <div className="space-y-1.5 p-4">
-        {course.trade ? (
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            {course.trade.name}
-          </p>
-        ) : null}
-        <h2 className="font-bold leading-snug tracking-[-0.015em]">{course.name}</h2>
-        <p className="text-sm text-[var(--color-muted-foreground)]">{course.area}</p>
-        <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
-          <Clock3 aria-hidden="true" className="size-3.5" />
-          {hours >= 1
-            ? t("lengthHours", { count: course.lessons, hours: hours.toFixed(1) })
-            : t("lengthMinutes", {
-                count: course.lessons,
-                minutes: Math.max(1, Math.round((course.total_seconds ?? 0) / 60)),
-              })}
-        </p>
-      </div>
     </Link>
   );
 }
