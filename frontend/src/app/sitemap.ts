@@ -42,6 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // front door: it is where every trade and area page sends people, and
     // where the inventory actually is.
     { url: `${site}/training`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${site}/learn`, changeFrequency: "weekly", priority: 0.7 },
     // Low priority, but it should be findable: a privacy policy nobody can
     // locate is not published in any useful sense.
     { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.3 },

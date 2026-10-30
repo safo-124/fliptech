@@ -301,7 +301,9 @@ When the last one arrives, `fliptech-video` encodes the file to a 360p copy
 poster still, strips the location the phone recorded, and deletes the
 original. The video then waits in **Videos to review** in the back office.
 Approving it moves its files to `media/videos/public/`, where Caddy serves
-them. Taking it down moves them back.
+them. Taking it down moves them back. Approved lessons appear on the
+workshop's listing and in **Online learning** (`/learn`), one course per
+workshop, in the order they were sent.
 
 **Servers set up before videos existed** need ffmpeg and the worker, once:
 

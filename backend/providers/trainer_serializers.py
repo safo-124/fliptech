@@ -2,6 +2,7 @@
 
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
@@ -16,7 +17,7 @@ from .models import (
     TeachingLanguage,
     TrainerAccount,
 )
-from .serializers import video_sources
+from .serializers import VideoSourceSerializer, video_sources
 
 
 class RejectUnknownFieldsMixin:
@@ -305,17 +306,20 @@ class TrainerVideoSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
+    @extend_schema_field(serializers.ChoiceField(choices=["upload", "youtube"]))
     def get_kind(self, obj):
         return "youtube" if obj.is_youtube else "upload"
 
     # Approved videos only, for the same reason as on the public listing:
     # before then the files are in private storage, which no trainer-facing
     # response points at.
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_poster(self, obj):
         if not obj.public_poster:
             return None
         return public_url(obj.public_poster.url, self.context.get("request"))
 
+    @extend_schema_field(VideoSourceSerializer(many=True))
     def get_sources(self, obj):
         return video_sources(obj, self.context.get("request"))
 

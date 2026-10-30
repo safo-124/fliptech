@@ -21,7 +21,6 @@
 import {
   ArrowRight,
   Check,
-  Clock,
   GraduationCap,
   MapPin,
   PlayCircle,
@@ -37,7 +36,6 @@ import { BrandShards } from "@/components/BrandShards";
 import { ProviderCard } from "@/components/ProviderCard";
 import { TradeArt } from "@/components/TradeArt";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { getAllAreas, getAllTrades, searchProviders } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
@@ -188,11 +186,12 @@ export default async function Home({
           action={t("pillarTrainingAction")}
         />
         <Pillar
+          href="/learn"
           icon={<PlayCircle aria-hidden="true" className="size-5" />}
           tone="coral"
           title={t("pillarLearningTitle")}
           body={t("pillarLearningBody")}
-          soon={t("soon")}
+          action={t("pillarLearningAction")}
         />
         <Pillar
           href="/marketplace"
@@ -271,28 +270,6 @@ export default async function Home({
           </div>
         </section>
       ) : null}
-
-      {/* ------------------------------------------------------ coming next */}
-      <section className="app-shell mt-12 sm:mt-16">
-        <Card className="border-dashed p-5 sm:p-7">
-          <div className="flex items-center gap-2.5">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
-              <Clock aria-hidden="true" className="size-4" />
-            </span>
-            <h2 className="text-lg font-extrabold tracking-[-0.025em]">{t("comingTitle")}</h2>
-          </div>
-          <p className="mt-2.5 max-w-[70ch] text-sm leading-relaxed text-[var(--color-muted-foreground)]">
-            {t("comingBody")}
-          </p>
-          <div className="mt-5">
-            <ComingRow
-              icon={<PlayCircle aria-hidden="true" className="size-4" />}
-              title={t("comingLearningTitle")}
-              body={t("comingLearningBody")}
-            />
-          </div>
-        </Card>
-      </section>
 
       {/* ------------------------------------------------------- become one */}
       <section className="app-shell mt-12 sm:mt-16">
@@ -428,30 +405,6 @@ function SectionHead({
       >
         {linkLabel}
       </Link>
-    </div>
-  );
-}
-
-function ComingRow({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)]/35 p-3.5">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--color-card)] text-[var(--color-muted-foreground)]">
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-bold tracking-[-0.01em]">{title}</span>
-        <span className="mt-0.5 block text-[13px] leading-snug text-[var(--color-muted-foreground)]">
-          {body}
-        </span>
-      </span>
     </div>
   );
 }

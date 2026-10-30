@@ -67,3 +67,21 @@ export function titleCase(slug: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
+
+/**
+ * What watching a video costs: its length in whole minutes and the data its
+ * smallest copy uses, in whole MB. Null for a YouTube video, from before
+ * uploads, which has neither on record. Shown before anybody taps play.
+ */
+export function videoCost(video: {
+  kind: string;
+  duration_seconds: number | null;
+  sources: { bytes: number | null }[];
+}): { minutes: number; mb: number } | null {
+  const smallest = video.sources[0];
+  if (video.kind === "youtube" || !video.duration_seconds || !smallest?.bytes) return null;
+  return {
+    minutes: Math.max(1, Math.round(video.duration_seconds / 60)),
+    mb: Math.max(1, Math.round(smallest.bytes / 1024 ** 2)),
+  };
+}

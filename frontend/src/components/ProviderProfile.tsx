@@ -53,7 +53,7 @@ import { ClientMessages } from "@/i18n/ClientMessages";
 import { PROFILE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { BRAND } from "@/lib/brand";
 import { directionsUrl, hasPin } from "@/lib/directions";
-import { formatDate, formatDuration, formatFee } from "@/lib/format";
+import { formatDate, formatDuration, formatFee, videoCost } from "@/lib/format";
 import { isTeachingLanguage } from "@/lib/teaching-languages";
 import type { Programme, ProviderDetail } from "@/lib/types";
 
@@ -638,43 +638,36 @@ function Videos({ provider }: { provider: ProviderDetail }) {
       </p>
 
       <ul className="mt-4 grid gap-5 sm:grid-cols-2">
-        {videos.map((video) => (
-          <li key={video.id}>
-            <VideoLesson
-              video={video}
-              playLabel={t("playVideo", { title: video.title })}
-              qualityLabel={t("videoQuality")}
-            />
-            <p className="mt-2 text-sm font-semibold leading-5">{video.title}</p>
-            {/* What the tap costs, said before it is spent: this user pays
-                for data in small bundles. */}
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
-              <Signal className="size-3.5 shrink-0" aria-hidden="true" />
-              {videoCost(video, t)}
-            </p>
-          </li>
-        ))}
+        {videos.map((video) => {
+          const cost = videoCost(video);
+          return (
+            <li key={video.id}>
+              <VideoLesson
+                video={video}
+                playLabel={t("playVideo", { title: video.title })}
+                qualityLabel={t("videoQuality")}
+              />
+              <p className="mt-2 text-sm font-semibold leading-5">{video.title}</p>
+              {/* What the tap costs, said before it is spent: this user pays
+                  for data in small bundles. */}
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
+                <Signal className="size-3.5 shrink-0" aria-hidden="true" />
+                {cost ? t("videoMeta", cost) : t("videoDataCost")}
+              </p>
+            </li>
+          );
+        })}
       </ul>
+      {/* The same lessons, one after another, with nothing else on the page. */}
+      <Link
+        href={`/learn/${provider.area_slug}/${provider.slug}`}
+        className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-brand-strong)] hover:underline"
+      >
+        {t("videosAsCourse")}
+        <ArrowRight aria-hidden="true" className="size-4" />
+      </Link>
     </section>
   );
-}
-
-/**
- * "12 minutes · about 40 MB": the length and the data the smallest copy
- * costs. A YouTube video, from before uploads, has neither on record.
- */
-function videoCost(
-  video: ProviderDetail["videos"][number],
-  t: ReturnType<typeof useTranslations<"ProviderProfile">>,
-) {
-  const smallest = video.sources[0];
-  if (video.kind === "youtube" || !video.duration_seconds || !smallest?.bytes) {
-    return t("videoDataCost");
-  }
-  return t("videoMeta", {
-    minutes: Math.max(1, Math.round(video.duration_seconds / 60)),
-    mb: Math.max(1, Math.round(smallest.bytes / 1024 ** 2)),
-  });
 }
 
 function PhotoStrip({

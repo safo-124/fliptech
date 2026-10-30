@@ -11,7 +11,7 @@ current from a back office.
 
 | Who | Where | What they do |
 |---|---|---|
-| Trainees | `/`, `/map`, `/trades/…`, `/<area>/<workshop>` | Search, compare, save workshops, send enquiries. Sign in with a phone code; no password. |
+| Trainees | `/`, `/map`, `/trades/…`, `/<area>/<workshop>`, `/learn` | Search, compare, save workshops, send enquiries, watch workshops' lessons online. Sign in with a phone code; no password. |
 | Workshop owners | `/trainer/join`, `/trainer/dashboard` | Sign up with a phone code, list the workshop, photos, ID and first course, then keep it up to date. |
 | Staff | `/back-office/` | Confirm trainers, approve listings, record site visits, follow up enquiries, send owner messages and sign-in codes. |
 
