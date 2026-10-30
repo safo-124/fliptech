@@ -122,6 +122,24 @@ export type ProviderVideo = {
   sources: VideoSource[];
 };
 
+/**
+ * Online learning: a workshop's approved lessons, browsed as one course.
+ * See backend/providers/learning.py.
+ */
+export type CourseCard = {
+  id: number;
+  name: string;
+  slug: string;
+  area: string;
+  area_slug: string;
+  trade: { name: string; slug: string; colour: string } | null;
+  lessons: number;
+  total_seconds: number | null;
+  poster: string | null;
+};
+
+export type CourseDetail = { course: CourseCard; lessons: ProviderVideo[] };
+
 export type ProviderDetail = ProviderCard & {
   address: string;
   owner_name: string;

@@ -382,6 +382,8 @@ SPECTACULAR_SETTINGS = {
     # which spectacular cannot name on its own.
     "ENUM_NAME_OVERRIDES": {
         "GovernmentRecordStatusEnum": "providers.models.GOVERNMENT_RECORD_STATUS_CHOICES",
+        # A video's player, not a photo's kind: both fields are named "kind".
+        "VideoKindEnum": [("upload", "upload"), ("youtube", "youtube")],
     },
 }
 

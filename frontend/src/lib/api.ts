@@ -10,6 +10,8 @@
 import {browserApiUrl} from "./api-origin";
 import type {
   AreaSummary,
+  CourseCard,
+  CourseDetail,
   DashboardData,
   Paginated,
   ProductCard,
@@ -288,4 +290,17 @@ export function getProduct(id: string | number) {
 
 export function getSellerShop(id: string | number) {
   return fetchJson<{seller: SellerCard; products: ProductCard[]}>(`/api/sellers/${id}/`);
+}
+
+// ---------------------------------------------------------------------------
+// Online learning
+//
+// The workshops' approved videos, one course per workshop. Reads only.
+
+export function listCourses(params: { trade?: string; page?: string } = {}) {
+  return fetchJson<Paginated<CourseCard>>(`/api/courses/${buildQuery(params)}`);
+}
+
+export function getCourse(area: string, slug: string) {
+  return fetchJson<CourseDetail>(`/api/courses/${area}/${slug}/`);
 }

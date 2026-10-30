@@ -36,16 +36,13 @@
     "pillarTrainingAction": "Explore training",
     "pillarLearningTitle": "Online learning",
     "pillarLearningBody": "Recorded courses from skilled professionals, taken at your own pace.",
+    "pillarLearningAction": "Start learning",
     "pillarMarketTitle": "Marketplace",
     "pillarMarketBody": "Buy what the workshops make, direct from the people who made it.",
     "skillsTitle": "Explore popular skills",
     "skillsBody": "Something you can learn, practise, or turn into a business.",
     "workshopsTitle": "Workshops {coverage}",
     "workshopsBody": "Compare the fee, the course length and the next intake before you travel.",
-    "comingTitle": "Coming next",
-    "comingBody": "Recorded courses from the same trainers you can visit in person. Not live yet, and we would rather say so than show you a page that leads nowhere.",
-    "comingLearningTitle": "Courses you can take anywhere",
-    "comingLearningBody": "Recorded by the same trainers you can visit in person.",
     "providerTitle": "Have a skill to share?",
     "providerBody": "List your workshop and reach the people already looking for what you teach.",
     "providerPointFree": "Free to list, and checked by our team before it goes live.",
@@ -123,7 +120,8 @@
     "mainNavigation": "Main navigation",
     "findTraining": "Find training",
     "listWorkshop": "List your workshop",
-    "marketplace": "Marketplace"
+    "marketplace": "Marketplace",
+    "learn": "Online learning"
   },
   "SiteFooter": {
     "tagline": "A clearer way to choose practical training.",
@@ -136,7 +134,8 @@
     "privacy": "Privacy",
     "language": "Language",
     "marketplace": "Marketplace",
-    "forSellers": "Sell here"
+    "forSellers": "Sell here",
+    "learn": "Online learning"
   },
   "AccountNav": {
     "myAccount": "My account",
@@ -384,7 +383,8 @@
     },
     "videoDataCost": "Plays only when you tap it · about 3 to 5 MB a minute",
     "videoMeta": "{minutes, plural, one {# minute} other {# minutes}} · about {mb} MB to watch",
-    "videoQuality": "Picture quality"
+    "videoQuality": "Picture quality",
+    "videosAsCourse": "Watch them as a course"
   },
   "SaveProviderButton": {
     "save": "Save",
@@ -1449,5 +1449,33 @@
     "saveShop": "Save",
     "shopSaved": "Your shop is saved.",
     "signedInAs": "Signed in as {phone}."
+  },
+  "Learn": {
+    "metaTitle": "Online learning: trade lessons on video",
+    "metaDescription": "Watch Ghanaian workshops teach welding, tailoring, hairdressing and more, lesson by lesson. Every video watched by {brand} first.",
+    "eyebrow": "Online learning",
+    "title": "Learn a trade from the people who practise it",
+    "intro": "Lessons filmed in real workshops, one course per workshop. {brand} watches every video before it appears here. Nothing downloads until you press play.",
+    "tradeFilter": "Choose a trade",
+    "allTrades": "All trades",
+    "unavailable": "Courses could not be loaded just now. Try again in a minute.",
+    "noneYet": "No courses yet",
+    "noneYetBody": "Workshops are filming their first lessons. Each one appears here once {brand} has watched it.",
+    "noneMatch": "No courses in this trade yet",
+    "noneMatchBody": "Try another trade, or see every course.",
+    "teachHere": "Teach a course here",
+    "count": "{count, plural, one {# course} other {# courses}}",
+    "lengthHours": "{count, plural, one {# lesson} other {# lessons}} · {hours} hours",
+    "lengthMinutes": "{count, plural, one {# lesson} other {# lessons}} · {minutes} min",
+    "notFound": "Course not found",
+    "courseMetaTitle": "{name}: online course",
+    "courseMetaDescription": "{count, plural, one {# lesson} other {# lessons}} from {name} in {area}, watched by {brand} before they appear.",
+    "allCourses": "All courses",
+    "courseByline": "{area} · {count, plural, one {# lesson} other {# lessons}}",
+    "visitWorkshop": "See the workshop, its fees and next intake",
+    "lessons": "Lessons",
+    "nextLesson": "Next lesson",
+    "lessonNumber": "Lesson {number} of {count}",
+    "reviewed": "Every lesson here was watched by {brand} before it appeared. If something in one is wrong or unsafe, report it from the workshop's page."
   }
 }

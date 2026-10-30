@@ -31,6 +31,7 @@ from marketplace.views import (
 )
 from providers.complaint_views import ComplaintCreateView
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
+from providers.learning import CourseDetailView, CourseListView
 from providers.trainer_dashboard_views import (
     TrainerEnquiryRepliedView,
     TrainerOwnDashboardView,
@@ -199,6 +200,13 @@ urlpatterns = [
         "providers/<slug:area_slug>/<slug:slug>/",
         ProviderBySlugView.as_view(),
         name="provider-by-slug",
+    ),
+    # Online learning: each workshop's approved videos, browsed as a course.
+    path("courses/", CourseListView.as_view(), name="course-list"),
+    path(
+        "courses/<slug:area_slug>/<slug:slug>/",
+        CourseDetailView.as_view(),
+        name="course-detail",
     ),
     # Enquiry flow: request a code, verify it, send the enquiry.
     path("enquiries/request-code/", OTPRequestView.as_view(), name="otp-request"),

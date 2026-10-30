@@ -1,4 +1,4 @@
-import {ArrowRight, Building2, Store} from "lucide-react";
+import {ArrowRight, Building2, PlayCircle, Store} from "lucide-react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 
@@ -55,9 +55,9 @@ export function SiteHeader() {
               <ArrowRight aria-hidden />
             </Link>
           </Button>
-          {/* Shown from sm, like Find training: the two public pillars that
-              exist are the two the header offers. Online learning is not
-              here because there is nothing behind it yet. */}
+          {/* Shown from sm, like Find training. Online learning, the third
+              pillar, waits until lg: a phone has the home page's card for
+              it, and four links would crowd the header at tablet width. */}
           <Button
             asChild
             variant="ghost"
@@ -67,6 +67,17 @@ export function SiteHeader() {
             <Link href="/marketplace">
               <Store aria-hidden />
               {t("marketplace")}
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="hidden text-white/75 hover:bg-white/10 hover:text-white lg:inline-flex"
+          >
+            <Link href="/learn">
+              <PlayCircle aria-hidden />
+              {t("learn")}
             </Link>
           </Button>
           <Button
