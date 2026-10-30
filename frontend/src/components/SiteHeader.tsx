@@ -1,4 +1,4 @@
-import {Search} from "lucide-react";
+import {Menu, Search} from "lucide-react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 
@@ -30,7 +30,10 @@ export function SiteHeader() {
       <div className="app-shell flex h-16 items-center justify-between gap-3 lg:h-[4.5rem]">
         <Link href="/" className="group inline-flex min-h-11 items-center gap-2.5 rounded-xl">
           <BrandMark motion="open" className="size-9 transition-transform duration-500 group-hover:rotate-90" />
-          <span className="leading-none">
+          {/* The mark alone below 360px, where the wordmark, two account
+              buttons and the menu are wider than the screen. Still named. */}
+          <span className="sr-only min-[360px]:hidden">{BRAND}</span>
+          <span className="leading-none max-[359px]:hidden">
             <span className="block text-lg font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)]">
               {BRAND.toLowerCase()}
             </span>
@@ -75,6 +78,43 @@ export function SiteHeader() {
               signUp: tAccount("signUp"),
             }}
           />
+          {/* Every part of the site, below lg, where the bar has no room
+              for them. <details> rather than a script: it opens and closes
+              with no JavaScript, so it costs the search page's budget only
+              its few lines of HTML. Plain <a>, not <Link>: a full page load
+              is what closes it, since the header stays mounted across
+              client-side navigation and would otherwise stay open. */}
+          <details className="relative lg:hidden">
+            <summary
+              aria-label={t("menu")}
+              className="grid size-11 cursor-pointer list-none place-items-center rounded-lg text-[var(--color-foreground)]/80 hover:text-[var(--color-brand)] [&::-webkit-details-marker]:hidden"
+            >
+              <Menu aria-hidden className="size-5" />
+            </summary>
+            <nav
+              aria-label={t("mainNavigation")}
+              className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-[var(--shadow-lg)]"
+            >
+              {(
+                [
+                  ["/", t("home")],
+                  ["/training", t("findTraining")],
+                  ["/learn", t("learn")],
+                  ["/marketplace", t("marketplace")],
+                  ["/map", t("map")],
+                  ["/trainer/join?new=1", t("becomeProvider")],
+                ] as const
+              ).map(([href, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="flex min-h-11 items-center rounded-xl px-3 text-sm font-medium hover:bg-[var(--color-muted)] hover:text-[var(--color-brand)]"
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
+          </details>
         </div>
       </div>
     </header>

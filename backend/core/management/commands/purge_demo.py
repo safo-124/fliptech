@@ -20,9 +20,12 @@ from django.db import transaction
 
 from billing.models import Subscription
 from catalog.models import Intake, Programme
+from core.demo_extras import DEMO_SELLER_PHONES
+from core.identities import user_is_unprivileged
 from core.management.commands.seed_demo import AREAS, TRADES, WORKSHOP_SUFFIXES
 from enquiries.models import Enquiry, Enrolment
-from providers.models import Provider, ProviderPhoto
+from marketplace.models import Product, ProductPhoto, SellerAccount
+from providers.models import Provider, ProviderPhoto, ProviderVideo
 
 
 def demo_slugs():
@@ -60,7 +63,45 @@ class Command(BaseCommand):
             help="Actually delete. Without it, nothing is written.",
         )
 
+    def _purge_shops(self, *, really):
+        """The demo shops, which are not tied to a demo workshop's slug.
+
+        Found by their reserved phone numbers (core/demo_extras.py), so a
+        real seller is never caught. Their dedicated sign-in users go too,
+        or each purge would leave a user behind with nothing attached.
+        """
+        sellers = list(
+            SellerAccount.objects.filter(phone__in=DEMO_SELLER_PHONES).select_related("user")
+        )
+        if not sellers:
+            return
+        products = Product.objects.filter(seller__in=sellers).count()
+        self.stdout.write(f"{len(sellers)} demo shops, holding {products} demo products.")
+        if not really:
+            return
+
+        files = 0
+        for photo in ProductPhoto.objects.filter(product__seller__in=sellers):
+            if photo.image:
+                photo.image.delete(save=False)
+                files += 1
+        with transaction.atomic():
+            users = [seller.user for seller in sellers]
+            SellerAccount.objects.filter(pk__in=[seller.pk for seller in sellers]).delete()
+            for user in users:
+                # Only a user that is now nothing but an empty demo identity:
+                # never staff, and never one somebody also signs in with to
+                # train or learn.
+                if (
+                    user_is_unprivileged(user)
+                    and not hasattr(user, "trainer_account")
+                    and not hasattr(user, "trainee_account")
+                ):
+                    user.delete()
+        self.stdout.write(f"Deleted the demo shops and {files} product pictures.")
+
     def handle(self, *args, **options):
+        self._purge_shops(really=options["yes"])
         providers = list(demo_providers())
 
         # Reported before the early return, not after it. When the only match
@@ -89,6 +130,8 @@ class Command(BaseCommand):
             "programmes": Programme.objects.filter(provider_id__in=ids).count(),
             "intakes": Intake.objects.filter(programme__provider_id__in=ids).count(),
             "photographs": ProviderPhoto.objects.filter(provider_id__in=ids).count(),
+            # Their files go with them: see ProvidersConfig.
+            "lessons": ProviderVideo.objects.filter(provider_id__in=ids).count(),
             "enquiries": enquiries.count(),
             "enrolments": Enrolment.objects.filter(provider_id__in=ids).count(),
             "subscriptions": Subscription.objects.filter(provider_id__in=ids).count(),

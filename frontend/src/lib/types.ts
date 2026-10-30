@@ -604,3 +604,6 @@ export type HomePicture = { url: string; alt: string; credit: string };
 export type HomePictures = Partial<
   Record<"hero" | "training" | "learning" | "marketplace", HomePicture>
 >;
+
+/** The home page's trust strip. See backend core/site_stats.py. */
+export type SiteStats = { workshops: number; visited: number; lessons: number; products: number };

@@ -32,6 +32,7 @@ import { permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
+import { IntakesBoard } from "@/components/IntakesBoard";
 import { TradeArt } from "@/components/TradeArt";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ import {
   getAllAreas,
   getAllTrades,
   getHomePictures,
+  getSiteStats,
+  getUpcomingIntakes,
   listCourses,
   searchProducts,
   searchProviders,
@@ -46,7 +49,7 @@ import {
 import { BRAND } from "@/lib/brand";
 import { searchRedirectTarget } from "@/lib/search-redirect";
 import { tradeClass } from "@/lib/trades";
-import type { HomePicture, HomePictures } from "@/lib/types";
+import type { HomePicture, HomePictures, SiteStats } from "@/lib/types";
 
 /** Long enough to be cheap, short enough that a new listing shows up today. */
 export const revalidate = 300;
@@ -83,7 +86,7 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, areas, pictures, workshops, courses, products, t] = await Promise.all([
+  const [trades, areas, pictures, workshops, courses, products, stats, upcoming, t] = await Promise.all([
     // getAllTrades, not getTrades: categories are created by staff in the
     // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
@@ -92,6 +95,8 @@ export default async function Home({
     searchProviders({}).catch(() => null),
     listCourses().catch(() => null),
     searchProducts({}).catch(() => null),
+    getSiteStats().catch(() => null),
+    getUpcomingIntakes(3).catch(() => []),
     getTranslations("LandingPage"),
   ]);
 
@@ -205,6 +210,11 @@ export default async function Home({
 
           {hero ? <HeroPicture picture={hero} badge={t("heroBadge")} /> : null}
         </div>
+
+        {/* Real counts, in place of the star ratings the design shows and
+            the site has no way to back. A count of nothing is left out
+            rather than shown as a zero that reads as "nobody". */}
+        {stats ? <TrustStrip stats={stats} t={t} /> : null}
       </section>
 
       {/* -------------------------------------------------------- pillars */}
@@ -281,6 +291,15 @@ export default async function Home({
         </section>
       ) : null}
 
+      {/* --------------------------------------------------- starting soon */}
+      {/* The departures board from the search page: the next courses anyone
+          could still join. A reason to act now rather than one day. */}
+      {upcoming.length ? (
+        <section className="app-shell mt-12 sm:mt-14">
+          <IntakesBoard intakes={upcoming} />
+        </section>
+      ) : null}
+
       {/* -------------------------------------------- courses and products */}
       <section className="app-shell mt-12 grid gap-10 sm:mt-14 lg:grid-cols-2 lg:gap-8">
         <div>
@@ -345,6 +364,42 @@ export default async function Home({
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * "38 workshops listed · 12 visited by Fliiptech · …", each only when above
+ * zero. The number and its words are one list item, so a screen reader
+ * reads "38 workshops listed" as one phrase.
+ */
+function TrustStrip({
+  stats,
+  t,
+}: {
+  stats: SiteStats;
+  t: Awaited<ReturnType<typeof getTranslations<"LandingPage">>>;
+}) {
+  const items = [
+    { count: stats.workshops, label: t("statWorkshops", { count: stats.workshops }) },
+    { count: stats.visited, label: t("statVisited", { brand: BRAND }) },
+    { count: stats.lessons, label: t("statLessons", { count: stats.lessons }) },
+    { count: stats.products, label: t("statProducts", { count: stats.products }) },
+  ].filter((item) => item.count > 0);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="border-t border-[var(--color-brand)]/10">
+      <ul className="app-shell flex flex-wrap gap-x-8 gap-y-3 py-4 sm:py-5">
+        {items.map((item) => (
+          <li key={item.label} className="flex items-baseline gap-2 text-sm text-[var(--color-foreground)]/70">
+            <strong className="text-2xl font-extrabold tracking-[-0.03em] text-[var(--color-brand)]">
+              {item.count}
+            </strong>
+            {item.label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

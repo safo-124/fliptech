@@ -125,7 +125,7 @@ Chrome already on the machine works: set `PLAYWRIGHT_BROWSER_CHANNEL=chrome`.
 |---|---|
 | `check_database` | Checks a database can host the project: PostGIS, extensions, privileges |
 | `setup_groups` | Creates or updates the Field officer and Operations lead roles. `deploy.sh` runs it on every release |
-| `seed_demo` / `purge_demo` | Adds or removes illustrative workshops. `purge_demo` is a dry run unless `--yes` |
+| `seed_demo` / `purge_demo` | Adds or removes illustrative workshops, demo shops with products, and short demo video lessons (which need ffmpeg). Everything is labelled DEMO. `purge_demo` is a dry run unless `--yes` |
 | `queue_freshness_prompts` | Queues the 90-day "are your fees and dates still right?" messages. Runs nightly on the server |
 | `process_videos` | Prepares uploaded teaching videos for phones with ffmpeg. Runs all the time on the server; `--once` works through the queue and stops |
 | `check_email` | Sends a test message through the configured email transport |
