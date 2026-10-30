@@ -210,6 +210,15 @@ body {
   /* The indigo field from the logo, used for the header, hero and footer.
      Bands rather than a dark theme: the canvas, the cards and the map stay
      light, because the trainee reading this is outdoors in direct sun. */
+  /* The home page's light lavender, from the brand's violet and pink at a
+     whisper, so dark text stays readable in direct sun. */
+  .hero-wash {
+    background:
+      radial-gradient(ellipse at 90% 10%, oklch(0.93 0.05 350 / 0.7), transparent 55%),
+      radial-gradient(ellipse at 0% 100%, oklch(0.93 0.04 295 / 0.8), transparent 60%),
+      oklch(0.97 0.018 300);
+  }
+
   .band {
     background:
       radial-gradient(ellipse at 12% 0%, oklch(0.36 0.17 296 / 0.85), transparent 55%),

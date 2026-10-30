@@ -12,6 +12,7 @@ import type {
   AreaSummary,
   CourseCard,
   CourseDetail,
+  HomePictures,
   DashboardData,
   Paginated,
   ProductCard,
@@ -303,4 +304,9 @@ export function listCourses(params: { trade?: string; page?: string } = {}) {
 
 export function getCourse(area: string, slug: string) {
   return fetchJson<CourseDetail>(`/api/courses/${area}/${slug}/`);
+}
+
+/** The home page's staff-chosen photographs. See types.HomePictures. */
+export function getHomePictures() {
+  return fetchJson<HomePictures>("/api/site/home-pictures/");
 }

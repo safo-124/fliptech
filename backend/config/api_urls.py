@@ -8,6 +8,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from catalog.views import TradeViewSet
+from core.home_pictures import HomePicturesView
 from core.whoami import WhoAmIView
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
@@ -201,6 +202,8 @@ urlpatterns = [
         ProviderBySlugView.as_view(),
         name="provider-by-slug",
     ),
+    # The home page's staff-chosen photographs. See core.models.HomePicture.
+    path("site/home-pictures/", HomePicturesView.as_view(), name="home-pictures"),
     # Online learning: each workshop's approved videos, browsed as a course.
     path("courses/", CourseListView.as_view(), name="course-list"),
     path(

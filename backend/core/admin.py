@@ -8,12 +8,13 @@ from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
+from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
 from enquiries.whatsapp import chat_url
 
 from . import relay
-from .models import RelayedText
+from .models import HomePicture, RelayedText
 
 admin.site.site_header = f"{settings.BRAND_NAME} Skills Hub back office"
 admin.site.site_title = "Skills Hub"
@@ -93,3 +94,28 @@ class RelayedTextAdmin(admin.ModelAdmin):
                 request, f"The code for {text.to} was already marked as sent.", messages.WARNING
             )
         return HttpResponseRedirect(reverse("admin:core_relayedtext_changelist"))
+
+
+@admin.register(HomePicture)
+class HomePictureAdmin(admin.ModelAdmin):
+    """The home page's photographs: one beside the search, one on each card.
+
+    An empty place is fine. The page falls back to something real from the
+    site — a workshop's photograph, a course's still, a product — and then to
+    the plain card, so nothing needs filling in before the site looks right.
+    """
+
+    list_display = ("preview", "slot", "alt_text", "credit", "updated_at")
+    list_display_links = ("preview", "slot")
+    fields = ("slot", "image", "preview", "alt_text", "credit")
+    readonly_fields = ("preview",)
+
+    @admin.display(description="Picture")
+    def preview(self, obj):
+        if not obj.image:
+            return "—"
+        return format_html(
+            '<img src="{}" alt="" width="160" height="100" '
+            'style="object-fit:cover;border-radius:8px">',
+            obj.image.url,
+        )

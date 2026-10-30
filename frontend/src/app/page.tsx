@@ -2,15 +2,21 @@
  * The front door: what Skills Hub is, and the three things it does.
  *
  * `/` used to be the search results. It is now the page that explains a
- * product with three parts — training, courses and a marketplace — and sends
- * people into whichever one they came for. Results live at /training.
+ * product with three parts — training, online learning and a marketplace —
+ * and sends people into whichever one they came for. Results live at
+ * /training.
  *
- * Two rules hold this page together.
+ * Three rules hold this page together.
  *
- * It tells the truth about what exists. Courses and the marketplace are built
- * into the layout because they are the plan and people need to see it, but
- * they are marked as coming rather than dressed up as live. A tile that looks
- * ready and leads nowhere costs more trust than an empty space.
+ * It tells the truth about what exists. The featured courses and products
+ * are the real ones, with the real price or none; there are no ratings,
+ * "bestseller" badges or baskets, because the site has none of those things
+ * and a page that implies otherwise costs more trust than it earns.
+ *
+ * Its pictures are real. Each place is filled by a photograph staff chose
+ * in the back office (core.models.HomePicture). An empty place falls back
+ * to something genuinely on the site — a workshop's photograph, a course's
+ * still, a product — and only then to the plain card.
  *
  * It stays a Server Component. The hero search is a plain GET form pointing
  * at /training, so the one thing anybody comes here to do works with no
@@ -18,29 +24,29 @@
  * the site is usable on a cheap phone on a slow network.
  */
 
-import {
-  ArrowRight,
-  Check,
-  GraduationCap,
-  MapPin,
-  PlayCircle,
-  Search,
-  Store,
-} from "lucide-react";
+import { ArrowRight, GraduationCap, MapPin, PlayCircle, Search, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import { BrandShards } from "@/components/BrandShards";
-import { ProviderCard } from "@/components/ProviderCard";
+import { CourseTile } from "@/components/CourseTile";
 import { TradeArt } from "@/components/TradeArt";
+import { ProductTile } from "@/components/marketplace/ProductTile";
 import { Button } from "@/components/ui/button";
-import { getAllAreas, getAllTrades, searchProviders } from "@/lib/api";
+import {
+  getAllAreas,
+  getAllTrades,
+  getHomePictures,
+  listCourses,
+  searchProducts,
+  searchProviders,
+} from "@/lib/api";
 import { BRAND } from "@/lib/brand";
-import { coverageSuffix, launchedRegionNames } from "@/lib/coverage";
 import { searchRedirectTarget } from "@/lib/search-redirect";
 import { tradeClass } from "@/lib/trades";
+import type { HomePicture, HomePictures } from "@/lib/types";
 
 /** Long enough to be cheap, short enough that a new listing shows up today. */
 export const revalidate = 300;
@@ -56,9 +62,16 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** How many workshops the front door shows before sending people to the list.
-    Three fills a desktop row and costs a phone one screen, not six. */
+/** How many courses and products each half of the featured row shows. Three
+    fills it on a desktop and costs a phone one screen. */
 const FEATURED = 3;
+
+/** A picture for one of the page's places: staff's choice, or a stand-in. */
+type Picture = { url: string; alt: string; credit?: string; caption?: string; href?: string };
+
+function chosen(picture: HomePicture | undefined): Picture | null {
+  return picture ? { url: picture.url, alt: picture.alt, credit: picture.credit } : null;
+}
 
 export default async function Home({
   searchParams,
@@ -70,90 +83,110 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, areas, featured, regionNames, t, tCoverage] = await Promise.all([
+  const [trades, areas, pictures, workshops, courses, products, t] = await Promise.all([
     // getAllTrades, not getTrades: categories are created by staff in the
-    // back office, so the number is theirs to decide. The paginated call
-    // would quietly stop at twenty and the twenty-first category an admin
-    // added would simply never appear, with nothing to show them why.
+    // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
     getAllAreas().catch(() => []),
+    getHomePictures().catch((): HomePictures => ({})),
     searchProviders({}).catch(() => null),
-    launchedRegionNames(),
+    listCourses().catch(() => null),
+    searchProducts({}).catch(() => null),
     getTranslations("LandingPage"),
-    getTranslations("Coverage"),
   ]);
 
-  const coverage = coverageSuffix(regionNames, tCoverage);
-  const workshops = featured?.results.slice(0, FEATURED) ?? [];
+  const featuredCourses = courses?.results.slice(0, FEATURED) ?? [];
+  const featuredProducts = products?.results.slice(0, FEATURED) ?? [];
+
+  // Stand-ins, from what is genuinely on the site. A workshop's photograph is
+  // captioned with the workshop, so it never reads as the face of the site.
+  const workshop = workshops?.results.find((provider) => provider.primary_photo);
+  const hero =
+    chosen(pictures.hero) ??
+    (workshop?.primary_photo
+      ? {
+          url: workshop.primary_photo,
+          alt: "",
+          caption: t("heroCaption", { name: workshop.name, area: workshop.area }),
+          href: `/${workshop.area_slug}/${workshop.slug}`,
+        }
+      : null);
+  const training =
+    chosen(pictures.training) ??
+    (workshop?.primary_photo ? { url: workshop.primary_photo, alt: "" } : null);
+  const firstPoster = featuredCourses.find((course) => course.poster)?.poster;
+  const learning = chosen(pictures.learning) ?? (firstPoster ? { url: firstPoster, alt: "" } : null);
+  const firstProduct = featuredProducts.find((product) => product.photo)?.photo;
+  const market =
+    chosen(pictures.marketplace) ?? (firstProduct ? { url: firstProduct, alt: "" } : null);
 
   return (
-    <div className="pb-14">
+    <div>
       {/* ------------------------------------------------------------ hero */}
-      <section className="band relative isolate overflow-hidden">
-        <BrandShards className="pointer-events-none absolute -right-10 -top-16 h-[22rem] w-[30rem] opacity-30" />
-        <div className="app-shell relative z-10 py-10 sm:py-14 lg:py-20">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--color-peach)] sm:text-xs">
-            {t("eyebrow")}
-          </p>
-          <h1 className="mt-3 max-w-[18ch] text-[2rem] font-extrabold leading-[1.1] tracking-[-0.035em] text-white sm:text-5xl lg:text-6xl">
-            {t("headline")}
-          </h1>
-          <p className="mt-4 max-w-[52ch] text-sm leading-relaxed text-white/75 sm:text-base">
-            {t("subhead")}
-          </p>
+      <section className="hero-wash">
+        <div className="app-shell grid items-center gap-8 py-8 sm:py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-10 lg:py-14">
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--color-brand)] sm:text-xs">
+              {t("eyebrow")}
+            </p>
+            <h1 className="mt-3 max-w-[16ch] text-[2.1rem] font-extrabold leading-[1.05] tracking-[-0.04em] text-[var(--color-brand-deep)] sm:text-5xl lg:text-[3.4rem]">
+              {t("headline")}
+            </h1>
+            <p className="mt-4 max-w-[46ch] text-[15px] leading-relaxed text-[var(--color-foreground)]/75 sm:text-lg">
+              {t("subhead")}
+            </p>
 
-          {/* A GET form, so the core action needs no JavaScript. The fields
-              are the ones /training reads; a free-text area box would be
-              dropped on arrival, so the place is a list of real areas. */}
-          <form action="/training" method="get" className="mt-7 max-w-3xl">
-            <div className="rounded-2xl bg-[var(--color-card)] p-2.5 shadow-[var(--shadow-lg)] sm:flex sm:items-center sm:gap-2 sm:p-3">
-              <div className="flex flex-1 items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent sm:px-2">
-                <Search aria-hidden="true" className="size-4 shrink-0 text-[var(--color-muted-foreground)]" />
-                <label htmlFor="landing-q" className="sr-only">
-                  {t("skillLabel")}
-                </label>
-                <input
-                  id="landing-q"
-                  name="q"
-                  type="search"
-                  placeholder={t("skillPlaceholder")}
-                  className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)]"
-                />
+            {/* A GET form, so the core action needs no JavaScript. The fields
+                are the ones /training reads; a free-text area box would be
+                dropped on arrival, so the place is a list of real areas. */}
+            <form action="/training" method="get" className="mt-7">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-2.5 shadow-[var(--shadow-lg)] sm:flex sm:items-center sm:gap-2 sm:p-2">
+                <div className="flex flex-1 items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent sm:px-2">
+                  <Search aria-hidden="true" className="size-4 shrink-0 text-[var(--color-brand)]" />
+                  <label htmlFor="landing-q" className="sr-only">
+                    {t("skillLabel")}
+                  </label>
+                  <input
+                    id="landing-q"
+                    name="q"
+                    type="search"
+                    placeholder={t("skillPlaceholder")}
+                    className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)]"
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:mt-0 sm:w-44 sm:shrink-0 sm:border-l sm:border-[var(--color-border)] sm:bg-transparent sm:px-3">
+                  <MapPin aria-hidden="true" className="size-4 shrink-0 text-[var(--color-brand)]" />
+                  <label htmlFor="landing-area" className="sr-only">
+                    {t("placeLabel")}
+                  </label>
+                  <select
+                    id="landing-area"
+                    name="area"
+                    defaultValue=""
+                    className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
+                  >
+                    <option value="">{t("anywhere")}</option>
+                    {areas.map((area) => (
+                      <option key={area.slug} value={area.slug}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button type="submit" variant="brand" size="lg" className="mt-2 w-full sm:mt-0 sm:w-auto">
+                  {t("searchAction")}
+                  <ArrowRight aria-hidden="true" />
+                </Button>
               </div>
+            </form>
 
-              <div className="mt-2 flex flex-1 items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:mt-0 sm:border-l sm:border-[var(--color-border)] sm:bg-transparent sm:px-3">
-                <MapPin aria-hidden="true" className="size-4 shrink-0 text-[var(--color-muted-foreground)]" />
-                <label htmlFor="landing-area" className="sr-only">
-                  {t("placeLabel")}
-                </label>
-                <select
-                  id="landing-area"
-                  name="area"
-                  defaultValue=""
-                  className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
-                >
-                  <option value="">{t("anywhere")}</option>
-                  {areas.map((area) => (
-                    <option key={area.slug} value={area.slug}>
-                      {area.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <Button type="submit" variant="brand" size="lg" className="mt-2 w-full sm:mt-0 sm:w-auto">
-                {t("searchAction")}
-                <ArrowRight aria-hidden="true" />
-              </Button>
-            </div>
-          </form>
-
-          {trades.length ? (
-            <div className="mt-5">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">
-                {t("popular")}
-              </p>
-              <div className="mt-2.5 flex flex-wrap gap-2">
+            {trades.length ? (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-[var(--color-muted-foreground)]">
+                  {t("popular")}
+                </span>
                 {/* The first six by the display order staff set, so which
                     trades lead the hero is an editorial choice in the back
                     office rather than something hardcoded here. */}
@@ -161,142 +194,153 @@ export default async function Home({
                   <Link
                     key={trade.slug}
                     href={`/training?trade=${trade.slug}`}
-                    className="inline-flex min-h-11 items-center rounded-full border border-white/25 bg-white/10 px-3.5 text-[13px] font-semibold text-white transition-colors hover:border-white/45 hover:bg-white/20"
+                    className="inline-flex min-h-9 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-xs font-semibold transition-colors hover:border-[var(--color-brand)]/40 hover:text-[var(--color-brand)]"
                   >
                     {trade.name}
                   </Link>
                 ))}
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
+
+          {hero ? <HeroPicture picture={hero} badge={t("heroBadge")} /> : null}
         </div>
       </section>
 
       {/* -------------------------------------------------------- pillars */}
-      {/* Pulled up over the band's lower edge. `relative` is load-bearing:
-          the hero above is positioned, so without it these cards paint
-          underneath and their titles disappear into the indigo. */}
-      <section className="app-shell relative z-10 -mt-6 grid gap-3.5 sm:-mt-8 md:grid-cols-3">
+      <section className="app-shell mt-8 grid gap-4 sm:mt-10 md:grid-cols-3">
         <Pillar
           href="/training"
-          icon={<GraduationCap aria-hidden="true" className="size-5" />}
+          icon={<GraduationCap aria-hidden="true" className="size-6" />}
           tone="brand"
           title={t("pillarTrainingTitle")}
           body={t("pillarTrainingBody")}
           action={t("pillarTrainingAction")}
+          picture={training}
         />
         <Pillar
           href="/learn"
-          icon={<PlayCircle aria-hidden="true" className="size-5" />}
+          icon={<PlayCircle aria-hidden="true" className="size-6" />}
           tone="coral"
           title={t("pillarLearningTitle")}
           body={t("pillarLearningBody")}
           action={t("pillarLearningAction")}
+          picture={learning}
         />
         <Pillar
           href="/marketplace"
-          icon={<Store aria-hidden="true" className="size-5" />}
+          icon={<ShoppingBag aria-hidden="true" className="size-6" />}
           tone="dye"
           title={t("pillarMarketTitle")}
           body={t("pillarMarketBody")}
           action={t("pillarMarketAction")}
+          picture={market}
         />
       </section>
 
       {/* ------------------------------------------------------ categories */}
       {trades.length ? (
-        <section className="app-shell mt-12 sm:mt-16">
+        <section className="app-shell mt-12 sm:mt-14">
           <SectionHead
             title={t("skillsTitle")}
             body={t("skillsBody")}
             linkHref="/training"
             linkLabel={t("viewAll")}
           />
-          {/* Not a column count: staff decide how many categories exist, so
-              six was only ever right by accident and a seventh would have
-              left two orphans on the second row.
-
-              auto-fit rather than auto-fill. auto-fill keeps the empty
-              tracks it could fit — at 1280px that laid six tiles into seven
-              columns and left a gap on the right. auto-fit collapses them,
-              so the tiles stretch to fill whatever row they are on.
-
-              11rem rather than something smaller: it caps a desktop row at
-              six, so eight categories fall as 6 + 2 instead of 7 + 1, and
-              the tiles stay big enough for the signboard picture.
-
-              Two fixed columns on a phone, though. 11rem does not fit twice
-              in 351px, so auto-fit alone collapsed the phone to one tile per
-              row and six screens of scrolling. */}
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
+          {/* auto-fit, not a column count: staff decide how many categories
+              exist. 8.5rem fits eight across a desktop, as the design has
+              them, and two fixed columns on a phone, where auto-fit alone
+              would collapse to one tile a row. */}
+          <ul className="mt-5 grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr))]">
             {trades.map((trade) => (
-              <Link
-                key={trade.slug}
-                href={`/trades/${trade.slug}`}
-                className={`${tradeClass(trade.colour)} group flex flex-col items-center gap-2.5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 text-center transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-card)]`}
-              >
-                <TradeArt
-                  colour={trade.colour}
-                  picture={trade.picture}
-                  className="size-20 sm:size-24"
-                  sizes="96px"
-                />
-                <span className="text-[13px] font-bold leading-tight tracking-[-0.01em]">
-                  {trade.name}
-                </span>
-              </Link>
+              <li key={trade.slug}>
+                <Link
+                  href={`/trades/${trade.slug}`}
+                  className={`${tradeClass(trade.colour)} group block h-full overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-card)]`}
+                >
+                  <div className="relative grid aspect-[4/3] place-items-center overflow-hidden bg-[var(--trade-bg)]">
+                    {trade.picture ? (
+                      <Image
+                        src={trade.picture}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1024px) 12vw, 50vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                      />
+                    ) : (
+                      <TradeArt colour={trade.colour} picture={null} className="size-16" />
+                    )}
+                  </div>
+                  <span className="block px-2 py-2.5 text-center text-[13px] font-bold leading-tight tracking-[-0.01em]">
+                    {trade.name}
+                  </span>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       ) : null}
 
-      {/* -------------------------------------------------------- workshops */}
-      {workshops.length ? (
-        <section className="app-shell mt-12 sm:mt-16">
+      {/* -------------------------------------------- courses and products */}
+      <section className="app-shell mt-12 grid gap-10 sm:mt-14 lg:grid-cols-2 lg:gap-8">
+        <div>
           <SectionHead
-            title={t("workshopsTitle", { coverage })}
-            // Deliberately says nothing about site visits. Most listings have
-            // not had one yet and the card says so itself, in those words; a
-            // heading promising "visited and checked" sat directly above two
-            // cards reading "Not visited by Fliiptech".
-            body={t("workshopsBody")}
-            linkHref="/training"
-            linkLabel={t("seeAll")}
+            title={t("coursesTitle")}
+            linkHref="/learn"
+            linkLabel={t("coursesAll")}
           />
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {workshops.map((provider) => (
-              <ProviderCard key={provider.id} provider={provider} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+          {featuredCourses.length ? (
+            <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {featuredCourses.map((course) => (
+                <li key={course.id}>
+                  <CourseTile course={course} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Waiting body={t("coursesNone")} href="/trainer/dashboard#videos" action={t("coursesTeach")} />
+          )}
+        </div>
+        <div>
+          <SectionHead
+            title={t("productsTitle")}
+            linkHref="/marketplace"
+            linkLabel={t("productsAll")}
+          />
+          {featuredProducts.length ? (
+            <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {featuredProducts.map((product) => (
+                <li key={product.id}>
+                  <ProductTile product={product} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Waiting body={t("productsNone")} href="/sell" action={t("productsSell")} />
+          )}
+        </div>
+      </section>
 
       {/* ------------------------------------------------------- become one */}
-      <section className="app-shell mt-12 sm:mt-16">
-        <div className="band relative isolate overflow-hidden rounded-3xl px-6 py-9 sm:px-10 sm:py-12">
-          <BrandShards className="pointer-events-none absolute -bottom-20 -left-12 h-[18rem] w-[22rem] opacity-25" />
-          <div className="relative z-10 lg:flex lg:items-end lg:justify-between lg:gap-10">
-            <div className="max-w-[44ch]">
-              <h2 className="text-2xl font-extrabold tracking-[-0.03em] text-white sm:text-3xl">
-                {t("providerTitle")}
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-white/75 sm:text-base">
-                {t("providerBody")}
-              </p>
-              <ul className="mt-5 space-y-2">
-                {[t("providerPointFree"), t("providerPointSell")].map((point) => (
-                  <li key={point} className="flex items-start gap-2.5 text-sm text-white/85">
-                    <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-peach)]" />
-                    {point}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <Button asChild variant="warm" size="lg" className="mt-7 w-full lg:mt-0 lg:w-auto">
+      <section className="app-shell mt-12 sm:mt-14">
+        <div className="hero-wash rounded-3xl border border-[var(--color-brand)]/15 px-6 py-8 sm:px-10 lg:flex lg:items-center lg:justify-between lg:gap-10">
+          <div className="max-w-[52ch]">
+            <h2 className="text-2xl font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)] sm:text-3xl">
+              {t("providerTitle")}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--color-foreground)]/75 sm:text-base">
+              {t("providerBody")}
+            </p>
+          </div>
+          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row lg:mt-0 lg:shrink-0">
+            <Button asChild variant="brand" size="lg">
               <Link href="/trainer/join">
                 {t("providerAction")}
                 <ArrowRight aria-hidden="true" />
               </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/sell">{t("providerSell")}</Link>
             </Button>
           </div>
         </div>
@@ -306,12 +350,48 @@ export default async function Home({
 }
 
 /**
- * One of the three things the site does.
+ * The large picture beside the search, with the brand's note on it.
  *
- * `href` and `soon` are deliberately exclusive: a pillar is either somewhere
- * you can go or something that is coming, and there is no third state where
- * it looks clickable and is not.
+ * Its credit sits on the picture whenever there is one, because a Creative
+ * Commons photograph requires it. A workshop's photograph standing in for a
+ * chosen one says whose it is and links there instead.
  */
+function HeroPicture({ picture, badge }: { picture: Picture; badge: string }) {
+  return (
+    <figure className="relative">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-[var(--color-brand-soft)] shadow-[var(--shadow-lg)]">
+        <Image
+          src={picture.url}
+          alt={picture.alt}
+          fill
+          priority
+          sizes="(min-width: 1024px) 45vw, 100vw"
+          className="object-cover"
+        />
+        {picture.credit || picture.caption ? (
+          <figcaption className="absolute bottom-0 left-0 max-w-full rounded-tr-xl bg-black/55 px-3 py-1.5 text-[11px] text-white">
+            {picture.href ? (
+              <Link href={picture.href} className="hover:underline">
+                {picture.caption}
+              </Link>
+            ) : (
+              (picture.caption ?? picture.credit)
+            )}
+          </figcaption>
+        ) : null}
+      </div>
+      {/* A note pinned to the picture, like a sign on a workshop wall. */}
+      <span
+        aria-hidden="true"
+        className="absolute -top-3 right-3 max-w-[9rem] -rotate-6 rounded-2xl bg-[var(--color-brand-pink)] px-4 py-2.5 text-center text-sm font-extrabold italic leading-tight text-white shadow-[var(--shadow-lg)] sm:max-w-[11rem] sm:text-lg lg:-right-3"
+      >
+        {badge}
+      </span>
+    </figure>
+  );
+}
+
+/** One of the three things the site does, with its picture when it has one. */
 function Pillar({
   href,
   icon,
@@ -319,66 +399,57 @@ function Pillar({
   title,
   body,
   action,
-  soon,
+  picture,
 }: {
-  href?: string;
+  href: string;
   icon: React.ReactNode;
   tone: "brand" | "coral" | "dye";
   title: string;
   body: string;
-  action?: string;
-  soon?: string;
+  action: string;
+  picture: Picture | null;
 }) {
   const tones = {
     brand: "bg-[var(--color-brand-soft)] border-[var(--color-brand)]/20",
     coral: "bg-[#fbe3dc] border-[#f3cec3]",
     dye: "bg-[#d9e4f2] border-[#c3d4ea]",
   } as const;
-  const badges = {
+  const accents = {
     brand: "bg-[var(--color-brand)]",
-    coral: "bg-[#b5523a]",
+    coral: "bg-[#c2456a]",
     dye: "bg-[#0c447c]",
   } as const;
 
-  const inner = (
-    <>
-      <span
-        className={`grid size-11 shrink-0 place-items-center rounded-xl text-white ${badges[tone]}`}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="text-base font-bold tracking-[-0.015em]">{title}</span>
-          {soon ? (
-            <span className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-card)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--color-muted-foreground)]">
-              {soon}
-            </span>
-          ) : null}
+  return (
+    <Link
+      href={href}
+      className={`group flex min-h-40 overflow-hidden rounded-2xl border shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5 ${tones[tone]}`}
+    >
+      <span className="flex min-w-0 flex-1 flex-col p-5">
+        <span className="flex items-center gap-3">
+          <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-white ${accents[tone]}`}>
+            {icon}
+          </span>
+          <span className="text-lg font-extrabold tracking-[-0.02em]">{title}</span>
         </span>
-        <span className="mt-1 block text-[13px] leading-snug text-[var(--color-muted-foreground)]">
+        <span className="mt-2 block text-[13px] leading-snug text-[var(--color-foreground)]/70">
           {body}
         </span>
-        {action ? (
-          <span className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--color-brand-strong)]">
-            {action}
-            <ArrowRight aria-hidden="true" className="size-3.5" />
-          </span>
-        ) : null}
+        {/* Styled as a button, but the whole card is the link: one target,
+            and no link inside a link. */}
+        <span
+          className={`mt-4 inline-flex w-fit items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white ${accents[tone]}`}
+        >
+          {action}
+          <ArrowRight aria-hidden="true" className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
       </span>
-    </>
-  );
-
-  const shell = `flex items-start gap-3.5 rounded-2xl border p-4 shadow-[var(--shadow-card)] ${tones[tone]}`;
-
-  return href ? (
-    <Link href={href} className={`${shell} transition-transform hover:-translate-y-0.5`}>
-      {inner}
+      {picture ? (
+        <span className="relative hidden w-[38%] shrink-0 sm:block md:hidden lg:block">
+          <Image src={picture.url} alt={picture.alt} fill sizes="(min-width: 1024px) 12vw, 30vw" className="object-cover" />
+        </span>
+      ) : null}
     </Link>
-  ) : (
-    // Not a link and not a button: there is nowhere to go yet, and a control
-    // that does nothing when tapped is worse than one that is plainly inert.
-    <div className={shell}>{inner}</div>
   );
 }
 
@@ -389,21 +460,36 @@ function SectionHead({
   linkLabel,
 }: {
   title: string;
-  body: string;
+  body?: string;
   linkHref: string;
   linkLabel: string;
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <div className="min-w-0">
-        <h2 className="text-xl font-extrabold tracking-[-0.03em] sm:text-2xl">{title}</h2>
-        <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{body}</p>
+        <h2 className="text-xl font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)] sm:text-2xl">
+          {title}
+        </h2>
+        {body ? <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{body}</p> : null}
       </div>
       <Link
         href={linkHref}
-        className="text-[13px] font-bold text-[var(--color-brand-strong)] hover:underline"
+        className="inline-flex items-center gap-1 text-[13px] font-bold text-[var(--color-brand)] hover:underline"
       >
         {linkLabel}
+        <ArrowRight aria-hidden="true" className="size-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+/** Where a featured row would be, before there is anything to feature. */
+function Waiting({ body, href, action }: { body: string; href: string; action: string }) {
+  return (
+    <div className="mt-5 rounded-2xl border border-dashed border-[var(--color-border-strong)] p-6 text-center">
+      <p className="text-sm text-[var(--color-muted-foreground)]">{body}</p>
+      <Link href={href} className="mt-2 inline-block text-sm font-bold text-[var(--color-brand)] hover:underline">
+        {action}
       </Link>
     </div>
   );

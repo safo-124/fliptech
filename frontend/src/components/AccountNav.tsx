@@ -25,7 +25,7 @@ import {getWhoami} from "@/lib/session-api";
  * would put next-intl's message formatter on every page — about 12 KB, on a
  * search page with a 200 KB budget — for three fixed strings.
  */
-export type AccountNavLabels = {myAccount: string; account: string; signUp: string};
+export type AccountNavLabels = {myAccount: string; signUp: string};
 
 export function AccountNav({labels}: {labels: AccountNavLabels}) {
   const [account, setAccount] = useState<{
@@ -63,7 +63,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
     return (
       <Button
         asChild
-        variant="onBand"
+        variant="outline"
         size="default"
         className={showPhoto ? "pl-2 pr-3 sm:pr-4" : "px-3 sm:px-4"}
       >
@@ -76,7 +76,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
             <img
               src={account.avatar as string}
               alt=""
-              className="size-7 rounded-full object-cover ring-1 ring-white/40"
+              className="size-7 rounded-full object-cover ring-1 ring-[var(--color-border)]"
               // A picture that 404s would leave a broken-image glyph in the
               // header of every page. Fall back to the icon instead.
               onError={() => setPhotoFailed(true)}
@@ -92,14 +92,15 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
 
   return (
     <>
-      <Button asChild variant="onBand" size="default" className="px-3 sm:px-4">
-        <Link href="/trainee">
+      <Button asChild variant="outline" size="default" className="px-3 sm:px-4">
+        <Link href="/trainee" aria-label={labels.myAccount}>
           <UserRound aria-hidden />
+          {/* Icon only below sm, where the logo and two labelled buttons
+              are wider than a 320px phone. The aria-label still names it. */}
           <span className="hidden sm:inline">{labels.myAccount}</span>
-          <span className="sm:hidden">{labels.account}</span>
         </Link>
       </Button>
-      <Button asChild variant="warm" size="default" className="px-3 sm:px-4">
+      <Button asChild variant="brand" size="default" className="px-3 sm:px-4">
         <Link href="/join">
           <UserPlus aria-hidden />
           {labels.signUp}

@@ -50,6 +50,8 @@ OPERATIONS_LEAD_EXTRA = [
     # Sign-in codes sent by hand while SMS_PROVIDER=backoffice. Whoever can
     # read one can sign in as its owner, so not a field officer's page.
     ("core", "relayedtext", ["view", "change"]),
+    # The pictures that speak for the whole site.
+    ("core", "homepicture", ["add", "change", "delete", "view"]),
     ("trainees", "traineeaccount", ["view", "change"]),
     ("trainees", "savedprovider", ["view"]),
     ("trainees", "supportsession", ["view"]),

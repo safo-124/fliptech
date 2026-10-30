@@ -343,6 +343,21 @@ same database and storage; each worker takes a different video. An encoding
 whose worker died is started again after six hours, and an upload nobody has
 added to for two days is removed.
 
+## Home page pictures
+
+The home page has four places for a photograph: the large one beside the
+search, and one on each of the Find training, Online learning and
+Marketplace cards. Staff choose them in the back office under **Core → Home
+page pictures** (operations leads and superusers). Each needs a short
+description of what it shows, for screen readers, and a credit when the
+photograph is not your own. A Creative Commons photograph must be credited,
+and the credit is shown on the picture.
+
+An empty place is fine. It falls back to something real from the site: a
+workshop's photograph (captioned with the workshop), a course's still or a
+product's photo, and then to the plain card. The page refreshes within five
+minutes of a change.
+
 ---
 
 ## Database
