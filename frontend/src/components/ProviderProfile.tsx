@@ -28,6 +28,7 @@ import {
   Flag,
   GraduationCap,
   Info,
+  Lock,
   MapPin,
   Navigation,
   ReceiptText,
@@ -642,11 +643,28 @@ function Videos({ provider }: { provider: ProviderDetail }) {
           const cost = videoCost(video);
           return (
             <li key={video.id}>
-              <VideoLesson
-                video={video}
-                playLabel={t("playVideo", { title: video.title })}
-                qualityLabel={t("videoQuality")}
-              />
+              {video.locked ? (
+                // Part of the paid course: its still, and the way to it.
+                <Link
+                  href={`/learn/${provider.area_slug}/${provider.slug}`}
+                  className="relative grid aspect-video place-items-center overflow-hidden rounded-xl bg-black text-white"
+                >
+                  {video.poster ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={video.poster} alt="" className="absolute inset-0 size-full object-cover opacity-40" />
+                  ) : null}
+                  <span className="relative inline-flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/30">
+                    <Lock aria-hidden="true" className="size-4" />
+                    {t("videoInCourse")}
+                  </span>
+                </Link>
+              ) : (
+                <VideoLesson
+                  video={video}
+                  playLabel={t("playVideo", { title: video.title })}
+                  qualityLabel={t("videoQuality")}
+                />
+              )}
               <p className="mt-2 text-sm font-semibold leading-5">{video.title}</p>
               {/* What the tap costs, said before it is spent: this user pays
                   for data in small bundles. */}

@@ -402,6 +402,7 @@
     "videoDataCost": "Plays only when you tap it · about 3 to 5 MB a minute",
     "videoMeta": "{minutes, plural, one {# minute} other {# minutes}} · about {mb} MB to watch",
     "videoQuality": "Picture quality",
+    "videoInCourse": "In the paid course",
     "videosAsCourse": "Watch them as a course"
   },
   "SaveProviderButton": {
@@ -1500,6 +1501,51 @@
     "aboutBody": "These lessons come from a real workshop in {area}. See its courses, fees and next intake, and ask about joining.",
     "aboutAction": "See fees and intakes",
     "moreTitle": "More courses",
-    "seeWorkshop": "See the workshop"
+    "seeWorkshop": "See the workshop",
+    "free": "Free",
+    "priceLine": "{price} · first lesson free",
+    "freePreview": "free preview",
+    "lockedTitle": "Part of the paid course",
+    "lockedBody": "Buy the whole course for {price} to watch this and every other lesson. Pay with mobile money or a card.",
+    "buy": "Buy course · {price}",
+    "buying": "Opening payment…",
+    "signInToBuy": "Sign in to buy",
+    "checkingPayment": "Checking your payment…",
+    "buyUnavailable": "This course can't be bought just now. Try again later.",
+    "paymentNotConfirmed": "We couldn't confirm your payment yet. If money left your account, the course unlocks within a few minutes. Otherwise, try again.",
+    "lessonLength": "{minutes, plural, one {# minute} other {# minutes}}"
+  },
+  "TrainerCourse": {
+    "title": "Sell your course",
+    "lead": "Charge for your lessons as one course. Trainees pay with mobile money or a card through Paystack, and the money goes straight to you. Your first lesson always stays free, so people can see how you teach.",
+    "loading": "Loading…",
+    "loadFailed": "Your course details could not be loaded. Check your connection and try again.",
+    "saveFailed": "That could not be saved. Try again.",
+    "notEnabled": "Selling courses isn't switched on yet. {brand} will let you know when it is.",
+    "payoutTitle": "1. Where you get paid",
+    "payoutTo": "Paid to {bank} ending {last4} ({name})",
+    "change": "Change",
+    "cancel": "Cancel",
+    "bankLabel": "Mobile money or bank",
+    "loadingBanks": "Loading…",
+    "choose": "Choose…",
+    "bankGroup": {
+      "mobile_money": "Mobile money",
+      "ghipss": "Banks"
+    },
+    "numberLabel": "Number",
+    "nameLabel": "Name on the account",
+    "savePayout": "Save",
+    "payoutSaved": "Saved. Your earnings will be paid there.",
+    "priceTitle": "2. Your course price",
+    "priceLabel": "Price in cedis",
+    "pricePlaceholder": "Free",
+    "savePrice": "Save price",
+    "priceSaved": "Your course now costs {price}.",
+    "madeFree": "Your course is free.",
+    "priceHelp": "One price for every lesson. Leave it empty to keep your course free. Paystack's fee comes out of each sale.",
+    "priceNeedsPayout": "Add where you get paid first. Then you can set a price.",
+    "sales": "{count, plural, =0 {No sales yet.} one {# sale, {total} in total.} other {# sales, {total} in total.}}",
+    "banksUnavailable": "Not available right now"
   }
 }

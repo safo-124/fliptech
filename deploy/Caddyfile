@@ -47,6 +47,22 @@ skillshub.example.com {
 	# and is never served by Caddy — Section 10 requires that evidence is never
 	# publicly served. Moving or widening this root would leak identity
 	# documents.
+	# Lesson videos: asked of Django before each one is streamed, because a
+	# lesson of a paid course is only for those who bought it (see
+	# backend/courses/views.py, MediaAccessView). Django answers 200 or 403
+	# from the session cookie; Caddy then serves the file itself, so Python
+	# never streams video. Free lessons, previews and stills always pass.
+	# Before /media/* below, which would otherwise serve them unasked.
+	handle /media/videos/public/* {
+		forward_auth 127.0.0.1:8000 {
+			uri /api/media-access/
+		}
+		root * /var/lib/fliptech
+		file_server
+		# Private: a bought lesson must not be kept by anything in between.
+		header Cache-Control "private, max-age=86400"
+	}
+
 	handle /media/* {
 		root * /var/lib/fliptech
 		file_server

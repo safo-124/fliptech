@@ -358,6 +358,46 @@ workshop's photograph (captioned with the workshop), a course's still or a
 product's photo, and then to the plain card. The page refreshes within five
 minutes of a change.
 
+## Paid courses (Paystack)
+
+Trainers can charge for their course: one price for all their lessons, with
+the first lesson always free. Trainees pay by mobile money or card through
+**Paystack**, Stripe's company for Ghana (Stripe itself does not accept
+Ghanaian businesses). Each payment is split by Paystack straight to the
+trainer's own payout account; Fliiptech takes nothing
+(`PAYSTACK_PLATFORM_PERCENTAGE=0`) and Paystack's fee comes out of the
+trainer's share (`PAYSTACK_FEE_BEARER=subaccount`).
+
+**Switching it on**
+
+1. Open a Paystack account at paystack.com and complete its business
+   verification.
+2. In Paystack's dashboard, **Settings → API Keys & Webhooks**, copy the
+   **test** secret key into `backend/.env`:
+   ```
+   PAYSTACK_SECRET_KEY=sk_test_...
+   ```
+3. On the same page, set the **webhook URL** to
+   `https://your-domain/api/payments/paystack/webhook/`. This is what
+   unlocks a course when a trainee pays and closes the page before coming
+   back.
+4. Add the `/media/videos/public/*` block from `deploy/Caddyfile` to your
+   Caddyfile, above the `/media/*` one, then reload Caddy. Without it a
+   paid lesson's file is still only ever given to people who paid, but its
+   link would work for anyone they shared it with.
+5. Restart: `sudo systemctl restart fliptech-api`.
+
+Test with Paystack's test MoMo numbers and cards. Going live is replacing the
+test key with the live one (`sk_live_...`); nothing else changes.
+
+**What a trainer does:** Videos tab → *Sell your course* → where to be paid
+(mobile money network or bank, and the number), then the price. A price can
+only be set once the payout account is saved.
+
+**Where to look:** every purchase is in the back office under *Courses →
+Course purchases*, read-only: only Paystack's confirmation marks one paid.
+Refunds are made in the Paystack dashboard.
+
 ---
 
 ## Database

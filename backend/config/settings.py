@@ -122,6 +122,7 @@ LOCAL_APPS = [
     "billing",
     "trainees",
     "marketplace",
+    "courses",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -527,6 +528,22 @@ VIDEO_ABANDONED_UPLOAD_HOURS = 48
 # An encoding still marked running after this long is assumed to have died
 # with its worker, and is queued again.
 VIDEO_ENCODE_LEASE_HOURS = 6
+
+# Paid courses, through Paystack (courses/paystack.py). With no secret key
+# set, selling is off: courses stay free and the dashboard says so. Test keys
+# (sk_test_…) and live keys (sk_live_…) use the same endpoints.
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_API_URL = env("PAYSTACK_API_URL", default="https://api.paystack.co")
+# Who pays Paystack's fee on a sale: "subaccount" is the trainer, out of
+# their share; "account" is Fliiptech.
+PAYSTACK_FEE_BEARER = env("PAYSTACK_FEE_BEARER", default="subaccount")
+# Fliiptech's own share of each sale, as a percentage. None, for now.
+PAYSTACK_PLATFORM_PERCENTAGE = env.float("PAYSTACK_PLATFORM_PERCENTAGE", default=0)
+# Paystack needs an email for its receipt and trainees sign in by phone; one
+# with no email on their account pays as <digits>@this domain.
+PAYSTACK_FALLBACK_EMAIL_DOMAIN = env(
+    "PAYSTACK_FALLBACK_EMAIL_DOMAIN", default="trainees.fliiptech.com"
+)
 
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")
