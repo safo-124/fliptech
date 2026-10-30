@@ -278,11 +278,61 @@ class ProviderListSerializer(serializers.ModelSerializer):
         return public_url(photo.image.url, self.context.get("request"))
 
 
+class VideoSourceSerializer(serializers.Serializer):
+    quality = serializers.IntegerField(help_text="Short side in pixels: 360 or 720.")
+    url = serializers.URLField()
+    bytes = serializers.IntegerField(allow_null=True)
+
+
+def video_sources(video, request=None):
+    """The encoded files a player may choose between, smallest first.
+
+    Public files only. A video still under review has its files in private
+    storage, and this never looks there.
+    """
+    sources = []
+    for quality in (360, 720):
+        file = getattr(video, f"public_{quality}")
+        if file:
+            sources.append(
+                {
+                    "quality": quality,
+                    "url": public_url(file.url, request),
+                    "bytes": getattr(video, f"size_{quality}"),
+                }
+            )
+    return sources
+
+
 class ProviderVideoSerializer(serializers.ModelSerializer):
-    # The id only: the page builds the thumbnail and player addresses itself.
+    """An approved video as a listing plays it.
+
+    `kind` says which player: an upload plays from our own files, a "youtube"
+    one is a link added before uploads existed and carries only its id, from
+    which the page builds every address itself.
+    """
+
+    kind = serializers.SerializerMethodField()
+    poster = serializers.SerializerMethodField()
+    sources = serializers.SerializerMethodField()
+
     class Meta:
         model = ProviderVideo
-        fields = ["id", "youtube_id", "title"]
+        fields = ["id", "title", "kind", "youtube_id", "duration_seconds", "poster", "sources"]
+
+    @extend_schema_field(serializers.ChoiceField(choices=["upload", "youtube"]))
+    def get_kind(self, obj):
+        return "youtube" if obj.is_youtube else "upload"
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_poster(self, obj):
+        if not obj.public_poster:
+            return None
+        return public_url(obj.public_poster.url, self.context.get("request"))
+
+    @extend_schema_field(VideoSourceSerializer(many=True))
+    def get_sources(self, obj):
+        return video_sources(obj, self.context.get("request"))
 
 
 class ProviderDetailSerializer(ProviderListSerializer):
@@ -357,7 +407,7 @@ class ProviderDetailSerializer(ProviderListSerializer):
         videos = getattr(obj, "shown_videos", None)
         if videos is None:
             videos = obj.videos.shown()
-        return ProviderVideoSerializer(videos, many=True).data
+        return ProviderVideoSerializer(videos, many=True, context=self.context).data
 
     @extend_schema_field(ProgrammeSerializer(many=True))
     def get_programmes(self, obj):

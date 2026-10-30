@@ -1,0 +1,49 @@
+# Encode uploaded teaching videos with ffmpeg. Install to
+# /etc/systemd/system/fliptech-video.service
+#
+#   sudo systemctl enable --now fliptech-video
+#
+# Its output is in: journalctl -u fliptech-video
+# See backend/core/management/commands/process_videos.py.
+[Unit]
+Description=Fliptech Skills Hub: prepare uploaded videos for phones
+After=network-online.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=fliptech
+Group=fliptech
+WorkingDirectory=/opt/fliptech/backend
+Environment=DJANGO_SETTINGS_MODULE=config.settings
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/fliptech/backend/.venv/bin/python manage.py process_videos
+Restart=always
+RestartSec=10
+
+# This shares two CPUs with the site. The site always comes first: lowest
+# CPU and disk priority, and never more than one CPU's worth, so an hour-long
+# lesson encoding cannot make a page slow to load. ffmpeg runs niced as well.
+Nice=19
+CPUSchedulingPolicy=batch
+IOSchedulingClass=idle
+CPUQuota=100%
+# ffmpeg on a 1080p source can use a few hundred MB. The cap keeps a bad file
+# from pushing PostgreSQL out of memory; the encode fails instead.
+MemoryMax=1G
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/fliptech
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fliptech-video
+
+[Install]
+WantedBy=multi-user.target

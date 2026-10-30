@@ -232,6 +232,7 @@ cookie, not a change of address, so no indexed URL moves.
 | Caddy | ports 80/443, TLS, routing |
 | Django (gunicorn) | `127.0.0.1:8000`, 2 workers × 4 threads |
 | Next.js | `127.0.0.1:3000` |
+| Video worker (`process_videos`) | no port; reads the queue in the database |
 | PostgreSQL, Redis | local sockets |
 
 Only Caddy listens publicly. Django and Next.js bind to loopback, so neither can
@@ -271,6 +272,9 @@ first, so a broken release leaves the previous one serving.
 | `/var/lib/fliptech/static` | collected static files, served by Caddy |
 | `/var/lib/fliptech/media` | **public** workshop photographs, served by Caddy |
 | `/var/lib/fliptech/private-media` | **private** verification evidence and owner ID — mode 700, never served |
+| `/var/lib/fliptech/private-media/videos/review` | **private** encoded videos waiting for review |
+| `/var/lib/fliptech/private-media/video-work` | uploads as they arrive, deleted once encoded |
+| `/var/lib/fliptech/media/videos/public` | **public** approved videos, served by Caddy |
 
 Private evidence is deliberately outside the directory Caddy is pointed at.
 Section 10 requires it is never publicly served, and widening that `root` or
@@ -281,6 +285,61 @@ writing here.
 The services run as `fliptech`, a system account with no login shell, under
 systemd hardening (`ProtectSystem=strict`, `ProtectHome`, `NoNewPrivileges`).
 A compromised web process cannot read your home directory or use your SSH keys.
+
+## Teaching videos
+
+Trainers upload videos from their phones and the server prepares them with
+ffmpeg. No video service is involved: the files are stored and played from
+this machine.
+
+**What happens to an upload.** The phone sends the file in 2 MB pieces to
+`/api/trainer/profile/videos/<id>/upload/`. Caddy buffers each piece before
+passing it on (`request_buffers` in the Caddyfile), so a slow phone does not
+hold a gunicorn thread. The pieces collect in `private-media/video-work/`.
+When the last one arrives, `fliptech-video` encodes the file to a 360p copy
+(about 3.5 MB a minute), a 720p copy if the original is sharp enough, and a
+poster still, strips the location the phone recorded, and deletes the
+original. The video then waits in **Videos to review** in the back office.
+Approving it moves its files to `media/videos/public/`, where Caddy serves
+them. Taking it down moves them back.
+
+**Servers set up before videos existed** need ffmpeg and the worker, once:
+
+```bash
+sudo apt-get install -y ffmpeg
+sudo install -m 644 /opt/fliptech/deploy/fliptech-video.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fliptech-video
+sudo cp /opt/fliptech/deploy/Caddyfile /etc/caddy/Caddyfile   # then put your domain back in
+sudo systemctl reload caddy
+```
+
+**Watching it work:** `journalctl -u fliptech-video -f`. A video that cannot
+be prepared shows the trainer why; the log has ffmpeg's own error.
+
+**Limits** are settings in `backend/.env`, placeholders until pricing is
+decided. Change them and `sudo systemctl restart fliptech-api fliptech-video`.
+
+| Setting | Default | |
+|---|---|---|
+| `VIDEO_MAX_MINUTES` | 60 | Longest single lesson |
+| `VIDEO_MAX_HOURS_PER_PROVIDER` | 24 | Total video on one listing |
+| `VIDEO_MAX_PER_PROVIDER` | 40 | Lessons on one listing |
+| `VIDEO_MAX_UPLOAD_BYTES` | 4 GB | Largest single upload |
+| `VIDEO_MIN_FREE_BYTES` | 10 GB | Uploads stop when the disk has less free than this |
+| `VIDEO_FFMPEG_THREADS` | 1 | Raise on a server that only encodes |
+
+**Disk.** A 24-hour course is about 5 GB at 360p and 19 GB with the 720p copy,
+plus space for uploads while they wait to be encoded. Put
+`/var/lib/fliptech` on a Hetzner Volume before videos grow, so they can never
+fill the disk PostgreSQL is on. Hetzner's server backups do not include
+Volumes, so back the videos up separately.
+
+**When encoding falls behind.** One lesson at a time, on at most one CPU, is
+slow for long courses. Run `process_videos` on a second server pointed at the
+same database and storage; each worker takes a different video. An encoding
+whose worker died is started again after six hours, and an upload nobody has
+added to for two days is removed.
 
 ---
 

@@ -32,6 +32,9 @@ apt-get install -y -qq \
   python3-venv python3-dev build-essential \
   gdal-bin libgdal-dev binutils libproj-dev libgeos-dev \
   libpq-dev redis-server curl ca-certificates gnupg git rsync
+# ffmpeg prepares uploaded teaching videos for phones on 3G. A program on this
+# server, not a video service: see backend/providers/video_encoding.py.
+apt-get install -y -qq ffmpeg
 
 echo "==> Node ${NODE_MAJOR}"
 if ! command -v node >/dev/null || [ "$(node -v | cut -c2- | cut -d. -f1)" -lt "$NODE_MAJOR" ]; then
@@ -104,6 +107,7 @@ install -m 644 "$HERE/fliptech-api.service" /etc/systemd/system/
 install -m 644 "$HERE/fliptech-web.service" /etc/systemd/system/
 install -m 644 "$HERE/fliptech-freshness.service" /etc/systemd/system/
 install -m 644 "$HERE/fliptech-freshness.timer" /etc/systemd/system/
+install -m 644 "$HERE/fliptech-video.service" /etc/systemd/system/
 # Mode 644 explicitly: the repo lives on an exFAT volume during development,
 # which reports every file as executable, and systemd warns about executable
 # unit files.
@@ -114,7 +118,8 @@ systemctl enable redis-server >/dev/null 2>&1 || true
 # here would only log a failure. Enabling is what makes the site come back on
 # its own after a reboot — deploy.sh only restarts, so without this the machine
 # would come up with Caddy answering and nothing behind it.
-systemctl enable fliptech-api.service fliptech-web.service >/dev/null 2>&1 || true
+systemctl enable fliptech-api.service fliptech-web.service fliptech-video.service \
+  >/dev/null 2>&1 || true
 # The timer is safe to start now: if the code is not there yet, the nightly
 # run fails, logs it, and succeeds the first night after the deploy.
 systemctl enable --now fliptech-freshness.timer >/dev/null 2>&1 || true

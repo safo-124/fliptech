@@ -296,7 +296,7 @@ export default function PrivacyPage() {
               ],
               [
                 "YouTube (Google)",
-                "Workshops' teaching videos are hosted on YouTube. Nothing is loaded from YouTube until you press play on one; from then, YouTube's own terms cover that video",
+                "Workshops' teaching videos are stored and played on this site, not on YouTube. A few added before that still play from YouTube. Nothing is loaded from YouTube until you press play on one of those; from then, YouTube's own terms cover that video",
               ],
               [
                 "Error monitoring",
