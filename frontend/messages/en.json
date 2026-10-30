@@ -1490,10 +1490,16 @@
     "courseMetaDescription": "{count, plural, one {# lesson} other {# lessons}} from {name} in {area}, watched by {brand} before they appear.",
     "allCourses": "All courses",
     "courseByline": "{area} · {count, plural, one {# lesson} other {# lessons}}",
-    "visitWorkshop": "See the workshop, its fees and next intake",
-    "lessons": "Lessons",
     "nextLesson": "Next lesson",
     "lessonNumber": "Lesson {number} of {count}",
-    "reviewed": "Every lesson here was watched by {brand} before it appeared. If something in one is wrong or unsafe, report it from the workshop's page."
+    "reviewed": "Every lesson here was watched by {brand} before it appeared. If something in one is wrong or unsafe, report it from the workshop's page.",
+    "contents": "Course content",
+    "previousLesson": "Previous",
+    "watchedBy": "Every lesson watched by {brand}",
+    "aboutTitle": "Learn in person at {name}",
+    "aboutBody": "These lessons come from a real workshop in {area}. See its courses, fees and next intake, and ask about joining.",
+    "aboutAction": "See fees and intakes",
+    "moreTitle": "More courses",
+    "seeWorkshop": "See the workshop"
   }
 }
