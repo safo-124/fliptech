@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from billing.models import Subscription
 from catalog.models import Intake, Programme, Trade
-from core import demo_images, trade_photos
+from core import demo_extras, demo_images, trade_photos
 from enquiries.models import Enquiry, EnquiryOutcome, Enrolment
 from geography.models import Area, Region
 from providers.models import (
@@ -152,6 +152,16 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip the illustrative photographs and logos.",
         )
+        parser.add_argument(
+            "--no-shops",
+            action="store_true",
+            help="Skip the demo sellers and their products.",
+        )
+        parser.add_argument(
+            "--no-lessons",
+            action="store_true",
+            help="Skip the demo video lessons, which need ffmpeg.",
+        )
 
     def handle(self, *args, **options):
         random.seed(20260817)  # reproducible demo data
@@ -193,6 +203,7 @@ class Command(BaseCommand):
         ]
 
         count = options["providers"]
+        seeded = []
         for i in range(count):
             area = areas[i % len(areas)]
             trade = trades[i % len(trades)]
@@ -220,6 +231,8 @@ class Command(BaseCommand):
                     "last_confirmed_at": timezone.now() - timedelta(days=random.randint(0, 100)),
                 },
             )
+
+            seeded.append((provider, trade))
 
             if not options["no_images"]:
                 self._attach_images(provider, trade, index=i)
@@ -344,6 +357,20 @@ class Command(BaseCommand):
                         else Enrolment.Attestation.NOT_ASKED
                     ),
                 )
+
+        # The other two pillars, so a demo site's marketplace and Online
+        # learning are not empty. See core/demo_extras.py.
+        if not options["no_shops"]:
+            products = demo_extras.seed_shops(seeded, with_images=not options["no_images"])
+            self.stdout.write(f"{products} demo products in demo shops.")
+        if not options["no_lessons"]:
+            lessons = demo_extras.seed_lessons(seeded, reviewer=officer)
+            if lessons is None:
+                self.stdout.write(
+                    self.style.WARNING("ffmpeg is not installed, so no demo lessons were made.")
+                )
+            else:
+                self.stdout.write(f"{lessons} demo lessons, approved and playing.")
 
         self.stdout.write(
             self.style.SUCCESS(

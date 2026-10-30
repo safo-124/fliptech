@@ -111,20 +111,12 @@ def _centred(draw, box, text, font, fill):
     )
 
 
-def panel(*, provider_name, trade_name, kind, index):
-    """One illustrative panel, as JPEG bytes.
-
-    `kind` is "workshop" or "work", and only changes the palette and the
-    caption — there is no pretence that one shows a building and the other a
-    finished gate.
-    """
-    rng = _seed(provider_name, trade_name, kind, index)
-    palette = WORKSHOP_PALETTE if kind == "workshop" else WORK_PALETTE
+def _labelled(*, rng, palette, size, heading, subtitle, caption, heading_size=300):
+    """A gradient with translucent bands and three centred lines of text."""
     top, bottom = palette[rng % len(palette)]
-
-    image = _gradient(PHOTO_SIZE, top, bottom)
+    image = _gradient(size, top, bottom)
     draw = ImageDraw.Draw(image, "RGBA")
-    width, height = PHOTO_SIZE
+    width, height = size
 
     # A few translucent bands, offset by the seed. Enough to stop the panels
     # looking identical in a grid, and obviously not a photograph.
@@ -141,23 +133,94 @@ def panel(*, provider_name, trade_name, kind, index):
             fill=(255, 255, 255, 22 + (band % 3) * 10),
         )
 
-    label = "DEMO"
-    sub = f"{trade_name} · {'the workshop' if kind == 'workshop' else 'their work'}"
-
+    # Sized from the width, so a 1280px video frame reads like a 2400px photo.
+    scale = width / PHOTO_SIZE[0]
     _centred(
-        draw, (0, height * 0.30, width, height * 0.58), label, _font(300), (255, 255, 255, 235)
+        draw,
+        (0, height * 0.30, width, height * 0.58),
+        heading,
+        _font(round(heading_size * scale)),
+        (255, 255, 255, 235),
     )
-    _centred(draw, (0, height * 0.58, width, height * 0.70), sub, _font(86), (255, 255, 255, 205))
+    _centred(
+        draw,
+        (0, height * 0.58, width, height * 0.70),
+        subtitle,
+        _font(round(86 * scale)),
+        (255, 255, 255, 205),
+    )
     _centred(
         draw,
         (0, height * 0.72, width, height * 0.82),
-        "Illustrative image, not a real workshop",
-        _font(58),
+        caption,
+        _font(round(58 * scale)),
         (255, 255, 255, 165),
     )
+    return image
 
+
+def _jpeg(image):
     buffer = BytesIO()
     image.save(buffer, format="JPEG", quality=90)
+    return buffer.getvalue()
+
+
+def panel(*, provider_name, trade_name, kind, index):
+    """One illustrative panel, as JPEG bytes.
+
+    `kind` is "workshop" or "work", and only changes the palette and the
+    caption — there is no pretence that one shows a building and the other a
+    finished gate.
+    """
+    return _jpeg(
+        _labelled(
+            rng=_seed(provider_name, trade_name, kind, index),
+            palette=WORKSHOP_PALETTE if kind == "workshop" else WORK_PALETTE,
+            size=PHOTO_SIZE,
+            heading="DEMO",
+            subtitle=f"{trade_name} · {'the workshop' if kind == 'workshop' else 'their work'}",
+            caption="Illustrative image, not a real workshop",
+        )
+    )
+
+
+def product(*, product_name, seller_name):
+    """A demo product's picture, as JPEG bytes. Labelled as not real, like the rest."""
+    return _jpeg(
+        _labelled(
+            rng=_seed(product_name, seller_name, "product"),
+            palette=WORK_PALETTE,
+            size=PHOTO_SIZE,
+            heading="DEMO",
+            subtitle=product_name,
+            caption="Illustrative image, not a real product",
+        )
+    )
+
+
+# A lesson's title card is a video frame: 16:9, at the 720p the encoder makes.
+LESSON_FRAME = (1280, 720)
+
+
+def lesson_frame(*, lesson_title, provider_name):
+    """The still a demo lesson shows for its whole length, as PNG bytes.
+
+    PNG, not JPEG: ffmpeg loops it into a video, and a lossless still keeps
+    the text sharp through the encode.
+    """
+    image = _labelled(
+        rng=_seed(lesson_title, provider_name, "lesson"),
+        palette=WORKSHOP_PALETTE,
+        size=LESSON_FRAME,
+        heading="DEMO LESSON",
+        # Two words where the photographs have one: smaller, so it clears
+        # the frame's edges.
+        heading_size=200,
+        subtitle=lesson_title,
+        caption="Illustrative video, not a real lesson",
+    )
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
     return buffer.getvalue()
 
 
