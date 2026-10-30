@@ -10,6 +10,19 @@
 skillshub.example.com {
 	encode zstd gzip
 
+	# One piece of a teaching-video upload, from a phone on 3G: up to 2 MB
+	# that can take most of a minute to arrive. Buffered here in full before
+	# Django sees it, so a gunicorn thread is busy for the moment it takes to
+	# write the piece rather than for the whole slow upload. Without this, a
+	# few trainers sending videos at once would hold every thread the API
+	# has. First, so it is chosen over the plain /api/* route below.
+	@video_piece path_regexp ^/api/trainer/profile/videos/[0-9]+/upload/$
+	handle @video_piece {
+		reverse_proxy 127.0.0.1:8000 {
+			request_buffers 3MiB
+		}
+	}
+
 	# Django owns the API, the back office and the health probe.
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8000

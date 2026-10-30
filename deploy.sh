@@ -124,6 +124,10 @@ rm -rf frontend/.next/cache/fetch-cache
 # Only now, once every fallible step has succeeded.
 sudo systemctl restart fliptech-api
 sudo systemctl restart fliptech-web
+# The video worker, on the new code. An encoding it was part way through is
+# queued again after its lease and starts over; nothing is lost but the time.
+# Not fatal: a server bootstrapped before videos has no such unit yet.
+sudo systemctl restart fliptech-video || echo "    (no fliptech-video unit: see DEPLOY.md, Teaching videos)"
 
 echo "==> Health"
 # The probe goes to gunicorn on loopback, so it has to look like a request that

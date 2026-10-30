@@ -45,12 +45,13 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
-      # GeoDjango needs the native libraries; pip cannot supply them.
-      - name: Install GDAL, GEOS and PROJ
+      # GeoDjango needs the native libraries; pip cannot supply them. ffmpeg
+      # is for the video tests, which encode real clips.
+      - name: Install GDAL, GEOS, PROJ and ffmpeg
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            gdal-bin libgdal-dev libgeos-dev libproj-dev binutils
+            gdal-bin libgdal-dev libgeos-dev libproj-dev binutils ffmpeg
 
       - name: Install Python dependencies
         working-directory: backend

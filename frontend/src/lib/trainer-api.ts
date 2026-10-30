@@ -10,6 +10,7 @@ import type {
   TrainerProfile,
   TrainerSession,
   TrainerVideo,
+  TrainerVideoList,
 } from "./types";
 
 // Re-exported: callers have always imported these from here. See trainer-fetch.ts.
@@ -174,14 +175,26 @@ export function deleteTrainerPhoto(photoId: number) {
 }
 
 export function getTrainerVideos() {
-  return trainerFetch<TrainerVideo[]>("/api/trainer/profile/videos/");
+  return trainerFetch<TrainerVideoList>("/api/trainer/profile/videos/");
 }
 
-/** A YouTube link, as pasted. The server keeps only the video's id. */
-export function addTrainerVideo(url: string, title: string) {
+/**
+ * Say what is about to be sent. The server refuses it now, before any data
+ * is spent, if it would not fit. The file follows with sendVideoPiece.
+ */
+export function startTrainerVideo(title: string, file: File) {
   return trainerFetch<TrainerVideo>("/api/trainer/profile/videos/", {
     method: "POST",
-    body: JSON.stringify({url, title}),
+    body: JSON.stringify({title, name: file.name, size: file.size}),
+  });
+}
+
+/** One piece of the file, starting at `offset`. See lib/video-upload.ts. */
+export function sendVideoPiece(videoId: number, offset: number, piece: Blob) {
+  return trainerFetch<TrainerVideo>(`/api/trainer/profile/videos/${videoId}/upload/`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/octet-stream", "Upload-Offset": String(offset)},
+    body: piece,
   });
 }
 

@@ -14,12 +14,13 @@ shape this module:
 from datetime import timedelta
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.gis.admin import GISModelAdmin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Prefetch
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
@@ -30,9 +31,10 @@ from django.views.decorators.http import require_POST
 from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
+from core.ranged import serve_private_file
 from core.site_links import provider_page_url
 
-from . import admin_upload, queues
+from . import admin_upload, queues, video_uploads
 from .admin_outbox import OwnerMessagesAdminMixin
 from .lifecycle import (
     ProviderTransitionError,
@@ -56,7 +58,7 @@ from .models import (
     TrainerAccount,
     Verification,
 )
-from .videos import parse_youtube_id
+from .videos import decide
 
 # The queue definitions stay in queues.py because they also drive the sidebar
 # and dashboard counts. This copy is deliberately presentation-only: it gives
@@ -842,28 +844,45 @@ class ProviderPhotoAdmin(admin.ModelAdmin):
 
 
 class ProviderVideoForm(forms.ModelForm):
-    """Staff can add a video for a workshop from its link, as the trainer would."""
+    """Staff can upload a video for a workshop, as the trainer would.
 
-    link = forms.CharField(
+    For the field officer who collects a course on a visit, over the office
+    connection, rather than leaving a workshop to send hours of video on
+    mobile data. A browser form takes the file in one request, which is fine
+    on office Wi-Fi and is why trainers use the piece-by-piece upload instead.
+    """
+
+    file = forms.FileField(
         required=False,
-        help_text="The YouTube link, as the workshop sent it. Only the video's id is kept.",
+        help_text="The video as filmed. It is prepared for phones before it can be reviewed.",
     )
 
     class Meta:
         model = ProviderVideo
         fields = ("provider", "title", "status", "review_note")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only the review decisions are offered: the states before them are
+        # the uploader's and the encoder's to set, not a reviewer's.
+        if "status" in self.fields:
+            self.fields["status"].choices = [
+                choice
+                for choice in ProviderVideo.Status.choices
+                if choice[0] in ProviderVideo.REVIEWABLE
+            ]
+
     def clean(self):
         cleaned = super().clean()
         if self.instance.pk is None:
-            youtube_id = parse_youtube_id(cleaned.get("link"))
-            provider = cleaned.get("provider")
-            if youtube_id is None:
-                self.add_error("link", "That is not a link to a YouTube video.")
-            elif provider and provider.videos.filter(youtube_id=youtube_id).exists():
-                self.add_error("link", "That video is already on this listing.")
-            else:
-                self.instance.youtube_id = youtube_id
+            upload = cleaned.get("file")
+            if upload is None:
+                self.add_error("file", "Choose the video to upload.")
+            elif upload.size > settings.VIDEO_MAX_UPLOAD_BYTES:
+                self.add_error(
+                    "file",
+                    f"That file is larger than {settings.VIDEO_MAX_UPLOAD_BYTES // 1024**3} GB.",
+                )
         if (
             cleaned.get("status") == ProviderVideo.Status.REJECTED
             and not (cleaned.get("review_note") or "").strip()
@@ -878,7 +897,7 @@ class ProviderVideoForm(forms.ModelForm):
 
 @admin.register(ProviderVideo)
 class ProviderVideoAdmin(admin.ModelAdmin):
-    """Teaching videos linked from YouTube, each watched before it is shown.
+    """Teaching videos, each watched before it is shown.
 
     Approve from the list once watched. Turning one down is done on its page,
     with a note the workshop will read. What to check: it is the workshop's own
@@ -886,10 +905,13 @@ class ProviderVideoAdmin(admin.ModelAdmin):
     client whose hair is being done, can be seen to be taking part willingly; no
     child appears without a guardian; chemicals, heat and tools are handled
     safely; and it teaches something, rather than only advertising.
+
+    A long lesson does not need watching end to end. Watch the start, then
+    skip to a few points through it: the player can jump anywhere.
     """
 
     form = ProviderVideoForm
-    list_display = ("thumbnail", "title", "provider", "status", "created_at")
+    list_display = ("thumbnail", "title", "provider", "status", "length", "created_at")
     list_display_links = ("thumbnail", "title")
     list_filter = ("status",)
     search_fields = ("title", "provider__name")
@@ -899,54 +921,116 @@ class ProviderVideoAdmin(admin.ModelAdmin):
 
     def get_fields(self, request, obj=None):
         if obj is None:
-            fields = ["provider", "link", "title"]
-            # Deciding is the reviewer's job: whoever may only add a video
-            # cannot approve the one they are adding.
-            if self.has_change_permission(request):
-                fields += ["status", "review_note"]
-            return fields
-        return [
-            "player",
-            "provider",
-            "title",
-            "youtube_link",
-            "added_by",
-            "created_at",
-            "status",
-            "review_note",
-            "reviewed_by",
-            "reviewed_at",
-        ]
+            return ["provider", "file", "title"]
+        fields = ["player", "provider", "title"]
+        fields += ["youtube_link"] if obj.is_youtube else ["length", "sizes", "failure_reason"]
+        fields += ["added_by", "created_at", "status", "review_note", "reviewed_by", "reviewed_at"]
+        return fields
 
     def get_readonly_fields(self, request, obj=None):
         readonly = [
             "player",
             "youtube_link",
+            "length",
+            "sizes",
+            "failure_reason",
             "added_by",
             "created_at",
             "reviewed_by",
             "reviewed_at",
         ]
-        return readonly + (["provider"] if obj is not None else [])
+        if obj is not None:
+            readonly.append("provider")
+            # Nothing to decide on until it has been prepared.
+            if obj.status not in ProviderVideo.REVIEWABLE:
+                readonly += ["status", "review_note"]
+        return readonly
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:pk>/watch/<str:which>/",
+                self.admin_site.admin_view(self.watch),
+                name="providers_providervideo_watch",
+            ),
+            *super().get_urls(),
+        ]
+
+    def watch(self, request, pk, which):
+        """A private file of a video under review, for staff only.
+
+        Approved files are public and the player uses their public address;
+        this is for everything before that, which is in private storage and
+        has no address of its own.
+        """
+        if which not in ("360", "720", "poster"):
+            raise Http404
+        video = get_object_or_404(ProviderVideo, pk=pk)
+        if not self.has_view_permission(request, video):
+            raise PermissionDenied
+        file = getattr(video, f"review_{which}")
+        if not file:
+            raise Http404
+        return serve_private_file(request, file)
+
+    def _file_url(self, obj, which):
+        public = getattr(obj, f"public_{which}")
+        if public:
+            return public.url
+        if getattr(obj, f"review_{which}"):
+            return reverse("admin:providers_providervideo_watch", args=[obj.pk, which])
+        return None
 
     @admin.display(description="Preview")
     def thumbnail(self, obj):
+        src = obj.thumbnail_url if obj.is_youtube else self._file_url(obj, "poster")
+        if src is None:
+            return obj.get_status_display()
         return format_html(
             '<img src="{}" alt="" width="120" height="68" loading="lazy" '
-            'style="object-fit:cover;border-radius:6px">',
-            obj.thumbnail_url,
+            'style="object-fit:cover;border-radius:6px;background:#000">',
+            src,
         )
 
     @admin.display(description="Video")
     def player(self, obj):
+        if obj.is_youtube:
+            return format_html(
+                '<iframe src="{}" title="{}" width="480" height="270" '
+                'style="max-width:100%;border:0;border-radius:8px" '
+                'allow="encrypted-media; picture-in-picture; fullscreen" '
+                'referrerpolicy="strict-origin-when-cross-origin"></iframe>',
+                obj.embed_url,
+                obj.title,
+            )
+        # The sharper copy when there is one: a reviewer is checking detail,
+        # on the office connection.
+        src = self._file_url(obj, "720") or self._file_url(obj, "360")
+        if src is None:
+            return f"Nothing to watch yet: {obj.get_status_display().lower()}."
         return format_html(
-            '<iframe src="{}" title="{}" width="480" height="270" '
-            'style="max-width:100%;border:0;border-radius:8px" '
-            'allow="encrypted-media; picture-in-picture; fullscreen" '
-            'referrerpolicy="strict-origin-when-cross-origin"></iframe>',
-            obj.embed_url,
-            obj.title,
+            '<video src="{}" poster="{}" controls preload="metadata" width="480" '
+            'style="max-width:100%;border-radius:8px;background:#000"></video>',
+            src,
+            self._file_url(obj, "poster") or "",
         )
+
+    @admin.display(description="Length")
+    def length(self, obj):
+        if obj.duration_seconds is None:
+            return "—"
+        minutes, seconds = divmod(obj.duration_seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
+
+    @admin.display(description="Files")
+    def sizes(self, obj):
+        parts = [
+            f"{quality}p {size / 1024**2:.1f} MB"
+            for quality, size in ((360, obj.size_360), (720, obj.size_720))
+            if size
+        ]
+        return ", ".join(parts) or "—"
 
     @admin.display(description="On YouTube")
     def youtube_link(self, obj):
@@ -958,25 +1042,42 @@ class ProviderVideoAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if obj.pk is None:
+            upload = form.cleaned_data["file"]
             obj.added_by = request.user
+            obj.status = ProviderVideo.Status.UPLOADING
+            obj.upload_name = upload.name[:255]
+            obj.upload_size = upload.size
+            obj.save()
+            # Into the same place a trainer's pieces go, so the encoder needs
+            # to know nothing about where a video came from.
+            with open(video_uploads.work_path(obj), "wb") as handle:
+                for piece in upload.chunks():
+                    handle.write(piece)
+            obj.upload_received = upload.size
+            obj.status = ProviderVideo.Status.QUEUED
+            obj.save(update_fields=["upload_received", "status", "updated_at"])
+            return
         if "status" in form.changed_data:
-            decided = obj.status != ProviderVideo.Status.PENDING
-            obj.reviewed_by = request.user if decided else None
-            obj.reviewed_at = timezone.now() if decided else None
+            # decide() moves the files, and needs to know where they are now.
+            decision = obj.status
+            obj.status = form.initial["status"]
+            decide(obj, decision, by=request.user, note=obj.review_note)
+            return
         super().save_model(request, obj, form, change)
 
     @admin.action(description="Approve selected videos", permissions=["change"])
     def approve_videos(self, request, queryset):
-        approved = queryset.exclude(status=ProviderVideo.Status.APPROVED).update(
-            status=ProviderVideo.Status.APPROVED,
-            review_note="",
-            reviewed_by=request.user,
-            reviewed_at=timezone.now(),
-        )
+        approved = 0
+        for video in queryset.filter(
+            status__in=[ProviderVideo.Status.PENDING, ProviderVideo.Status.REJECTED]
+        ):
+            decide(video, ProviderVideo.Status.APPROVED, by=request.user)
+            approved += 1
         self.message_user(
             request,
             f"{approved} video(s) approved. They show on their listings now, "
-            "if the listing itself is published.",
+            "if the listing itself is published. Videos still uploading or being "
+            "prepared are left as they are.",
         )
 
 

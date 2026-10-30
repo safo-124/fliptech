@@ -32,10 +32,14 @@ DEFAULT_AGE_DAYS = 7
 
 def referenced_names():
     """Every file name a row points at, as stored, with no I/O per row."""
-    from providers.models import Provider, ProviderPhoto
+    from providers.models import Provider, ProviderPhoto, ProviderVideo
 
     names = set(ProviderPhoto.objects.exclude(image="").values_list("image", flat=True))
     names |= set(Provider.objects.exclude(logo="").values_list("logo", flat=True))
+    # Approved videos. Without these an approved lesson would be "orphaned"
+    # a week after it went live, and deleted.
+    for field in ("public_360", "public_720", "public_poster"):
+        names |= set(ProviderVideo.objects.exclude(**{field: ""}).values_list(field, flat=True))
     return names
 
 
