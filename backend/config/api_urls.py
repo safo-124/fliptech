@@ -9,6 +9,7 @@ from rest_framework.routers import DefaultRouter
 
 from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
+from core.site_stats import SiteStatsView
 from core.whoami import WhoAmIView
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
@@ -204,6 +205,8 @@ urlpatterns = [
     ),
     # The home page's staff-chosen photographs. See core.models.HomePicture.
     path("site/home-pictures/", HomePicturesView.as_view(), name="home-pictures"),
+    # The home page's trust strip: real counts, in place of ratings.
+    path("site/stats/", SiteStatsView.as_view(), name="site-stats"),
     # Online learning: each workshop's approved videos, browsed as a course.
     path("courses/", CourseListView.as_view(), name="course-list"),
     path(

@@ -13,6 +13,7 @@ import type {
   CourseCard,
   CourseDetail,
   HomePictures,
+  SiteStats,
   DashboardData,
   Paginated,
   ProductCard,
@@ -309,4 +310,9 @@ export function getCourse(area: string, slug: string) {
 /** The home page's staff-chosen photographs. See types.HomePictures. */
 export function getHomePictures() {
   return fetchJson<HomePictures>("/api/site/home-pictures/");
+}
+
+/** Real counts for the home page's trust strip. See types.SiteStats. */
+export function getSiteStats() {
+  return fetchJson<SiteStats>("/api/site/stats/");
 }

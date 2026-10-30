@@ -53,7 +53,11 @@
     "productsAll": "View all products",
     "productsNone": "Nothing for sale yet. The first makers are setting up their shops.",
     "productsSell": "Sell what you make",
-    "providerSell": "Sell what you make"
+    "providerSell": "Sell what you make",
+    "statWorkshops": "{count, plural, one {workshop listed} other {workshops listed}}",
+    "statVisited": "visited by {brand}",
+    "statLessons": "{count, plural, one {lesson online} other {lessons online}}",
+    "statProducts": "{count, plural, one {product for sale} other {products for sale}}"
   },
   "Marketplace": {
     "metaTitle": "Marketplace — buy what Ghana's workshops make",
@@ -127,7 +131,9 @@
     "learn": "Online learning",
     "home": "Home",
     "becomeProvider": "Become a provider",
-    "search": "Search for training"
+    "search": "Search for training",
+    "menu": "Menu",
+    "map": "Explore the map"
   },
   "SiteFooter": {
     "tagline": "A clearer way to choose practical training.",
