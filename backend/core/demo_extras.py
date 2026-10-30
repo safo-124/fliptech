@@ -172,13 +172,21 @@ def seed_lessons(seeded, *, reviewer):
     for provider, trade in seeded[:LESSON_WORKSHOPS]:
         for number in range(1, LESSONS_EACH + 1):
             title = f"Lesson {number}: {trade.name} basics"
-            if provider.videos.filter(title=title).exists():
+            if provider.videos.filter(title=title, status=ProviderVideo.Status.APPROVED).exists():
                 count += 1
                 continue
+            # One left over from a run that failed part way: start it again.
+            for stale in provider.videos.filter(title=title):
+                stale.delete()
+            # UPLOADING, not QUEUED: the video worker (fliptech-video) takes
+            # anything QUEUED the moment it appears, and on a live server it
+            # would claim this one before its file was written, fail it for
+            # "did not arrive", and delete the file this goes on to read.
+            # Nothing takes an upload in progress, so it is this run's alone.
             video = ProviderVideo.objects.create(
                 provider=provider,
                 title=title,
-                status=ProviderVideo.Status.QUEUED,
+                status=ProviderVideo.Status.UPLOADING,
                 upload_name=f"demo-lesson-{number}.mp4",
             )
             work = video_uploads.work_path(video)
