@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import environ
+from corsheaders.defaults import default_headers
 from django.conf.locale import LANG_INFO
 
 from core.media import derive_public_origin
@@ -386,6 +387,9 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
+# Upload-Offset says where a piece of a video upload starts. Only matters when
+# the site and the API are on different origins, as in development.
+CORS_ALLOW_HEADERS = (*default_headers, "upload-offset")
 
 # Origins allowed to send cookie-carrying POSTs. In development the Next.js dev
 # server is a different origin from Django (another port), so a signed-in
@@ -485,6 +489,48 @@ OTP_SESSION_TRUST_SECONDS = 3600
 # password, no username, no account creation — Section 03 names being asked to
 # log in as what makes a workshop owner give up.
 DASHBOARD_TOKEN_TTL_SECONDS = 7 * 24 * 3600
+
+
+# --------------------------------------------------------------------------
+# Teaching videos
+# --------------------------------------------------------------------------
+# Uploaded here and encoded here with ffmpeg; no video service is involved.
+# See providers/video_uploads.py and providers/video_encoding.py.
+#
+# Where uploads are assembled and encoded. Always a local directory, whatever
+# STORAGES says: ffmpeg reads a file, and appending a piece at a time to an
+# object in a bucket is not possible. Outside MEDIA_ROOT, because an upload
+# is unreviewed and must never be reachable at a public address.
+VIDEO_WORK_DIR = env("VIDEO_WORK_DIR", default=str(Path(PRIVATE_MEDIA_ROOT) / "video-work"))
+
+# One piece of an upload. Under DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB), and
+# small enough that a dropped 3G connection loses seconds, not minutes.
+VIDEO_CHUNK_BYTES = 2 * 1024 * 1024
+
+# The limits below are placeholders until pricing is decided. They are
+# settings so changing them is an .env edit and a restart, not a release.
+#
+# Largest single upload. An hour filmed at 720p on a phone is about 3–5 GB.
+VIDEO_MAX_UPLOAD_BYTES = env.int("VIDEO_MAX_UPLOAD_BYTES", default=4 * 1024**3)
+# Longest single lesson. A longer course goes up as several lessons.
+VIDEO_MAX_MINUTES = env.int("VIDEO_MAX_MINUTES", default=60)
+# Teaching a listing may hold in total, and how many lessons.
+VIDEO_MAX_HOURS_PER_PROVIDER = env.int("VIDEO_MAX_HOURS_PER_PROVIDER", default=24)
+VIDEO_MAX_PER_PROVIDER = env.int("VIDEO_MAX_PER_PROVIDER", default=40)
+# Uploads are refused while the disk holding VIDEO_WORK_DIR has less free than
+# this, whatever any listing's allowance. The database is on the same disk.
+VIDEO_MIN_FREE_BYTES = env.int("VIDEO_MIN_FREE_BYTES", default=10 * 1024**3)
+# An upload nobody has added to for this long is abandoned and removed.
+VIDEO_ABANDONED_UPLOAD_HOURS = 48
+# An encoding still marked running after this long is assumed to have died
+# with its worker, and is queued again.
+VIDEO_ENCODE_LEASE_HOURS = 6
+
+VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
+VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")
+# Threads each ffmpeg run may use. One keeps a two-CPU server answering web
+# requests while it encodes; a dedicated encoding server can raise it.
+VIDEO_FFMPEG_THREADS = env.int("VIDEO_FFMPEG_THREADS", default=1)
 
 
 # --------------------------------------------------------------------------

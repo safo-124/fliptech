@@ -48,7 +48,11 @@ from providers.trainer_uploads import (
     TrainerPhotoDeleteView,
     TrainerPhotoUploadView,
 )
-from providers.trainer_videos import TrainerVideoDeleteView, TrainerVideosView
+from providers.trainer_videos import (
+    TrainerVideoDeleteView,
+    TrainerVideosView,
+    TrainerVideoUploadView,
+)
 from providers.trainer_views import (
     TrainerConfirmListingView,
     TrainerLogoutView,
@@ -140,12 +144,18 @@ urlpatterns = [
         TrainerIdentityDocumentView.as_view(),
         name="trainer-identity-document",
     ),
-    # Teaching videos, linked from YouTube and reviewed one by one.
+    # Teaching videos, uploaded here in pieces, encoded here, and reviewed
+    # one by one. See providers/videos.py.
     path("trainer/profile/videos/", TrainerVideosView.as_view(), name="trainer-videos"),
     path(
         "trainer/profile/videos/<int:video_id>/",
         TrainerVideoDeleteView.as_view(),
         name="trainer-video-delete",
+    ),
+    path(
+        "trainer/profile/videos/<int:video_id>/upload/",
+        TrainerVideoUploadView.as_view(),
+        name="trainer-video-upload",
     ),
     # Screen 5 for a signed-in trainer. The tokenised route below still works
     # for a provider staff onboarded who has never signed in.

@@ -641,22 +641,40 @@ function Videos({ provider }: { provider: ProviderDetail }) {
         {videos.map((video) => (
           <li key={video.id}>
             <VideoLesson
-              youtubeId={video.youtube_id}
-              title={video.title}
+              video={video}
               playLabel={t("playVideo", { title: video.title })}
+              qualityLabel={t("videoQuality")}
             />
             <p className="mt-2 text-sm font-semibold leading-5">{video.title}</p>
             {/* What the tap costs, said before it is spent: this user pays
                 for data in small bundles. */}
             <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
               <Signal className="size-3.5 shrink-0" aria-hidden="true" />
-              {t("videoDataCost")}
+              {videoCost(video, t)}
             </p>
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+/**
+ * "12 minutes · about 40 MB": the length and the data the smallest copy
+ * costs. A YouTube video, from before uploads, has neither on record.
+ */
+function videoCost(
+  video: ProviderDetail["videos"][number],
+  t: ReturnType<typeof useTranslations<"ProviderProfile">>,
+) {
+  const smallest = video.sources[0];
+  if (video.kind === "youtube" || !video.duration_seconds || !smallest?.bytes) {
+    return t("videoDataCost");
+  }
+  return t("videoMeta", {
+    minutes: Math.max(1, Math.round(video.duration_seconds / 60)),
+    mb: Math.max(1, Math.round(smallest.bytes / 1024 ** 2)),
+  });
 }
 
 function PhotoStrip({

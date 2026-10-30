@@ -6,6 +6,7 @@ from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
 from catalog.models import Trade
+from core.media import public_url
 from geography.models import Area
 
 from .models import (
@@ -15,6 +16,7 @@ from .models import (
     TeachingLanguage,
     TrainerAccount,
 )
+from .serializers import video_sources
 
 
 class RejectUnknownFieldsMixin:
@@ -266,15 +268,56 @@ class TrainerPhotoSerializer(serializers.Serializer):
 
 
 class TrainerVideoInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
-    # The link as pasted. Only the video id is kept; see providers/videos.py.
-    url = serializers.CharField(max_length=500)
+    """What the trainer is about to send, before any of it is sent.
+
+    The size is what lets an upload that would be refused be refused now,
+    rather than after an hour of somebody's mobile data. The name is only
+    for the trainer: it is how their screen recognises the same file when
+    they pick it again to carry on an upload that was interrupted.
+    """
+
     title = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=255, allow_blank=True, required=False, default="")
+    size = serializers.IntegerField(min_value=1)
 
 
 class TrainerVideoSerializer(serializers.ModelSerializer):
+    kind = serializers.SerializerMethodField()
+    poster = serializers.SerializerMethodField()
+    sources = serializers.SerializerMethodField()
+
     class Meta:
         model = ProviderVideo
-        fields = ["id", "youtube_id", "title", "status", "review_note", "created_at"]
+        fields = [
+            "id",
+            "title",
+            "kind",
+            "youtube_id",
+            "status",
+            "review_note",
+            "failure_reason",
+            "upload_name",
+            "upload_size",
+            "upload_received",
+            "duration_seconds",
+            "poster",
+            "sources",
+            "created_at",
+        ]
+
+    def get_kind(self, obj):
+        return "youtube" if obj.is_youtube else "upload"
+
+    # Approved videos only, for the same reason as on the public listing:
+    # before then the files are in private storage, which no trainer-facing
+    # response points at.
+    def get_poster(self, obj):
+        if not obj.public_poster:
+            return None
+        return public_url(obj.public_poster.url, self.context.get("request"))
+
+    def get_sources(self, obj):
+        return video_sources(obj, self.context.get("request"))
 
 
 class TrainerLogoUploadSerializer(serializers.Serializer):

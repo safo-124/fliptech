@@ -23,6 +23,8 @@ export class TrainerApiError extends Error {
     message: string,
     readonly status: number,
     readonly fields: ErrorMap = {},
+    /** The response as sent, for the few callers that need more than words. */
+    readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -63,7 +65,8 @@ export async function trainerFetch<T>(path: string, init: RequestInit = {}): Pro
   // matters only if one of these calls is ever moved to the server, where the
   // loopback hop to gunicorn needs it — see SSR_HEADERS.
   for (const [name, value] of Object.entries(SSR_HEADERS)) headers.set(name, value);
-  if (init.body !== undefined && !(init.body instanceof FormData)) {
+  // JSON is a string. FormData and a raw Blob (a video piece) set their own.
+  if (typeof init.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
@@ -91,6 +94,7 @@ export async function trainerFetch<T>(path: string, init: RequestInit = {}): Pro
       fields.detail ?? Object.values(fields)[0] ?? "Something went wrong. Try again.",
       response.status,
       fields,
+      data,
     );
   }
   return data as T;

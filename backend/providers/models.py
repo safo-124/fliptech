@@ -23,6 +23,7 @@ from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ValidationError
 from django.core.files.storage import storages
 from django.db import models
+from django.utils import timezone
 from phonenumber_field.modelfields import PhoneNumberField
 from simple_history.models import HistoricalRecords
 
@@ -520,34 +521,101 @@ class ProviderVideoQuerySet(models.QuerySet):
         return self.filter(status=ProviderVideo.Status.APPROVED)
 
 
+def _video_path(folder, filename):
+    # A random name per file rather than the trainer's own: "IMG_2024..." says
+    # nothing useful, and a public address that can be guessed from another is
+    # a way to find a video before it is approved.
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    return f"videos/{folder}/{timezone.now():%Y/%m}/{secrets.token_urlsafe(12)}.{extension}"
+
+
+# Module-level functions rather than lambdas, so migrations can import them.
+def video_upload_to_review(instance, filename):
+    return _video_path("review", filename)
+
+
+def video_upload_to_public(instance, filename):
+    return _video_path("public", filename)
+
+
 class ProviderVideo(TimeStampedModel):
-    """A short video of the workshop teaching, hosted on YouTube.
+    """A video of the workshop teaching, uploaded here and served from here.
 
     A photograph of a finished braid says the work is good; a minute of the
     trainer doing it says whether they can teach, which is what a trainee is
-    paying for. Trades like hairdressing can be shown almost entirely this way.
+    paying for. A course can be many of these: thirteen hours of teaching goes
+    up as lessons, one upload each, and each lesson is reviewed on its own.
 
-    Only the YouTube video id is kept, never the link as pasted: the page
-    builds every address from the id, so nothing a trainer types ends up in an
-    href or an iframe. YouTube hosts, encodes and streams the video, which is
-    what keeps it cheap for a trainee on prepaid data. See providers/videos.py.
+    The trainer uploads the file from their phone in small pieces (see
+    providers/video_uploads.py), ffmpeg makes it small enough for 3G (see
+    providers/video_encoding.py), and only then does it wait for review.
 
-    Reviewed one by one, separately from the listing. A published workshop can
-    add a video without its listing going back for review, and the video waits
-    on its own until staff have watched it.
+    Two sets of file fields, bound to two storages, for the reason
+    ProviderEvidence and ProviderPhoto are two models: until staff have watched
+    a video it is unreviewed content of any kind, and it must not be reachable
+    at a public address. The `review_*` files live in private storage and are
+    shown to staff through a permission-checked view. Approving copies them to
+    the `public_*` fields and deletes the private copies; taking an approved
+    video back down does the reverse. At no point does one field hold a file
+    in the wrong bucket.
+
+    Older rows carry a `youtube_id` instead, from when videos were YouTube
+    links. Nothing new is added that way, but those already approved keep
+    playing until the workshop replaces them.
     """
 
     class Status(models.TextChoices):
+        UPLOADING = "uploading", "Uploading"
+        QUEUED = "queued", "Waiting to be prepared"
+        PROCESSING = "processing", "Being prepared"
+        FAILED = "failed", "Could not be prepared"
         PENDING = "pending", "Waiting for review"
         APPROVED = "approved", "Shown on the listing"
         REJECTED = "rejected", "Not approved"
 
+    # The states a reviewer can decide on. Anything earlier has nothing to
+    # watch yet; approving it would publish an empty player.
+    REVIEWABLE = (Status.PENDING, Status.APPROVED, Status.REJECTED)
+
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="videos")
-    youtube_id = models.CharField("YouTube video id", max_length=11)
     title = models.CharField(max_length=100)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True
     )
+
+    # Legacy: the YouTube id of a video added before uploads existed.
+    youtube_id = models.CharField("YouTube video id", max_length=11, blank=True)
+
+    # The upload as it arrives. Its bytes are in settings.VIDEO_WORK_DIR, never
+    # in media storage: the worker needs a local file to read, and the
+    # original is deleted once it has been encoded.
+    upload_name = models.CharField(max_length=255, blank=True)
+    upload_size = models.BigIntegerField(null=True, blank=True)
+    upload_received = models.BigIntegerField(default=0)
+
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    # Worded for the trainer: it is shown to them as is.
+    failure_reason = models.CharField(max_length=300, blank=True)
+
+    review_360 = models.FileField(
+        upload_to=video_upload_to_review, storage=private_storage, blank=True
+    )
+    review_720 = models.FileField(
+        upload_to=video_upload_to_review, storage=private_storage, blank=True
+    )
+    review_poster = models.FileField(
+        upload_to=video_upload_to_review, storage=private_storage, blank=True
+    )
+    public_360 = models.FileField(upload_to=video_upload_to_public, blank=True)
+    public_720 = models.FileField(upload_to=video_upload_to_public, blank=True)
+    public_poster = models.FileField(upload_to=video_upload_to_public, blank=True)
+
+    # Bytes of each encoded file, wherever it currently lives. Shown to a
+    # trainee before they spend data on it, and the measure pricing will use.
+    size_360 = models.BigIntegerField(null=True, blank=True)
+    size_720 = models.BigIntegerField(null=True, blank=True)
+
     # Shown to the trainer when a video is not approved, so it says what to fix.
     review_note = models.CharField(max_length=300, blank=True)
     reviewed_by = models.ForeignKey(
@@ -572,12 +640,22 @@ class ProviderVideo(TimeStampedModel):
         ordering = ["created_at"]
         constraints = [
             models.UniqueConstraint(
-                fields=["provider", "youtube_id"], name="one_link_per_video_per_provider"
+                fields=["provider", "youtube_id"],
+                condition=~models.Q(youtube_id=""),
+                name="one_link_per_video_per_provider",
             ),
         ]
 
     def __str__(self):
         return f"{self.title} ({self.provider.name})"
+
+    @property
+    def is_youtube(self):
+        return bool(self.youtube_id)
+
+    @property
+    def stored_bytes(self):
+        return (self.size_360 or 0) + (self.size_720 or 0)
 
     @property
     def watch_url(self):

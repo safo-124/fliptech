@@ -46,8 +46,8 @@ deploy/           server bootstrap, systemd units, Caddyfile
 ## Running it locally
 
 The backend needs GDAL, GEOS and PROJ, which are system libraries rather than
-pip packages, so it runs on Linux (WSL2 Ubuntu 24.04 on Windows). The frontend
-runs fine on Windows. [SETUP.md](SETUP.md) has the full install notes and the
+pip packages, and ffmpeg for teaching videos, so it runs on Linux (WSL2
+Ubuntu 24.04 on Windows). The frontend runs fine on Windows. [SETUP.md](SETUP.md) has the full install notes and the
 traps worth knowing before you start.
 
 **Backend** (from `backend/`, inside WSL):
@@ -127,6 +127,7 @@ Chrome already on the machine works: set `PLAYWRIGHT_BROWSER_CHANNEL=chrome`.
 | `setup_groups` | Creates or updates the Field officer and Operations lead roles. `deploy.sh` runs it on every release |
 | `seed_demo` / `purge_demo` | Adds or removes illustrative workshops. `purge_demo` is a dry run unless `--yes` |
 | `queue_freshness_prompts` | Queues the 90-day "are your fees and dates still right?" messages. Runs nightly on the server |
+| `process_videos` | Prepares uploaded teaching videos for phones with ffmpeg. Runs all the time on the server; `--once` works through the queue and stops |
 | `check_email` | Sends a test message through the configured email transport |
 | `prune_media` | Deletes public media files nothing refers to. Dry run unless `--yes` |
 | `fetch_trade_photos`, `attach_stock_photos` | Freely licensed Wikimedia Commons photos for demo listings |

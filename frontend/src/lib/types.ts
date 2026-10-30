@@ -103,8 +103,24 @@ export type GovernmentStatusDetail = {
   source_note: string;
 } | null;
 
-/** A teaching video on a listing. Only approved ones reach the public API. */
-export type ProviderVideo = { id: number; youtube_id: string; title: string };
+/** One encoded copy of an uploaded video. `quality` is the short side in pixels. */
+export type VideoSource = { quality: number; url: string; bytes: number | null };
+
+/**
+ * A teaching video on a listing. Only approved ones reach the public API.
+ *
+ * `upload` plays from the site's own files, smallest first in `sources`.
+ * `youtube` is a link added before uploads existed and carries only its id.
+ */
+export type ProviderVideo = {
+  id: number;
+  title: string;
+  kind: "upload" | "youtube";
+  youtube_id: string;
+  duration_seconds: number | null;
+  poster: string | null;
+  sources: VideoSource[];
+};
 
 export type ProviderDetail = ProviderCard & {
   address: string;
@@ -303,15 +319,40 @@ export type TrainerPhoto = {
 };
 
 /** Mirrors ProviderVideo.Status in backend/providers/models.py. */
-export type TrainerVideoStatus = "pending" | "approved" | "rejected";
+export type TrainerVideoStatus =
+  | "uploading"
+  | "queued"
+  | "processing"
+  | "failed"
+  | "pending"
+  | "approved"
+  | "rejected";
 
-/** One of the trainer's own videos, with where it stands in review. */
+/** One of the trainer's own videos, with where it stands. */
 export type TrainerVideo = ProviderVideo & {
   status: TrainerVideoStatus;
   /** Why it was turned down, written for the trainer to act on. */
   review_note: string;
+  /** Why it could not be prepared, likewise. */
+  failure_reason: string;
+  /** The file's name on the phone, to recognise it when an upload resumes. */
+  upload_name: string;
+  upload_size: number | null;
+  upload_received: number;
   created_at: string;
 };
+
+/** The allowances, from backend/providers/videos.py limits(). */
+export type TrainerVideoLimits = {
+  max_videos: number;
+  max_minutes: number;
+  max_hours: number;
+  max_upload_bytes: number;
+  chunk_bytes: number;
+  seconds_used: number;
+};
+
+export type TrainerVideoList = { videos: TrainerVideo[]; limits: TrainerVideoLimits };
 
 /**
  * Who the trainer says they are.
