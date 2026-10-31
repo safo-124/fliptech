@@ -364,6 +364,8 @@ def _payout_payload(seller):
     return {
         "payments_enabled": paystack.enabled(),
         "commission_percent": settings.MARKETPLACE_COMMISSION_PERCENT,
+        "protected": settings.MARKETPLACE_HOLD_PAYMENTS,
+        "release_days": settings.MARKETPLACE_RELEASE_DAYS,
         "payout": {
             "ready": seller.payout_ready,
             "bank_code": seller.payout_bank_code,
@@ -1181,18 +1183,19 @@ class SellerProductOptionsView(APIView):
                 {"options": [_("Give each option a different name.")]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Matched by name, so an option keeps its id when only its price or
+        # stock changes: a bag, or a product page cached for a few minutes,
+        # still points at the right choice.
         with transaction.atomic():
-            product.options.all().delete()
-            ProductOption.objects.bulk_create(
-                ProductOption(
-                    product=product,
-                    label=row["label"].strip(),
-                    price=row.get("price"),
-                    available=row.get("available", True),
-                    display_order=position,
-                )
-                for position, row in enumerate(serializer.validated_data)
-            )
+            existing = {option.label: option for option in product.options.select_for_update()}
+            product.options.exclude(label__in=labels).delete()
+            for position, row in enumerate(serializer.validated_data):
+                label = row["label"].strip()
+                option = existing.get(label) or ProductOption(product=product, label=label)
+                option.price = row.get("price")
+                option.available = row.get("available", True)
+                option.display_order = position
+                option.save()
         return Response(ProductOptionSerializer(product.options.all(), many=True).data)
 
 

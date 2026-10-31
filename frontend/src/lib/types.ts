@@ -583,6 +583,13 @@ export type SellerCard = {
   workshop: {name: string; slug: string; area_slug: string} | null;
   /** From buyers who asked or paid through the site; null with none yet. */
   rating: {average: number; count: number} | null;
+  /** Usually replies within a day. */
+  replies_fast: boolean;
+  /** Staff visited and saw the work being made. */
+  verified: boolean;
+  /** Cedis added for delivery at checkout; null when they don't deliver through the site. */
+  delivery_fee: string | null;
+  delivery_area: string;
 };
 
 export type ProductCard = {
@@ -591,6 +598,8 @@ export type ProductCard = {
   slug: string;
   /** Null means "price on request", a real answer for something made to order. */
   price: string | null;
+  /** The price before a sale, shown crossed out; only when it was higher. */
+  was_price: string | null;
   availability: "available" | "made_to_order" | "sold_out";
   trade: {name: string; slug: string; colour: string} | null;
   photo: string | null;
@@ -638,19 +647,61 @@ export type MarketplaceOrder = {
   buyer_phone: string;
   fulfilment: "pickup" | "delivery";
   note: string;
+  items: {
+    product: number | null;
+    product_name: string;
+    option_label: string;
+    unit_price: string;
+    quantity: number;
+  }[];
+  delivery: string;
+  discount: string;
+  discount_code: string;
   status: "pending" | "paid" | "failed";
-  stage: "new" | "delivered" | "refunded";
+  stage: "new" | "delivered" | "received" | "problem" | "refunded";
+  payout: "split" | "held" | "sending" | "released" | "failed" | "refunded";
+  /** Buyer protection: the seller is paid once the buyer has it. */
+  protected: boolean;
+  problem: string;
   seller_name: string;
   /** Only once paid. */
   seller_phone: string | null;
   paid_at: string | null;
   delivered_at: string | null;
+  received_at: string | null;
   created_at: string;
 };
+
+/** A bag line kept in the browser, and the server's price for a bag. */
+export type BagItem = {product: number; option: number | null; quantity: number};
+
+export type BasketPrice = {
+  lines: {
+    product: number;
+    product_name: string;
+    option: number | null;
+    option_label: string;
+    unit_price: string;
+    quantity: number;
+    total: string;
+  }[];
+  subtotal: string;
+  discount: string;
+  code: string;
+  delivery: string;
+  delivery_fee: string | null;
+  delivery_area: string;
+  total: string;
+  protected: boolean;
+};
+
+export type ProductOption = {id: number; label: string; price: string | null; available: boolean};
 
 export type ProductDetail = ProductCard & {
   description: string;
   photos: {id: number; image: string | null; caption: string; display_order: number}[];
+  /** Sizes, colours or versions; one must be chosen when any is available. */
+  options: ProductOption[];
 };
 
 /** A staff-chosen home page photograph. See backend core.models.HomePicture. */

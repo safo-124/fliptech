@@ -280,6 +280,15 @@ def test_options_have_their_own_price_and_one_must_be_chosen(client, world):
         ("XL", "120.00"),
     ]
 
+    # Saving again keeps XL's id, so bags and cached pages still point at it.
+    as_seller(client, world["kofi"]).put(
+        reverse("seller-product-options", args=[shirt.pk]),
+        {"options": [{"label": "XL", "price": "125.00"}, {"label": "S"}]},
+        content_type=JSON,
+    )
+    assert ProductOption.objects.get(label="XL").pk == xl.pk
+    assert sorted(ProductOption.objects.values_list("label", flat=True)) == ["S", "XL"]
+
 
 @pytest.mark.django_db
 def test_a_sale_price_shows_only_when_it_was_higher(client, world):

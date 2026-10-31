@@ -283,11 +283,24 @@ export type MarketplaceParams = {
   sort?: string;
   /** "lat,lng", from the buyer's "Near me". */
   near?: string;
+  /** Comma-separated ids: the products saved in this browser. */
+  ids?: string;
   page?: string;
 };
 
 export function searchProducts(params: MarketplaceParams = {}) {
   return fetchJson<Paginated<ProductCard>>(`/api/products/${buildQuery(params)}`);
+}
+
+/** Every product on show, for the sitemap. Capped, like the providers. */
+export async function searchAllProducts() {
+  const all: ProductCard[] = [];
+  for (let page = 1; page <= MAX_COMPLETE_PAGES; page++) {
+    const found = await searchProducts({ page: String(page) });
+    all.push(...found.results);
+    if (!found.next) break;
+  }
+  return all;
 }
 
 export function getProduct(id: string | number) {

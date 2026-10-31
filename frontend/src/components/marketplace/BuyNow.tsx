@@ -1,96 +1,59 @@
 "use client";
 
-import { Loader2, ShoppingBag } from "lucide-react";
+import { Check, ShoppingBag } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { Checkout } from "@/components/marketplace/Checkout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { addToBag } from "@/lib/bag";
 import { formatCedis } from "@/lib/format";
-import { orderProduct, requestBuyerCode, verifyBuyerCode } from "@/lib/marketplace-api";
-import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
-
-type Step = "details" | "code";
+import type { ProductOption } from "@/lib/types";
 
 /**
- * Paying for a product on the site.
+ * Paying for a product on its page, or putting it in the bag to pay for
+ * several things from this maker at once.
  *
- * The same phone check as asking a question (AskSeller), and the same
- * session trust: somebody who asked about this bag an hour ago pays with no
- * second code. Then Paystack's own page takes the money, mobile money or
- * card, and sends them back to /marketplace/order/<reference>.
- *
- * No `name` on the fields, for the reason AskSeller gives: a tap before
- * hydration would otherwise put a phone number in the address bar.
+ * A product with sizes or colours asks which one first; the price follows
+ * the choice. The paying itself is Checkout, shared with the bag page.
  */
 export function BuyNow({
   productId,
+  productName,
   price,
+  options,
+  sellerId,
   sellerName,
 }: {
   productId: number;
+  productName: string;
   price: string;
+  options: ProductOption[];
+  sellerId: number;
   sellerName: string;
 }) {
   const t = useTranslations("Marketplace");
-  const [step, setStep] = useState<Step>("details");
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const choosable = options.filter((option) => option.available);
+  const [option, setOption] = useState<number | null>(choosable.length === 1 ? choosable[0].id : null);
   const [quantity, setQuantity] = useState(1);
-  const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
-  const [note, setNote] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
 
-  const total = (Number(price) * quantity).toFixed(2);
+  const chosen = options.find((item) => item.id === option) ?? null;
+  const needsChoice = choosable.length > 0 && chosen === null;
+  const unit = chosen?.price ?? price;
 
-  async function pay(e164: string) {
-    const { authorization_url } = await orderProduct(productId, {
-      phone: e164,
-      name: name.trim(),
+  function add() {
+    addToBag(sellerId, sellerName, {
+      product: productId,
+      option,
       quantity,
-      fulfilment,
-      note: note.trim() || undefined,
+      name: productName,
+      optionLabel: chosen?.label ?? "",
     });
-    window.location.href = authorization_url;
-  }
-
-  async function start(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      if (!name.trim()) throw new Error(t("buyNameNeeded"));
-      if (fulfilment === "delivery" && !note.trim()) throw new Error(t("buyAddressNeeded"));
-      const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
-      const asked = await requestBuyerCode(e164);
-      if (asked.verified) {
-        await pay(e164);
-        return;
-      }
-      setStep("code");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("buyFailed"));
-    }
-    setBusy(false);
-  }
-
-  async function confirm(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
-      await verifyBuyerCode(e164, code.trim());
-      await pay(e164);
-      return;
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("codeFailed"));
-    }
-    setBusy(false);
+    setAdded(true);
   }
 
   return (
@@ -99,126 +62,90 @@ export function BuyNow({
         <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-brand)] text-white">
           <ShoppingBag aria-hidden="true" className="size-5" />
         </div>
-        <CardTitle>{step === "details" ? t("buyTitle") : t("codeTitle")}</CardTitle>
+        <CardTitle>{t("buyTitle")}</CardTitle>
       </CardHeader>
-      <CardContent>
-        {error ? (
-          <p
-            role="alert"
-            className="mb-4 rounded-lg bg-[var(--color-destructive)]/10 px-3 py-2 text-sm text-[var(--color-destructive)]"
-          >
-            {error}
-          </p>
+      <CardContent className="space-y-4">
+        {options.length ? (
+          <fieldset>
+            <legend className="text-sm font-medium">{t("chooseOption")}</legend>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {options.map((item) => (
+                <label
+                  key={item.id}
+                  className={`flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-sm has-[:checked]:border-[var(--color-brand)] has-[:checked]:bg-[var(--color-brand-soft)] ${
+                    item.available ? "border-[var(--color-border)]" : "cursor-not-allowed border-dashed opacity-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    className="sr-only"
+                    disabled={!item.available}
+                    checked={option === item.id}
+                    onChange={() => {
+                      setOption(item.id);
+                      setAdded(false);
+                    }}
+                  />
+                  {item.label}
+                  {item.price && item.price !== price ? (
+                    <span className="text-xs text-[var(--color-muted-foreground)]">
+                      {formatCedis(item.price)}
+                    </span>
+                  ) : null}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         ) : null}
 
-        {step === "details" ? (
-          <form onSubmit={start} className="space-y-3.5">
-            <div className="grid grid-cols-[1fr_6rem] gap-3">
-              <div>
-                <Label htmlFor="buy-phone">{t("phoneLabel")}</Label>
-                <Input
-                  id="buy-phone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  required
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  placeholder="024 123 4567"
-                />
-              </div>
-              <div>
-                <Label htmlFor="buy-quantity">{t("quantityLabel")}</Label>
-                <Input
-                  id="buy-quantity"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={20}
-                  value={quantity}
-                  onChange={(event) =>
-                    setQuantity(Math.min(20, Math.max(1, Number(event.target.value) || 1)))
-                  }
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="buy-name">{t("buyNameLabel")}</Label>
-              <Input
-                id="buy-name"
-                autoComplete="name"
-                required
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <fieldset>
-              <legend className="text-sm font-medium">{t("handoverLabel")}</legend>
-              <div className="mt-1.5 grid grid-cols-2 gap-2">
-                {(["pickup", "delivery"] as const).map((choice) => (
-                  <label
-                    key={choice}
-                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 text-sm has-[:checked]:border-[var(--color-brand)] has-[:checked]:bg-[var(--color-brand-soft)]"
-                  >
-                    <input
-                      type="radio"
-                      checked={fulfilment === choice}
-                      onChange={() => setFulfilment(choice)}
-                      className="accent-[var(--color-brand)]"
-                    />
-                    {t(choice === "pickup" ? "pickup" : "delivery")}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <div>
-              <Label htmlFor="buy-note">
-                {fulfilment === "delivery" ? t("addressLabel") : t("noteLabel")}
-              </Label>
-              <textarea
-                id="buy-note"
-                rows={2}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder={fulfilment === "delivery" ? t("addressPlaceholder") : undefined}
-                className="mt-1.5 w-full rounded-lg border border-[var(--color-input)] bg-[var(--color-card)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-              />
-              {fulfilment === "delivery" ? (
-                <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">
-                  {t("deliveryHelp", { seller: sellerName })}
-                </p>
-              ) : null}
-            </div>
-            <Button type="submit" variant="brand" className="w-full" disabled={busy}>
-              {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-              {t("payAction", { total: formatCedis(total) })}
-            </Button>
-            <p className="text-xs leading-relaxed text-[var(--color-muted-foreground)]">
-              {t("payHelp", { seller: sellerName })}
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={confirm} className="space-y-3.5">
-            <p className="text-sm text-[var(--color-muted-foreground)]">
-              {t("codeSentTo", { phone })}
-            </p>
-            <div>
-              <Label htmlFor="buy-code">{t("codeLabel")}</Label>
-              <Input
-                id="buy-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-            </div>
-            <Button type="submit" variant="brand" className="w-full" disabled={busy}>
-              {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-              {t("payAction", { total: formatCedis(total) })}
-            </Button>
-          </form>
-        )}
+        <div className="flex items-end gap-3">
+          <div className="w-24">
+            <Label htmlFor="buy-quantity">{t("quantityLabel")}</Label>
+            <input
+              id="buy-quantity"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={20}
+              value={quantity}
+              onChange={(event) => {
+                setQuantity(Math.min(20, Math.max(1, Number(event.target.value) || 1)));
+                setAdded(false);
+              }}
+              className="mt-1.5 h-11 w-full rounded-lg border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm"
+            />
+          </div>
+          <p className="pb-2.5 text-sm text-[var(--color-muted-foreground)]">
+            {t("each", { price: formatCedis(unit) })}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={needsChoice} onClick={add}>
+            {added ? <Check aria-hidden="true" /> : <ShoppingBag aria-hidden="true" />}
+            {added ? t("addedToBag") : t("addToBag")}
+          </Button>
+          {added ? (
+            <Link
+              href={`/marketplace/bag/${sellerId}`}
+              className="text-sm font-semibold text-[var(--color-brand)] hover:underline"
+            >
+              {t("seeBag")}
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="border-t border-[var(--color-border)] pt-4">
+          {needsChoice ? (
+            <p className="text-sm text-[var(--color-muted-foreground)]">{t("chooseOptionFirst")}</p>
+          ) : (
+            <Checkout
+              sellerId={sellerId}
+              sellerName={sellerName}
+              items={[{ product: productId, option, quantity }]}
+            />
+          )}
+        </div>
       </CardContent>
     </Card>
   );

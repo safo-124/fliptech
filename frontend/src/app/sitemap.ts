@@ -19,6 +19,7 @@ import {
   getAllRegions,
   getAllTrades,
   getAreaSummary,
+  searchAllProducts,
   searchAllProviders,
 } from "@/lib/api";
 import {
@@ -43,16 +44,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // where the inventory actually is.
     { url: `${site}/training`, changeFrequency: "daily", priority: 0.9 },
     { url: `${site}/learn`, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${site}/marketplace`, changeFrequency: "daily", priority: 0.8 },
+    { url: `${site}/marketplace/quote`, changeFrequency: "monthly", priority: 0.4 },
     // Low priority, but it should be findable: a privacy policy nobody can
     // locate is not published in any useful sense.
     { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
-  const [trades, areas, regions, providers] = await Promise.all([
+  const [trades, areas, regions, providers, products] = await Promise.all([
     getAllTrades().catch(() => []),
     getAllAreas().catch(() => []),
     getAllRegions().catch(() => []),
     searchAllProviders({}).catch(() => []),
+    searchAllProducts().catch(() => []),
   ]);
 
   for (const trade of trades) {
@@ -96,6 +100,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ? new Date(provider.listing_confirmed_on)
         : undefined,
     });
+  }
+
+  // Every product on show, and each shop once. A buyer searching "ankara
+  // bag Adenta" should land on the bag, not on the marketplace's front page.
+  const shops = new Set<number>();
+  for (const product of products) {
+    entries.push({
+      url: `${site}/marketplace/${product.id}`,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    });
+    shops.add(product.seller.id);
+  }
+  for (const shop of shops) {
+    entries.push({ url: `${site}/marketplace/seller/${shop}`, changeFrequency: "weekly", priority: 0.5 });
   }
 
   return entries;
