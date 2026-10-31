@@ -31,15 +31,32 @@ DEFAULT_AGE_DAYS = 7
 
 
 def referenced_names():
-    """Every file name a row points at, as stored, with no I/O per row."""
-    from providers.models import Provider, ProviderPhoto, ProviderVideo
+    """Every file name a row points at, as stored, with no I/O per row.
 
-    names = set(ProviderPhoto.objects.exclude(image="").values_list("image", flat=True))
-    names |= set(Provider.objects.exclude(logo="").values_list("logo", flat=True))
-    # Approved videos. Without these an approved lesson would be "orphaned"
-    # a week after it went live, and deleted.
-    for field in ("public_360", "public_720", "public_poster"):
-        names |= set(ProviderVideo.objects.exclude(**{field: ""}).values_list(field, flat=True))
+    Every file field on every model, rather than a list kept by hand. The
+    hand-kept list knew workshop photos and logos and nothing else, so trade
+    pictures, product photos, trainee avatars and home-page pictures were
+    all "orphans" a week after upload, and `--yes` deleted them. A new model
+    with a file is covered the day it is written.
+
+    Historical copies (django-simple-history) are skipped: a file only an
+    old version of a row mentions is one the live row has let go of.
+    """
+    from django.apps import apps
+    from django.db import models
+
+    names = set()
+    for model in apps.get_models():
+        if model.__name__.startswith("Historical"):
+            continue
+        for field in model._meta.get_fields():
+            if not isinstance(field, models.FileField) or field.model is not model:
+                continue
+            names |= set(
+                model._default_manager.exclude(**{field.name: ""})
+                .exclude(**{f"{field.name}__isnull": True})
+                .values_list(field.name, flat=True)
+            )
     return names
 
 

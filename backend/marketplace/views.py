@@ -37,8 +37,10 @@ from enquiries.serializers import OTPRequestSerializer
 from . import seller_messages
 from .auth import (
     SellerAccountDisabled,
+    SellerAccountElsewhere,
     account_for_verified_phone,
     code_address_for,
+    other_number_message,
     own_seller_account,
     start_selling,
 )
@@ -174,6 +176,14 @@ class SellerOTPVerifyView(APIView):
         existing_user = (
             request.user if request.user.is_authenticated and not request.user.is_staff else None
         )
+        # Before the code is checked, so a number that cannot be used here
+        # does not spend it.
+        if existing_user is not None:
+            held = SellerAccount.objects.filter(user=existing_user).only("phone").first()
+            if held is not None and str(held.phone) != str(serializer.validated_data["phone"]):
+                return Response(
+                    {"detail": other_number_message()}, status=status.HTTP_409_CONFLICT
+                )
 
         try:
             verification = verify_code(
@@ -191,6 +201,8 @@ class SellerOTPVerifyView(APIView):
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except SellerAccountDisabled as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except SellerAccountElsewhere as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
 
         if existing_user is None:
             # login() cycles the session key, preventing fixation. Skipped
@@ -254,6 +266,8 @@ class StartSellingView(APIView):
             )
         except SellerAccountDisabled as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except SellerAccountElsewhere as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
 
         # Prefilled, not forced: a workshop that sells under another name can
         # change both from the dashboard. Only ever fills blanks, so a second

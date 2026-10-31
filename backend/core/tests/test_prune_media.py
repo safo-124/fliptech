@@ -163,3 +163,35 @@ def test_private_media_is_never_walked(media, settings, tmp_path):
 @pytest.mark.django_db
 def test_nothing_to_do_is_not_an_error(media):
     assert "Nothing to do" in prune("--yes")
+
+
+@pytest.mark.django_db
+def test_product_photos_avatars_and_trade_pictures_are_all_referenced(media, django_user_model):
+    """The pruner once knew only workshop photos and logos, and would have
+    deleted every other upload a week after it was made."""
+    from catalog.models import Trade
+    from marketplace.models import Product, ProductPhoto, SellerAccount
+
+    root, area = media
+    seller = SellerAccount.objects.create(
+        user=django_user_model.objects.create_user(username="seller-1"),
+        phone="+233201110999",
+        phone_verified_at=timezone.now(),
+        business_name="Ama Crafts",
+        area=area,
+    )
+    product = Product.objects.create(seller=seller, name="Bag", slug="bag")
+    photo = ProductPhoto(product=product)
+    photo.image.save("bag.jpg", jpeg(), save=True)
+    trade = Trade.objects.create(name="Tailoring", slug="tailoring")
+    trade.picture.save("tailoring.jpg", jpeg(), save=True)
+
+    kept = [root / photo.image.name, root / trade.picture.name]
+    for path in kept:
+        age(path, 30)
+    gone = orphan(root)
+
+    prune("--yes")
+
+    assert all(path.exists() for path in kept)
+    assert not gone.exists()
