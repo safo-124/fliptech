@@ -45,7 +45,7 @@ def _courses():
             last_approved=Max("videos__reviewed_at", filter=APPROVED),
         )
         .filter(lesson_count__gt=0)
-        .select_related("area")
+        .select_related("area", "course_offer")
         .prefetch_related(
             Prefetch(
                 "videos",
@@ -87,6 +87,7 @@ class CourseCardSerializer(serializers.ModelSerializer):
     total_seconds = serializers.IntegerField(read_only=True, allow_null=True)
     trade = serializers.SerializerMethodField()
     poster = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
 
     class Meta:
         model = Provider
@@ -100,7 +101,16 @@ class CourseCardSerializer(serializers.ModelSerializer):
             "lessons",
             "total_seconds",
             "poster",
+            "price",
         ]
+
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
+    def get_price(self, obj):
+        """Cedis for the whole course, or null when it is free to watch."""
+        from courses.access import offer_for
+
+        offer = offer_for(obj)
+        return f"{offer.price:.2f}" if offer is not None and offer.is_paid else None
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_trade(self, obj):
@@ -143,12 +153,16 @@ class CourseDetailView(APIView):
         # page at a public address reads as a broken one.
         if course is None:
             raise NotFound("No such course.")
-        context = {"request": request}
+        # Cached and served to everybody, so always the stranger's view:
+        # locked lessons without their files. /access/ adds what this viewer
+        # may watch, after the page has loaded.
+        from courses.access import gate_for
+
+        lessons = list(course.shown_videos)
+        context = {"request": request, "gates": {course.pk: gate_for(course, None, videos=lessons)}}
         return Response(
             {
                 "course": CourseCardSerializer(course, context=context).data,
-                "lessons": ProviderVideoSerializer(
-                    course.shown_videos, many=True, context=context
-                ).data,
+                "lessons": ProviderVideoSerializer(lessons, many=True, context=context).data,
             }
         )

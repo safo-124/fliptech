@@ -79,6 +79,7 @@ export const TRAINER_CLIENT_NAMESPACES = [
   "TrainerDashboard",
   "TrainerEnquiries",
   "TrainerVideos",
+  "TrainerCourse",
   "TrainerAccount",
   "TrainerAccountNotice",
   "TrainerNav",

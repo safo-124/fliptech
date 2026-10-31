@@ -29,6 +29,7 @@ import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
 import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
 import type {TrainerTab} from "@/components/trainer/TrainerNav";
 import {TRAINER_TAB_KEYS, useTrainerTabs} from "@/components/trainer/TrainerNav";
+import {TrainerCourseSales} from "@/components/trainer/TrainerCourseSales";
 import {TrainerVideos} from "@/components/trainer/TrainerVideos";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
@@ -624,7 +625,12 @@ export function TrainerDashboard() {
         />
       ) : null}
 
-      {tab === "videos" ? <TrainerVideos listingLive={profile.status === "published"} /> : null}
+      {tab === "videos" ? (
+        <div className="space-y-5">
+          <TrainerCourseSales />
+          <TrainerVideos listingLive={profile.status === "published"} />
+        </div>
+      ) : null}
 
       {tab === "account" ? (
         <TrainerAccount

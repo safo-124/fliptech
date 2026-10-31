@@ -4,7 +4,7 @@
  * listing, under /learn, so one is always a link away from the other.
  */
 
-import { ArrowLeft, ArrowRight, Clock3, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock3, MapPin, ShieldCheck, Tag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,7 +15,7 @@ import { CourseTile } from "@/components/CourseTile";
 import { Button } from "@/components/ui/button";
 import { ApiError, getCourse, listCourses } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
-import { videoCost } from "@/lib/format";
+import { formatCedis, videoCost } from "@/lib/format";
 import { tradeClass } from "@/lib/trades";
 import type { CourseCard } from "@/lib/types";
 
@@ -115,6 +115,10 @@ export default async function CoursePage({ params }: { params: Promise<Params> }
                   <Clock3 aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
                   {length}
                 </span>
+                <span className="inline-flex items-center gap-1.5 font-bold text-[var(--color-brand-deep)]">
+                  <Tag aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
+                  {course.price ? t("priceLine", { price: formatCedis(course.price) }) : t("free")}
+                </span>
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldCheck aria-hidden="true" className="size-4 text-[var(--color-visit)]" />
                   {t("watchedBy", { brand: BRAND })}
@@ -138,12 +142,19 @@ export default async function CoursePage({ params }: { params: Promise<Params> }
           the window, and the lesson's title and buttons fall below it. */}
       <section className="app-shell mx-auto mt-6 max-w-6xl sm:mt-8">
         <CoursePlayer
+          course={{ area: course.area_slug, slug: course.slug, paid: Boolean(course.price) }}
           lessons={lessons.map((video) => {
             const cost = videoCost(video);
             return {
               video,
               playLabel: tProfile("playVideo", { title: video.title }),
-              meta: cost ? tProfile("videoMeta", cost) : tProfile("videoDataCost"),
+              // A locked lesson's size is withheld with its files: its
+              // length is still worth saying.
+              meta: cost
+                ? tProfile("videoMeta", cost)
+                : video.locked && video.duration_seconds
+                  ? t("lessonLength", { minutes: Math.max(1, Math.round(video.duration_seconds / 60)) })
+                  : tProfile("videoDataCost"),
             };
           })}
           labels={{
@@ -155,6 +166,19 @@ export default async function CoursePage({ params }: { params: Promise<Params> }
             lessonNumber: lessons.map((_, position) =>
               t("lessonNumber", { number: position + 1, count: lessons.length }),
             ),
+            locked: course.price
+              ? {
+                  title: t("lockedTitle"),
+                  body: t("lockedBody", { price: formatCedis(course.price), count: lessons.length }),
+                  buy: t("buy", { price: formatCedis(course.price) }),
+                  buying: t("buying"),
+                  signIn: t("signInToBuy"),
+                  checking: t("checkingPayment"),
+                  unavailable: t("buyUnavailable"),
+                  failed: t("paymentNotConfirmed"),
+                  preview: t("freePreview"),
+                }
+              : undefined,
           }}
         />
       </section>

@@ -11,6 +11,16 @@ from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
 from core.site_stats import SiteStatsView
 from core.whoami import WhoAmIView
+from courses.views import (
+    CourseAccessView,
+    CourseBuyView,
+    MediaAccessView,
+    PaystackWebhookView,
+    PurchaseVerifyView,
+    TrainerCourseView,
+    TrainerPayoutBanksView,
+    TrainerPayoutView,
+)
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from marketplace.views import (
@@ -209,6 +219,40 @@ urlpatterns = [
     path("site/stats/", SiteStatsView.as_view(), name="site-stats"),
     # Online learning: each workshop's approved videos, browsed as a course.
     path("courses/", CourseListView.as_view(), name="course-list"),
+    # Paid courses. See courses/views.py.
+    path(
+        "courses/<slug:area_slug>/<slug:slug>/access/",
+        CourseAccessView.as_view(),
+        name="course-access",
+    ),
+    path(
+        "courses/<slug:area_slug>/<slug:slug>/buy/",
+        CourseBuyView.as_view(),
+        name="course-buy",
+    ),
+    path(
+        "payments/<str:reference>/verify/",
+        PurchaseVerifyView.as_view(),
+        name="purchase-verify",
+    ),
+    path(
+        "payments/paystack/webhook/",
+        PaystackWebhookView.as_view(),
+        name="paystack-webhook",
+    ),
+    # Caddy asks this before it streams a video file (forward_auth).
+    path("media-access/", MediaAccessView.as_view(), name="media-access"),
+    path("trainer/course/", TrainerCourseView.as_view(), name="trainer-course"),
+    path(
+        "trainer/course/banks/",
+        TrainerPayoutBanksView.as_view(),
+        name="trainer-course-banks",
+    ),
+    path(
+        "trainer/course/payout/",
+        TrainerPayoutView.as_view(),
+        name="trainer-course-payout",
+    ),
     path(
         "courses/<slug:area_slug>/<slug:slug>/",
         CourseDetailView.as_view(),

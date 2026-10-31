@@ -120,6 +120,8 @@ export type ProviderVideo = {
   duration_seconds: number | null;
   poster: string | null;
   sources: VideoSource[];
+  /** A lesson of a paid course this viewer has not bought: no sources. */
+  locked?: boolean;
 };
 
 /**
@@ -136,6 +138,8 @@ export type CourseCard = {
   lessons: number;
   total_seconds: number | null;
   poster: string | null;
+  /** Cedis for the whole course, or null when it is free. */
+  price: string | null;
 };
 
 export type CourseDetail = { course: CourseCard; lessons: ProviderVideo[] };
@@ -607,3 +611,30 @@ export type HomePictures = Partial<
 
 /** The home page's trust strip. See backend core/site_stats.py. */
 export type SiteStats = { workshops: number; visited: number; lessons: number; products: number };
+
+/** What this browser may watch of a course. See backend courses/views.py. */
+export type CourseAccess = {
+  price: string | null;
+  owned: boolean;
+  signed_in: boolean;
+  payments_enabled: boolean;
+  /** By lesson id: the sources this viewer may play. */
+  sources: Record<string, VideoSource[]>;
+};
+
+/** A trainer's course price, payout account and sales. */
+export type TrainerCourse = {
+  payments_enabled: boolean;
+  price: string | null;
+  min_price: string;
+  payout: {
+    ready: boolean;
+    bank_code: string;
+    bank_name: string;
+    account_last4: string;
+    account_name: string;
+  };
+  sales: { count: number; total: string };
+};
+
+export type PayoutBank = { code: string; name: string; type: "mobile_money" | "ghipss" };

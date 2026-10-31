@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { formatCedis } from "@/lib/format";
 import type { CourseCard } from "@/lib/types";
 
 /**
@@ -29,6 +30,10 @@ export function CourseTile({ course }: { course: CourseCard }) {
         ) : null}
         <span aria-hidden="true" className="relative grid size-12 place-items-center rounded-full bg-black/60 text-white ring-2 ring-white/80">
           <PlayCircle className="size-6" />
+        </span>
+        {/* What it costs, before anybody opens it. */}
+        <span className="absolute left-2 top-2 rounded-full bg-[var(--color-card)] px-2.5 py-1 text-xs font-extrabold text-[var(--color-brand-deep)] shadow-sm">
+          {course.price ? formatCedis(course.price) : t("free")}
         </span>
       </div>
       <div className="space-y-1.5 p-4">

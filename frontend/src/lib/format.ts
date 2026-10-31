@@ -17,6 +17,22 @@ const cedi = new Intl.NumberFormat("en-GH", {
   maximumFractionDigits: 0,
 });
 
+const cediWithPesewas = new Intl.NumberFormat("en-GH", {
+  style: "currency",
+  currency: "GHS",
+  minimumFractionDigits: 2,
+});
+
+/**
+ * A price someone is asked to pay, from the API's "150.00": "GH₵150", or
+ * "GH₵149.50" when there are pesewas. Never rounded, unlike a fee range:
+ * this is the amount that leaves their wallet.
+ */
+export function formatCedis(value: string): string {
+  const amount = Number(value);
+  return (Number.isInteger(amount) ? cedi : cediWithPesewas).format(amount);
+}
+
 export function formatFee(value: string | null, t: FormatTranslator): string {
   if (value === null) return t("feeNotListed");
   return cedi.format(Number(value));

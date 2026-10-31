@@ -310,15 +310,38 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
     `kind` says which player: an upload plays from our own files, a "youtube"
     one is a link added before uploads existed and carries only its id, from
     which the page builds every address itself.
+
+    `locked` is a lesson of a paid course this viewer has not bought: it
+    comes with its title, length and still, so a trainee can see what they
+    would be buying, and without its sources. Fails closed: with no gate
+    in the context, one is worked out with no viewer, which locks.
     """
 
     kind = serializers.SerializerMethodField()
     poster = serializers.SerializerMethodField()
     sources = serializers.SerializerMethodField()
+    locked = serializers.SerializerMethodField()
 
     class Meta:
         model = ProviderVideo
-        fields = ["id", "title", "kind", "youtube_id", "duration_seconds", "poster", "sources"]
+        fields = [
+            "id",
+            "title",
+            "kind",
+            "youtube_id",
+            "duration_seconds",
+            "poster",
+            "sources",
+            "locked",
+        ]
+
+    def _gate(self, obj):
+        from courses.access import gate_for
+
+        gates = self.context.setdefault("gates", {})
+        if obj.provider_id not in gates:
+            gates[obj.provider_id] = gate_for(obj.provider, self.context.get("viewer"))
+        return gates[obj.provider_id]
 
     @extend_schema_field(serializers.ChoiceField(choices=["upload", "youtube"]))
     def get_kind(self, obj):
@@ -332,7 +355,13 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(VideoSourceSerializer(many=True))
     def get_sources(self, obj):
+        if not self._gate(obj).may_watch(obj):
+            return []
         return video_sources(obj, self.context.get("request"))
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_locked(self, obj):
+        return not self._gate(obj).may_watch(obj)
 
 
 class ProviderDetailSerializer(ProviderListSerializer):
@@ -407,7 +436,14 @@ class ProviderDetailSerializer(ProviderListSerializer):
         videos = getattr(obj, "shown_videos", None)
         if videos is None:
             videos = obj.videos.shown()
-        return ProviderVideoSerializer(videos, many=True, context=self.context).data
+        from courses.access import gate_for
+
+        # The listing is cached and served to everybody, so it is always the
+        # stranger's view: locked lessons go without their files. The course
+        # page fetches what this viewer may watch separately.
+        videos = list(videos)
+        context = {**self.context, "gates": {obj.pk: gate_for(obj, None, videos=videos)}}
+        return ProviderVideoSerializer(videos, many=True, context=context).data
 
     @extend_schema_field(ProgrammeSerializer(many=True))
     def get_programmes(self, obj):
