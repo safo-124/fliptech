@@ -1,4 +1,5 @@
-# Queue the 90-day freshness prompts. Started by fliptech-freshness.timer;
+# Queue the 90-day freshness prompts and send the marketplace's daily texts.
+# Started by fliptech-freshness.timer;
 # install both to /etc/systemd/system/ and enable the timer, not this unit:
 #
 #   sudo systemctl enable --now fliptech-freshness.timer
@@ -6,7 +7,7 @@
 # Run it once by hand with: sudo systemctl start fliptech-freshness
 # Its output is in: journalctl -u fliptech-freshness
 [Unit]
-Description=Fliptech Skills Hub: queue 90-day freshness prompts
+Description=Fliptech Skills Hub: freshness prompts and marketplace texts
 After=network-online.target postgresql.service
 Wants=postgresql.service
 
@@ -18,6 +19,8 @@ WorkingDirectory=/opt/fliptech/backend
 Environment=DJANGO_SETTINGS_MODULE=config.settings
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/fliptech/backend/.venv/bin/python manage.py queue_freshness_prompts
+# Marketplace review requests and Shop plan reminders; see marketplace_daily.
+ExecStart=/opt/fliptech/backend/.venv/bin/python manage.py marketplace_daily
 
 NoNewPrivileges=true
 PrivateTmp=true

@@ -545,6 +545,16 @@ PAYSTACK_FALLBACK_EMAIL_DOMAIN = env(
     "PAYSTACK_FALLBACK_EMAIL_DOMAIN", default="trainees.fliiptech.com"
 )
 
+# What the marketplace charges, in cedis. Paid through the same Paystack key;
+# with none set, none of it is offered and free shops have no product limit.
+MARKETPLACE_BOOST_WEEK_PRICE = env.int("MARKETPLACE_BOOST_WEEK_PRICE", default=15)
+MARKETPLACE_BOOST_MONTH_PRICE = env.int("MARKETPLACE_BOOST_MONTH_PRICE", default=40)
+MARKETPLACE_PLAN_PRICE = env.int("MARKETPLACE_PLAN_PRICE", default=30)
+# How many products a shop without the Shop plan may show at once.
+MARKETPLACE_FREE_PRODUCT_LIMIT = env.int("MARKETPLACE_FREE_PRODUCT_LIMIT", default=5)
+# Fliiptech's share of a product bought on the site, as a percentage.
+MARKETPLACE_COMMISSION_PERCENT = env.float("MARKETPLACE_COMMISSION_PERCENT", default=5)
+
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")
 # Threads each ffmpeg run may use. One keeps a two-CPU server answering web

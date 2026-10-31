@@ -233,7 +233,15 @@ class SkillsHubAdminSite(AdminSite):
         hidden because their seller is not allowed to sell, because those are
         rows that say "Published" and are not.
         """
-        from marketplace.models import Product, SellerAccount
+        from django.db.models import Sum
+
+        from marketplace.models import (
+            Order,
+            PaymentStatus,
+            Product,
+            SellerAccount,
+            SellerPayment,
+        )
 
         sellers = SellerAccount.objects.all()
         confirmed = sellers.filter(approval_status=SellerAccount.Approval.CONFIRMED, is_active=True)
@@ -259,6 +267,8 @@ class SkillsHubAdminSite(AdminSite):
             "hidden_by_seller": published - live,
             "taken_down": products.filter(status=Product.Status.SUSPENDED).count(),
             "new_30": products.filter(created_at__gte=last_30).count(),
+            # What the marketplace earned Fliiptech in 30 days, in cedis.
+            "earned": _earned(SellerPayment, Order, PaymentStatus, Sum, last_30),
             "bar": charts.stacked_bar(
                 [
                     ("Live", live, charts.GOOD),
@@ -506,3 +516,24 @@ class SkillsHubAdminSite(AdminSite):
             }
 
         return panel
+
+
+def _earned(SellerPayment, Order, PaymentStatus, Sum, since):
+    """Boosts, Shop plans and order commission paid since `since`, in cedis."""
+    paid = SellerPayment.objects.filter(status=PaymentStatus.PAID, paid_at__gte=since)
+    orders = Order.objects.filter(status=PaymentStatus.PAID, paid_at__gte=since)
+
+    def cedis(queryset, field):
+        return (queryset.aggregate(total=Sum(field))["total"] or 0) / 100
+
+    boosts = cedis(paid.boosts(), "amount_pesewas")
+    plans = cedis(paid.plans(), "amount_pesewas")
+    commission = cedis(orders, "commission_pesewas")
+    return {
+        "total": f"{boosts + plans + commission:,.2f}",
+        "boosts": f"{boosts:,.2f}",
+        "plans": f"{plans:,.2f}",
+        "commission": f"{commission:,.2f}",
+        "orders": orders.count(),
+        "sales": f"{cedis(orders, 'amount_pesewas'):,.2f}",
+    }

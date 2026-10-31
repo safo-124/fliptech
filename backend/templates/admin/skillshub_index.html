@@ -512,6 +512,29 @@
       </div>
     </div>
 
+    <div class="sh-card w4">
+      <div class="sh-head">
+        <div class="sh-desc">Marketplace earnings, last 30 days</div>
+        <div class="sh-title">GH₵{{ panel.marketplace.earned.total }}</div>
+        <div class="sh-action">
+          <span class="sh-badge">{{ panel.marketplace.earned.orders }} paid order{{ panel.marketplace.earned.orders|pluralize }}</span>
+        </div>
+      </div>
+      <div class="sh-foot">
+        <div class="sh-foot-strong">
+          Boosts GH₵{{ panel.marketplace.earned.boosts }} &middot;
+          Shop plans GH₵{{ panel.marketplace.earned.plans }} &middot;
+          Commission GH₵{{ panel.marketplace.earned.commission }}
+        </div>
+        <div class="sh-foot-muted">
+          Buyers paid sellers GH₵{{ panel.marketplace.earned.sales }} on the site; that money went straight to the sellers.
+          <a href="{% url 'admin:marketplace_order_changelist' %}">Orders</a> &middot;
+          <a href="{% url 'admin:marketplace_sellerpayment_changelist' %}">Seller payments</a> &middot;
+          <a href="{% url 'admin:marketplace_sellerreview_changelist' %}">Reviews</a>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   {# ---- Coverage ---- #}

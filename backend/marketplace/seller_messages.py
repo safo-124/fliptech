@@ -6,15 +6,17 @@ nobody has yet, so the system queues the message and an officer sends it from
 their own phone with a wa.me link. When a real sender exists it replaces the
 Send button and nothing else.
 
-One message goes to sellers today: "someone asked about your product".
+Two messages go to sellers: "someone asked about your product", and
+"someone paid for your product".
 """
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from enquiries.whatsapp import chat_url
 
-from .models import ProductEnquiry, SellerNotice
+from .models import PaymentStatus, ProductEnquiry, SellerNotice
 
 
 def queue_enquiry_alert(enquiry):
@@ -26,6 +28,19 @@ def queue_enquiry_alert(enquiry):
     notice, _created = SellerNotice.objects.get_or_create(
         enquiry=enquiry,
         defaults={"seller": enquiry.seller, "kind": SellerNotice.Kind.NEW_ENQUIRY},
+    )
+    return notice
+
+
+def queue_order_alert(order):
+    """Queue "someone paid" for an order Paystack has just confirmed.
+
+    Called from the confirmation, which can run twice (the buyer's browser
+    and the webhook); the constraint keeps it to one alert.
+    """
+    notice, _created = SellerNotice.objects.get_or_create(
+        order=order,
+        defaults={"seller": order.seller, "kind": SellerNotice.Kind.NEW_ORDER},
     )
     return notice
 
@@ -44,13 +59,13 @@ def alerts_waiting():
 
     return (
         SellerNotice.objects.filter(
-            kind=SellerNotice.Kind.NEW_ENQUIRY,
+            Q(kind=SellerNotice.Kind.NEW_ENQUIRY, enquiry__state=ProductEnquiry.State.SENT)
+            | Q(kind=SellerNotice.Kind.NEW_ORDER, order__status=PaymentStatus.PAID),
             sent_at__isnull=True,
-            enquiry__state=ProductEnquiry.State.SENT,
             seller__is_active=True,
             seller__approval_status=SellerAccount.Approval.CONFIRMED,
         )
-        .select_related("seller", "seller__area", "enquiry", "enquiry__product")
+        .select_related("seller", "seller__area", "enquiry", "enquiry__product", "order")
         .order_by("created_at", "pk")
     )
 
@@ -88,8 +103,30 @@ def alert_text(enquiry):
     )
 
 
+def order_text(order):
+    """What the officer sends the seller when a buyer has paid.
+
+    Says the money is paid, so the seller does not ask for it again, and
+    how the buyer wants it handed over.
+    """
+    how = (
+        f"Deliver to: {order.note}"
+        if order.fulfilment == order.Fulfilment.DELIVERY
+        else "They will collect it from you."
+    )
+    return (
+        f"Hello, {order.buyer_name} has paid GH₵{order.amount:.2f} for "
+        f"{order.quantity} x {order.product_name} on {settings.BRAND_NAME} Skills Hub. "
+        f"Order {order.reference}. {how} "
+        f"Call them on {order.buyer_phone}. The money goes to your payout account; "
+        f"mark the order as handed over in your dashboard once they have it."
+    )
+
+
 def alert_url(notice):
     """The wa.me link an officer presses to send this alert."""
+    if notice.kind == SellerNotice.Kind.NEW_ORDER:
+        return chat_url(notice.seller.phone, order_text(notice.order))
     return chat_url(notice.seller.phone, alert_text(notice.enquiry))
 
 

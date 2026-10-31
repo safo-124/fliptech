@@ -10,7 +10,10 @@ that selects whose products are touched.
 
 from django.conf import settings
 from django.contrib.auth import login, logout
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.geos import Point
 from django.db import transaction
+from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, When
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -28,6 +31,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.images import strip_exif, validate_image_upload
+from core.media import public_url
 from core.network import canonical_client_ip, ratelimit_client_ip
 from enquiries.email_otp import may_copy_code_to
 from enquiries.models import PhoneVerification
@@ -44,7 +48,16 @@ from .auth import (
     own_seller_account,
     start_selling,
 )
-from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
+from .models import (
+    PaymentStatus,
+    Product,
+    ProductEnquiry,
+    ProductPhoto,
+    SellerAccount,
+    SellerPayment,
+    SellerReview,
+    plan_running,
+)
 from .serializers import (
     OwnEnquirySerializer,
     OwnProductSerializer,
@@ -52,6 +65,7 @@ from .serializers import (
     ProductDetailSerializer,
     ProductEnquiryInputSerializer,
     ProductPhotoSerializer,
+    PublicReviewSerializer,
     SellerCardSerializer,
     SellerOTPVerifySerializer,
     SellerProfileSerializer,
@@ -181,9 +195,7 @@ class SellerOTPVerifyView(APIView):
         if existing_user is not None:
             held = SellerAccount.objects.filter(user=existing_user).only("phone").first()
             if held is not None and str(held.phone) != str(serializer.validated_data["phone"]):
-                return Response(
-                    {"detail": other_number_message()}, status=status.HTTP_409_CONFLICT
-                )
+                return Response({"detail": other_number_message()}, status=status.HTTP_409_CONFLICT)
 
         try:
             verification = verify_code(
@@ -436,6 +448,19 @@ class ProductPublishView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        if product.status != Product.Status.PUBLISHED and over_free_limit(account):
+            return Response(
+                {
+                    "detail": _(
+                        "A free shop can show %(limit)s products at a time. Take one "
+                        "down, or get the Shop plan to show as many as you like."
+                    )
+                    % {"limit": settings.MARKETPLACE_FREE_PRODUCT_LIMIT},
+                    "code": "free_limit",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
         product.status = Product.Status.PUBLISHED
         product.save(update_fields=["status", "updated_at"])
         return Response(OwnProductSerializer(product).data)
@@ -524,19 +549,68 @@ class ProductPhotoView(APIView):
 # What a buyer sees
 
 
+def over_free_limit(account):
+    """Whether one more published product would pass the free shop's limit.
+
+    Only while payments are on: with no way to buy the Shop plan, a limit
+    would be a wall with no door. Products already up when the limit came in
+    stay up; it only stops new ones.
+    """
+    from courses import paystack
+
+    if not paystack.enabled() or plan_running(account) is not None:
+        return False
+    published = account.products.filter(status=Product.Status.PUBLISHED).count()
+    return published >= settings.MARKETPLACE_FREE_PRODUCT_LIMIT
+
+
 def _public_products():
     """The one queryset every public view reads.
 
     Written once so there is a single place to get the visibility rule wrong,
-    rather than one per view.
+    rather than one per view. Each product says whether a boost is running
+    for it and whether its shop is on the Shop plan, which is all the
+    ordering and the "Sponsored" label need.
     """
+    now = timezone.now()
+    running = SellerPayment.objects.filter(
+        status=PaymentStatus.PAID, starts_at__lte=now, ends_at__gt=now
+    )
     return (
         Product.objects.visible()
         .select_related(
             "seller", "seller__area", "seller__area__region", "seller__provider", "trade"
         )
         .prefetch_related("photos")
+        .annotate(
+            boosted=Exists(running.boosts().filter(product=OuterRef("pk"))),
+            on_plan=Exists(running.plans().filter(seller=OuterRef("seller"))),
+        )
     )
+
+
+def _near(raw):
+    """A point from "lat,lng", or None for anything that is not one in Ghana's
+    neighbourhood. Loose bounds: a wrong point is a wrong sort, not a leak."""
+    try:
+        lat, lng = (float(part) for part in str(raw or "").split(","))
+    except ValueError:
+        return None
+    if not (-5 <= lat <= 15 and -10 <= lng <= 10):
+        return None
+    return Point(lng, lat, srid=4326)
+
+
+def _with_ratings(serializer_class, items, request, **kwargs):
+    """Serialize products with every seller's rating fetched in one query."""
+    from .reviews import ratings_for
+
+    items = list(items)
+    context = {
+        "request": request,
+        "ratings": ratings_for(item.seller_id for item in items),
+    }
+    return serializer_class(items, many=True, context=context, **kwargs).data
 
 
 class ProductListView(ListAPIView):
@@ -569,26 +643,43 @@ class ProductListView(ListAPIView):
 
         query = (params.get("q") or "").strip()
         if query:
-            from django.db.models import Q
-
             products = products.filter(
                 Q(name__icontains=query)
                 | Q(description__icontains=query)
                 | Q(seller__business_name__icontains=query)
             )
 
+        near = _near(params.get("near"))
+        if near is not None:
+            products = products.annotate(distance=Distance("seller__area__centroid", near))
+
         # Sold-out items sort last rather than being hidden: seeing that a
         # maker's work goes is a reason to ask them, and hiding it makes a
         # busy shop look empty.
-        from django.db.models import Case, IntegerField, Value, When
-
-        return products.annotate(
+        products = products.annotate(
             gone=Case(
                 When(availability=Product.Availability.SOLD_OUT, then=Value(1)),
                 default=Value(0),
                 output_field=IntegerField(),
             )
-        ).order_by("gone", "-created_at")
+        )
+        sort = params.get("sort")
+        if sort == "price":
+            return products.order_by("gone", F("price").asc(nulls_last=True), "-created_at")
+        if sort == "-price":
+            return products.order_by("gone", F("price").desc(nulls_last=True), "-created_at")
+        if sort == "newest":
+            return products.order_by("gone", "-created_at")
+        if sort == "nearest" and near is not None:
+            return products.order_by("gone", F("distance").asc(nulls_last=True), "-created_at")
+        # The default: boosted products first, then Shop plan shops, then the
+        # rest, newest first within each. A buyer who chose a sort gets that
+        # sort, boosts or not; "Sponsored" still marks them.
+        return products.order_by("gone", "-boosted", "-on_plan", "-created_at")
+
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        return self.get_paginated_response(_with_ratings(ProductCardSerializer, page, request))
 
 
 class ProductDetailView(RetrieveAPIView):
@@ -618,13 +709,21 @@ class SellerDetailView(APIView):
         # confirms the account exists.
         if seller is None or not seller.may_sell:
             raise NotFound(_("No such seller."))
-        products = _public_products().filter(seller=seller)
+        products = _public_products().filter(seller=seller).order_by("-boosted", "-created_at")
+        plan = plan_running(seller)
+        reviews = seller.reviews.filter(visibility=SellerReview.Visibility.SHOWN)[:20]
         return Response(
             {
                 "seller": SellerCardSerializer(seller, context={"request": request}).data,
                 "products": ProductCardSerializer(
                     products, many=True, context={"request": request}
                 ).data,
+                # Shop plan benefits, shown only while the plan is running.
+                "on_plan": plan is not None,
+                "banner": (
+                    public_url(seller.banner.url, request) if plan and seller.banner else None
+                ),
+                "reviews": PublicReviewSerializer(reviews, many=True).data,
             }
         )
 
