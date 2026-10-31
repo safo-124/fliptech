@@ -6,8 +6,11 @@ link carries a signed token naming the enquiry or order, so it cannot be
 made up, and each enquiry or order takes one review.
 """
 
+from datetime import timedelta
+
 from django.core import signing
 from django.db.models import Avg, Count
+from django.utils import timezone
 
 from .models import SellerReview
 
@@ -57,4 +60,43 @@ def ratings_for(seller_ids):
     return {
         row["seller_id"]: {"average": round(float(row["average"]), 1), "count": row["count"]}
         for row in rows
+    }
+
+
+# How the "usually replies within a day" badge is earned: of the seller's
+# last few questions (old enough to have been answerable), most were marked
+# replied within a day. Few questions, no badge: three is not a habit.
+REPLY_WINDOW = timedelta(hours=24)
+REPLY_SAMPLE = 10
+REPLY_MIN = 3
+REPLY_SHARE = 0.8
+
+
+def fast_repliers(seller_ids, now=None):
+    """The ids, among these, of sellers who usually reply within a day."""
+    from .models import ProductEnquiry
+
+    now = now or timezone.now()
+    rows = (
+        ProductEnquiry.objects.filter(
+            seller_id__in=set(seller_ids),
+            state=ProductEnquiry.State.SENT,
+            created_at__gte=now - timedelta(days=90),
+        )
+        .order_by("seller_id", "-created_at")
+        .values_list("seller_id", "created_at", "replied_at")
+    )
+    by_seller = {}
+    for seller_id, asked, replied in rows:
+        # A question younger than a day that is not answered yet does not
+        # count against anyone.
+        if replied is None and now - asked < REPLY_WINDOW:
+            continue
+        sample = by_seller.setdefault(seller_id, [])
+        if len(sample) < REPLY_SAMPLE:
+            sample.append(replied is not None and replied - asked <= REPLY_WINDOW)
+    return {
+        seller_id
+        for seller_id, sample in by_seller.items()
+        if len(sample) >= REPLY_MIN and sum(sample) / len(sample) >= REPLY_SHARE
     }

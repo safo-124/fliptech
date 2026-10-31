@@ -8,7 +8,7 @@
  */
 
 import {trainerFetch as sessionFetch} from "./trainer-api";
-import type {MarketplaceOrder} from "./types";
+import type {BagItem, BasketPrice, MarketplaceOrder} from "./types";
 
 export {TrainerApiError as MarketplaceApiError} from "./trainer-api";
 
@@ -39,21 +39,73 @@ export function askAboutProduct(
   });
 }
 
-/** Pay for a product. Returns Paystack's page to send the buyer to. */
-export function orderProduct(
-  productId: number,
+export type Fulfilment = "pickup" | "delivery";
+
+/** The server's total for a bag: every price is read there, never sent. */
+export function priceBag(sellerId: number, body: {items: BagItem[]; fulfilment: Fulfilment; code?: string}) {
+  return sessionFetch<BasketPrice>(`/api/sellers/${sellerId}/price/`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Pay for a bag from one seller. Returns Paystack's page to send the buyer to. */
+export function orderBag(
+  sellerId: number,
   body: {
+    items: BagItem[];
     phone: string;
     name: string;
-    quantity: number;
-    fulfilment: "pickup" | "delivery";
+    fulfilment: Fulfilment;
     note?: string;
+    code?: string;
   },
 ) {
   return sessionFetch<{authorization_url: string; reference: string}>(
-    `/api/products/${productId}/orders/`,
+    `/api/sellers/${sellerId}/orders/`,
     {method: "POST", body: JSON.stringify(body)},
   );
+}
+
+export function confirmReceived(reference: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/orders/${encodeURIComponent(reference)}/received/`, {
+    method: "POST",
+  });
+}
+
+export function reportOrderProblem(reference: string, problem: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/orders/${encodeURIComponent(reference)}/problem/`, {
+    method: "POST",
+    body: JSON.stringify({problem}),
+  });
+}
+
+export type ReportReason = "scam" | "not_as_described" | "not_delivered" | "prohibited" | "other";
+
+export function reportProduct(productId: number, body: {reason: ReportReason; details?: string}) {
+  return sessionFetch<{detail: string}>(`/api/products/${productId}/reports/`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type QuoteInput = {
+  trade: string;
+  area?: string;
+  title: string;
+  details: string;
+  quantity?: string;
+  budget?: string;
+  needed_by?: string | null;
+  name: string;
+  phone: string;
+};
+
+export function requestQuote(body: QuoteInput) {
+  return sessionFetch<{reference: string; makers: number}>("/api/quotes/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /** Back from Paystack: ask the server to confirm the payment, and get the order. */

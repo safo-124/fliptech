@@ -15,6 +15,9 @@ import { getTranslations } from "next-intl/server";
 
 import { AskSeller } from "@/components/marketplace/AskSeller";
 import { BuyNow } from "@/components/marketplace/BuyNow";
+import { ReportProduct } from "@/components/marketplace/ReportProduct";
+import { SaveButton } from "@/components/marketplace/SaveButton";
+import { SalePrice, SellerBadges } from "@/components/marketplace/SellerBadges";
 import { ProductViewBeacon } from "@/components/marketplace/ProductViewBeacon";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { ClientMessages } from "@/i18n/ClientMessages";
@@ -159,21 +162,31 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   {t("onRequest")}
                 </span>
               ) : (
-                formatFee(product.price, tFormat)
+                <>
+                  {formatFee(product.price, tFormat)}
+                  <SalePrice was={product.was_price} />
+                </>
               )}
             </p>
             <p className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
               {t(`availability.${product.availability}`)}
             </p>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <SaveButton
+              productId={product.id}
+              labels={{ save: t("saveForLater"), saved: t("savedForLater") }}
+              className="border border-[var(--color-border-strong)] shadow-none"
+            />
             <a
               href={shareHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--color-border-strong)] px-4 text-sm font-semibold hover:bg-[var(--color-muted)]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--color-border-strong)] px-4 text-sm font-semibold hover:bg-[var(--color-muted)]"
             >
               <Share2 aria-hidden="true" className="size-4" />
               {t("shareOnWhatsApp")}
             </a>
+            </div>
 
             {product.description ? (
               <p className="mt-5 whitespace-pre-line text-sm leading-relaxed">
@@ -192,6 +205,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <p className="mt-1.5 text-lg font-bold tracking-[-0.02em]">
                 {product.seller.business_name}
               </p>
+              <div className="mt-1.5">
+                <SellerBadges seller={product.seller} />
+              </div>
               {product.seller.rating ? (
                 <p className="mt-1 flex items-center gap-1.5 text-sm">
                   <Star aria-hidden="true" className="size-4 fill-amber-400 text-amber-400" />
@@ -205,6 +221,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
                 {product.seller.area}, {product.seller.region}
               </p>
+              {product.seller.delivery_fee !== null ? (
+                <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+                  {Number(product.seller.delivery_fee) === 0
+                    ? t("freeDelivery", { area: product.seller.delivery_area || t("theirArea") })
+                    : t("deliveryFor", {
+                        fee: formatFee(product.seller.delivery_fee, tFormat),
+                        area: product.seller.delivery_area || t("theirArea"),
+                      })}
+                </p>
+              ) : null}
 
               {/* The strongest thing a buyer can be told: not an anonymous
                   account, a place with an address, and here is the page. */}
@@ -252,12 +278,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             {product.buy_online && product.price ? (
               <BuyNow
                 productId={product.id}
+                productName={product.name}
                 price={product.price}
+                options={product.options}
+                sellerId={product.seller.id}
                 sellerName={product.seller.business_name}
               />
             ) : null}
             <AskSeller productId={product.id} sellerName={product.seller.business_name} />
             <ProductViewBeacon productId={product.id} />
+            <ReportProduct productId={product.id} />
           </ClientMessages>
 
           {/* Said once, plainly, where the money question actually arises.

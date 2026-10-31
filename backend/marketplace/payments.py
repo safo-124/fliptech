@@ -17,12 +17,13 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from core.sms import send_sms
 
 from . import seller_messages
-from .models import Order, PaymentStatus, SellerPayment
+from .models import DiscountCode, Order, PaymentStatus, SellerPayment
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +66,14 @@ def confirm_seller_payment(reference, data):
         payment = SellerPayment.objects.select_for_update().filter(reference=reference).first()
         if payment is None or payment.status == PaymentStatus.PAID:
             return payment
-        if _apply(payment, data):
+        paid = _apply(payment, data)
+        if paid and payment.kind in SellerPayment.DAYS:
             payment.start()
         payment.save()
+        if paid and payment.kind == SellerPayment.Kind.LEAD and payment.quote_id:
+            from .quotes import unlock
+
+            unlock(payment.quote, payment.seller, payment=payment)
         return payment
 
 
@@ -84,9 +90,29 @@ def confirm_order(reference, data):
         paid = _apply(order, data)
         order.save()
         if paid:
+            if order.discount_code:
+                DiscountCode.objects.filter(
+                    seller=order.seller, code__iexact=order.discount_code
+                ).update(uses=F("uses") + 1)
             seller_messages.queue_order_alert(order)
             transaction.on_commit(lambda: _tell_buyer(order))
+            transaction.on_commit(lambda: _tell_seller(order))
         return order
+
+
+def _tell_seller(order):
+    """Straight away, by text, so a paid order never waits on the staff
+    outbox. The WhatsApp message staff send follows as a second reminder."""
+    how = "Deliver it" if order.fulfilment == order.Fulfilment.DELIVERY else "They will collect"
+    try:
+        send_sms(
+            order.seller.phone,
+            f"{settings.BRAND_NAME}: NEW PAID ORDER {order.reference}. {order.quantity} x "
+            f"{order.product_name}, GH₵{order.amount:.2f}. {how}. Call "
+            f"{order.buyer_name} on {order.buyer_phone}.",
+        )
+    except Exception:
+        logger.exception("Could not text the seller about %s", order.reference)
 
 
 def _tell_buyer(order):

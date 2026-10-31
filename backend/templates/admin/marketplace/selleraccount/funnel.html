@@ -1,0 +1,54 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% comment %}
+  The marketplace funnel by trade: see marketplace/funnel.py. A trade with
+  many views and few products needs more makers; many views and few
+  questions often means poor photos or no prices.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p class="help" style="margin-bottom: 16px">
+      Many views but few products: recruit makers in that trade. Many views but few questions: products there need better photos or clear prices.
+    </p>
+    <div class="module">
+      <table style="width: 100%">
+        <thead>
+          <tr>
+            <th scope="col">Trade</th>
+            <th scope="col">Products live</th>
+            <th scope="col">Views</th>
+            <th scope="col">Questions</th>
+            <th scope="col">Asked per 100 views</th>
+            <th scope="col">Paid orders</th>
+            <th scope="col">Sales (GH₵)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.trade }}</td>
+              <td>{{ row.live }}</td>
+              <td>{{ row.views }}</td>
+              <td>{{ row.questions }}</td>
+              <td>{{ row.ask_rate }}</td>
+              <td>{{ row.orders }}</td>
+              <td>{{ row.sales }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">Nothing yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

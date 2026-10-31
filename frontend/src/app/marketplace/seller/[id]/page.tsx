@@ -14,6 +14,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { ProductTile } from "@/components/marketplace/ProductTile";
+import { SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ApiError, getSellerShop } from "@/lib/api";
@@ -73,6 +74,19 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
           <MapPin aria-hidden="true" className="size-4 shrink-0" />
           {seller.area}, {seller.region}
         </p>
+        <div className="mt-2">
+          <SellerBadges seller={seller} />
+        </div>
+        {seller.delivery_fee !== null ? (
+          <p className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
+            {Number(seller.delivery_fee) === 0
+              ? t("freeDelivery", { area: seller.delivery_area || t("theirArea") })
+              : t("deliveryFor", {
+                  fee: `GH₵${Number(seller.delivery_fee).toLocaleString("en-GH")}`,
+                  area: seller.delivery_area || t("theirArea"),
+                })}
+          </p>
+        ) : null}
         {seller.rating ? (
           <p className="mt-1.5 flex items-center gap-1.5 text-sm">
             <Star aria-hidden="true" className="size-4 fill-amber-400 text-amber-400" />

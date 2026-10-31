@@ -24,6 +24,10 @@ export type SellerProfile = {
   /** What is still missing on the seller's own side. Empty is not the same as
       may_sell: the form can be complete while confirmation is still pending. */
   ready_to_sell: ("business_name" | "area")[];
+  /** Cedis added for delivery at checkout; null: no delivery through the site. */
+  delivery_fee: string | null;
+  delivery_area: string;
+  verified_at: string | null;
 };
 
 export type SellerSession =
@@ -36,8 +40,10 @@ export type SellerProduct = {
   slug: string;
   description: string;
   price: string | null;
+  was_price: string | null;
   trade: number | null;
   availability: "available" | "made_to_order" | "sold_out";
+  options: {id: number; label: string; price: string | null; available: boolean}[];
   status: "draft" | "published" | "suspended";
   status_label: string;
   staff_note: string;
@@ -60,6 +66,7 @@ export type SellerEnquiry = {
   /** Whether anyone has actually passed it on yet. */
   told: boolean;
   reply_url: string;
+  replied_at: string | null;
   created_at: string;
 };
 
@@ -90,7 +97,9 @@ export function signOutSeller() {
   return sessionFetch<SellerSession>("/api/seller/logout/", {method: "POST"});
 }
 
-export function saveShop(patch: Partial<Pick<SellerProfile, "business_name" | "about" | "area">>) {
+export function saveShop(
+  patch: Partial<Pick<SellerProfile, "business_name" | "about" | "area" | "delivery_fee" | "delivery_area">>,
+) {
   return sessionFetch<SellerProfile>("/api/seller/account/", {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -105,6 +114,7 @@ export type ProductInput = {
   name: string;
   description?: string;
   price?: string | null;
+  was_price?: string | null;
   trade?: number | null;
   availability?: SellerProduct["availability"];
 };
@@ -177,17 +187,21 @@ export type BoostKind = "boost_week" | "boost_month";
 export type SellerGrowth = {
   payments_enabled: boolean;
   /** Cedis, by what is bought. */
-  prices: Record<BoostKind | "plan_month", string>;
+  prices: Record<BoostKind | "plan_month" | "lead" | "verification", string>;
   free_product_limit: number;
   published: number;
   plan: {running: boolean; ends_at: string | null; free_boost_available: boolean};
   boosts: {product: number | null; product_name: string; kind: BoostKind; ends_at: string}[];
   banner: string | null;
+  verification: {verified_at: string | null; requested: boolean};
 };
 
 export type SellerPayout = {
   payments_enabled: boolean;
   commission_percent: number;
+  /** Buyer protection: paid by transfer once the buyer has it. */
+  protected: boolean;
+  release_days: number;
   payout: {
     ready: boolean;
     bank_code: string;
@@ -262,4 +276,84 @@ export function markOrderHandedOver(reference: string) {
     method: "PATCH",
     body: JSON.stringify({stage: "delivered"}),
   });
+}
+
+
+export type ProductOptionInput = {label: string; price: string | null; available: boolean};
+
+export function saveProductOptions(id: number, options: ProductOptionInput[]) {
+  return sessionFetch<SellerProduct["options"]>(`/api/seller/products/${id}/options/`, {
+    method: "PUT",
+    body: JSON.stringify({options}),
+  });
+}
+
+export function markEnquiryReplied(id: number) {
+  return sessionFetch<{replied_at: string}>(`/api/seller/enquiries/${id}/replied/`, {method: "POST"});
+}
+
+export function payForVerification() {
+  return sessionFetch<{authorization_url: string}>("/api/seller/verification/", {method: "POST"});
+}
+
+export type DiscountCode = {
+  id: number;
+  code: string;
+  percent: number;
+  ends_on: string | null;
+  active: boolean;
+  uses: number;
+};
+
+export function getDiscountCodes() {
+  return sessionFetch<{results: DiscountCode[]}>("/api/seller/codes/");
+}
+
+export function createDiscountCode(body: {code: string; percent: number; ends_on: string | null}) {
+  return sessionFetch<DiscountCode>("/api/seller/codes/", {method: "POST", body: JSON.stringify(body)});
+}
+
+export function setDiscountCodeActive(id: number, active: boolean) {
+  return sessionFetch<DiscountCode>(`/api/seller/codes/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify({active}),
+  });
+}
+
+export function deleteDiscountCode(id: number) {
+  return sessionFetch<void>(`/api/seller/codes/${id}/`, {method: "DELETE"});
+}
+
+export type SellerQuote = {
+  id: number;
+  reference: string;
+  trade: string;
+  area: string | null;
+  title: string;
+  details: string;
+  quantity: string;
+  budget: string;
+  needed_by: string | null;
+  created_at: string;
+  spots_left: number;
+  unlocked: boolean;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+};
+
+export function getSellerQuotes() {
+  return sessionFetch<{
+    lead_price: string;
+    free_on_plan: boolean;
+    payments_enabled: boolean;
+    results: SellerQuote[];
+  }>("/api/seller/quotes/");
+}
+
+/** Free on the Shop plan (returns the quote); otherwise Paystack's page. */
+export function unlockQuote(id: number) {
+  return sessionFetch<Partial<SellerQuote> & {authorization_url?: string}>(
+    `/api/seller/quotes/${id}/unlock/`,
+    {method: "POST"},
+  );
 }

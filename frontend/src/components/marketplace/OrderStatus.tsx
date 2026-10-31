@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2, Phone, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, ShieldCheck, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCedis } from "@/lib/format";
-import { confirmOrder } from "@/lib/marketplace-api";
+import { confirmOrder, confirmReceived, reportOrderProblem } from "@/lib/marketplace-api";
 import type { MarketplaceOrder } from "@/lib/types";
 
 /**
@@ -20,6 +20,22 @@ export function OrderStatus({ reference }: { reference: string }) {
   const t = useTranslations("Marketplace");
   const [order, setOrder] = useState<MarketplaceOrder | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [complaint, setComplaint] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function act(action: () => Promise<MarketplaceOrder>) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      setOrder(await action());
+      setReporting(false);
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : t("buyFailed"));
+    }
+    setBusy(false);
+  }
 
   useEffect(() => {
     let active = true;
@@ -79,13 +95,35 @@ export function OrderStatus({ reference }: { reference: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p>
-          {t("orderLine", {
-            quantity: order.quantity,
-            product: order.product_name,
-            total: formatCedis(order.amount),
-          })}
-        </p>
+        <ul className="space-y-1">
+          {order.items.map((item, index) => (
+            <li key={index} className="flex justify-between gap-3">
+              <span className="min-w-0">
+                {item.quantity} × {item.product_name}
+                {item.option_label ? ` (${item.option_label})` : ""}
+              </span>
+              <span className="tabular-nums">
+                {formatCedis((Number(item.unit_price) * item.quantity).toFixed(2))}
+              </span>
+            </li>
+          ))}
+          {Number(order.discount) > 0 ? (
+            <li className="flex justify-between gap-3 text-[var(--color-visit)]">
+              <span>{t("discountLine", { code: order.discount_code })}</span>
+              <span className="tabular-nums">−{formatCedis(order.discount)}</span>
+            </li>
+          ) : null}
+          {Number(order.delivery) > 0 ? (
+            <li className="flex justify-between gap-3">
+              <span>{t("deliveryLine")}</span>
+              <span className="tabular-nums">{formatCedis(order.delivery)}</span>
+            </li>
+          ) : null}
+          <li className="flex justify-between gap-3 border-t border-[var(--color-border)] pt-1 font-bold">
+            <span>{t("totalLine")}</span>
+            <span className="tabular-nums">{formatCedis(order.amount)}</span>
+          </li>
+        </ul>
         <p className="text-[var(--color-muted-foreground)]">
           {t("yourReference")} <strong className="font-mono">{order.reference}</strong>
         </p>
@@ -103,6 +141,62 @@ export function OrderStatus({ reference }: { reference: string }) {
                   {t("callSeller", { seller: order.seller_name })}
                 </a>
               </Button>
+            ) : null}
+            {order.protected ? (
+              <p className="flex items-start gap-1.5 rounded-lg bg-[var(--color-visit-bg)] p-3 text-xs text-[var(--color-visit)]">
+                <ShieldCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                {t("protectedOrder", { seller: order.seller_name })}
+              </p>
+            ) : null}
+
+            {order.stage === "problem" ? (
+              <p role="status" className="rounded-lg bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
+                {t("problemReported")}
+              </p>
+            ) : order.stage === "received" ? (
+              <p role="status" className="text-sm text-[var(--color-visit)]">
+                {t("receivedThanks")}
+              </p>
+            ) : order.stage !== "refunded" ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => act(() => confirmReceived(order.reference))}
+                  >
+                    {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <CheckCircle2 aria-hidden="true" />}
+                    {t("gotIt")}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setReporting(!reporting)}>
+                    {t("somethingWrong")}
+                  </Button>
+                </div>
+                {reporting ? (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void act(() => reportOrderProblem(order.reference, complaint.trim()));
+                    }}
+                    className="space-y-2"
+                  >
+                    <textarea
+                      aria-label={t("problemLabel")}
+                      required
+                      rows={3}
+                      value={complaint}
+                      onChange={(event) => setComplaint(event.target.value)}
+                      placeholder={t("problemLabel")}
+                      className="w-full rounded-lg border border-[var(--color-input)] bg-[var(--color-card)] px-3 py-2 text-sm"
+                    />
+                    <Button type="submit" size="sm" variant="brand" disabled={busy || !complaint.trim()}>
+                      {t("problemSend")}
+                    </Button>
+                  </form>
+                ) : null}
+                {actionError ? <p className="text-sm text-[var(--color-destructive)]">{actionError}</p> : null}
+              </div>
             ) : null}
             <p className="text-xs text-[var(--color-muted-foreground)]">{t("orderProblem")}</p>
           </>
