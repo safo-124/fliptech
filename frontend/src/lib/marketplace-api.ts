@@ -8,6 +8,7 @@
  */
 
 import {trainerFetch as sessionFetch} from "./trainer-api";
+import type {MarketplaceOrder} from "./types";
 
 export {TrainerApiError as MarketplaceApiError} from "./trainer-api";
 
@@ -33,6 +34,48 @@ export function askAboutProduct(
   body: {phone: string; name?: string; message?: string},
 ) {
   return sessionFetch<AskResult>(`/api/products/${productId}/enquiries/`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Pay for a product. Returns Paystack's page to send the buyer to. */
+export function orderProduct(
+  productId: number,
+  body: {
+    phone: string;
+    name: string;
+    quantity: number;
+    fulfilment: "pickup" | "delivery";
+    note?: string;
+  },
+) {
+  return sessionFetch<{authorization_url: string; reference: string}>(
+    `/api/products/${productId}/orders/`,
+    {method: "POST", body: JSON.stringify(body)},
+  );
+}
+
+/** Back from Paystack: ask the server to confirm the payment, and get the order. */
+export function confirmOrder(reference: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/orders/${encodeURIComponent(reference)}/`, {
+    method: "POST",
+  });
+}
+
+export type ReviewPrompt = {
+  seller: string;
+  product_name: string;
+  paid: boolean;
+  reviewed: boolean;
+};
+
+export function getReviewPrompt(token: string) {
+  return sessionFetch<ReviewPrompt>(`/api/reviews/${encodeURIComponent(token)}/`);
+}
+
+export function sendReview(token: string, body: {rating: number; comment: string; bought: boolean}) {
+  return sessionFetch<{detail: string}>(`/api/reviews/${encodeURIComponent(token)}/`, {
     method: "POST",
     body: JSON.stringify(body),
   });

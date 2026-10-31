@@ -1,3 +1,4 @@
+import { MapPin, Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -54,6 +55,13 @@ export function ProductTile({ product }: { product: ProductCard }) {
                 {t("madeToOrder")}
               </span>
             ) : null}
+            {/* Said plainly: a paid place at the top is not a judgement
+                that this is the best one. */}
+            {product.sponsored ? (
+              <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white">
+                {t("sponsored")}
+              </span>
+            ) : null}
           </div>
 
           <div className="p-3.5">
@@ -72,6 +80,22 @@ export function ProductTile({ product }: { product: ProductCard }) {
             <p className="mt-2 truncate text-xs text-[var(--color-muted-foreground)]">
               {product.seller.business_name} &middot; {product.seller.area}
             </p>
+            {product.seller.rating || product.distance_km !== null ? (
+              <p className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-[var(--color-muted-foreground)]">
+                {product.seller.rating ? (
+                  <span className="inline-flex items-center gap-1 font-semibold text-[var(--color-foreground)]">
+                    <Star aria-hidden="true" className="size-3 fill-amber-400 text-amber-400" />
+                    {t("rating", product.seller.rating)}
+                  </span>
+                ) : null}
+                {product.distance_km !== null ? (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin aria-hidden="true" className="size-3" />
+                    {t("distance", { km: product.distance_km })}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
           </div>
         </Link>
       </Card>

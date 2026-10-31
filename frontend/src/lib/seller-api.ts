@@ -7,6 +7,7 @@
  */
 
 import {trainerFetch as sessionFetch} from "./trainer-api";
+import type {MarketplaceOrder, PayoutBank} from "./types";
 
 export {TrainerApiError as SellerApiError} from "./trainer-api";
 
@@ -150,4 +151,115 @@ export function removeProductPhoto(id: number, photoId: number) {
 
 export function getSellerEnquiries() {
   return sessionFetch<{results: SellerEnquiry[]}>("/api/seller/enquiries/");
+}
+
+// ---------------------------------------------------------------------------
+// Numbers, boosts, the Shop plan, payouts and orders.
+// See backend marketplace/selling_views.py.
+
+export type SellerStats = {
+  days: number;
+  totals: {views: number; enquiries: number; sold: number};
+  products: {
+    id: number;
+    name: string;
+    status: SellerProduct["status"];
+    views_7d: number;
+    views_30d: number;
+    enquiries_30d: number;
+    sold_30d: number;
+    boosted_until: string | null;
+  }[];
+};
+
+export type BoostKind = "boost_week" | "boost_month";
+
+export type SellerGrowth = {
+  payments_enabled: boolean;
+  /** Cedis, by what is bought. */
+  prices: Record<BoostKind | "plan_month", string>;
+  free_product_limit: number;
+  published: number;
+  plan: {running: boolean; ends_at: string | null; free_boost_available: boolean};
+  boosts: {product: number | null; product_name: string; kind: BoostKind; ends_at: string}[];
+  banner: string | null;
+};
+
+export type SellerPayout = {
+  payments_enabled: boolean;
+  commission_percent: number;
+  payout: {
+    ready: boolean;
+    bank_code: string;
+    bank_name: string;
+    account_last4: string;
+    account_name: string;
+  };
+};
+
+export function getSellerStats() {
+  return sessionFetch<SellerStats>("/api/seller/stats/");
+}
+
+export function getSellerGrowth() {
+  return sessionFetch<SellerGrowth>("/api/seller/growth/");
+}
+
+/** Pay for a boost (returns Paystack's page), or use the plan's free week. */
+export function boostProduct(product: number, choice: BoostKind | "plan_credit") {
+  const body = choice === "plan_credit" ? {product, use_plan_credit: true} : {product, kind: choice};
+  return sessionFetch<Partial<SellerGrowth> & {authorization_url?: string}>("/api/seller/boosts/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function buyShopPlan() {
+  return sessionFetch<{authorization_url: string; reference: string}>("/api/seller/plan/", {
+    method: "POST",
+  });
+}
+
+export function verifySellerPayment(reference: string) {
+  return sessionFetch<SellerGrowth & {status: "pending" | "paid" | "failed"; kind: string}>(
+    `/api/seller/payments/${encodeURIComponent(reference)}/verify/`,
+    {method: "POST"},
+  );
+}
+
+export function uploadShopBanner(file: File) {
+  const body = new FormData();
+  body.append("image", file);
+  return sessionFetch<SellerGrowth>("/api/seller/banner/", {method: "PUT", body});
+}
+
+export function removeShopBanner() {
+  return sessionFetch<SellerGrowth>("/api/seller/banner/", {method: "DELETE"});
+}
+
+export function getSellerPayout() {
+  return sessionFetch<SellerPayout>("/api/seller/payout/");
+}
+
+export function getSellerPayoutBanks() {
+  return sessionFetch<{banks: PayoutBank[]}>("/api/seller/payout/banks/");
+}
+
+export function saveSellerPayout(body: {bank_code: string; account_number: string; account_name: string}) {
+  return sessionFetch<SellerPayout>("/api/seller/payout/", {method: "PUT", body: JSON.stringify(body)});
+}
+
+export function stopSellingOnline() {
+  return sessionFetch<SellerPayout>("/api/seller/payout/", {method: "DELETE"});
+}
+
+export function getSellerOrders() {
+  return sessionFetch<{results: MarketplaceOrder[]}>("/api/seller/orders/");
+}
+
+export function markOrderHandedOver(reference: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/seller/orders/${encodeURIComponent(reference)}/`, {
+    method: "PATCH",
+    body: JSON.stringify({stage: "delivered"}),
+  });
 }

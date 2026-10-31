@@ -581,6 +581,8 @@ export type SellerCard = {
       thing a buyer can be told: not an anonymous account, a place with an
       address, and here is the page. */
   workshop: {name: string; slug: string; area_slug: string} | null;
+  /** From buyers who asked or paid through the site; null with none yet. */
+  rating: {average: number; count: number} | null;
 };
 
 export type ProductCard = {
@@ -593,6 +595,56 @@ export type ProductCard = {
   trade: {name: string; slug: string; colour: string} | null;
   photo: string | null;
   seller: SellerCard;
+  /** A paid boost is running: shown as "Sponsored". */
+  sponsored: boolean;
+  /** From the point the buyer gave (?near=), when they gave one. */
+  distance_km: number | null;
+  /** Whether "Buy now" is offered: the seller can be paid on the site. */
+  buy_online: boolean;
+  created_at: string;
+};
+
+/** A buyer's review, as anyone sees it: a first name at most. */
+export type SellerReview = {
+  id: number;
+  rating: number;
+  comment: string;
+  bought: boolean;
+  product_name: string;
+  buyer_name: string;
+  created_at: string;
+};
+
+export type SellerShop = {
+  seller: SellerCard;
+  products: ProductCard[];
+  /** Shop plan benefits show only while the plan runs. */
+  on_plan: boolean;
+  banner: string | null;
+  reviews: SellerReview[];
+};
+
+/** An order on the site, as its buyer or seller sees it. See marketplace/selling_views.py. */
+export type MarketplaceOrder = {
+  reference: string;
+  product: number | null;
+  product_name: string;
+  unit_price: string;
+  quantity: number;
+  amount: string;
+  commission: string;
+  currency: string;
+  buyer_name: string;
+  buyer_phone: string;
+  fulfilment: "pickup" | "delivery";
+  note: string;
+  status: "pending" | "paid" | "failed";
+  stage: "new" | "delivered" | "refunded";
+  seller_name: string;
+  /** Only once paid. */
+  seller_phone: string | null;
+  paid_at: string | null;
+  delivered_at: string | null;
   created_at: string;
 };
 

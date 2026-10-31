@@ -10,8 +10,10 @@ import {
   Package,
   Pencil,
   Plus,
+  ShoppingBag,
   Store,
   Trash2,
+  TrendingUp,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,6 +22,8 @@ import {useCallback, useEffect, useState} from "react";
 import {useTranslations} from "next-intl";
 
 import {DashboardBottomBar, DashboardSidebar, type DashboardTab} from "@/components/dashboard/DashboardNav";
+import {SellerGrowthTab} from "@/components/seller/SellerGrowth";
+import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
@@ -44,13 +48,13 @@ import {
   type SellerProfile,
 } from "@/lib/seller-api";
 
-type Tab = "products" | "enquiries" | "shop";
+type Tab = "products" | "grow" | "orders" | "enquiries" | "shop";
 type Area = {slug: string; name: string; id?: number};
 
 /**
  * The seller's workspace.
  *
- * Three tabs and one rule running through all of them: never let somebody
+ * Five tabs and one rule running through all of them: never let somebody
  * believe a product is for sale when it is not. A product can be published
  * and still invisible — because the shop is half filled in, or because
  * nobody has confirmed the seller yet — and those are different problems
@@ -62,7 +66,14 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [products, setProducts] = useState<SellerProduct[]>([]);
   const [enquiries, setEnquiries] = useState<SellerEnquiry[]>([]);
-  const [tab, setTab] = useState<Tab>("products");
+  // Back from paying Paystack for a boost or the Shop plan: open the tab
+  // that confirms it. Read once, in the browser; the server renders only
+  // the loading state, so there is nothing to mismatch.
+  const [tab, setTab] = useState<Tab>(() =>
+    typeof window !== "undefined" && new URL(window.location.href).searchParams.has("payment")
+      ? "grow"
+      : "products",
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +159,8 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
 
   const tabs: ReadonlyArray<DashboardTab<Tab>> = [
     {key: "products", label: t("tabProducts"), short: t("tabProductsShort"), Icon: Package},
+    {key: "grow", label: t("tabGrow"), short: t("tabGrowShort"), Icon: TrendingUp},
+    {key: "orders", label: t("tabOrders"), short: t("tabOrdersShort"), Icon: ShoppingBag},
     {key: "enquiries", label: t("tabEnquiries"), short: t("tabEnquiriesShort"), Icon: MessageCircle},
     {key: "shop", label: t("tabShop"), short: t("tabShopShort"), Icon: Store},
   ];
@@ -206,6 +219,8 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
               run={run}
             />
           ) : null}
+          {tab === "grow" ? <SellerGrowthTab /> : null}
+          {tab === "orders" ? <SellerOrdersTab /> : null}
           {tab === "enquiries" ? <EnquiriesTab enquiries={enquiries} /> : null}
           {tab === "shop" ? <ShopTab seller={seller} areas={areas} busy={busy} run={run} /> : null}
         </div>

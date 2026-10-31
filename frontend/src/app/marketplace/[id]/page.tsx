@@ -6,7 +6,7 @@
  * pictures, the price, who made it and where they are — is in the HTML.
  */
 
-import { ArrowLeft, BadgeCheck, MapPin, Store } from "lucide-react";
+import { ArrowLeft, BadgeCheck, MapPin, Share2, Star, Store } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -14,6 +14,8 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AskSeller } from "@/components/marketplace/AskSeller";
+import { BuyNow } from "@/components/marketplace/BuyNow";
+import { ProductViewBeacon } from "@/components/marketplace/ProductViewBeacon";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
@@ -25,6 +27,8 @@ import { formatFee } from "@/lib/format";
 import { tradeClass } from "@/lib/trades";
 
 export const revalidate = 300;
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 
 async function load(id: string) {
   try {
@@ -42,9 +46,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const product = await load((await params).id);
   if (!product) return { title: "Not found" };
+  const image = product.photos[0]?.image ?? product.photo;
   return {
     title: `${product.name} — ${product.seller.business_name}`,
     description: product.description.slice(0, 200) || undefined,
+    // The picture WhatsApp and Facebook show when the link is shared.
+    openGraph: image ? { images: [{ url: image, alt: product.name }] } : undefined,
   };
 }
 
@@ -62,6 +69,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   // over.
   const shop = await getSellerShop(product.seller.id).catch(() => null);
   const alsoFromSeller = (shop?.products ?? []).filter((item) => item.id !== product.id).slice(0, 4);
+
+  // A message with the link, ready to send in WhatsApp. A plain link, so it
+  // works before the page's JavaScript has loaded and costs nothing to ship.
+  const price = product.price === null ? t("onRequest") : formatFee(product.price, tFormat);
+  const shareHref = `https://wa.me/?text=${encodeURIComponent(
+    t("shareText", {
+      name: product.name,
+      price,
+      seller: product.seller.business_name,
+      url: `${SITE_URL}/marketplace/${product.id}`,
+    }),
+  )}`;
 
   const photos = product.photos.length
     ? product.photos
@@ -146,6 +165,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <p className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
               {t(`availability.${product.availability}`)}
             </p>
+            <a
+              href={shareHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--color-border-strong)] px-4 text-sm font-semibold hover:bg-[var(--color-muted)]"
+            >
+              <Share2 aria-hidden="true" className="size-4" />
+              {t("shareOnWhatsApp")}
+            </a>
 
             {product.description ? (
               <p className="mt-5 whitespace-pre-line text-sm leading-relaxed">
@@ -164,6 +192,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <p className="mt-1.5 text-lg font-bold tracking-[-0.02em]">
                 {product.seller.business_name}
               </p>
+              {product.seller.rating ? (
+                <p className="mt-1 flex items-center gap-1.5 text-sm">
+                  <Star aria-hidden="true" className="size-4 fill-amber-400 text-amber-400" />
+                  <span className="font-semibold">{t("rating", product.seller.rating)}</span>
+                  <span className="text-[var(--color-muted-foreground)]">
+                    {t("reviewCount", { count: product.seller.rating.count })}
+                  </span>
+                </p>
+              ) : null}
               <p className="mt-1 flex items-center gap-1.5 text-sm text-[var(--color-muted-foreground)]">
                 <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
                 {product.seller.area}, {product.seller.region}
@@ -212,14 +249,24 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               whole page down with it — the product rendered its title from
               generateMetadata and then 500'd. */}
           <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+            {product.buy_online && product.price ? (
+              <BuyNow
+                productId={product.id}
+                price={product.price}
+                sellerName={product.seller.business_name}
+              />
+            ) : null}
             <AskSeller productId={product.id} sellerName={product.seller.business_name} />
+            <ProductViewBeacon productId={product.id} />
           </ClientMessages>
 
           {/* Said once, plainly, where the money question actually arises.
-              Buying is between the two of them at this stage, and leaving
+              Without Buy now, paying is between the two of them, and leaving
               that to be discovered is how a first purchase goes wrong. */}
           <p className="px-1 text-xs leading-relaxed text-[var(--color-muted-foreground)]">
-            {t("paymentNotice", { brandShort: BRAND })}
+            {product.buy_online
+              ? t("paymentNoticeOnline", { brandShort: BRAND })
+              : t("paymentNotice", { brandShort: BRAND })}
           </p>
         </aside>
       </div>

@@ -44,6 +44,7 @@ export const MARKETPLACE_CLIENT_NAMESPACES = [
 export const SELLER_CLIENT_NAMESPACES = [
   "SellerPages",
   "SellerDashboard",
+  "SellerGrowth",
   "DashboardNav",
   "Validation",
   "Format",

@@ -398,6 +398,42 @@ only be set once the payout account is saved.
 Course purchases*, read-only: only Paystack's confirmation marks one paid.
 Refunds are made in the Paystack dashboard.
 
+## Marketplace money: boosts, the Shop plan and Buy now
+
+The same Paystack key switches on three ways the marketplace earns, and the
+same webhook URL confirms all of them. With no key set, none is offered and
+free shops have no product limit.
+
+| What | Who pays | Price (setting) | Where the money goes |
+| --- | --- | --- | --- |
+| Boost a product | Seller | GH₵15 a week (`MARKETPLACE_BOOST_WEEK_PRICE`), GH₵40 a month (`MARKETPLACE_BOOST_MONTH_PRICE`) | Fliiptech |
+| Shop plan | Seller | GH₵30 a month (`MARKETPLACE_PLAN_PRICE`) | Fliiptech |
+| Buy now | Buyer | The product's price | The seller's payout account, less Fliiptech's 5% (`MARKETPLACE_COMMISSION_PERCENT`) |
+
+- A **boost** puts a product first in the marketplace, marked "Sponsored",
+  unless the buyer chose a sort.
+- The **Shop plan** lifts the free limit of 5 products on show
+  (`MARKETPLACE_FREE_PRODUCT_LIMIT`), shows a banner on the shop page, gives
+  one free week's boost a month, and puts the shop above free ones. It does
+  not renew by itself: the seller is texted 3 days before it ends.
+- **Buy now** appears once a seller saves a payout account (dashboard →
+  *Orders*). Paystack splits each payment as it is made; Fliiptech never
+  holds the seller's money. Staff are asked to tell the seller on WhatsApp
+  (*Messages to sellers*), the buyer gets a text receipt, and the seller
+  marks the order handed over. **Refunds:** refund in the Paystack
+  dashboard, then use *Record as refunded* on the order in the back office.
+
+**Reviews.** A few days after somebody asks about or buys a product, they
+are texted a link to review the seller. Only those links can leave a review,
+one each. Staff can hide a review under *Marketplace → Seller reviews*.
+
+The texts are sent by `manage.py marketplace_daily`, which
+`fliptech-freshness.service` now runs every morning after the freshness
+prompts. `go-live.sh` reinstalls the unit, so nothing extra is needed.
+
+**Where to look:** the back-office home page has a *Marketplace earnings*
+card for the last 30 days, linking to orders, seller payments and reviews.
+
 ---
 
 ## Database

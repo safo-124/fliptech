@@ -6,8 +6,9 @@
  * follows that.
  */
 
-import { ArrowLeft, BadgeCheck, MapPin } from "lucide-react";
+import { ArrowLeft, BadgeCheck, MapPin, Star } from "lucide-react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -46,7 +47,7 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
   const [shop, t] = await Promise.all([load(id), getTranslations("Marketplace")]);
   if (!shop) notFound();
 
-  const { seller, products } = shop;
+  const { seller, products, banner, reviews } = shop;
 
   return (
     <div className="app-shell py-6 pb-14">
@@ -57,6 +58,13 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
         </Link>
       </Button>
 
+      {/* A Shop plan benefit, sent only while the plan runs. */}
+      {banner ? (
+        <div className="relative mb-6 aspect-[3/1] overflow-hidden rounded-2xl bg-[var(--color-muted)] sm:aspect-[4/1]">
+          <Image src={banner} alt="" fill priority sizes="100vw" className="object-cover" />
+        </div>
+      ) : null}
+
       <header className="mb-7">
         <h1 className="text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
           {seller.business_name}
@@ -65,6 +73,15 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
           <MapPin aria-hidden="true" className="size-4 shrink-0" />
           {seller.area}, {seller.region}
         </p>
+        {seller.rating ? (
+          <p className="mt-1.5 flex items-center gap-1.5 text-sm">
+            <Star aria-hidden="true" className="size-4 fill-amber-400 text-amber-400" />
+            <span className="font-semibold">{t("rating", seller.rating)}</span>
+            <span className="text-[var(--color-muted-foreground)]">
+              {t("reviewCount", { count: seller.rating.count })}
+            </span>
+          </p>
+        ) : null}
         {seller.about ? (
           <p className="mt-3 max-w-[70ch] whitespace-pre-line text-sm leading-relaxed">
             {seller.about}
@@ -92,6 +109,41 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
           <p className="text-sm text-[var(--color-muted-foreground)]">{t("shopEmpty")}</p>
         </Card>
       )}
+
+      {/* Only buyers who asked or paid through the site could write these,
+          from a link texted to them. */}
+      {reviews.length ? (
+        <section className="mt-12 max-w-3xl">
+          <h2 className="text-lg font-extrabold tracking-[-0.025em]">{t("reviewsTitle")}</h2>
+          <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{t("reviewsHow")}</p>
+          <ul className="mt-4 space-y-3">
+            {reviews.map((review) => (
+              <li key={review.id}>
+                <Card className="p-4">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span aria-label={t("stars", { count: review.rating })} className="flex">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Star
+                          key={n}
+                          aria-hidden="true"
+                          className={`size-4 ${n <= review.rating ? "fill-amber-400 text-amber-400" : "text-[var(--color-border-strong)]"}`}
+                        />
+                      ))}
+                    </span>
+                    <span className="font-semibold">{review.buyer_name || t("aBuyer")}</span>
+                    <span className="text-[var(--color-muted-foreground)]">
+                      {review.bought ? t("boughtIt", { product: review.product_name }) : t("askedAbout", { product: review.product_name })}
+                    </span>
+                  </p>
+                  {review.comment ? (
+                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">{review.comment}</p>
+                  ) : null}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }
