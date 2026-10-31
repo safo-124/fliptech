@@ -153,11 +153,34 @@ class SellerAccount(TimeStampedModel):
     payout_bank_name = models.CharField(max_length=120, blank=True)
     payout_account_last4 = models.CharField(max_length=4, blank=True)
     payout_account_name = models.CharField(max_length=120, blank=True)
+    # A Paystack transfer recipient for the same account, used only when
+    # buyer protection holds payments (MARKETPLACE_HOLD_PAYMENTS): the money
+    # then reaches the seller by transfer once the buyer has it.
+    paystack_recipient = models.CharField(max_length=64, blank=True)
+
+    # What delivery costs, added at checkout. Null: the seller does not
+    # deliver through the site (the buyer collects, or they agree it by
+    # phone). Zero: free delivery.
+    delivery_fee = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    delivery_area = models.CharField(
+        max_length=120, blank=True, help_text='Where that fee applies, e.g. "Within Accra".'
+    )
+
+    # The "Verified maker" badge: a member of staff visited and saw the
+    # work being made. Paid for by the seller (a SellerPayment), set by staff.
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    verification_note = models.CharField(max_length=300, blank=True)
 
     class Meta:
         ordering = ["business_name"]
         permissions = [
             ("confirm_seller", "Can confirm or decline seller sign-ups"),
+            ("verify_seller", "Can mark a seller as a verified maker after a visit"),
         ]
 
     def __str__(self):
@@ -180,7 +203,11 @@ class SellerAccount(TimeStampedModel):
 
     @property
     def payout_ready(self):
-        """Whether a buyer can pay this seller on the site."""
+        """Whether a buyer can pay this seller on the site: a split
+        subaccount, or, while buyer protection holds payments, a transfer
+        recipient to send their share to."""
+        if settings.MARKETPLACE_HOLD_PAYMENTS:
+            return bool(self.paystack_recipient)
         return bool(self.paystack_subaccount)
 
 
@@ -254,6 +281,12 @@ class Product(TimeStampedModel):
         blank=True,
         validators=[MinValueValidator(0)],
         help_text="Leave empty for 'price on request'.",
+    )
+
+    # A sale: the price it was, shown crossed out beside `price`. Only shown
+    # when it is higher than the price, so it can never say "was less".
+    was_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)]
     )
 
     # The same trades that organise training, so a tailoring workshop's bags
@@ -397,6 +430,9 @@ class ProductEnquiry(TimeStampedModel):
     # When the buyer was texted a link to review the seller. Once only, set
     # by `manage.py marketplace_daily`.
     review_requested_at = models.DateTimeField(null=True, blank=True)
+    # When the seller said they replied (or opened the reply on WhatsApp from
+    # their dashboard). Feeds the "usually replies within a day" badge.
+    replied_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -543,6 +579,8 @@ class SellerPayment(TimeStampedModel):
         BOOST_WEEK = "boost_week", "Boost for a week"
         BOOST_MONTH = "boost_month", "Boost for a month"
         PLAN_MONTH = "plan_month", "Shop plan for a month"
+        LEAD = "lead", "A quote request's contact details"
+        VERIFICATION = "verification", "A verification visit"
 
     BOOST_KINDS = (Kind.BOOST_WEEK, Kind.BOOST_MONTH)
     DAYS = {Kind.BOOST_WEEK: 7, Kind.BOOST_MONTH: 30, Kind.PLAN_MONTH: 30}
@@ -576,6 +614,10 @@ class SellerPayment(TimeStampedModel):
     channel = models.CharField(max_length=30, blank=True)
     # When the "your plan ends soon" text went, so it goes once.
     reminded_at = models.DateTimeField(null=True, blank=True)
+    # The quote request a LEAD payment unlocks.
+    quote = models.ForeignKey(
+        "QuoteRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="payments"
+    )
 
     objects = SellerPaymentQuerySet.as_manager()
 
@@ -611,11 +653,18 @@ def plan_running(seller, at=None):
 class Order(TimeStampedModel):
     """A buyer paying a seller for a product, on the site.
 
-    The money goes to the seller's Paystack subaccount in the same charge;
-    Fliiptech's commission is taken by Paystack as the main account's share
-    (`transaction_charge`), so Fliiptech never holds the seller's money.
-    Refunds and disputes are handled by staff from the Paystack dashboard
-    and recorded here by hand; there is no automatic escrow.
+    One or more items from one seller (OrderItem), plus delivery, less any
+    discount code. `product`, `product_name`, `unit_price` and `quantity`
+    summarise it for lists: the first item, and the number of things.
+
+    Two ways the money moves, chosen by MARKETPLACE_HOLD_PAYMENTS when the
+    order is made and kept on it as `held`:
+
+      Split (default): Paystack pays the seller's subaccount in the same
+      charge and Fliiptech's commission is the main account's share.
+      Held (buyer protection): Fliiptech's account takes the whole payment
+      and transfers the seller's share once the buyer has the goods, or a
+      few days after handover with no problem raised (marketplace/payouts.py).
 
     Everything the buyer saw is copied onto the order, so it still means
     what it said after the seller edits or deletes the product.
@@ -628,7 +677,17 @@ class Order(TimeStampedModel):
     class Stage(models.TextChoices):
         NEW = "new", "Paid, not yet handed over"
         DELIVERED = "delivered", "Handed over"
+        RECEIVED = "received", "Buyer has it"
+        PROBLEM = "problem", "Buyer reported a problem"
         REFUNDED = "refunded", "Refunded by staff"
+
+    class Payout(models.TextChoices):
+        SPLIT = "split", "Paid to the seller by Paystack's split"
+        HELD = "held", "Held until the buyer has it"
+        SENDING = "sending", "Transfer to the seller started"
+        RELEASED = "released", "Transferred to the seller"
+        FAILED = "failed", "Transfer failed"
+        REFUNDED = "refunded", "Refunded to the buyer"
 
     reference = models.CharField(max_length=40, unique=True)
     seller = models.ForeignKey(SellerAccount, on_delete=models.PROTECT, related_name="orders")
@@ -638,9 +697,13 @@ class Order(TimeStampedModel):
     product_name = models.CharField(max_length=200)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveSmallIntegerField(
-        default=1, validators=[MinValueValidator(1), MaxValueValidator(20)]
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(200)]
     )
+    # Total paid: items + delivery - discount.
     amount_pesewas = models.PositiveIntegerField()
+    delivery_pesewas = models.PositiveIntegerField(default=0)
+    discount_pesewas = models.PositiveIntegerField(default=0)
+    discount_code = models.CharField(max_length=30, blank=True)
     # Fliiptech's share, in pesewas, fixed when the order is made.
     commission_pesewas = models.PositiveIntegerField(default=0)
     currency = models.CharField(max_length=3, default="GHS")
@@ -663,6 +726,15 @@ class Order(TimeStampedModel):
     channel = models.CharField(max_length=30, blank=True)
     review_requested_at = models.DateTimeField(null=True, blank=True)
 
+    # Buyer protection.
+    payout = models.CharField(max_length=10, choices=Payout.choices, default=Payout.SPLIT)
+    received_at = models.DateTimeField(null=True, blank=True)
+    problem = models.TextField(blank=True, max_length=1000)
+    problem_at = models.DateTimeField(null=True, blank=True)
+    transfer_reference = models.CharField(max_length=40, blank=True)
+    transfer_note = models.CharField(max_length=200, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["seller", "-created_at"])]
@@ -671,8 +743,192 @@ class Order(TimeStampedModel):
         return f"{self.reference}: {self.product_name} x{self.quantity}"
 
     @property
+    def seller_share_pesewas(self):
+        return self.amount_pesewas - self.commission_pesewas
+
+    @property
     def amount(self):
         return self.amount_pesewas / 100
+
+
+class OrderItem(models.Model):
+    """One line of an order, as the buyer saw it when they paid."""
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_items"
+    )
+    product_name = models.CharField(max_length=200)
+    option_label = models.CharField(max_length=80, blank=True)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(20)]
+    )
+
+    class Meta:
+        ordering = ["pk"]
+
+    def __str__(self):
+        option = f" ({self.option_label})" if self.option_label else ""
+        return f"{self.quantity} x {self.product_name}{option}"
+
+
+# --------------------------------------------------------------------------
+# Choices on a product, and discounts
+
+
+class ProductOption(models.Model):
+    """A size, colour or version of a product, each with its own price if
+    it differs ("Size L", "Red, large"). One list, not a grid: a market
+    seller thinks "small, medium, large", not "size × colour"."""
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="options")
+    label = models.CharField(max_length=80)
+    # Empty: the product's own price.
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    available = models.BooleanField(default=True)
+    display_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["display_order", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["product", "label"], name="unique_option_label"),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name}: {self.label}"
+
+
+class DiscountCode(TimeStampedModel):
+    """A seller's own code, a percentage off everything of theirs.
+
+    The seller shares it (WhatsApp status, a flyer at the stall); a buyer
+    types it at Buy now. The discount comes out of the seller's share, and
+    Fliiptech's commission is on what is actually paid.
+    """
+
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="codes")
+    code = models.CharField(max_length=30)
+    percent = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(90)]
+    )
+    ends_on = models.DateField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    uses = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["seller", "code"], name="unique_code_per_seller"),
+        ]
+
+    def __str__(self):
+        return f"{self.code} ({self.percent}% off, {self.seller})"
+
+    def usable(self, today=None):
+        today = today or timezone.localdate()
+        return self.active and (self.ends_on is None or self.ends_on >= today)
+
+
+# --------------------------------------------------------------------------
+# Reports and bulk quotes
+
+
+class ProductReport(TimeStampedModel):
+    """Somebody flagging a product: a scam, a fake, something not allowed."""
+
+    class Reason(models.TextChoices):
+        SCAM = "scam", "Looks like a scam"
+        NOT_AS_DESCRIBED = "not_as_described", "Not what was described"
+        NOT_DELIVERED = "not_delivered", "Paid and never received"
+        PROHIBITED = "prohibited", "Not allowed to be sold"
+        OTHER = "other", "Something else"
+
+    class State(models.TextChoices):
+        OPEN = "open", "Waiting for staff"
+        CLOSED = "closed", "Dealt with"
+
+    product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="reports"
+    )
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="reports")
+    product_name = models.CharField(max_length=200)
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    details = models.TextField(blank=True, max_length=1000)
+    # Optional, so a buyer can be asked about it. Never shown to the seller.
+    reporter_phone = PhoneNumberField(blank=True)
+    state = models.CharField(
+        max_length=10, choices=State.choices, default=State.OPEN, db_index=True
+    )
+    staff_note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_reason_display()}: {self.product_name}"
+
+
+class QuoteRequest(TimeStampedModel):
+    """A buyer asking several makers at once for a bulk or custom job:
+    "60 school uniforms by January".
+
+    Makers in that trade see what is wanted, but not who wants it, until
+    they unlock the contact: a small lead fee, or free on the Shop plan.
+    Capped at a few unlocks, so a buyer is not called by twenty people.
+    """
+
+    class State(models.TextChoices):
+        OPEN = "open", "Open"
+        CLOSED = "closed", "Closed"
+
+    reference = models.CharField(
+        max_length=12, unique=True, default=generate_reference, editable=False
+    )
+    trade = models.ForeignKey(
+        "catalog.Trade", on_delete=models.PROTECT, related_name="quote_requests"
+    )
+    area = models.ForeignKey(
+        "geography.Area", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    title = models.CharField(max_length=160)
+    details = models.TextField(max_length=2000)
+    quantity = models.CharField(max_length=60, blank=True)
+    budget = models.CharField(max_length=60, blank=True)
+    needed_by = models.DateField(null=True, blank=True)
+    buyer_name = models.CharField(max_length=120)
+    buyer_phone = PhoneNumberField(db_index=True)
+    state = models.CharField(
+        max_length=10, choices=State.choices, default=State.OPEN, db_index=True
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference}: {self.title}"
+
+
+class QuoteLead(TimeStampedModel):
+    """A maker who unlocked a quote request's contact details."""
+
+    quote = models.ForeignKey(QuoteRequest, on_delete=models.CASCADE, related_name="leads")
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="leads")
+    # Free on the Shop plan; otherwise the lead fee that paid for it.
+    payment = models.OneToOneField(
+        SellerPayment, on_delete=models.SET_NULL, null=True, blank=True, related_name="lead"
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["quote", "seller"], name="one_lead_per_seller"),
+        ]
+
+    def __str__(self):
+        return f"{self.seller} on {self.quote}"
 
 
 # --------------------------------------------------------------------------

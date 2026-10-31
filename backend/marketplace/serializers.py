@@ -13,7 +13,18 @@ from rest_framework import serializers
 from core.media import public_url
 from providers.trainer_serializers import RejectUnknownFieldsMixin
 
-from .models import Order, Product, ProductEnquiry, ProductPhoto, SellerAccount, SellerReview
+from .models import (
+    DiscountCode,
+    Order,
+    OrderItem,
+    Product,
+    ProductEnquiry,
+    ProductOption,
+    ProductPhoto,
+    ProductReport,
+    SellerAccount,
+    SellerReview,
+)
 
 
 class SellerOTPVerifySerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -50,6 +61,23 @@ class SellerCardSerializer(serializers.ModelSerializer):
     region = serializers.CharField(source="area.region.name", read_only=True)
     workshop = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
+    replies_fast = serializers.SerializerMethodField()
+    verified = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_replies_fast(self, obj):
+        """The "usually replies within a day" badge (marketplace/reviews.py)."""
+        from .reviews import fast_repliers
+
+        fast = self.context.get("fast")
+        if fast is None:
+            fast = fast_repliers([obj.pk])
+        return obj.pk in fast
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_verified(self, obj):
+        """A member of staff visited and saw the work being made."""
+        return obj.verified_at is not None
 
     @extend_schema_field(serializers.DictField(allow_null=True))
     def get_rating(self, obj):
@@ -93,6 +121,10 @@ class SellerCardSerializer(serializers.ModelSerializer):
             "region",
             "workshop",
             "rating",
+            "replies_fast",
+            "verified",
+            "delivery_fee",
+            "delivery_area",
         ]
 
 
@@ -105,6 +137,14 @@ class ProductCardSerializer(serializers.ModelSerializer):
     sponsored = serializers.SerializerMethodField()
     distance_km = serializers.SerializerMethodField()
     buy_online = serializers.SerializerMethodField()
+    was_price = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_was_price(self, obj):
+        """The crossed-out price, only when it is really higher."""
+        if obj.was_price and obj.price is not None and obj.was_price > obj.price:
+            return f"{obj.was_price:.2f}"
+        return None
 
     @extend_schema_field(serializers.BooleanField())
     def get_sponsored(self, obj):
@@ -156,6 +196,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
             "name",
             "slug",
             "price",
+            "was_price",
             "availability",
             "trade",
             "photo",
@@ -167,11 +208,35 @@ class ProductCardSerializer(serializers.ModelSerializer):
         ]
 
 
+class ProductOptionSerializer(serializers.ModelSerializer):
+    label = serializers.CharField(max_length=80)
+
+    class Meta:
+        model = ProductOption
+        fields = ["id", "label", "price", "available"]
+
+
 class ProductDetailSerializer(ProductCardSerializer):
     photos = ProductPhotoSerializer(many=True, read_only=True)
+    options = serializers.SerializerMethodField()
+
+    @extend_schema_field(ProductOptionSerializer(many=True))
+    def get_options(self, obj):
+        """Each option with the price a buyer pays for it."""
+        return [
+            {
+                "id": option.id,
+                "label": option.label,
+                "price": f"{(option.price if option.price is not None else obj.price):.2f}"
+                if (option.price is not None or obj.price is not None)
+                else None,
+                "available": option.available,
+            }
+            for option in obj.options.all()
+        ]
 
     class Meta(ProductCardSerializer.Meta):
-        fields = [*ProductCardSerializer.Meta.fields, "description", "photos"]
+        fields = [*ProductCardSerializer.Meta.fields, "description", "photos", "options"]
 
 
 # --------------------------------------------------------------------------
@@ -188,6 +253,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
     """
 
     photos = ProductPhotoSerializer(many=True, read_only=True)
+    options = ProductOptionSerializer(many=True, read_only=True)
     status = serializers.CharField(read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     visible = serializers.SerializerMethodField()
@@ -207,8 +273,10 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "slug",
             "description",
             "price",
+            "was_price",
             "trade",
             "availability",
+            "options",
             "status",
             "status_label",
             "staff_note",
@@ -262,8 +330,11 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             "approval_note",
             "may_sell",
             "ready_to_sell",
+            "delivery_fee",
+            "delivery_area",
+            "verified_at",
         ]
-        read_only_fields = ["phone", "email"]
+        read_only_fields = ["phone", "email", "verified_at"]
 
 
 class ProductEnquiryInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -314,6 +385,7 @@ class OwnEnquirySerializer(serializers.ModelSerializer):
             "message",
             "told",
             "reply_url",
+            "replied_at",
             "created_at",
         ]
 
@@ -342,14 +414,30 @@ class ReviewInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     bought = serializers.BooleanField(required=False, default=False)
 
 
-class OrderInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
-    """What a buyer sends to pay for a product. The phone must already be
-    verified in this browser, as for asking a question."""
+class BasketItemSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    product = serializers.IntegerField()
+    option = serializers.IntegerField(required=False, allow_null=True)
+    quantity = serializers.IntegerField(min_value=1, max_value=20, default=1)
+
+
+class BasketSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    """What is being priced: items from one seller, how it is handed over,
+    and a discount code. Used to show the total before paying."""
+
+    items = BasketItemSerializer(many=True, required=False)
+    # One product, the Buy now on a product page. Turned into `items`.
+    option = serializers.IntegerField(required=False, allow_null=True)
+    quantity = serializers.IntegerField(min_value=1, max_value=20, required=False)
+    fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices, default="pickup")
+    code = serializers.CharField(max_length=30, required=False, allow_blank=True)
+
+
+class OrderInputSerializer(BasketSerializer):
+    """What a buyer sends to pay. The phone must already be verified in
+    this browser, as for asking a question."""
 
     phone = PhoneNumberField()
     name = serializers.CharField(max_length=120)
-    quantity = serializers.IntegerField(min_value=1, max_value=20, default=1)
-    fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices)
     note = serializers.CharField(max_length=500, required=False, allow_blank=True)
 
     def validate(self, attrs):
@@ -358,8 +446,32 @@ class OrderInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
         return attrs
 
 
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = ["product", "product_name", "option_label", "unit_price", "quantity"]
+
+
 class OrderSerializer(serializers.ModelSerializer):
     """An order, as its buyer or its seller sees it."""
+
+    items = OrderItemSerializer(many=True, read_only=True)
+    delivery = serializers.SerializerMethodField()
+    discount = serializers.SerializerMethodField()
+    protected = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_delivery(self, obj):
+        return f"{obj.delivery_pesewas / 100:.2f}"
+
+    @extend_schema_field(serializers.CharField())
+    def get_discount(self, obj):
+        return f"{obj.discount_pesewas / 100:.2f}"
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_protected(self, obj):
+        """Buyer protection: the seller is paid once the buyer has it."""
+        return obj.payout != Order.Payout.SPLIT
 
     amount = serializers.SerializerMethodField()
     commission = serializers.SerializerMethodField()
@@ -396,11 +508,50 @@ class OrderSerializer(serializers.ModelSerializer):
             "buyer_phone",
             "fulfilment",
             "note",
+            "items",
+            "delivery",
+            "discount",
+            "discount_code",
             "status",
             "stage",
+            "payout",
+            "protected",
+            "problem",
             "seller_name",
             "seller_phone",
             "paid_at",
             "delivered_at",
+            "received_at",
             "created_at",
         ]
+
+
+class DiscountCodeSerializer(serializers.ModelSerializer):
+    def validate_code(self, value):
+        value = "".join(value.split()).upper()
+        if not value.isalnum():
+            raise serializers.ValidationError("Use letters and numbers only, like SALE10.")
+        return value
+
+    class Meta:
+        model = DiscountCode
+        fields = ["id", "code", "percent", "ends_on", "active", "uses"]
+        read_only_fields = ["uses"]
+
+
+class ProductReportInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    reason = serializers.ChoiceField(choices=ProductReport.Reason.choices)
+    details = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    phone = PhoneNumberField(required=False, allow_null=True)
+
+
+class QuoteInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    trade = serializers.SlugField()
+    area = serializers.SlugField(required=False, allow_blank=True)
+    title = serializers.CharField(max_length=160)
+    details = serializers.CharField(max_length=2000)
+    quantity = serializers.CharField(max_length=60, required=False, allow_blank=True)
+    budget = serializers.CharField(max_length=60, required=False, allow_blank=True)
+    needed_by = serializers.DateField(required=False, allow_null=True)
+    name = serializers.CharField(max_length=120)
+    phone = PhoneNumberField()

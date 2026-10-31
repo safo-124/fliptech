@@ -17,6 +17,7 @@ split at Paystack straight to the seller's subaccount, with Fliiptech's
 commission taken as the main account's share.
 """
 
+import logging
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
@@ -42,11 +43,16 @@ from core.network import canonical_client_ip, ratelimit_client_ip
 from courses import paystack
 from enquiries.otp import phone_is_trusted
 
+from . import payouts, quotes
 from .models import (
     Order,
+    OrderItem,
     PaymentStatus,
     Product,
     ProductEnquiry,
+    ProductOption,
+    ProductReport,
+    QuoteRequest,
     SellerPayment,
     SellerReview,
     payment_reference,
@@ -55,14 +61,21 @@ from .models import (
 from .payments import confirm_order, confirm_seller_payment, payer_email
 from .reviews import read_token
 from .serializers import (
+    BasketSerializer,
+    DiscountCodeSerializer,
     OrderInputSerializer,
     OrderSerializer,
+    ProductOptionSerializer,
+    ProductReportInputSerializer,
+    QuoteInputSerializer,
     ReviewInputSerializer,
 )
 from .stats import record_product_view, seller_stats
 from .views import IsActiveSeller, _account, _public_products
 
 SESSION_ORDERS = "marketplace_orders"
+
+logger = logging.getLogger(__name__)
 
 
 def _site(path):
@@ -74,6 +87,8 @@ def _prices():
         SellerPayment.Kind.BOOST_WEEK: settings.MARKETPLACE_BOOST_WEEK_PRICE,
         SellerPayment.Kind.BOOST_MONTH: settings.MARKETPLACE_BOOST_MONTH_PRICE,
         SellerPayment.Kind.PLAN_MONTH: settings.MARKETPLACE_PLAN_PRICE,
+        SellerPayment.Kind.LEAD: settings.MARKETPLACE_LEAD_PRICE,
+        SellerPayment.Kind.VERIFICATION: settings.MARKETPLACE_VERIFICATION_PRICE,
     }
 
 
@@ -157,6 +172,14 @@ def _growth_payload(seller, request):
             for boost in boosts
         ],
         "banner": public_url(seller.banner.url, request) if seller.banner else None,
+        "verification": {
+            "verified_at": seller.verified_at.isoformat() if seller.verified_at else None,
+            # Paid for, waiting for the visit.
+            "requested": SellerPayment.objects.filter(
+                seller=seller, kind=SellerPayment.Kind.VERIFICATION, status=PaymentStatus.PAID
+            ).exists()
+            and seller.verified_at is None,
+        },
     }
 
 
@@ -169,7 +192,7 @@ class SellerGrowthView(APIView):
         return Response(_growth_payload(_account(request), request))
 
 
-def _start_seller_payment(request, seller, kind, product=None):
+def _start_seller_payment(request, seller, kind, product=None, quote=None):
     if not paystack.enabled():
         return Response(
             {"detail": _("Payments are not switched on yet.")}, status=status.HTTP_409_CONFLICT
@@ -184,6 +207,7 @@ def _start_seller_payment(request, seller, kind, product=None):
         seller=seller,
         kind=kind,
         product=product,
+        quote=quote,
         amount_pesewas=_prices()[kind] * 100,
     )
     try:
@@ -403,14 +427,15 @@ class SellerPayoutView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         try:
-            banks = {bank["code"]: bank["name"] for bank in paystack.payout_banks()}
+            listed = {bank["code"]: bank for bank in paystack.payout_banks()}
         except paystack.PaystackError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        if bank_code not in banks:
+        if bank_code not in listed:
             return Response(
                 {"bank_code": [_("Choose where to be paid from the list.")]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        banks = {code: bank["name"] for code, bank in listed.items()}
         try:
             code = paystack.save_subaccount(
                 existing_code=seller.paystack_subaccount,
@@ -421,8 +446,25 @@ class SellerPayoutView(APIView):
         except paystack.PaystackError as exc:
             # Paystack says why, e.g. the account number does not resolve.
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        # The same account as a transfer recipient, for buyer protection.
+        # Made now because only now is the full number at hand: just the
+        # last four digits are kept. Only required while payments are held;
+        # otherwise a refusal is logged and the split still works.
+        try:
+            recipient = paystack.save_recipient(
+                bank_code=bank_code,
+                bank_type=listed[bank_code].get("type", ""),
+                account_number=account_number,
+                name=account_name,
+            )
+        except (paystack.PaystackError, KeyError, TypeError) as exc:
+            if settings.MARKETPLACE_HOLD_PAYMENTS:
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            logger.warning("No transfer recipient for seller %s: %s", seller.pk, exc)
+            recipient = ""
 
         seller.paystack_subaccount = code
+        seller.paystack_recipient = recipient
         seller.payout_bank_code = bank_code
         seller.payout_bank_name = banks[bank_code]
         seller.payout_account_last4 = account_number[-4:]
@@ -438,6 +480,7 @@ class SellerPayoutView(APIView):
         seller.payout_bank_code = seller.payout_bank_name = ""
         seller.payout_account_last4 = seller.payout_account_name = ""
         code, seller.paystack_subaccount = seller.paystack_subaccount, ""
+        seller.paystack_recipient = ""
         seller.save()
         payload = _payout_payload(seller)
         payload["previous_subaccount"] = bool(code)
@@ -453,9 +496,251 @@ def commission_pesewas(amount_pesewas):
     return int(share.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
+class BasketError(Exception):
+    """Something in the basket cannot be bought; the message says what."""
+
+
+def price_basket(seller, data):
+    """Work out an order before it exists: lines, delivery, discount, total.
+
+    Every price is read from the database, never from the request. Each
+    item must be the seller's, on show, priced and ready now; an option
+    must be one of that product's and available.
+    """
+    raw = data.get("items") or []
+    if not raw:
+        raise BasketError(_("Choose something to buy."))
+    if len(raw) > 20:
+        raise BasketError(_("That is too many different things for one order."))
+    products = {
+        product.pk: product
+        for product in _public_products().filter(
+            seller=seller, pk__in=[item["product"] for item in raw]
+        )
+    }
+    lines = []
+    for item in raw:
+        product = products.get(item["product"])
+        if (
+            product is None
+            or not product.price
+            or product.availability != Product.Availability.AVAILABLE
+        ):
+            raise BasketError(_("Something in your order can no longer be bought here."))
+        options = list(product.options.all())
+        option = None
+        if item.get("option"):
+            option = next((o for o in options if o.pk == item["option"] and o.available), None)
+            if option is None:
+                raise BasketError(
+                    _("That choice of %(name)s is not available.") % {"name": product.name}
+                )
+        elif any(o.available for o in options):
+            raise BasketError(_("Choose which %(name)s you want.") % {"name": product.name})
+        unit = option.price if option and option.price is not None else product.price
+        lines.append(
+            {
+                "product": product,
+                "option": option,
+                "unit_price": unit,
+                "quantity": item["quantity"],
+                "pesewas": int(unit * 100) * item["quantity"],
+            }
+        )
+
+    subtotal = sum(line["pesewas"] for line in lines)
+    discount = 0
+    code = ""
+    typed = "".join(str(data.get("code") or "").split()).upper()
+    if typed:
+        found = seller.codes.filter(code__iexact=typed).first()
+        if found is None or not found.usable():
+            raise BasketError(_("That discount code is not valid."))
+        code = found.code
+        discount = int(
+            (Decimal(subtotal) * found.percent / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+        )
+    delivery = 0
+    if data.get("fulfilment") == Order.Fulfilment.DELIVERY and seller.delivery_fee is not None:
+        delivery = int(seller.delivery_fee * 100)
+    paid_for_goods = subtotal - discount
+    return {
+        "lines": lines,
+        "subtotal": subtotal,
+        "discount": discount,
+        "code": code,
+        "delivery": delivery,
+        "total": paid_for_goods + delivery,
+        # On the goods, not on delivery: that money is the seller's cost.
+        "commission": commission_pesewas(paid_for_goods),
+    }
+
+
+def _pesewas(value):
+    return f"{value / 100:.2f}"
+
+
+def _basket_payload(priced, seller):
+    return {
+        "lines": [
+            {
+                "product": line["product"].pk,
+                "product_name": line["product"].name,
+                "option": line["option"].pk if line["option"] else None,
+                "option_label": line["option"].label if line["option"] else "",
+                "unit_price": f"{line['unit_price']:.2f}",
+                "quantity": line["quantity"],
+                "total": _pesewas(line["pesewas"]),
+            }
+            for line in priced["lines"]
+        ],
+        "subtotal": _pesewas(priced["subtotal"]),
+        "discount": _pesewas(priced["discount"]),
+        "code": priced["code"],
+        "delivery": _pesewas(priced["delivery"]),
+        "delivery_fee": f"{seller.delivery_fee:.2f}" if seller.delivery_fee is not None else None,
+        "delivery_area": seller.delivery_area,
+        "total": _pesewas(priced["total"]),
+        "protected": settings.MARKETPLACE_HOLD_PAYMENTS,
+    }
+
+
+def _shop(pk):
+    from .models import SellerAccount
+
+    seller = SellerAccount.objects.filter(pk=pk).first()
+    if seller is None or not seller.may_sell:
+        raise NotFound(_("No such seller."))
+    return seller
+
+
+def _single_product_items(data, product_pk):
+    """A product page's Buy now is a basket of one."""
+    if not data.get("items"):
+        data["items"] = [
+            {
+                "product": product_pk,
+                "option": data.get("option"),
+                "quantity": data.get("quantity") or 1,
+            }
+        ]
+    return data
+
+
+class BasketPriceView(APIView):
+    """The total before paying: what the Buy now panel and the bag show."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=BasketSerializer, responses={200: None})
+    def post(self, request, pk):
+        seller = _shop(pk)
+        serializer = BasketSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if is_ratelimited(
+            request, group="basket-price", key=ratelimit_client_ip, rate="120/m", increment=True
+        ):
+            return Response(status=429)
+        try:
+            priced = price_basket(seller, dict(serializer.validated_data))
+        except BasketError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(_basket_payload(priced, seller))
+
+
+def _create_order(request, seller, data):
+    if not (paystack.enabled() and seller.payout_ready):
+        return Response(
+            {"detail": _("This seller does not take payment on the site. Ask them instead.")},
+            status=status.HTTP_409_CONFLICT,
+        )
+    try:
+        priced = price_basket(seller, data)
+    except BasketError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    if not phone_is_trusted(request.session, data["phone"]):
+        return Response(
+            {"detail": _("Verify this phone number before paying.")},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if is_ratelimited(
+        request, group="product-order", key=ratelimit_client_ip, rate="20/h", increment=True
+    ):
+        return Response(
+            {"detail": _("Too many attempts. Try again later.")},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    lines = priced["lines"]
+    first = lines[0]
+    count = sum(line["quantity"] for line in lines)
+    summary = first["product"].name
+    if len(lines) > 1:
+        summary = _("%(name)s and %(more)s more") % {"name": summary, "more": len(lines) - 1}
+    held = settings.MARKETPLACE_HOLD_PAYMENTS
+    with transaction.atomic():
+        order = Order.objects.create(
+            reference=payment_reference("fo"),
+            seller=seller,
+            product=first["product"],
+            product_name=summary[:200],
+            unit_price=first["unit_price"],
+            quantity=count,
+            amount_pesewas=priced["total"],
+            delivery_pesewas=priced["delivery"],
+            discount_pesewas=priced["discount"],
+            discount_code=priced["code"],
+            commission_pesewas=priced["commission"],
+            buyer_phone=data["phone"],
+            buyer_name=data["name"].strip(),
+            fulfilment=data["fulfilment"],
+            note=data.get("note", "").strip(),
+            payout=Order.Payout.HELD if held else Order.Payout.SPLIT,
+        )
+        OrderItem.objects.bulk_create(
+            OrderItem(
+                order=order,
+                product=line["product"],
+                product_name=line["product"].name,
+                option_label=line["option"].label if line["option"] else "",
+                unit_price=line["unit_price"],
+                quantity=line["quantity"],
+            )
+            for line in lines
+        )
+    # This browser may see the order afterwards, whatever happens to the
+    # hour-long trust in the phone number.
+    request.session[SESSION_ORDERS] = [
+        *request.session.get(SESSION_ORDERS, [])[-19:],
+        order.reference,
+    ]
+    try:
+        url = paystack.initialize(
+            email=payer_email(None, order.buyer_phone),
+            amount_pesewas=order.amount_pesewas,
+            reference=order.reference,
+            callback_url=_site(f"/marketplace/order/{order.reference}"),
+            # Held: all of it to Fliiptech, and the seller's share follows by
+            # transfer. Split: straight to the seller, less the commission.
+            subaccount=None if held else seller.paystack_subaccount,
+            transaction_charge=None if held else order.commission_pesewas,
+            metadata={"seller_id": seller.pk, "items": len(lines)},
+        )
+    except paystack.PaystackError as exc:
+        order.status = PaymentStatus.FAILED
+        order.gateway_response = str(exc)[:200]
+        order.save(update_fields=["status", "gateway_response", "updated_at"])
+        return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+    return Response(
+        {"authorization_url": url, "reference": order.reference},
+        status=status.HTTP_201_CREATED,
+    )
+
+
 @method_decorator(csrf_protect, name="dispatch")
 class OrderCreateView(APIView):
-    """Pay for a product. Returns Paystack's page to send the buyer to.
+    """Buy now on a product page: one product, maybe an option and a number.
 
     No account, but a verified phone, as for asking a question: the seller
     is going to call this number to hand the thing over.
@@ -468,74 +753,25 @@ class OrderCreateView(APIView):
     def post(self, request, pk):
         serializer = OrderInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        product = _public_products().filter(pk=pk).first()
+        product = _public_products().filter(pk=pk).select_related("seller").first()
         if product is None:
             raise NotFound(_("No such product."))
-        if not (
-            paystack.enabled()
-            and product.seller.payout_ready
-            and product.price
-            and product.availability == Product.Availability.AVAILABLE
-        ):
-            return Response(
-                {"detail": _("This product cannot be bought on the site. Ask the seller.")},
-                status=status.HTTP_409_CONFLICT,
-            )
-        if not phone_is_trusted(request.session, data["phone"]):
-            return Response(
-                {"detail": _("Verify this phone number before paying.")},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if is_ratelimited(
-            request, group="product-order", key=ratelimit_client_ip, rate="20/h", increment=True
-        ):
-            return Response(
-                {"detail": _("Too many attempts. Try again later.")},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
+        data = _single_product_items(dict(serializer.validated_data), product.pk)
+        return _create_order(request, product.seller, data)
 
-        amount = int(product.price * 100) * data["quantity"]
-        order = Order.objects.create(
-            reference=payment_reference("fo"),
-            seller=product.seller,
-            product=product,
-            product_name=product.name,
-            unit_price=product.price,
-            quantity=data["quantity"],
-            amount_pesewas=amount,
-            commission_pesewas=commission_pesewas(amount),
-            buyer_phone=data["phone"],
-            buyer_name=data["name"].strip(),
-            fulfilment=data["fulfilment"],
-            note=data.get("note", "").strip(),
-        )
-        # This browser may see the order afterwards, whatever happens to the
-        # hour-long trust in the phone number.
-        request.session[SESSION_ORDERS] = [
-            *request.session.get(SESSION_ORDERS, [])[-19:],
-            order.reference,
-        ]
-        try:
-            url = paystack.initialize(
-                email=payer_email(None, order.buyer_phone),
-                amount_pesewas=amount,
-                reference=order.reference,
-                callback_url=_site(f"/marketplace/order/{order.reference}"),
-                subaccount=product.seller.paystack_subaccount,
-                transaction_charge=order.commission_pesewas,
-                metadata={"product_id": product.pk, "seller_id": product.seller_id},
-            )
-        except paystack.PaystackError as exc:
-            order.status = PaymentStatus.FAILED
-            order.gateway_response = str(exc)[:200]
-            order.save(update_fields=["status", "gateway_response", "updated_at"])
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
-        return Response(
-            {"authorization_url": url, "reference": order.reference},
-            status=status.HTTP_201_CREATED,
-        )
+
+@method_decorator(csrf_protect, name="dispatch")
+class ShopOrderCreateView(APIView):
+    """Pay for a bag of things from one seller in one payment."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=OrderInputSerializer, responses={201: None})
+    def post(self, request, pk):
+        serializer = OrderInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return _create_order(request, _shop(pk), dict(serializer.validated_data))
 
 
 def _buyers_order(request, reference):
@@ -688,3 +924,377 @@ class ReviewView(APIView):
                 **{kind: thing},
             )
         return Response({"detail": _("Thank you for your review.")}, status=status.HTTP_201_CREATED)
+
+
+# --------------------------------------------------------------------------
+# The buyer, after paying
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class OrderReceivedView(APIView):
+    """ "I've got it." Releases a held payment to the seller at once."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, reference):
+        order = _buyers_order(request, reference)
+        if order.stage == Order.Stage.PROBLEM:
+            # A problem was reported: staff decide now, so the money is not
+            # released by a tap that may have been a mistake either way.
+            return Response(
+                {"detail": _("Fliiptech staff are looking at the problem you reported.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if order.status != PaymentStatus.PAID or order.stage in (
+            Order.Stage.REFUNDED,
+            Order.Stage.RECEIVED,
+        ):
+            return Response(OrderSerializer(order).data)
+        order.stage = Order.Stage.RECEIVED
+        order.received_at = timezone.now()
+        order.save(update_fields=["stage", "received_at", "updated_at"])
+        order = payouts.release(order)
+        return Response(OrderSerializer(order).data)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class OrderProblemView(APIView):
+    """Something is wrong with an order. Freezes a held payment until staff
+    have looked: they release it to the seller or refund the buyer."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, reference):
+        order = _buyers_order(request, reference)
+        problem = str(request.data.get("problem") or "").strip()[:1000]
+        if not problem:
+            return Response(
+                {"problem": [_("Say what went wrong.")]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if order.status != PaymentStatus.PAID or order.stage == Order.Stage.REFUNDED:
+            return Response(
+                {"detail": _("This order can no longer be disputed here. Contact us.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+        order.stage = Order.Stage.PROBLEM
+        order.problem = problem
+        order.problem_at = timezone.now()
+        order.save(update_fields=["stage", "problem", "problem_at", "updated_at"])
+        return Response(OrderSerializer(order).data)
+
+
+# --------------------------------------------------------------------------
+# Reports
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class ProductReportView(APIView):
+    """Flag a product to staff. No account: a scam is reported by whoever
+    sees it. Rate limited, and the seller never sees who reported."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=ProductReportInputSerializer, responses={201: None})
+    def post(self, request, pk):
+        product = _public_products().filter(pk=pk).first()
+        if product is None:
+            raise NotFound(_("No such product."))
+        serializer = ProductReportInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if is_ratelimited(
+            request, group="product-report", key=ratelimit_client_ip, rate="5/h", increment=True
+        ):
+            return Response(
+                {"detail": _("Too many reports. Try again later.")},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        ProductReport.objects.create(
+            product=product,
+            seller=product.seller,
+            product_name=product.name,
+            reason=serializer.validated_data["reason"],
+            details=serializer.validated_data.get("details", "").strip(),
+            reporter_phone=serializer.validated_data.get("phone") or "",
+        )
+        return Response(
+            {"detail": _("Thank you. Fliiptech staff will look at it.")},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+# --------------------------------------------------------------------------
+# Quote requests
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class QuoteCreateView(APIView):
+    """A buyer asking makers in one trade for a bulk or custom job."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=QuoteInputSerializer, responses={201: None})
+    def post(self, request):
+        from catalog.models import Trade
+        from geography.models import Area
+
+        serializer = QuoteInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        trade = Trade.objects.filter(slug=data["trade"]).first()
+        if trade is None:
+            return Response({"trade": [_("Choose a trade.")]}, status=status.HTTP_400_BAD_REQUEST)
+        area = Area.objects.filter(slug=data.get("area")).first() if data.get("area") else None
+        if not phone_is_trusted(request.session, data["phone"]):
+            return Response(
+                {"detail": _("Verify this phone number first.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if is_ratelimited(
+            request, group="quote-request", key=ratelimit_client_ip, rate="5/h", increment=True
+        ):
+            return Response(
+                {"detail": _("Too many requests. Try again later.")},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        with transaction.atomic():
+            quote = QuoteRequest.objects.create(
+                trade=trade,
+                area=area,
+                title=data["title"].strip(),
+                details=data["details"].strip(),
+                quantity=data.get("quantity", "").strip(),
+                budget=data.get("budget", "").strip(),
+                needed_by=data.get("needed_by"),
+                buyer_name=data["name"].strip(),
+                buyer_phone=data["phone"],
+            )
+            transaction.on_commit(lambda: quotes.tell_makers(quote))
+        return Response(
+            {
+                "reference": quote.reference,
+                "makers": quotes.makers_for(trade).count(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+def _quote_payload(quote, seller, unlocked_ids):
+    unlocked = quote.pk in unlocked_ids
+    return {
+        "id": quote.pk,
+        "reference": quote.reference,
+        "trade": quote.trade.name,
+        "area": quote.area.name if quote.area else None,
+        "title": quote.title,
+        "details": quote.details,
+        "quantity": quote.quantity,
+        "budget": quote.budget,
+        "needed_by": quote.needed_by.isoformat() if quote.needed_by else None,
+        "created_at": quote.created_at.isoformat(),
+        "spots_left": quotes.spots_left(quote),
+        "unlocked": unlocked,
+        "buyer_name": quote.buyer_name if unlocked else None,
+        "buyer_phone": str(quote.buyer_phone) if unlocked else None,
+    }
+
+
+class SellerQuotesView(APIView):
+    """Quote requests in the trades this seller sells in."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        seller = _account(request)
+        found = list(quotes.open_for(seller)[:50])
+        unlocked = set(seller.leads.values_list("quote_id", flat=True))
+        return Response(
+            {
+                "lead_price": str(settings.MARKETPLACE_LEAD_PRICE),
+                "free_on_plan": plan_running(seller) is not None,
+                "payments_enabled": paystack.enabled(),
+                "results": [_quote_payload(quote, seller, unlocked) for quote in found],
+            }
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SellerQuoteUnlockView(APIView):
+    """See who asked: free on the Shop plan, otherwise the lead fee."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, pk):
+        seller = _account(request)
+        quote = quotes.open_for(seller).filter(pk=pk).first()
+        if quote is None:
+            raise NotFound(_("No such request."))
+        if seller.leads.filter(quote=quote).exists():
+            return Response(_quote_payload(quote, seller, {quote.pk}))
+        if not quotes.spots_left(quote):
+            return Response(
+                {"detail": _("Enough makers have already contacted this buyer.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if plan_running(seller) is not None or not settings.MARKETPLACE_LEAD_PRICE:
+            quotes.unlock(quote, seller)
+            return Response(_quote_payload(quote, seller, {quote.pk}))
+        return _start_seller_payment(request, seller, SellerPayment.Kind.LEAD, quote=quote)
+
+
+# --------------------------------------------------------------------------
+# The seller's shelf: options, codes, replies, verification
+
+
+class SellerProductOptionsView(APIView):
+    """Replace a product's options in one go: [{label, price, available}]."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @method_decorator(csrf_protect)
+    @extend_schema(request=None, responses={200: None})
+    def put(self, request, pk):
+        seller = _account(request)
+        product = seller.products.filter(pk=pk).first()
+        if product is None:
+            raise NotFound(_("No such product."))
+        raw = request.data.get("options")
+        if not isinstance(raw, list) or len(raw) > 20:
+            return Response(
+                {"options": [_("Give up to 20 options.")]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        serializer = ProductOptionSerializer(data=raw, many=True)
+        serializer.is_valid(raise_exception=True)
+        labels = [row["label"].strip() for row in serializer.validated_data]
+        if any(not label for label in labels) or len(set(labels)) != len(labels):
+            return Response(
+                {"options": [_("Give each option a different name.")]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        with transaction.atomic():
+            product.options.all().delete()
+            ProductOption.objects.bulk_create(
+                ProductOption(
+                    product=product,
+                    label=row["label"].strip(),
+                    price=row.get("price"),
+                    available=row.get("available", True),
+                    display_order=position,
+                )
+                for position, row in enumerate(serializer.validated_data)
+            )
+        return Response(ProductOptionSerializer(product.options.all(), many=True).data)
+
+
+class SellerCodesView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        codes = _account(request).codes.all()
+        return Response({"results": DiscountCodeSerializer(codes, many=True).data})
+
+    @method_decorator(csrf_protect)
+    @extend_schema(request=DiscountCodeSerializer, responses={201: None})
+    def post(self, request):
+        seller = _account(request)
+        serializer = DiscountCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if seller.codes.filter(code__iexact=serializer.validated_data["code"]).exists():
+            return Response(
+                {"code": [_("You already have a code with that name.")]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if seller.codes.count() >= 20:
+            return Response(
+                {"detail": _("Delete an old code first.")}, status=status.HTTP_409_CONFLICT
+            )
+        serializer.save(seller=seller)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class SellerCodeView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    def _code(self, request, pk):
+        found = _account(request).codes.filter(pk=pk).first()
+        if found is None:
+            raise NotFound(_("No such code."))
+        return found
+
+    @method_decorator(csrf_protect)
+    @extend_schema(request=None, responses={200: None})
+    def patch(self, request, pk):
+        found = self._code(request, pk)
+        serializer = DiscountCodeSerializer(
+            found,
+            data={
+                key: request.data[key]
+                for key in ("active", "ends_on", "percent")
+                if key in request.data
+            },
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @method_decorator(csrf_protect)
+    @extend_schema(responses={204: None})
+    def delete(self, request, pk):
+        self._code(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SellerEnquiryRepliedView(APIView):
+    """The seller replied to a question (or opened the reply on WhatsApp)."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, pk):
+        enquiry = _account(request).enquiries.filter(pk=pk).first()
+        if enquiry is None:
+            raise NotFound(_("No such question."))
+        if enquiry.replied_at is None:
+            enquiry.replied_at = timezone.now()
+            enquiry.save(update_fields=["replied_at", "updated_at"])
+        return Response({"replied_at": enquiry.replied_at.isoformat()})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SellerVerificationView(APIView):
+    """Pay for the "Verified maker" visit. Staff arrange it and set the badge."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        seller = _account(request)
+        if seller.verified_at is not None:
+            return Response(
+                {"detail": _("You are already a verified maker.")}, status=status.HTTP_409_CONFLICT
+            )
+        if SellerPayment.objects.filter(
+            seller=seller, kind=SellerPayment.Kind.VERIFICATION, status=PaymentStatus.PAID
+        ).exists():
+            return Response(
+                {"detail": _("You have paid for a visit; Fliiptech will call to arrange it.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return _start_seller_payment(request, seller, SellerPayment.Kind.VERIFICATION)
