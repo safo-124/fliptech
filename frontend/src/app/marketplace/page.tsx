@@ -5,9 +5,9 @@
  * browsing and filtering work with no JavaScript. The only client code on
  * the page is the Ask button on a product, and that lives one page deeper.
  *
- * Deliberately not a cart. Money passes between buyer and seller as it does
- * in a market today; what passes through here is the asking, because a
- * marketplace you cannot measure is one you cannot decide anything about.
+ * Not a cart. A buyer asks the maker, or pays for one thing with "Buy now"
+ * on its page when the seller takes payment on the site. Boosted products
+ * come first unless the buyer chose a sort, and say "Sponsored".
  */
 
 import { PackageSearch, Search, Store } from "lucide-react";
@@ -16,6 +16,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { BrandShards } from "@/components/BrandShards";
+import { NearMeButton } from "@/components/marketplace/NearMeButton";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,6 +52,8 @@ export default async function MarketplacePage({
 
   const results = products?.results ?? [];
   const filtered = Boolean(params.trade || params.area || params.q);
+  // A sort and a place change the order, not what matches, so they keep the
+  // "nothing yet" wording; only the filters above make it "nothing matches".
 
   return (
     <div className="pb-14">
@@ -95,7 +98,7 @@ export default async function MarketplacePage({
                     id="market-trade"
                     name="trade"
                     defaultValue={params.trade ?? ""}
-                    className="h-11 w-full border-0 bg-transparent text-sm outline-none"
+                    className="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
                   >
                     <option value="">{t("anyTrade")}</option>
                     {trades.map((trade) => (
@@ -113,7 +116,7 @@ export default async function MarketplacePage({
                     id="market-area"
                     name="area"
                     defaultValue={params.area ?? ""}
-                    className="h-11 w-full border-0 bg-transparent text-sm outline-none"
+                    className="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
                   >
                     <option value="">{t("anyArea")}</option>
                     {areas.map((area) => (
@@ -128,6 +131,32 @@ export default async function MarketplacePage({
               <Button type="submit" variant="brand" className="mt-2 w-full sm:mt-0 sm:w-auto">
                 {t("searchAction")}
               </Button>
+            </div>
+            {/* Kept through a new search, so "near me" survives a change of trade. */}
+            {params.near ? <input type="hidden" name="near" value={params.near} /> : null}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <label htmlFor="market-sort" className="text-sm font-semibold text-white/80">
+                {t("sortLabel")}
+              </label>
+              <select
+                id="market-sort"
+                name="sort"
+                defaultValue={params.sort ?? ""}
+                className="h-11 rounded-full border-0 bg-[var(--color-card)] px-4 text-sm text-[var(--color-foreground)] outline-none"
+              >
+                <option value="">{t("sortBest")}</option>
+                <option value="price">{t("sortPriceLow")}</option>
+                <option value="-price">{t("sortPriceHigh")}</option>
+                <option value="newest">{t("sortNewest")}</option>
+                {params.near ? <option value="nearest">{t("sortNearest")}</option> : null}
+              </select>
+              <NearMeButton
+                labels={{
+                  action: t("nearMe"),
+                  finding: t("findingYou"),
+                  refused: t("nearMeRefused"),
+                }}
+              />
             </div>
           </form>
 

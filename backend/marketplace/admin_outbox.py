@@ -46,9 +46,12 @@ class SellerMessagesMixin:
         for row in waiting:
             row.send_to = row.seller.phone
             row.send_url = seller_messages.alert_url(row)
-            row.detail = " · ".join(
-                filter(None, [row.enquiry.reference_code, row.enquiry.product_name])
-            )
+            if row.order_id:
+                row.detail = f"PAID ORDER · {row.order.reference} · {row.order.product_name}"
+            else:
+                row.detail = " · ".join(
+                    filter(None, [row.enquiry.reference_code, row.enquiry.product_name])
+                )
         return TemplateResponse(
             request,
             "admin/marketplace/selleraccount/messages.html",
@@ -65,7 +68,7 @@ class SellerMessagesMixin:
         if not request.user.has_perm("marketplace.change_sellernotice"):
             raise PermissionDenied
         notice = get_object_or_404(
-            SellerNotice.objects.select_related("seller", "enquiry"), pk=notice_id
+            SellerNotice.objects.select_related("seller", "enquiry", "order"), pk=notice_id
         )
         if not seller_messages.alerts_waiting().filter(pk=notice.pk).exists():
             self.message_user(

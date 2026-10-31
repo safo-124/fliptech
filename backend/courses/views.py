@@ -393,7 +393,14 @@ class PaystackWebhookView(APIView):
         event = request.data if isinstance(request.data, dict) else {}
         if event.get("event") == "charge.success":
             data = event.get("data") or {}
-            confirm(str(data.get("reference") or ""), data)
+            reference = str(data.get("reference") or "")
+            # The prefix says whose payment it is (marketplace/models.py).
+            if reference.startswith(("fm-", "fo-")):
+                from marketplace.payments import confirm_reference
+
+                confirm_reference(reference, data)
+            else:
+                confirm(reference, data)
         return Response({"received": True})
 
 

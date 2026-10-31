@@ -28,7 +28,15 @@ from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
 from .admin_outbox import SellerMessagesMixin
-from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
+from .models import (
+    Order,
+    Product,
+    ProductEnquiry,
+    ProductPhoto,
+    SellerAccount,
+    SellerPayment,
+    SellerReview,
+)
 
 CONFIRM_PERM = "marketplace.confirm_seller"
 
@@ -457,3 +465,92 @@ class ProductEnquiryAdmin(admin.ModelAdmin):
     def mark_not_spam(self, request, queryset):
         n = queryset.update(state=ProductEnquiry.State.SENT)
         self.message_user(request, f"{n} enquiry(s) restored.")
+
+
+# --------------------------------------------------------------------------
+# Money and reviews
+
+
+@admin.register(SellerPayment)
+class SellerPaymentAdmin(admin.ModelAdmin):
+    """Boosts and Shop plans sellers have paid for, and what Paystack said.
+
+    Read-only, so nothing is marked paid by hand: only Paystack's
+    confirmation does that. Refunds happen in the Paystack dashboard.
+    """
+
+    list_display = (
+        "reference",
+        "seller",
+        "kind",
+        "product",
+        "amount",
+        "status",
+        "starts_at",
+        "ends_at",
+    )
+    list_filter = ("status", "kind")
+    search_fields = ("reference", "seller__business_name", "seller__phone")
+    readonly_fields = [field.name for field in SellerPayment._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    """Products buyers paid for on the site.
+
+    Read-only except for one action: after refunding a buyer in the Paystack
+    dashboard, record it here so the seller's list and the numbers agree.
+    """
+
+    list_display = (
+        "reference",
+        "product_name",
+        "seller",
+        "quantity",
+        "amount",
+        "status",
+        "stage",
+        "buyer_phone",
+        "paid_at",
+    )
+    list_filter = ("status", "stage", "fulfilment")
+    search_fields = ("reference", "product_name", "seller__business_name", "buyer_phone")
+    readonly_fields = [field.name for field in Order._meta.fields]
+    actions = ["mark_refunded"]
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description="Record as refunded (after refunding in Paystack)")
+    def mark_refunded(self, request, queryset):
+        changed = queryset.filter(status="paid").update(stage=Order.Stage.REFUNDED)
+        self.message_user(request, f"{changed} order(s) recorded as refunded.")
+
+
+@admin.register(SellerReview)
+class SellerReviewAdmin(admin.ModelAdmin):
+    """Buyers' reviews. Staff can hide one (abuse, a phone number in the
+    text) and show it again; nobody can edit what a buyer wrote."""
+
+    list_display = ("seller", "rating", "bought", "product_name", "visibility", "created_at")
+    list_filter = ("visibility", "rating", "bought")
+    search_fields = ("seller__business_name", "comment", "product_name")
+    readonly_fields = [field.name for field in SellerReview._meta.fields]
+    actions = ["hide", "show"]
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description="Hide from the public")
+    def hide(self, request, queryset):
+        queryset.update(visibility=SellerReview.Visibility.HIDDEN)
+
+    @admin.action(description="Show again")
+    def show(self, request, queryset):
+        queryset.update(visibility=SellerReview.Visibility.SHOWN)

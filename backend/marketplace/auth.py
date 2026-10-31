@@ -28,6 +28,17 @@ class SellerAccountDisabled(ValueError):
     pass
 
 
+class SellerAccountElsewhere(ValueError):
+    """This login already sells under a different phone number."""
+
+
+def other_number_message():
+    return _(
+        "You already sell on %(brand)s with a different phone number. Sign in "
+        "with that number, or sign out first to start a new shop."
+    ) % {"brand": settings.BRAND_NAME}
+
+
 @transaction.atomic
 def account_for_verified_phone(*, phone, verified_at, user=None):
     """The seller account for a number that just proved itself.
@@ -48,6 +59,11 @@ def account_for_verified_phone(*, phone, verified_at, user=None):
         .filter(phone=phone)
         .first()
     )
+    if account is None and user is not None and SellerAccount.objects.filter(user=user).exists():
+        # One seller account per login. Creating a second would break that
+        # rule in the database, and the fallback below would then look for
+        # an account under this number, find none and crash.
+        raise SellerAccountElsewhere(other_number_message())
     if account is None:
         owner = user
         if owner is None:

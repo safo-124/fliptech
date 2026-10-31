@@ -21,7 +21,7 @@ import type {
   ProviderCard,
   ProviderDetail,
   Region,
-  SellerCard,
+  SellerShop,
   Trade,
   UpcomingIntake,
 } from "./types";
@@ -279,6 +279,10 @@ export type MarketplaceParams = {
   region?: string;
   availability?: string;
   q?: string;
+  /** "price", "-price", "newest" or "nearest"; empty is boosted first. */
+  sort?: string;
+  /** "lat,lng", from the buyer's "Near me". */
+  near?: string;
   page?: string;
 };
 
@@ -291,7 +295,7 @@ export function getProduct(id: string | number) {
 }
 
 export function getSellerShop(id: string | number) {
-  return fetchJson<{seller: SellerCard; products: ProductCard[]}>(`/api/sellers/${id}/`);
+  return fetchJson<SellerShop>(`/api/sellers/${id}/`);
 }
 
 // ---------------------------------------------------------------------------

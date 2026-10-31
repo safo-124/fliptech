@@ -633,3 +633,26 @@ def test_signing_out_ends_the_session(client, area, sent):
     assert response.status_code == 200
     assert response.json()["authenticated"] is False
     assert client.get(reverse("seller-products")).status_code in (401, 403)
+
+
+@pytest.mark.django_db
+def test_a_seller_signing_in_with_a_second_number_is_refused_not_crashed(client, sent):
+    """Used to be a 500: the second account broke one-account-per-login, and
+    the fallback then looked for an account under the new number."""
+    sign_in(client)
+    other = "+233201110654"
+
+    request = client.post(
+        reverse("seller-otp-request"), {"phone": other}, content_type="application/json"
+    )
+    response = client.post(
+        reverse("seller-otp-verify"),
+        {"challenge_id": request.json()["challenge_id"], "phone": other, "code": "135791"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 409
+    assert "different phone number" in response.json()["detail"]
+    assert list(SellerAccount.objects.values_list("phone", flat=True)) == [PHONE]
+    # The code was not spent on a sign-in that could not happen.
+    assert PhoneVerification.objects.filter(phone=other, verified_at__isnull=True).exists()

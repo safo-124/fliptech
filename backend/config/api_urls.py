@@ -23,6 +23,22 @@ from courses.views import (
 )
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
+from marketplace.selling_views import (
+    OrderCreateView,
+    OrderView,
+    OwnOrdersView,
+    OwnOrderView,
+    ProductViewedView,
+    ReviewView,
+    SellerBannerView,
+    SellerBoostView,
+    SellerGrowthView,
+    SellerPaymentVerifyView,
+    SellerPayoutBanksView,
+    SellerPayoutView,
+    SellerPlanView,
+    SellerStatsView,
+)
 from marketplace.views import (
     OwnEnquiriesView,
     OwnProductsView,
@@ -323,5 +339,24 @@ urlpatterns = [
         name="product-enquiry-create",
     ),
     path("sellers/<int:pk>/", SellerDetailView.as_view(), name="seller-detail"),
+    # The marketplace's measured and paid parts; see marketplace/selling_views.py.
+    path("products/<int:pk>/viewed/", ProductViewedView.as_view(), name="product-viewed"),
+    path("products/<int:pk>/orders/", OrderCreateView.as_view(), name="product-order-create"),
+    path("orders/<str:reference>/", OrderView.as_view(), name="order-detail"),
+    path("reviews/<str:token>/", ReviewView.as_view(), name="seller-review"),
+    path("seller/stats/", SellerStatsView.as_view(), name="seller-stats"),
+    path("seller/growth/", SellerGrowthView.as_view(), name="seller-growth"),
+    path("seller/boosts/", SellerBoostView.as_view(), name="seller-boost"),
+    path("seller/plan/", SellerPlanView.as_view(), name="seller-plan"),
+    path(
+        "seller/payments/<str:reference>/verify/",
+        SellerPaymentVerifyView.as_view(),
+        name="seller-payment-verify",
+    ),
+    path("seller/banner/", SellerBannerView.as_view(), name="seller-banner"),
+    path("seller/payout/", SellerPayoutView.as_view(), name="seller-payout"),
+    path("seller/payout/banks/", SellerPayoutBanksView.as_view(), name="seller-payout-banks"),
+    path("seller/orders/", OwnOrdersView.as_view(), name="seller-orders"),
+    path("seller/orders/<str:reference>/", OwnOrderView.as_view(), name="seller-order"),
     path("", include(router.urls)),
 ]

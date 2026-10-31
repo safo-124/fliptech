@@ -13,7 +13,7 @@ from rest_framework import serializers
 from core.media import public_url
 from providers.trainer_serializers import RejectUnknownFieldsMixin
 
-from .models import Product, ProductEnquiry, ProductPhoto, SellerAccount
+from .models import Order, Product, ProductEnquiry, ProductPhoto, SellerAccount, SellerReview
 
 
 class SellerOTPVerifySerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -49,6 +49,21 @@ class SellerCardSerializer(serializers.ModelSerializer):
     area_slug = serializers.CharField(source="area.slug", read_only=True)
     region = serializers.CharField(source="area.region.name", read_only=True)
     workshop = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_rating(self, obj):
+        """{"average", "count"} from buyers' reviews, or None with none yet.
+
+        A list passes every seller's rating in the context, worked out in
+        one query; anything else asks for this one.
+        """
+        from .reviews import rating_for
+
+        ratings = self.context.get("ratings")
+        if ratings is not None:
+            return ratings.get(obj.pk)
+        return rating_for(obj)
 
     @extend_schema_field(serializers.DictField(allow_null=True))
     def get_workshop(self, obj):
@@ -69,7 +84,16 @@ class SellerCardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SellerAccount
-        fields = ["id", "business_name", "about", "area", "area_slug", "region", "workshop"]
+        fields = [
+            "id",
+            "business_name",
+            "about",
+            "area",
+            "area_slug",
+            "region",
+            "workshop",
+            "rating",
+        ]
 
 
 class ProductCardSerializer(serializers.ModelSerializer):
@@ -78,6 +102,39 @@ class ProductCardSerializer(serializers.ModelSerializer):
     seller = SellerCardSerializer(read_only=True)
     trade = serializers.SerializerMethodField()
     photo = serializers.SerializerMethodField()
+    sponsored = serializers.SerializerMethodField()
+    distance_km = serializers.SerializerMethodField()
+    buy_online = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_sponsored(self, obj):
+        """A boost is running. Shown as "Sponsored" so nobody mistakes a paid
+        place at the top for the best product."""
+        boosted = getattr(obj, "boosted", None)
+        if boosted is None:
+            from .models import SellerPayment
+
+            return SellerPayment.objects.running().boosts().filter(product=obj).exists()
+        return bool(boosted)
+
+    @extend_schema_field(serializers.FloatField(allow_null=True))
+    def get_distance_km(self, obj):
+        """How far the seller's area is, when the buyer said where they are."""
+        distance = getattr(obj, "distance", None)
+        return round(distance.km, 1) if distance is not None else None
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_buy_online(self, obj):
+        """Whether "Buy now" is offered: payments on, the seller can be
+        paid, a price to pay, and something ready to hand over."""
+        from courses import paystack
+
+        return bool(
+            paystack.enabled()
+            and obj.seller.payout_ready
+            and obj.price
+            and obj.availability == Product.Availability.AVAILABLE
+        )
 
     @extend_schema_field(serializers.DictField(allow_null=True))
     def get_trade(self, obj):
@@ -103,6 +160,9 @@ class ProductCardSerializer(serializers.ModelSerializer):
             "trade",
             "photo",
             "seller",
+            "sponsored",
+            "distance_km",
+            "buy_online",
             "created_at",
         ]
 
@@ -254,5 +314,93 @@ class OwnEnquirySerializer(serializers.ModelSerializer):
             "message",
             "told",
             "reply_url",
+            "created_at",
+        ]
+
+
+# --------------------------------------------------------------------------
+# Reviews and orders
+
+
+class PublicReviewSerializer(serializers.ModelSerializer):
+    """A review as anyone sees it: a first name at most, never the phone."""
+
+    buyer_name = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_buyer_name(self, obj):
+        return (obj.buyer_name or "").split(" ")[0][:40]
+
+    class Meta:
+        model = SellerReview
+        fields = ["id", "rating", "comment", "bought", "product_name", "buyer_name", "created_at"]
+
+
+class ReviewInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+    comment = serializers.CharField(max_length=600, required=False, allow_blank=True)
+    bought = serializers.BooleanField(required=False, default=False)
+
+
+class OrderInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    """What a buyer sends to pay for a product. The phone must already be
+    verified in this browser, as for asking a question."""
+
+    phone = PhoneNumberField()
+    name = serializers.CharField(max_length=120)
+    quantity = serializers.IntegerField(min_value=1, max_value=20, default=1)
+    fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices)
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["fulfilment"] == Order.Fulfilment.DELIVERY and not attrs.get("note", "").strip():
+            raise serializers.ValidationError({"note": "Say where it should be delivered."})
+        return attrs
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    """An order, as its buyer or its seller sees it."""
+
+    amount = serializers.SerializerMethodField()
+    commission = serializers.SerializerMethodField()
+    buyer_phone = serializers.CharField(read_only=True)
+    seller_name = serializers.CharField(source="seller.business_name", read_only=True)
+    seller_phone = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_amount(self, obj):
+        return f"{obj.amount_pesewas / 100:.2f}"
+
+    @extend_schema_field(serializers.CharField())
+    def get_commission(self, obj):
+        return f"{obj.commission_pesewas / 100:.2f}"
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_seller_phone(self, obj):
+        # Only once paid: the buyer needs it to arrange the handover, and an
+        # unpaid order is not a reason to hand out a seller's number.
+        return str(obj.seller.phone) if obj.status == "paid" else None
+
+    class Meta:
+        model = Order
+        fields = [
+            "reference",
+            "product",
+            "product_name",
+            "unit_price",
+            "quantity",
+            "amount",
+            "commission",
+            "currency",
+            "buyer_name",
+            "buyer_phone",
+            "fulfilment",
+            "note",
+            "status",
+            "stage",
+            "seller_name",
+            "seller_phone",
+            "paid_at",
+            "delivered_at",
             "created_at",
         ]

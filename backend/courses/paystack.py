@@ -1,4 +1,5 @@
-"""The few Paystack calls paid courses need, and checking its webhooks.
+"""The few Paystack calls paid courses and the marketplace need, and
+checking its webhooks.
 
 Standard library only (urllib), as core/trade_photos.py does for Wikimedia:
 four endpoints do not justify a dependency. Everything is keyed on
@@ -104,24 +105,39 @@ def save_subaccount(*, existing_code, business_name, bank_code, account_number):
     return _call("POST", "/subaccount", payload)["subaccount_code"]
 
 
-def initialize(*, email, amount_pesewas, reference, callback_url, subaccount, metadata):
-    """Start a payment. Returns the URL to send the trainee to."""
-    data = _call(
-        "POST",
-        "/transaction/initialize",
-        {
-            "email": email,
-            "amount": amount_pesewas,
-            "currency": "GHS",
-            "reference": reference,
-            "callback_url": callback_url,
-            "subaccount": subaccount,
-            # Who pays Paystack's fee: the trainer's share by default.
-            "bearer": settings.PAYSTACK_FEE_BEARER,
-            "channels": ["mobile_money", "card"],
-            "metadata": metadata,
-        },
-    )
+def initialize(
+    *,
+    email,
+    amount_pesewas,
+    reference,
+    callback_url,
+    subaccount=None,
+    metadata=None,
+    transaction_charge=None,
+):
+    """Start a payment. Returns the URL to send the payer to.
+
+    With a subaccount, the money is split to it as it is paid (a trainer's
+    course, a seller's order); without one, it is Fliiptech's own (a boost
+    or a Shop plan). transaction_charge is Fliiptech's share in pesewas,
+    overriding the subaccount's percentage for this one payment.
+    """
+    payload = {
+        "email": email,
+        "amount": amount_pesewas,
+        "currency": "GHS",
+        "reference": reference,
+        "callback_url": callback_url,
+        "channels": ["mobile_money", "card"],
+        "metadata": metadata or {},
+    }
+    if subaccount:
+        payload["subaccount"] = subaccount
+        # Who pays Paystack's fee: the trainer's or seller's share by default.
+        payload["bearer"] = settings.PAYSTACK_FEE_BEARER
+        if transaction_charge is not None:
+            payload["transaction_charge"] = transaction_charge
+    data = _call("POST", "/transaction/initialize", payload)
     return data["authorization_url"]
 
 
