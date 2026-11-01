@@ -554,6 +554,19 @@ MARKETPLACE_PLAN_PRICE = env.int("MARKETPLACE_PLAN_PRICE", default=30)
 MARKETPLACE_FREE_PRODUCT_LIMIT = env.int("MARKETPLACE_FREE_PRODUCT_LIMIT", default=5)
 # Fliiptech's share of a product bought on the site, as a percentage.
 MARKETPLACE_COMMISSION_PERCENT = env.float("MARKETPLACE_COMMISSION_PERCENT", default=5)
+# What a maker pays to see who sent a quote request (free on the Shop plan),
+# and how many makers may unlock one, so a buyer is not called by twenty.
+MARKETPLACE_LEAD_PRICE = env.int("MARKETPLACE_LEAD_PRICE", default=5)
+MARKETPLACE_LEAD_LIMIT = env.int("MARKETPLACE_LEAD_LIMIT", default=5)
+# The "Verified maker" visit, paid by the seller.
+MARKETPLACE_VERIFICATION_PRICE = env.int("MARKETPLACE_VERIFICATION_PRICE", default=80)
+# Buyer protection: hold each Buy now payment in Fliiptech's Paystack balance
+# and transfer the seller's share once the buyer has the goods, or this many
+# days after the seller hands them over with no problem raised. Needs
+# Paystack Transfers switched on for the account (see DEPLOY.md). Off: the
+# payment is split straight to the seller.
+MARKETPLACE_HOLD_PAYMENTS = env.bool("MARKETPLACE_HOLD_PAYMENTS", default=False)
+MARKETPLACE_RELEASE_DAYS = env.int("MARKETPLACE_RELEASE_DAYS", default=3)
 
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")

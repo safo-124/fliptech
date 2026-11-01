@@ -45,6 +45,24 @@ def queue_order_alert(order):
     return notice
 
 
+def text_enquiry(enquiry):
+    """Text the seller about a question the moment it is asked."""
+    import logging
+
+    from core.sms import send_sms
+
+    asked = f': "{enquiry.message[:80]}"' if enquiry.message else ""
+    try:
+        send_sms(
+            enquiry.seller.phone,
+            f"{settings.BRAND_NAME}: someone asked about {enquiry.product_name}{asked}. "
+            f"Reply to {enquiry.buyer_name or 'them'} on {enquiry.buyer_phone}. "
+            f"Ref {enquiry.reference_code}.",
+        )
+    except Exception:
+        logging.getLogger(__name__).exception("Could not text %s", enquiry.reference_code)
+
+
 def alerts_waiting():
     """Unsent alerts a seller can still act on, oldest first.
 

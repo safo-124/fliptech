@@ -530,7 +530,13 @@
           Buyers paid sellers GH₵{{ panel.marketplace.earned.sales }} on the site; that money went straight to the sellers.
           <a href="{% url 'admin:marketplace_order_changelist' %}">Orders</a> &middot;
           <a href="{% url 'admin:marketplace_sellerpayment_changelist' %}">Seller payments</a> &middot;
-          <a href="{% url 'admin:marketplace_sellerreview_changelist' %}">Reviews</a>
+          <a href="{% url 'admin:marketplace_sellerreview_changelist' %}">Reviews</a> &middot;
+          <a href="{% url 'admin:marketplace_selleraccount_funnel' %}">Funnel by trade</a>
+        </div>
+        <div class="sh-foot-strong" style="margin-top: 8px">
+          <a href="{% url 'admin:marketplace_productreport_changelist' %}?state__exact=open">{{ panel.marketplace.earned.reports_open }} open report{{ panel.marketplace.earned.reports_open|pluralize }}</a> &middot;
+          <a href="{% url 'admin:marketplace_order_changelist' %}?stage__exact=problem">{{ panel.marketplace.earned.problems }} order problem{{ panel.marketplace.earned.problems|pluralize }}</a> &middot;
+          <a href="{% url 'admin:marketplace_sellerpayment_changelist' %}?kind__exact=verification&status__exact=paid">{{ panel.marketplace.earned.visits }} verification visit{{ panel.marketplace.earned.visits|pluralize }} to make</a>
         </div>
       </div>
     </div>

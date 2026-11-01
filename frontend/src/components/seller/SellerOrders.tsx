@@ -150,7 +150,9 @@ export function SellerOrdersTab() {
           <div>
             <CardTitle>{t("payoutTitle")}</CardTitle>
             <CardDescription className="mt-1">
-              {t("payoutLead", { percent: payout.commission_percent })}
+              {payout.protected
+                ? t("payoutLeadProtected", { percent: payout.commission_percent, days: payout.release_days })
+                : t("payoutLead", { percent: payout.commission_percent })}
             </CardDescription>
           </div>
         </CardHeader>
@@ -266,9 +268,14 @@ export function SellerOrdersTab() {
                 <li key={order.reference} className="rounded-xl border border-[var(--color-border)] p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold">
-                        {order.quantity} × {order.product_name}
-                      </p>
+                      <ul className="text-sm font-semibold">
+                        {order.items.map((item, index) => (
+                          <li key={index}>
+                            {item.quantity} × {item.product_name}
+                            {item.option_label ? ` (${item.option_label})` : ""}
+                          </li>
+                        ))}
+                      </ul>
                       <p className="text-xs text-[var(--color-muted-foreground)]">
                         {t("orderMeta", {
                           total: formatCedis(order.amount),
@@ -291,6 +298,14 @@ export function SellerOrdersTab() {
                     {order.buyer_name} ·{" "}
                     {order.fulfilment === "delivery" ? t("deliverTo", { address: order.note }) : t("collects")}
                   </p>
+                  {order.stage === "problem" ? (
+                    <p className="mt-2 rounded-lg bg-[var(--color-warn-bg)] px-3 py-2 text-xs text-[var(--color-warn)]">
+                      {t("orderProblem", { problem: order.problem })}
+                    </p>
+                  ) : null}
+                  {order.protected ? (
+                    <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{t(`payout.${order.payout}`)}</p>
+                  ) : null}
                   {order.fulfilment === "pickup" && order.note ? (
                     <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">“{order.note}”</p>
                   ) : null}

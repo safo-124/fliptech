@@ -7,6 +7,7 @@ import {
   ImagePlus,
   Loader2,
   MessageCircle,
+  FileText,
   Package,
   Pencil,
   Plus,
@@ -24,6 +25,8 @@ import {useTranslations} from "next-intl";
 import {DashboardBottomBar, DashboardSidebar, type DashboardTab} from "@/components/dashboard/DashboardNav";
 import {SellerGrowthTab} from "@/components/seller/SellerGrowth";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
+import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
+import {checkPhoto} from "@/lib/photo-check";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
@@ -37,6 +40,8 @@ import {
   getSellerEnquiries,
   getSellerProducts,
   getSellerSession,
+  markEnquiryReplied,
+  saveProductOptions,
   publishProduct,
   removeProductPhoto,
   saveShop,
@@ -48,13 +53,13 @@ import {
   type SellerProfile,
 } from "@/lib/seller-api";
 
-type Tab = "products" | "grow" | "orders" | "enquiries" | "shop";
+type Tab = "products" | "grow" | "orders" | "quotes" | "enquiries" | "shop";
 type Area = {slug: string; name: string; id?: number};
 
 /**
  * The seller's workspace.
  *
- * Five tabs and one rule running through all of them: never let somebody
+ * Six tabs and one rule running through all of them: never let somebody
  * believe a product is for sale when it is not. A product can be published
  * and still invisible — because the shop is half filled in, or because
  * nobody has confirmed the seller yet — and those are different problems
@@ -161,6 +166,7 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
     {key: "products", label: t("tabProducts"), short: t("tabProductsShort"), Icon: Package},
     {key: "grow", label: t("tabGrow"), short: t("tabGrowShort"), Icon: TrendingUp},
     {key: "orders", label: t("tabOrders"), short: t("tabOrdersShort"), Icon: ShoppingBag},
+    {key: "quotes", label: t("tabQuotes"), short: t("tabQuotesShort"), Icon: FileText},
     {key: "enquiries", label: t("tabEnquiries"), short: t("tabEnquiriesShort"), Icon: MessageCircle},
     {key: "shop", label: t("tabShop"), short: t("tabShopShort"), Icon: Store},
   ];
@@ -221,7 +227,8 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
           ) : null}
           {tab === "grow" ? <SellerGrowthTab /> : null}
           {tab === "orders" ? <SellerOrdersTab /> : null}
-          {tab === "enquiries" ? <EnquiriesTab enquiries={enquiries} /> : null}
+          {tab === "quotes" ? <SellerQuotesTab /> : null}
+          {tab === "enquiries" ? <EnquiriesTab enquiries={enquiries} run={run} /> : null}
           {tab === "shop" ? <ShopTab seller={seller} areas={areas} busy={busy} run={run} /> : null}
         </div>
       </div>
@@ -493,6 +500,7 @@ function ProductEditor({
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
   const [price, setPrice] = useState(product?.price ?? "");
+  const [wasPrice, setWasPrice] = useState(product?.was_price ?? "");
   const [availability, setAvailability] = useState(product?.availability ?? "available");
 
   async function save(event: React.FormEvent) {
@@ -503,6 +511,7 @@ function ProductEditor({
       // Empty means "price on request", which is a real answer here and not
       // a missing value.
       price: price.trim() === "" ? null : price.trim(),
+      was_price: (wasPrice ?? "").trim() === "" ? null : (wasPrice ?? "").trim(),
       availability,
     };
     await run(async () => {
@@ -566,6 +575,17 @@ function ProductEditor({
             </div>
           </div>
 
+          <div className="sm:w-1/2">
+            <Label htmlFor="product-was-price">{t("wasPriceLabel")}</Label>
+            <Input
+              id="product-was-price"
+              inputMode="decimal"
+              value={wasPrice ?? ""}
+              onChange={(event) => setWasPrice(event.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("wasPriceHelp")}</p>
+          </div>
+
           <div>
             <Label htmlFor="product-description">{t("descriptionLabel")}</Label>
             <Textarea
@@ -591,7 +611,10 @@ function ProductEditor({
         {/* Photos only once the product exists: they hang off an id, and a
             draft with no id has nowhere to put them. */}
         {product ? (
-          <ProductPhotos product={product} busy={busy} run={run} />
+          <>
+            <ProductPhotos product={product} busy={busy} run={run} />
+            <ProductOptions product={product} busy={busy} run={run} />
+          </>
         ) : (
           <p className="mt-5 rounded-lg bg-[var(--color-muted)] px-3 py-2 text-xs text-[var(--color-muted-foreground)]">
             {t("photosAfterSaving")}
@@ -631,12 +654,23 @@ function ProductPhotos({
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
 }) {
   const t = useTranslations("SellerDashboard");
+  const [warning, setWarning] = useState<string | null>(null);
   return (
     <div className="mt-6 border-t border-[var(--color-border)] pt-5">
       <p className="text-sm font-bold">{t("photos")}</p>
       <p className="mt-1 text-xs leading-relaxed text-[var(--color-muted-foreground)]">
         {t("photosHelp")}
       </p>
+      <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-[var(--color-muted-foreground)]">
+        <li>{t("photoTipLight")}</li>
+        <li>{t("photoTipBackground")}</li>
+        <li>{t("photoTipInUse")}</li>
+      </ul>
+      {warning ? (
+        <p role="status" className="mt-2 rounded-lg bg-[var(--color-warn-bg)] px-3 py-2 text-xs text-[var(--color-warn)]">
+          {warning}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2.5">
         {product.photos.map((photo) => (
@@ -667,8 +701,22 @@ function ProductPhotos({
             disabled={busy}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) run(() => addProductPhoto(product.id, file));
               event.target.value = "";
+              if (!file) return;
+              // Uploaded either way; the check only warns, after a look at a
+              // small copy in the browser.
+              void checkPhoto(file).then(({dark, blurry}) =>
+                setWarning(
+                  dark && blurry
+                    ? t("photoDarkBlurry")
+                    : dark
+                      ? t("photoDark")
+                      : blurry
+                        ? t("photoBlurry")
+                        : null,
+                ),
+              );
+              void run(() => addProductPhoto(product.id, file));
             }}
           />
         </label>
@@ -677,10 +725,121 @@ function ProductPhotos({
   );
 }
 
+function ProductOptions({
+  product,
+  busy,
+  run,
+}: {
+  product: SellerProduct;
+  busy: boolean;
+  run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
+}) {
+  const t = useTranslations("SellerDashboard");
+  const [rows, setRows] = useState(
+    product.options.map((option) => ({
+      label: option.label,
+      price: option.price ?? "",
+      available: option.available,
+    })),
+  );
+
+  function update(index: number, patch: Partial<(typeof rows)[number]>) {
+    setRows(rows.map((row, position) => (position === index ? {...row, ...patch} : row)));
+  }
+
+  return (
+    <div className="mt-6 border-t border-[var(--color-border)] pt-5">
+      <p className="text-sm font-bold">{t("optionsTitle")}</p>
+      <p className="mt-1 text-xs leading-relaxed text-[var(--color-muted-foreground)]">{t("optionsHelp")}</p>
+      <div className="mt-3 space-y-2">
+        {rows.map((row, index) => (
+          <div key={index} className="flex flex-wrap items-center gap-2">
+            <Input
+              aria-label={t("optionLabel")}
+              value={row.label}
+              onChange={(event) => update(index, {label: event.target.value})}
+              placeholder={t("optionPlaceholder")}
+              className="min-w-0 flex-1"
+            />
+            <Input
+              aria-label={t("optionPrice")}
+              inputMode="decimal"
+              value={row.price}
+              onChange={(event) => update(index, {price: event.target.value})}
+              placeholder={t("optionPricePlaceholder")}
+              className="w-28"
+            />
+            <label className="flex min-h-11 items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={row.available}
+                onChange={(event) => update(index, {available: event.target.checked})}
+                className="size-4 accent-[var(--color-brand)]"
+              />
+              {t("optionAvailable")}
+            </label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t("optionRemove")}
+              onClick={() => setRows(rows.filter((_, position) => position !== index))}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={rows.length >= 20}
+          onClick={() => setRows([...rows, {label: "", price: "", available: true}])}
+        >
+          <Plus aria-hidden="true" />
+          {t("optionAdd")}
+        </Button>
+        <Button
+          type="button"
+          variant="brand"
+          size="sm"
+          disabled={busy}
+          onClick={() =>
+            run(
+              () =>
+                saveProductOptions(
+                  product.id,
+                  rows
+                    .filter((row) => row.label.trim())
+                    .map((row) => ({
+                      label: row.label.trim(),
+                      price: row.price.trim() === "" ? null : row.price.trim(),
+                      available: row.available,
+                    })),
+                ),
+              t("optionsSaved"),
+            )
+          }
+        >
+          {t("optionsSave")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Enquiries
 
-function EnquiriesTab({enquiries}: {enquiries: SellerEnquiry[]}) {
+function EnquiriesTab({
+  enquiries,
+  run,
+}: {
+  enquiries: SellerEnquiry[];
+  run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
+}) {
   const t = useTranslations("SellerDashboard");
 
   if (!enquiries.length) {
@@ -731,12 +890,34 @@ function EnquiriesTab({enquiries}: {enquiries: SellerEnquiry[]}) {
               </p>
             ) : null}
 
-            <Button asChild variant="brand" size="sm" className="mt-3">
-              <a href={enquiry.reply_url} target="_blank" rel="noopener noreferrer">
-                <MessageCircle aria-hidden="true" />
-                {t("replyOnWhatsApp")}
-              </a>
-            </Button>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {/* Opening the reply counts as replying, for the "replies
+                  within a day" badge; nothing comes back from WhatsApp to
+                  say the message was sent. */}
+              <Button asChild variant="brand" size="sm">
+                <a
+                  href={enquiry.reply_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    if (!enquiry.replied_at) void markEnquiryReplied(enquiry.id).catch(() => {});
+                  }}
+                >
+                  <MessageCircle aria-hidden="true" />
+                  {t("replyOnWhatsApp")}
+                </a>
+              </Button>
+              {enquiry.replied_at ? (
+                <span className="inline-flex items-center gap-1 text-xs text-[var(--color-visit)]">
+                  <CheckCircle2 aria-hidden="true" className="size-3.5" />
+                  {t("replied")}
+                </span>
+              ) : (
+                <Button type="button" variant="ghost" size="sm" onClick={() => run(() => markEnquiryReplied(enquiry.id))}>
+                  {t("markReplied")}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -762,6 +943,9 @@ function ShopTab({
   const [businessName, setBusinessName] = useState(seller.business_name);
   const [about, setAbout] = useState(seller.about);
   const [area, setArea] = useState(seller.area ? String(seller.area) : "");
+  const [delivers, setDelivers] = useState(seller.delivery_fee !== null);
+  const [deliveryFee, setDeliveryFee] = useState(seller.delivery_fee ?? "");
+  const [deliveryArea, setDeliveryArea] = useState(seller.delivery_area);
 
   return (
     <Card>
@@ -779,6 +963,8 @@ function ShopTab({
                   business_name: businessName.trim(),
                   about: about.trim(),
                   area: area ? Number(area) : null,
+                  delivery_fee: delivers ? deliveryFee.trim() || "0" : null,
+                  delivery_area: delivers ? deliveryArea.trim() : "",
                 }),
               t("shopSaved"),
             );
@@ -825,6 +1011,43 @@ function ShopTab({
               placeholder={t("aboutPlaceholder")}
             />
           </div>
+
+          <fieldset className="rounded-xl border border-[var(--color-border)] p-3">
+            <legend className="px-1 text-sm font-medium">{t("deliveryTitle")}</legend>
+            <label className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={delivers}
+                onChange={(event) => setDelivers(event.target.checked)}
+                className="size-4 accent-[var(--color-brand)]"
+              />
+              {t("deliveryOffer")}
+            </label>
+            {delivers ? (
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="shop-delivery-fee">{t("deliveryFeeLabel")}</Label>
+                  <Input
+                    id="shop-delivery-fee"
+                    inputMode="decimal"
+                    value={deliveryFee}
+                    onChange={(event) => setDeliveryFee(event.target.value)}
+                    placeholder="20"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shop-delivery-area">{t("deliveryAreaLabel")}</Label>
+                  <Input
+                    id="shop-delivery-area"
+                    value={deliveryArea}
+                    onChange={(event) => setDeliveryArea(event.target.value)}
+                    placeholder={t("deliveryAreaPlaceholder")}
+                  />
+                </div>
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t("deliveryHelp")}</p>
+          </fieldset>
 
           <Button type="submit" variant="brand" disabled={busy}>
             {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}

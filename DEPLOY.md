@@ -434,6 +434,50 @@ prompts. `go-live.sh` reinstalls the unit, so nothing extra is needed.
 **Where to look:** the back-office home page has a *Marketplace earnings*
 card for the last 30 days, linking to orders, seller payments and reviews.
 
+**More ways sellers pay, and more for buyers**
+
+| What | Price (setting) |
+| --- | --- |
+| Seeing who sent a quote request | GH₵5 (`MARKETPLACE_LEAD_PRICE`), free on the Shop plan; at most 5 makers per request (`MARKETPLACE_LEAD_LIMIT`) |
+| "Verified maker" visit | GH₵80 (`MARKETPLACE_VERIFICATION_PRICE`) |
+
+- **Sellers are texted at once** when someone asks or pays, by the SMS
+  provider in `SMS_PROVIDER`. The WhatsApp messages in *Messages to sellers*
+  stay as a reminder.
+- **Verified maker:** paid visits waiting to happen are linked from the
+  earnings card. After visiting, select the seller under *Seller accounts*
+  and use *Mark as verified maker*. It needs the "Can mark a seller as a
+  verified maker" permission (superusers have it).
+- **Reports:** buyers can report a product. Open reports are linked from the
+  earnings card; *Take the reported products down* suspends them.
+- **Quote requests:** a buyer describes a bulk or custom job; sellers in
+  that trade are texted and find it under *Quote requests* in their
+  dashboard.
+- **Funnel:** *Funnel by trade* on the earnings card shows views, questions
+  and sales per trade for 30 days.
+
+**Buyer protection (off until you switch it on)**
+
+With `MARKETPLACE_HOLD_PAYMENTS=true`, Buy now payments go into Fliiptech's
+Paystack balance instead of straight to the seller. The seller's share (the
+total less the commission) is transferred to them when the buyer taps "I've
+got it", or `MARKETPLACE_RELEASE_DAYS` (3) days after the seller marks it
+handed over with no problem reported. A reported problem freezes the money:
+on the order in the back office, use *Release held payment to the seller* or
+*Refund the buyer through Paystack*.
+
+Before switching it on:
+
+1. In the Paystack dashboard, make sure **Transfers** are enabled for the
+   account and **turn off OTP for transfers** (Settings → Preferences);
+   with OTP on, every release waits for a code and shows as failed here.
+2. Keep enough balance for transfers: Fliiptech pays Paystack's collection
+   and transfer fees out of its commission while payments are held.
+3. Sellers who saved a payout account before this release must save it
+   again (dashboard → *Orders* → *Change*), so a transfer recipient is made
+   for them. Until they do, Buy now is hidden for them while holding is on.
+4. The webhook URL is the same; it also receives `transfer.*` events.
+
 ---
 
 ## Database

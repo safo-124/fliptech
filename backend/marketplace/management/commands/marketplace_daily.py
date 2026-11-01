@@ -1,5 +1,6 @@
-"""The marketplace's daily texts: asking buyers for a review, and telling
-sellers their Shop plan is about to end.
+"""The marketplace's daily jobs: asking buyers for a review, telling sellers
+their Shop plan is about to end, and releasing held payments (buyer
+protection) that are due.
 
 Run once a day by fliptech-freshness.service, after the freshness prompts.
 Each text goes once: the row is stamped when it is sent, so running this
@@ -37,7 +38,25 @@ class Command(BaseCommand):
         now = timezone.now()
         asked = self.ask_for_reviews(now)
         reminded = self.remind_plans(now)
-        self.stdout.write(f"{asked} review request(s), {reminded} plan reminder(s) sent.")
+        released = self.release_payments(now)
+        self.stdout.write(
+            f"{asked} review request(s), {reminded} plan reminder(s) sent, "
+            f"{released} held payment(s) released."
+        )
+
+    def release_payments(self, now):
+        """Buyer protection: pay sellers whose buyers have the goods, or
+        whose handover is a few days old with no problem raised."""
+        from marketplace import payouts
+
+        released = 0
+        for order in payouts.due_for_release(now).select_related("seller"):
+            order = payouts.release(order)
+            if order.payout in (Order.Payout.RELEASED, Order.Payout.SENDING):
+                released += 1
+            else:
+                self.stderr.write(f"{order.reference}: {order.transfer_note}")
+        return released
 
     def ask_for_reviews(self, now):
         window = (now - timedelta(days=ASK_WITHIN_DAYS), now - timedelta(days=ASK_AFTER_DAYS))

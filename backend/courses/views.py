@@ -401,6 +401,10 @@ class PaystackWebhookView(APIView):
                 confirm_reference(reference, data)
             else:
                 confirm(reference, data)
+        elif str(event.get("event") or "").startswith("transfer."):
+            from marketplace.payouts import transfer_event
+
+            transfer_event(event["event"], event.get("data") or {})
         return Response({"received": True})
 
 

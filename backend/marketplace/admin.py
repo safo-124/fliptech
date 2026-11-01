@@ -29,10 +29,15 @@ from django.views.decorators.http import require_POST
 
 from .admin_outbox import SellerMessagesMixin
 from .models import (
+    DiscountCode,
     Order,
+    OrderItem,
     Product,
     ProductEnquiry,
     ProductPhoto,
+    ProductReport,
+    QuoteLead,
+    QuoteRequest,
     SellerAccount,
     SellerPayment,
     SellerReview,
@@ -70,7 +75,14 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
     ordering = ("-created_at",)
     list_select_related = ("area", "provider")
     autocomplete_fields = ("area", "provider")
-    actions = ("confirm_sellers", "decline_sellers", "suspend_selling", "restore_selling")
+    actions = (
+        "confirm_sellers",
+        "decline_sellers",
+        "suspend_selling",
+        "restore_selling",
+        "mark_verified",
+        "remove_verified",
+    )
     readonly_fields = (
         "user",
         "phone",
@@ -216,8 +228,33 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
             # default urls end with would otherwise swallow "messages/" and
             # try to open a seller whose id is the word.
             *self.outbox_urls(),
+            path(
+                "funnel/",
+                self.admin_site.admin_view(self.funnel_view),
+                name="marketplace_selleraccount_funnel",
+            ),
             *super().get_urls(),
         ]
+
+    def funnel_view(self, request):
+        """Views, questions and sales by trade over 30 days: where buyers
+        are, and which trades need more makers."""
+        from django.template.response import TemplateResponse
+
+        from .funnel import funnel_by_trade
+
+        if not request.user.has_perm("marketplace.view_selleraccount"):
+            raise PermissionDenied
+        return TemplateResponse(
+            request,
+            "admin/marketplace/selleraccount/funnel.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Marketplace funnel, last 30 days",
+                "opts": self.model._meta,
+                "rows": funnel_by_trade(),
+            },
+        )
 
     @method_decorator(require_POST)
     def confirm_one(self, request, pk):
@@ -284,6 +321,23 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
         """
         n = queryset.update(is_active=False)
         self.message_user(request, f"{n} seller(s) switched off. Their products are hidden.")
+
+    @admin.action(description="Mark as verified maker (after the visit)")
+    def mark_verified(self, request, queryset):
+        """The badge, after a member of staff has seen the work being made."""
+        if not request.user.has_perm("marketplace.verify_seller"):
+            raise PermissionDenied
+        n = queryset.filter(verified_at__isnull=True).update(
+            verified_at=timezone.now(), verified_by=request.user
+        )
+        self.message_user(request, f"{n} seller(s) marked as verified makers.")
+
+    @admin.action(description="Remove the verified maker badge")
+    def remove_verified(self, request, queryset):
+        if not request.user.has_perm("marketplace.verify_seller"):
+            raise PermissionDenied
+        n = queryset.update(verified_at=None, verified_by=None)
+        self.message_user(request, f"Badge removed from {n} seller(s).")
 
     @admin.action(description="Switch selling back on for selected")
     def restore_selling(self, request, queryset):
@@ -504,8 +558,9 @@ class SellerPaymentAdmin(admin.ModelAdmin):
 class OrderAdmin(admin.ModelAdmin):
     """Products buyers paid for on the site.
 
-    Read-only except for one action: after refunding a buyer in the Paystack
-    dashboard, record it here so the seller's list and the numbers agree.
+    Read-only. Three actions: release a held payment to the seller, refund
+    the buyer through Paystack, or record a refund made in the Paystack
+    dashboard. Orders with a reported problem are filtered under Stage.
     """
 
     list_display = (
@@ -516,16 +571,50 @@ class OrderAdmin(admin.ModelAdmin):
         "amount",
         "status",
         "stage",
+        "payout",
         "buyer_phone",
         "paid_at",
     )
-    list_filter = ("status", "stage", "fulfilment")
+    list_filter = ("status", "stage", "payout", "fulfilment")
     search_fields = ("reference", "product_name", "seller__business_name", "buyer_phone")
     readonly_fields = [field.name for field in Order._meta.fields]
-    actions = ["mark_refunded"]
+    actions = ["release_to_seller", "refund_buyer", "mark_refunded"]
+    inlines = []
 
     def has_add_permission(self, request):
         return False
+
+    @admin.action(description="Release held payment to the seller")
+    def release_to_seller(self, request, queryset):
+        from . import payouts
+
+        done = 0
+        for order in queryset.filter(status="paid"):
+            if order.stage == Order.Stage.PROBLEM:
+                # Staff have looked: clearing the problem is the decision.
+                order.stage = Order.Stage.RECEIVED
+                order.save(update_fields=["stage", "updated_at"])
+            order = payouts.release(order)
+            if order.payout in (Order.Payout.RELEASED, Order.Payout.SENDING):
+                done += 1
+            elif order.transfer_note:
+                self.message_user(
+                    request, f"{order.reference}: {order.transfer_note}", level=messages.WARNING
+                )
+        self.message_user(request, f"{done} payment(s) sent to sellers.")
+
+    @admin.action(description="Refund the buyer through Paystack")
+    def refund_buyer(self, request, queryset):
+        from courses import paystack
+
+        from . import payouts
+
+        for order in queryset.filter(status="paid").exclude(stage=Order.Stage.REFUNDED):
+            try:
+                payouts.refund(order)
+                self.message_user(request, f"{order.reference} refunded.")
+            except paystack.PaystackError as exc:
+                self.message_user(request, f"{order.reference}: {exc}", level=messages.ERROR)
 
     @admin.action(description="Record as refunded (after refunding in Paystack)")
     def mark_refunded(self, request, queryset):
@@ -554,3 +643,94 @@ class SellerReviewAdmin(admin.ModelAdmin):
     @admin.action(description="Show again")
     def show(self, request, queryset):
         queryset.update(visibility=SellerReview.Visibility.SHOWN)
+
+
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+    can_delete = False
+    readonly_fields = ["product", "product_name", "option_label", "unit_price", "quantity"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+OrderAdmin.inlines = [OrderItemInline]
+
+
+@admin.register(ProductReport)
+class ProductReportAdmin(admin.ModelAdmin):
+    """Products somebody flagged. Take the product down from here, or close
+    the report once dealt with. The seller never sees who reported."""
+
+    list_display = ("product_name", "seller", "reason", "state", "created_at")
+    list_filter = ("state", "reason")
+    search_fields = ("product_name", "seller__business_name", "details")
+    readonly_fields = [
+        "product",
+        "seller",
+        "product_name",
+        "reason",
+        "details",
+        "reporter_phone",
+        "created_at",
+    ]
+    fields = [*readonly_fields, "state", "staff_note"]
+    actions = ["take_down_products", "close_reports"]
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description="Take the reported products down and close")
+    def take_down_products(self, request, queryset):
+        n = 0
+        for report in queryset.select_related("product"):
+            if report.product and report.product.status != Product.Status.SUSPENDED:
+                report.product.status = Product.Status.SUSPENDED
+                report.product.staff_note = (
+                    f"Taken down after a report: {report.get_reason_display()}"
+                )
+                report.product.save(update_fields=["status", "staff_note", "updated_at"])
+                n += 1
+        queryset.update(state=ProductReport.State.CLOSED)
+        self.message_user(request, f"{n} product(s) taken down.")
+
+    @admin.action(description="Close (dealt with)")
+    def close_reports(self, request, queryset):
+        queryset.update(state=ProductReport.State.CLOSED)
+
+
+@admin.register(QuoteRequest)
+class QuoteRequestAdmin(admin.ModelAdmin):
+    list_display = ("reference", "title", "trade", "area", "state", "created_at")
+    list_filter = ("state", "trade")
+    search_fields = ("reference", "title", "details", "buyer_phone")
+    readonly_fields = [field.name for field in QuoteRequest._meta.fields if field.name != "state"]
+    actions = ["close_quotes"]
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description="Close (no more makers will see it)")
+    def close_quotes(self, request, queryset):
+        queryset.update(state=QuoteRequest.State.CLOSED)
+
+
+@admin.register(QuoteLead)
+class QuoteLeadAdmin(admin.ModelAdmin):
+    list_display = ("quote", "seller", "payment", "created_at")
+    readonly_fields = ["quote", "seller", "payment"]
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(DiscountCode)
+class DiscountCodeAdmin(admin.ModelAdmin):
+    list_display = ("code", "seller", "percent", "ends_on", "active", "uses")
+    list_filter = ("active",)
+    search_fields = ("code", "seller__business_name")
+    readonly_fields = ["seller", "code", "percent", "uses"]
+
+    def has_add_permission(self, request):
+        return False

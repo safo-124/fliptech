@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { SaveButton } from "@/components/marketplace/SaveButton";
+import { SalePrice, SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Card } from "@/components/ui/card";
 import { formatFee } from "@/lib/format";
 import { tradeClass } from "@/lib/trades";
@@ -23,7 +25,7 @@ export function ProductTile({ product }: { product: ProductCard }) {
   const gone = product.availability === "sold_out";
 
   return (
-    <article className="h-full">
+    <article className="relative h-full">
       <Card
         className={`group h-full overflow-hidden transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-lg)] ${
           gone ? "opacity-70" : ""
@@ -58,7 +60,7 @@ export function ProductTile({ product }: { product: ProductCard }) {
             {/* Said plainly: a paid place at the top is not a judgement
                 that this is the best one. */}
             {product.sponsored ? (
-              <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white">
+              <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white">
                 {t("sponsored")}
               </span>
             ) : null}
@@ -74,12 +76,18 @@ export function ProductTile({ product }: { product: ProductCard }) {
                   {t("onRequest")}
                 </span>
               ) : (
-                formatFee(product.price, tFormat)
+                <>
+                  {formatFee(product.price, tFormat)}
+                  <SalePrice was={product.was_price} />
+                </>
               )}
             </p>
             <p className="mt-2 truncate text-xs text-[var(--color-muted-foreground)]">
               {product.seller.business_name} &middot; {product.seller.area}
             </p>
+            <div className="mt-1">
+              <SellerBadges seller={product.seller} compact />
+            </div>
             {product.seller.rating || product.distance_km !== null ? (
               <p className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-[var(--color-muted-foreground)]">
                 {product.seller.rating ? (
@@ -99,6 +107,13 @@ export function ProductTile({ product }: { product: ProductCard }) {
           </div>
         </Link>
       </Card>
+      {/* Outside the link: a button inside an anchor is not allowed, and a
+          tap on the heart must not open the product. */}
+      <SaveButton
+        productId={product.id}
+        labels={{ save: t("saveForLater"), saved: t("savedForLater") }}
+        className="absolute right-2 top-2"
+      />
     </article>
   );
 }

@@ -529,7 +529,21 @@ def _earned(SellerPayment, Order, PaymentStatus, Sum, since):
     boosts = cedis(paid.boosts(), "amount_pesewas")
     plans = cedis(paid.plans(), "amount_pesewas")
     commission = cedis(orders, "commission_pesewas")
+    from marketplace.models import ProductReport, SellerAccount
+
+    visits = (
+        SellerAccount.objects.filter(
+            verified_at__isnull=True,
+            payments__kind=SellerPayment.Kind.VERIFICATION,
+            payments__status=PaymentStatus.PAID,
+        )
+        .distinct()
+        .count()
+    )
     return {
+        "reports_open": ProductReport.objects.filter(state=ProductReport.State.OPEN).count(),
+        "problems": Order.objects.filter(stage=Order.Stage.PROBLEM).count(),
+        "visits": visits,
         "total": f"{boosts + plans + commission:,.2f}",
         "boosts": f"{boosts:,.2f}",
         "plans": f"{plans:,.2f}",

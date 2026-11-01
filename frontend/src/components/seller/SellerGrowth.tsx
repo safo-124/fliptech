@@ -1,21 +1,40 @@
 "use client";
 
-import { Crown, Eye, ImagePlus, Loader2, MessageCircle, Rocket, ShoppingBag, Trash2 } from "lucide-react";
+import {
+  BadgeCheck,
+  Crown,
+  Eye,
+  ImagePlus,
+  Loader2,
+  MessageCircle,
+  Percent,
+  Rocket,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatCedis } from "@/lib/format";
 import {
   boostProduct,
   buyShopPlan,
+  createDiscountCode,
+  deleteDiscountCode,
+  getDiscountCodes,
   getSellerGrowth,
+  payForVerification,
+  setDiscountCodeActive,
   getSellerStats,
   removeShopBanner,
   uploadShopBanner,
   verifySellerPayment,
   type BoostKind,
+  type DiscountCode,
   type SellerGrowth,
   type SellerStats,
 } from "@/lib/seller-api";
@@ -64,7 +83,11 @@ export function SellerGrowthTab() {
             result.status === "paid"
               ? result.kind === "plan_month"
                 ? t("planPaid")
-                : t("boostPaid")
+                : result.kind === "lead"
+                  ? t("leadPaid")
+                  : result.kind === "verification"
+                    ? t("verificationPaid")
+                    : t("boostPaid")
               : null,
           );
           setProblem(result.status === "paid" ? null : t("notPaid"));
@@ -359,8 +382,178 @@ export function SellerGrowthTab() {
               </div>
             </CardContent>
           </Card>
+
+          {/* ---------------------------------------------- verified maker */}
+          <Card>
+            <CardHeader className="flex-row items-start gap-3 space-y-0">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-visit-bg)] text-[var(--color-visit)]">
+                <BadgeCheck aria-hidden="true" className="size-4" />
+              </span>
+              <div>
+                <CardTitle>{t("verifyTitle")}</CardTitle>
+                <CardDescription className="mt-1">{t("verifyLead")}</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {growth.verification.verified_at ? (
+                <p className="text-sm text-[var(--color-visit)]">
+                  {t("verifiedSince", { date: day(growth.verification.verified_at) })}
+                </p>
+              ) : growth.verification.requested ? (
+                <p className="text-sm">{t("verifyRequested")}</p>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => pay("verify", payForVerification)}
+                >
+                  {busy === "verify" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+                  {t("verifyBuy", { price: formatCedis(growth.prices.verification) })}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
+
+      <DiscountCodes />
     </div>
+  );
+}
+
+/** The seller's own discount codes, to share on WhatsApp or at the stall. */
+function DiscountCodes() {
+  const t = useTranslations("SellerGrowth");
+  const [codes, setCodes] = useState<DiscountCode[] | null>(null);
+  const [form, setForm] = useState({ code: "", percent: "10", ends_on: "" });
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getDiscountCodes()
+      .then((found) => {
+        if (active) setCodes(found.results);
+      })
+      .catch(() => {
+        if (active) setCodes([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function act(action: () => Promise<unknown>) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await action();
+      setCodes((await getDiscountCodes()).results);
+    } catch (reason) {
+      setProblem(reason instanceof Error ? reason.message : t("somethingWrong"));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
+          <Percent aria-hidden="true" className="size-4" />
+        </span>
+        <div>
+          <CardTitle>{t("codesTitle")}</CardTitle>
+          <CardDescription className="mt-1">{t("codesLead")}</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void act(async () => {
+              await createDiscountCode({
+                code: form.code.trim(),
+                percent: Number(form.percent),
+                ends_on: form.ends_on || null,
+              });
+              setForm({ code: "", percent: "10", ends_on: "" });
+            });
+          }}
+          className="grid gap-3 sm:grid-cols-[1fr_6rem_10rem_auto] sm:items-end"
+        >
+          <div>
+            <Label htmlFor="code-name">{t("codeName")}</Label>
+            <Input
+              id="code-name"
+              required
+              autoCapitalize="characters"
+              value={form.code}
+              onChange={(event) => setForm({ ...form, code: event.target.value })}
+              placeholder="SALE10"
+            />
+          </div>
+          <div>
+            <Label htmlFor="code-percent">{t("codePercent")}</Label>
+            <Input
+              id="code-percent"
+              type="number"
+              min={1}
+              max={90}
+              required
+              value={form.percent}
+              onChange={(event) => setForm({ ...form, percent: event.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="code-ends">{t("codeEnds")}</Label>
+            <Input
+              id="code-ends"
+              type="date"
+              value={form.ends_on}
+              onChange={(event) => setForm({ ...form, ends_on: event.target.value })}
+            />
+          </div>
+          <Button type="submit" variant="brand" disabled={busy}>
+            {t("codeAdd")}
+          </Button>
+        </form>
+        {problem ? <p className="text-sm text-[var(--color-destructive)]">{problem}</p> : null}
+        {codes && codes.length ? (
+          <ul className="divide-y divide-[var(--color-border)]">
+            {codes.map((code) => (
+              <li key={code.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <p className="text-sm">
+                  <strong className="font-mono">{code.code}</strong> · {t("codeSummary", { percent: code.percent, uses: code.uses })}
+                  {code.ends_on ? ` · ${t("codeUntil", { date: day(code.ends_on) })}` : ""}
+                  {!code.active ? ` · ${t("codeOff")}` : ""}
+                </p>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => act(() => setDiscountCodeActive(code.id, !code.active))}
+                  >
+                    {code.active ? t("codeTurnOff") : t("codeTurnOn")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={t("codeDelete")}
+                    disabled={busy}
+                    onClick={() => act(() => deleteDiscountCode(code.id))}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

@@ -160,7 +160,15 @@ export default async function MarketplacePage({
             </div>
           </form>
 
-          <p className="mt-4 text-sm text-white/70">
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <Link href="/marketplace/quote" className="font-semibold text-white underline underline-offset-4">
+              {t("quoteCta")}
+            </Link>
+            <Link href="/marketplace/saved" className="font-semibold text-white underline underline-offset-4">
+              {t("savedLink")}
+            </Link>
+          </p>
+          <p className="mt-2 text-sm text-white/70">
             {t("makeSomething")}{" "}
             <Link href="/sell" className="font-semibold text-white underline underline-offset-4">
               {t("sellHere")}

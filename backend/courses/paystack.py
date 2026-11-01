@@ -153,3 +153,50 @@ def signature_is_valid(body, signature):
         return False
     expected = hmac.new(settings.PAYSTACK_SECRET_KEY.encode(), body, hashlib.sha512).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+
+def save_recipient(*, bank_code, bank_type, account_number, name):
+    """A transfer recipient for a seller's account. Returns its code.
+
+    Only used when the marketplace holds payments for buyer protection: the
+    seller's share then goes out as a transfer rather than a split.
+    """
+    data = _call(
+        "POST",
+        "/transferrecipient",
+        {
+            "type": "mobile_money" if bank_type == "mobile_money" else "ghipss",
+            "name": name[:100],
+            "account_number": account_number,
+            "bank_code": bank_code,
+            "currency": "GHS",
+        },
+    )
+    return data["recipient_code"]
+
+
+def transfer(*, amount_pesewas, recipient, reference, reason):
+    """Send money from Fliiptech's Paystack balance. Returns Paystack's status
+    ("success", "pending", "otp", ...). The reference makes a retry safe:
+    Paystack refuses a second transfer with the same one."""
+    data = _call(
+        "POST",
+        "/transfer",
+        {
+            "source": "balance",
+            "amount": amount_pesewas,
+            "currency": "GHS",
+            "recipient": recipient,
+            "reference": reference,
+            "reason": reason[:100],
+        },
+    )
+    return (data or {}).get("status", "")
+
+
+def refund(*, reference, amount_pesewas=None):
+    """Give a buyer their money back for a transaction."""
+    payload = {"transaction": reference}
+    if amount_pesewas is not None:
+        payload["amount"] = amount_pesewas
+    return _call("POST", "/refund", payload)

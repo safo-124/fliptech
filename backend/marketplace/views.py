@@ -581,7 +581,7 @@ def _public_products():
         .select_related(
             "seller", "seller__area", "seller__area__region", "seller__provider", "trade"
         )
-        .prefetch_related("photos")
+        .prefetch_related("photos", "options")
         .annotate(
             boosted=Exists(running.boosts().filter(product=OuterRef("pk"))),
             on_plan=Exists(running.plans().filter(seller=OuterRef("seller"))),
@@ -603,12 +603,14 @@ def _near(raw):
 
 def _with_ratings(serializer_class, items, request, **kwargs):
     """Serialize products with every seller's rating fetched in one query."""
-    from .reviews import ratings_for
+    from .reviews import fast_repliers, ratings_for
 
     items = list(items)
+    sellers = {item.seller_id for item in items}
     context = {
         "request": request,
-        "ratings": ratings_for(item.seller_id for item in items),
+        "ratings": ratings_for(sellers),
+        "fast": fast_repliers(sellers),
     }
     return serializer_class(items, many=True, context=context, **kwargs).data
 
@@ -636,6 +638,11 @@ class ProductListView(ListAPIView):
         region = params.get("region")
         if region:
             products = products.filter(seller__area__region__slug=region)
+
+        # "Saved for later": the ids this browser kept, in any order.
+        wanted = [part for part in (params.get("ids") or "").split(",") if part.isdigit()]
+        if wanted:
+            products = products.filter(pk__in=wanted[:50])
 
         availability = params.get("availability")
         if availability:
@@ -789,6 +796,9 @@ class ProductEnquiryCreateView(APIView):
             # In the same transaction as the enquiry: an enquiry nobody is
             # told about is the failure this whole queue exists to prevent.
             seller_messages.queue_enquiry_alert(enquiry)
+            # And a text straight away, so the seller does not wait on the
+            # staff outbox; the WhatsApp message follows as a reminder.
+            transaction.on_commit(lambda: seller_messages.text_enquiry(enquiry))
 
         return Response(
             {
