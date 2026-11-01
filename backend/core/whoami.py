@@ -41,11 +41,21 @@ def _trainer_account(user):
 def whoami_payload(request):
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
-        return {"trainer": None, "trainee": None}
+        return {"trainer": None, "trainee": None, "customer": None, "seller": None}
+
+    from accounts.auth import own_customer_account
+    from marketplace.auth import own_seller_account
+
+    customer = own_customer_account(request)
+    seller = own_seller_account(request)
 
     trainer = _trainer_account(user)
     trainee = own_trainee_account(request)
     return {
+        # Everyone signed in has one; the header links to it when they hold
+        # nothing more particular.
+        "customer": ({"name": customer.display_name or str(customer.phone)} if customer else None),
+        "seller": ({"name": seller.business_name or str(seller.phone)} if seller else None),
         "trainer": ({"name": trainer.full_name or str(trainer.phone)} if trainer else None),
         # Only the trainee carries a picture, because only the trainee has one
         # to carry. A workshop's identity on this site is its listing photos,

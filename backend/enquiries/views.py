@@ -18,7 +18,6 @@ from rest_framework.views import APIView
 
 from core.network import canonical_client_ip, ratelimit_client_ip
 from providers.owner_messages import queue_enquiry_alert
-from trainees.access import own_trainee_account
 from trainees.auth import TraineeAccountDisabled, account_for_verified_phone
 from trainees.models import TraineeAccount
 
@@ -33,9 +32,11 @@ from .serializers import (
 
 
 def _signed_in_as(request, phone):
-    """True when the request is the trainee who owns this number, signed in."""
-    account = own_trainee_account(request)
-    return account is not None and account.phone == phone
+    """True when the signed-in person owns this number, through any of their
+    accounts (core/identities.py)."""
+    from core.identities import signed_in_phones
+
+    return str(phone) in signed_in_phones(request)
 
 
 class OTPRequestView(APIView):

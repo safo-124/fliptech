@@ -30,12 +30,13 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.identities import phone_vouched_for
 from core.images import strip_exif, validate_image_upload
 from core.media import public_url
 from core.network import canonical_client_ip, ratelimit_client_ip
 from enquiries.email_otp import may_copy_code_to
 from enquiries.models import PhoneVerification
-from enquiries.otp import OTPError, phone_is_trusted, request_code, verify_code
+from enquiries.otp import OTPError, request_code, verify_code
 from enquiries.serializers import OTPRequestSerializer
 
 from . import seller_messages
@@ -763,7 +764,7 @@ class ProductEnquiryCreateView(APIView):
         if product is None:
             raise NotFound(_("No such product."))
 
-        if not phone_is_trusted(request.session, phone):
+        if not phone_vouched_for(request, phone):
             return Response(
                 {"detail": _("Verify this phone number before asking about a product.")},
                 status=status.HTTP_403_FORBIDDEN,

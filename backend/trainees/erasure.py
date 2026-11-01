@@ -31,7 +31,17 @@ def close_account(account):
     Enquiry.objects.filter(trainee=account).update(trainee=None)
     Enrolment.objects.filter(trainee=account).update(trainee=None)
     account.delete()
-    user.delete()
+    # The login goes too, with the customer account every sign-in makes,
+    # unless it is also the person's shop or workshop (core/identities.py):
+    # closing what you learn with must not close what you sell with.
+    from django.contrib.auth import get_user_model
+
+    from core.identities import roles_of, user_is_unprivileged
+
+    # A fresh copy: the one in hand still remembers the account just deleted.
+    user = get_user_model().objects.get(pk=user.pk)
+    if user_is_unprivileged(user) and set(roles_of(user)) <= {"customer_account"}:
+        user.delete()
     return phone
 
 

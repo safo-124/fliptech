@@ -41,7 +41,7 @@ def trainee(db):
 
 @pytest.mark.django_db
 def test_nobody_signed_in(client):
-    assert whoami(client) == {"trainer": None, "trainee": None}
+    assert whoami(client) == {"trainer": None, "trainee": None, "customer": None, "seller": None}
 
 
 @pytest.mark.django_db
@@ -125,7 +125,7 @@ def test_staff_are_in_neither_public_area(client, django_user_model):
     """
     client.force_login(django_user_model.objects.create_superuser("boss", password="pw"))
 
-    assert whoami(client) == {"trainer": None, "trainee": None}
+    assert whoami(client) == {"trainer": None, "trainee": None, "customer": None, "seller": None}
 
 
 # --------------------------------------------------------------------------

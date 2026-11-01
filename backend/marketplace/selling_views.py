@@ -37,11 +37,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.identities import phone_vouched_for
 from core.images import strip_exif, stripped_name, validate_image_upload
 from core.media import public_url
 from core.network import canonical_client_ip, ratelimit_client_ip
 from courses import paystack
-from enquiries.otp import phone_is_trusted
 
 from . import payouts, quotes
 from .models import (
@@ -661,7 +661,7 @@ def _create_order(request, seller, data):
         priced = price_basket(seller, data)
     except BasketError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
-    if not phone_is_trusted(request.session, data["phone"]):
+    if not phone_vouched_for(request, data["phone"]):
         return Response(
             {"detail": _("Verify this phone number before paying.")},
             status=status.HTTP_403_FORBIDDEN,
@@ -777,10 +777,15 @@ class ShopOrderCreateView(APIView):
 
 
 def _buyers_order(request, reference):
-    if reference not in request.session.get(SESSION_ORDERS, []):
-        raise NotFound(_("No such order."))
+    """The order, for the browser that made it or the signed-in person whose
+    phone paid for it, from any phone."""
+    from core.identities import signed_in_phones
+
     order = Order.objects.select_related("seller").filter(reference=reference).first()
-    if order is None:
+    if order is None or (
+        reference not in request.session.get(SESSION_ORDERS, [])
+        and str(order.buyer_phone) not in signed_in_phones(request)
+    ):
         raise NotFound(_("No such order."))
     return order
 
@@ -1052,7 +1057,7 @@ class QuoteCreateView(APIView):
         if trade is None:
             return Response({"trade": [_("Choose a trade.")]}, status=status.HTTP_400_BAD_REQUEST)
         area = Area.objects.filter(slug=data.get("area")).first() if data.get("area") else None
-        if not phone_is_trusted(request.session, data["phone"]):
+        if not phone_vouched_for(request, data["phone"]):
             return Response(
                 {"detail": _("Verify this phone number first.")},
                 status=status.HTTP_403_FORBIDDEN,

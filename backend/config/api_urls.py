@@ -7,6 +7,14 @@ endpoints, the tokenised dashboard, and the signed-in trainee and trainer areas.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts.views import AccountView
+from accounts.views import AddRoleView as AccountAddRoleView
+from accounts.views import CodeRequestView as AccountCodeRequestView
+from accounts.views import CodeVerifyView as AccountCodeVerifyView
+from accounts.views import LogoutView as AccountLogoutView
+from accounts.views import OrdersView as AccountOrdersView
+from accounts.views import QuestionsView as AccountQuestionsView
+from accounts.views import SavedView as AccountSavedView
 from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
 from core.site_stats import SiteStatsView
@@ -396,5 +404,14 @@ urlpatterns = [
     path("seller/payout/banks/", SellerPayoutBanksView.as_view(), name="seller-payout-banks"),
     path("seller/orders/", OwnOrdersView.as_view(), name="seller-orders"),
     path("seller/orders/<str:reference>/", OwnOrderView.as_view(), name="seller-order"),
+    # One sign-in for everyone; see accounts/views.py.
+    path("account/", AccountView.as_view(), name="account"),
+    path("account/request-code/", AccountCodeRequestView.as_view(), name="account-request-code"),
+    path("account/verify-code/", AccountCodeVerifyView.as_view(), name="account-verify-code"),
+    path("account/logout/", AccountLogoutView.as_view(), name="account-logout"),
+    path("account/orders/", AccountOrdersView.as_view(), name="account-orders"),
+    path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
+    path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
+    path("account/roles/<str:role>/", AccountAddRoleView.as_view(), name="account-add-role"),
     path("", include(router.urls)),
 ]
