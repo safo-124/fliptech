@@ -89,5 +89,25 @@ export function toggleSaved(id: number) {
   const ids = savedIds();
   const next = ids.includes(id) ? ids.filter((x) => x !== id) : [id, ...ids].slice(0, 50);
   write(SAVED, next);
-  return next.includes(id);
+  const saved = next.includes(id);
+  // Kept on the account too, when there is one signed in; refused quietly
+  // when there is not, and the browser copy is enough.
+  void import("./account-api")
+    .then(({changeSaved}) => changeSaved(saved ? {add: [id]} : {remove: [id]}))
+    .catch(() => {});
+  return saved;
+}
+
+/**
+ * After signing in: what this browser saved goes onto the account, and what
+ * the account had comes back here, so the hearts are right on every phone.
+ */
+export async function syncSavedWithAccount() {
+  try {
+    const {changeSaved} = await import("./account-api");
+    const {ids} = await changeSaved({add: savedIds()});
+    write(SAVED, ids);
+  } catch {
+    // Signed out, or offline: the browser's list stands.
+  }
 }

@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCedis } from "@/lib/format";
+import { getAccount } from "@/lib/account-api";
 import { confirmOrder, confirmReceived, reportOrderProblem } from "@/lib/marketplace-api";
 import type { MarketplaceOrder } from "@/lib/types";
 
@@ -24,6 +25,21 @@ export function OrderStatus({ reference }: { reference: string }) {
   const [reporting, setReporting] = useState(false);
   const [complaint, setComplaint] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAccount()
+      .then((session) => {
+        if (active) setSignedIn(session.authenticated);
+      })
+      .catch(() => {
+        if (active) setSignedIn(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function act(action: () => Promise<MarketplaceOrder>) {
     setBusy(true);
@@ -59,6 +75,13 @@ export function OrderStatus({ reference }: { reference: string }) {
       <Card className="p-8 text-center">
         <p className="text-sm text-[var(--color-muted-foreground)]">{problem}</p>
         <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t("orderTextHelp")}</p>
+        {signedIn === false ? (
+          <Button asChild variant="brand" className="mt-5 mr-2">
+            <Link href={`/account?next=${encodeURIComponent(`/marketplace/order/${reference}`)}`}>
+              {t("signInToSeeOrder")}
+            </Link>
+          </Button>
+        ) : null}
         <Button asChild variant="outline" className="mt-5">
           <Link href="/marketplace">{t("backToMarketplace")}</Link>
         </Button>
@@ -199,6 +222,23 @@ export function OrderStatus({ reference }: { reference: string }) {
               </div>
             ) : null}
             <p className="text-xs text-[var(--color-muted-foreground)]">{t("orderProblem")}</p>
+            {/* Paid as a guest: one tap keeps it, since an account finds
+                orders by the phone that paid. */}
+            {signedIn === false ? (
+              <div className="rounded-lg border border-[var(--color-border)] p-3">
+                <p className="text-sm font-semibold">{t("keepOrderTitle")}</p>
+                <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{t("keepOrderBody")}</p>
+                <Button asChild size="sm" variant="outline" className="mt-2">
+                  <Link href={`/account?new=1&next=${encodeURIComponent(`/marketplace/order/${order.reference}`)}`}>
+                    {t("keepOrderAction")}
+                  </Link>
+                </Button>
+              </div>
+            ) : signedIn ? (
+              <Link href="/account" className="text-sm font-semibold text-[var(--color-brand)] hover:underline">
+                {t("allMyOrders")}
+              </Link>
+            ) : null}
           </>
         ) : order.status === "pending" ? (
           <p className="text-[var(--color-muted-foreground)]">{t("orderPendingBody")}</p>

@@ -92,16 +92,24 @@ class OTPVerifyView(APIView):
         except OTPError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # The number is now proven, so it gets a trainee account and its earlier
-        # enquiries are attached. Signing in happens only for an anonymous
+        # The number is now proven, so it gets an account: a trainee one, with
+        # its earlier enquiries attached, for a training enquiry; just the
+        # customer account for the marketplace. Signing in happens only for an anonymous
         # visitor: a staff member or trainer testing the form in their own
         # browser must not be silently signed out of their own session.
         signed_in = False
         try:
-            account = account_for_verified_phone(
-                phone=verification.phone, verified_at=verification.verified_at
-            )
-        except TraineeAccountDisabled:
+            if serializer.validated_data["context"] == "marketplace":
+                from accounts.auth import account_for_verified_phone as customer_for
+
+                account = customer_for(
+                    phone=verification.phone, verified_at=verification.verified_at
+                )
+            else:
+                account = account_for_verified_phone(
+                    phone=verification.phone, verified_at=verification.verified_at
+                )
+        except (TraineeAccountDisabled, ValueError):
             account = None
         if account is not None and not request.user.is_authenticated:
             login(

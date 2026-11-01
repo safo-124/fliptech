@@ -325,3 +325,27 @@ def test_merging_never_touches_a_privileged_login(django_user_model):
     assert "skipped" in out.getvalue()
     assert TraineeAccount.objects.get().user_id == staff.pk
     assert TrainerAccount.objects.get().user_id != staff.pk
+
+
+@pytest.mark.django_db
+def test_proving_a_number_to_buy_makes_a_customer_not_a_trainee(client):
+    client.post(reverse("otp-request"), {"phone": PHONE}, content_type=JSON)
+
+    response = client.post(
+        reverse("otp-verify"),
+        {"phone": PHONE, "code": "135791", "context": "marketplace"},
+        content_type=JSON,
+    )
+
+    assert response.json() == {"verified": True, "signed_in": True}
+    assert CustomerAccount.objects.filter(phone=PHONE).exists()
+    assert not TraineeAccount.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_training_enquiry_still_makes_a_trainee(client):
+    client.post(reverse("otp-request"), {"phone": PHONE}, content_type=JSON)
+    client.post(reverse("otp-verify"), {"phone": PHONE, "code": "135791"}, content_type=JSON)
+
+    trainee = TraineeAccount.objects.get()
+    assert CustomerAccount.objects.get().user_id == trainee.user_id

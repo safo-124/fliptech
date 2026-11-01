@@ -91,3 +91,9 @@ export const TRAINER_CLIENT_NAMESPACES = [
   "Validation",
   "Format",
 ] as const satisfies readonly ClientNamespace[];
+
+/** The one account everyone signs in to (/account). */
+export const ACCOUNT_CLIENT_NAMESPACES = [
+  "Account",
+  "Validation",
+] as const satisfies readonly ClientNamespace[];

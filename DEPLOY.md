@@ -480,6 +480,29 @@ Before switching it on:
 
 ---
 
+## One account per person
+
+Everyone now signs in at `/account` with their phone and gets a customer
+account. Learning, teaching and selling are added to that same login from the
+account page (or through their old sign-up pages, which now also reuse it),
+so one phone is one person everywhere.
+
+Phone numbers that collected separate logins before this (say, a trainee who
+later registered a workshop) are joined up once, after the release is live:
+
+```bash
+cd /opt/fliptech/backend && sudo -u fliptech .venv/bin/python manage.py merge_phone_accounts
+```
+
+That is a dry run: it lists what it would move. **Back up the database
+first**, then run it again with `--yes`. It moves every account for a number
+onto one login, points anything else that named the old login at the kept
+one, and switches the old login off rather than deleting it. Logins with
+staff rights or a password are never touched. It is safe to run again.
+
+People already signed in on the old, switched-off logins are signed out and
+simply sign in again.
+
 ## Database
 
 Already done on this server, kept for reference.

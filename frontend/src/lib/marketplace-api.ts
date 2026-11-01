@@ -20,10 +20,12 @@ export function requestBuyerCode(phone: string) {
   );
 }
 
+/** Proving the number also signs the buyer in to a customer account (never a
+ *  trainee one: buying does not make anybody a trainee). */
 export function verifyBuyerCode(phone: string, code: string) {
   return sessionFetch<{verified: boolean; signed_in: boolean}>("/api/enquiries/verify-code/", {
     method: "POST",
-    body: JSON.stringify({phone, code}),
+    body: JSON.stringify({phone, code, context: "marketplace"}),
   });
 }
 

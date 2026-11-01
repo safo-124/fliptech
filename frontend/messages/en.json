@@ -252,7 +252,12 @@
     "gotIt": "I've got it",
     "somethingWrong": "Something's wrong",
     "problemLabel": "What went wrong?",
-    "problemSend": "Report the problem"
+    "problemSend": "Report the problem",
+    "signInToSeeOrder": "Sign in to see it",
+    "keepOrderTitle": "Keep this order in an account",
+    "keepOrderBody": "Sign in with the phone you paid with and this order, and any others, will be in your account on every phone.",
+    "keepOrderAction": "Create an account",
+    "allMyOrders": "See all your orders"
   },
   "Layout": {
     "titleDefault": "{brand} Skills Hub — find practical skills training in Ghana",
@@ -672,12 +677,88 @@
     "loading": "Loading enquiry form",
     "loadingEllipsis": "Loading enquiry form…"
   },
+  "Account": {
+    "metaTitle": "Your account",
+    "signInTitle": "Sign in",
+    "joinTitle": "Create your account",
+    "signInLead": "Just your phone number and a code we text you, no password. New here? An account is made the first time you sign in.",
+    "phoneLabel": "Phone number",
+    "nameLabel": "Your name",
+    "sendCode": "Send me a code",
+    "oneAccount": "One account for everything: buying, learning and teaching a trade, and selling.",
+    "codeSentTo": "We sent a code to {phone}.",
+    "codeLabel": "Code",
+    "signIn": "Sign in",
+    "changeNumber": "Use a different number",
+    "failed": "Something went wrong. Try again.",
+    "eyebrow": "Your account",
+    "hello": "Welcome",
+    "signedInAs": "Signed in as {phone}",
+    "signOut": "Sign out",
+    "ordersTitle": "Your orders",
+    "noOrders": "No orders yet.",
+    "browseMarketplace": "Browse the marketplace",
+    "stage": {
+      "new": "Paid, on its way",
+      "delivered": "Handed over",
+      "received": "You have it",
+      "problem": "Problem reported",
+      "refunded": "Refunded"
+    },
+    "questionsTitle": "Your questions and quote requests",
+    "quoteLine": "Quote request: {title}",
+    "quoteMakers": "Contacting you: {makers}",
+    "quoteWaiting": "Waiting for makers",
+    "savedLink": "Saved for later",
+    "moreTitle": "More you can do",
+    "moreLead": "Add any of these to this same account, whenever you want.",
+    "pending": "Waiting for Fliiptech to confirm you. You can start filling it in now.",
+    "role": {
+      "trainee": {
+        "title": "Learn a trade",
+        "lead": "Find training, keep your enquiries and save workshops to compare.",
+        "have": "Your enquiries, courses and saved workshops.",
+        "start": "Start learning",
+        "open": "Open"
+      },
+      "trainer": {
+        "title": "Teach a trade",
+        "lead": "List your workshop or training centre so trainees can find you.",
+        "have": "Your workshop listing and enquiries.",
+        "start": "List my workshop",
+        "open": "Open"
+      },
+      "seller": {
+        "title": "Sell what you make",
+        "lead": "Open a shop for the things you make, and get paid on the site.",
+        "have": "Your shop, orders and numbers.",
+        "start": "Open a shop",
+        "open": "Open"
+      }
+    },
+    "detailsTitle": "Your details",
+    "emailLabel": "Email (optional)",
+    "addressLabel": "Delivery address (optional)",
+    "addressPlaceholder": "Area, street and a landmark",
+    "saveDetails": "Save",
+    "detailsSaved": "Saved."
+  },
   "JoinPage": {
     "metaTitle": "Sign up",
-    "metaDescription": "Join Skills Hub as a trainee looking for training or as a workshop that trains people.",
+    "metaDescription": "Create a Skills Hub account to buy from makers, and add learning or teaching a trade whenever you want.",
     "eyebrow": "Join Skills Hub",
-    "title": "Who are you signing up as?",
-    "lead": "Already have an account? Pick the same option. Signing in works the same way.",
+    "title": "Create your account",
+    "lead": "One account for everything. Start with what you need now; you can learn or teach a trade on the same account later. Already have one? Pick any option: signing in works the same way.",
+    "customer": {
+      "eyebrow": "I want to buy things",
+      "title": "Create an account",
+      "points": {
+        "buy": "Buy from makers and keep every order in one place",
+        "orders": "Save things you like and see them on any phone",
+        "later": "Add learning or teaching a trade whenever you want"
+      },
+      "cta": "Create my account"
+    },
     "trainee": {
       "eyebrow": "I want to learn a trade",
       "title": "Sign up as a trainee",

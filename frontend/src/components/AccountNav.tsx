@@ -40,11 +40,11 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
     getWhoami()
       .then((who) => {
         if (!active) return;
-        // A trainer first: holding both is not something the sign-up flows can
-        // produce, and the workshop is the one with work waiting on it.
-        if (who.trainer) setAccount({href: "/trainer/dashboard", name: who.trainer.name});
-        else if (who.trainee)
-          setAccount({href: "/trainee", name: who.trainee.name, avatar: who.trainee.avatar});
+        // One login can hold several roles now. The account page lists them
+        // all, so the header always goes there; the trainee's picture is the
+        // only face anybody has.
+        const name = who.customer?.name ?? who.trainer?.name ?? who.seller?.name ?? who.trainee?.name;
+        if (name) setAccount({href: "/account", name, avatar: who.trainee?.avatar});
       })
       // Signed out is the safe answer: it offers a way in rather than a link
       // to a dashboard that would bounce them.
@@ -93,7 +93,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
   return (
     <>
       <Button asChild variant="outline" size="default" className="px-3 sm:px-4">
-        <Link href="/trainee" aria-label={labels.myAccount}>
+        <Link href="/account" aria-label={labels.myAccount}>
           <UserRound aria-hidden />
           {/* Icon only below sm, where the logo and two labelled buttons
               are wider than a 320px phone. The aria-label still names it. */}
@@ -101,7 +101,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
         </Link>
       </Button>
       <Button asChild variant="brand" size="default" className="px-3 sm:px-4">
-        <Link href="/join">
+        <Link href="/account?new=1">
           <UserPlus aria-hidden />
           {labels.signUp}
         </Link>

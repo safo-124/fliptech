@@ -558,6 +558,9 @@ export type TrainerEnquiry = {
  * into the back office, which is neither of these.
  */
 export type Whoami = {
+  /** Everyone signed in has a customer account. */
+  customer: {name: string} | null;
+  seller: {name: string} | null;
   trainer: {name: string} | null;
   // Only the trainee has a picture — a workshop is represented by its listing
   // photos, not a portrait.
