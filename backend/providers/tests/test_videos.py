@@ -723,7 +723,11 @@ def test_only_approved_videos_are_public(owner, listing, staff):
         "duration_seconds",
         "poster",
         "sources",
+        "stream",
+        "captions",
         "locked",
+        "section",
+        "description",
     }
 
 

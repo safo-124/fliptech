@@ -18,11 +18,11 @@ import shutil
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Max, Sum
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from . import video_uploads
+from . import video_hls, video_uploads
 from .models import ProviderVideo
 
 logger = logging.getLogger(__name__)
@@ -105,8 +105,11 @@ def start_upload(provider, *, title, name, size, actor):
             % {"brand": settings.BRAND_NAME}
         )
 
+    # At the end of the course: a new lesson follows the ones already there.
+    last = provider.videos.aggregate(last=Max("position"))["last"] or 0
     return ProviderVideo.objects.create(
         provider=provider,
+        position=last + 1,
         title=title.strip(),
         status=ProviderVideo.Status.UPLOADING,
         upload_name=name[:255],
@@ -149,9 +152,14 @@ def decide(video, status, *, by, note=""):
         if status == ProviderVideo.Status.APPROVED:
             for review_field, public_field in FILE_PAIRS:
                 _move(video, review_field, public_field)
+            # The worker cuts a streaming copy from the public files next.
+            if video.status != ProviderVideo.Status.APPROVED:
+                video.hls_state = ProviderVideo.HlsState.NONE
         else:
             for review_field, public_field in FILE_PAIRS:
                 _move(video, public_field, review_field)
+            # Its pieces are at a public address too; they go with it.
+            video_hls.delete_stream(video, save=False)
         video.status = status
         video.review_note = "" if status == ProviderVideo.Status.APPROVED else note
         decided = status != ProviderVideo.Status.PENDING
@@ -177,4 +185,5 @@ def discard_files(video, *, video_id=None):
                     logger.warning(
                         "Could not delete %s of video %s", field, video.pk, exc_info=True
                     )
+    video_hls.delete_stream(video, save=False)
     video_uploads.remove_work_file(video, video_id=video_id)

@@ -144,7 +144,9 @@ class ProviderBySlugView(RetrieveAPIView):
         # Videos only here, not in with_related: the search list never shows
         # them, and every list request would pay for the extra query.
         shown_videos = Prefetch(
-            "videos", queryset=ProviderVideo.objects.shown(), to_attr="shown_videos"
+            "videos",
+            queryset=ProviderVideo.objects.shown().in_course_order().prefetch_related("captions"),
+            to_attr="shown_videos",
         )
         # The one-of-a-kind photos the profile places itself: the way in, for
         # "find the gate", and the master's portrait.

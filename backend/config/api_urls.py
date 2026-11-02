@@ -19,9 +19,11 @@ from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
 from core.site_stats import SiteStatsView
 from core.whoami import WhoAmIView
+from courses import learner, studio
 from courses.views import (
     CourseAccessView,
     CourseBuyView,
+    CourseCodeCheckView,
     MediaAccessView,
     PaystackWebhookView,
     PurchaseVerifyView,
@@ -295,6 +297,85 @@ urlpatterns = [
         "trainer/course/payout/",
         TrainerPayoutView.as_view(),
         name="trainer-course-payout",
+    ),
+    path(
+        "courses/<slug:area_slug>/<slug:slug>/code/",
+        CourseCodeCheckView.as_view(),
+        name="course-code",
+    ),
+    # Learning: progress, my courses, certificates, reviews, questions.
+    # See courses/learner.py.
+    path("learn/mine/", learner.MyCoursesView.as_view(), name="my-courses"),
+    path(
+        "learn/lessons/<int:video_id>/progress/",
+        learner.LessonProgressView.as_view(),
+        name="lesson-progress",
+    ),
+    path(
+        "learn/lessons/<int:video_id>/play/", learner.LessonPlayView.as_view(), name="lesson-play"
+    ),
+    path(
+        "learn/lessons/<int:video_id>/questions/",
+        learner.LessonQuestionsView.as_view(),
+        name="lesson-questions",
+    ),
+    path(
+        "learn/lessons/<int:video_id>/captions/<str:language>.vtt",
+        learner.LessonCaptionsView.as_view(),
+        name="lesson-captions",
+    ),
+    path(
+        "courses/<slug:area_slug>/<slug:slug>/certificate/",
+        learner.CourseCertificateView.as_view(),
+        name="course-certificate",
+    ),
+    path(
+        "courses/<slug:area_slug>/<slug:slug>/reviews/",
+        learner.CourseReviewsView.as_view(),
+        name="course-reviews",
+    ),
+    path(
+        "certificates/<str:code>/",
+        learner.CertificateCheckView.as_view(),
+        name="certificate-check",
+    ),
+    # The trainer's course studio. See courses/studio.py.
+    path("trainer/course/details/", studio.StudioDetailsView.as_view(), name="studio-details"),
+    path("trainer/course/lessons/", studio.StudioLessonsView.as_view(), name="studio-lessons"),
+    path(
+        "trainer/course/lessons/<int:video_id>/",
+        studio.StudioLessonView.as_view(),
+        name="studio-lesson",
+    ),
+    path(
+        "trainer/course/lessons/<int:video_id>/captions/<str:language>/",
+        studio.StudioCaptionsView.as_view(),
+        name="studio-captions",
+    ),
+    path("trainer/course/codes/", studio.StudioCodesView.as_view(), name="studio-codes"),
+    path(
+        "trainer/course/codes/<int:code_id>/", studio.StudioCodeView.as_view(), name="studio-code"
+    ),
+    path("trainer/course/stats/", studio.StudioStatsView.as_view(), name="studio-stats"),
+    path(
+        "trainer/course/questions/", studio.StudioQuestionsView.as_view(), name="studio-questions"
+    ),
+    path(
+        "trainer/course/questions/<int:question_id>/answer/",
+        studio.StudioAnswerView.as_view(),
+        name="studio-answer",
+    ),
+    path("trainer/course/reviews/", studio.StudioReviewsView.as_view(), name="studio-reviews"),
+    path(
+        "trainer/course/reviews/<int:review_id>/reply/",
+        studio.StudioReplyView.as_view(),
+        name="studio-reply",
+    ),
+    path("trainer/course/boost/", studio.StudioBoostView.as_view(), name="studio-boost"),
+    path(
+        "trainer/course/boost/<str:reference>/verify/",
+        studio.StudioBoostVerifyView.as_view(),
+        name="studio-boost-verify",
     ),
     path(
         "courses/<slug:area_slug>/<slug:slug>/",

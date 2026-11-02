@@ -320,6 +320,8 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
     kind = serializers.SerializerMethodField()
     poster = serializers.SerializerMethodField()
     sources = serializers.SerializerMethodField()
+    stream = serializers.SerializerMethodField()
+    captions = serializers.SerializerMethodField()
     locked = serializers.SerializerMethodField()
 
     class Meta:
@@ -332,7 +334,11 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
             "duration_seconds",
             "poster",
             "sources",
+            "stream",
+            "captions",
             "locked",
+            "section",
+            "description",
         ]
 
     def _gate(self, obj):
@@ -359,9 +365,41 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
             return []
         return video_sources(obj, self.context.get("request"))
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_stream(self, obj):
+        """The HLS master playlist, for players that can change sharpness."""
+        if not self._gate(obj).may_watch(obj):
+            return None
+        from .video_hls import stream_url
+
+        return stream_url(obj, self.context.get("request"))
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_captions(self, obj):
+        """Languages with captions; the words come from the API, behind the
+        same lock as the video."""
+        return lesson_captions(obj, self.context.get("request"))
+
     @extend_schema_field(serializers.BooleanField())
     def get_locked(self, obj):
         return not self._gate(obj).may_watch(obj)
+
+
+def lesson_captions(video, request=None):
+    from django.urls import reverse
+
+    from core.media import public_url
+
+    return [
+        {
+            "language": caption.language,
+            "label": caption.label,
+            "url": public_url(
+                reverse("lesson-captions", args=[video.pk, caption.language]), request
+            ),
+        }
+        for caption in video.captions.all()
+    ]
 
 
 class ProviderDetailSerializer(ProviderListSerializer):
@@ -435,7 +473,7 @@ class ProviderDetailSerializer(ProviderListSerializer):
         not public. ProviderBySlugView prefetches them; anything else queries."""
         videos = getattr(obj, "shown_videos", None)
         if videos is None:
-            videos = obj.videos.shown()
+            videos = obj.videos.shown().in_course_order()
         from courses.access import gate_for
 
         # The listing is cached and served to everybody, so it is always the
