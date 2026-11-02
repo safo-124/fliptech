@@ -50,4 +50,8 @@ export type ProviderCard = {
   next_intake: string | null;
   primary_photo: string | null;
   trade: Trade | null;
+  lat: number;
+  lng: number;
 };
+
+export type TradeOption = { id: number; name: string; slug: string; colour: string; provider_count: number };

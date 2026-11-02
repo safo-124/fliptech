@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 
 import { WorkshopRow } from "@/components/Cards";
+import { MapButton } from "@/components/MapButton";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
@@ -23,6 +25,7 @@ export default function ExploreScreen() {
         title="Learn in person"
         placeholder="Welding, tailoring, a town…"
         onSearch={setQ}
+        action={<MapButton onPress={() => router.push("/map")} />}
       />
       <View style={{ marginTop: space.xl, gap: space.md }}>
         {workshops.isPending ? (

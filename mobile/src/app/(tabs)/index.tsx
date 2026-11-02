@@ -34,6 +34,7 @@ export default function HomeScreen() {
         body="Lessons filmed in real Ghanaian workshops, training near you, and tools from the people who use them."
         action="Explore courses"
         onAction={() => router.navigate("/learn")}
+        onMap={() => router.push("/map")}
       />
 
       <Section title="Top" accent="courses" action="See all" onAction={() => router.navigate("/learn")}>

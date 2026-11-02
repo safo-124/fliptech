@@ -15,6 +15,12 @@ React Native. It talks to the same Django API as the website, in
 - **The website's brand:** colours converted from `frontend/src/app/globals.css`
   into `src/theme/tokens.ts`, the Inter font, and app icons drawn from the
   same mark as the site's (`frontend/src/lib/brand-mark.ts`).
+- **The training map**, from the round button in the top-right corner of
+  Explore and of the Home card: every workshop as a pin in its trade's
+  colour, grouped into a numbered bubble where they crowd, a filter by
+  trade, "near me", "search this area" after moving the map, and a card
+  with directions and the workshop's page. MapLibre (open source, no
+  Google) with OpenStreetMap tiles, like the website. See `src/app/map.tsx`.
 - Detail pages (a course, a product, a workshop) and the account rows open
   the website's page **inside the app** for now (`src/lib/open.ts`); each
   is replaced by a native screen as it is built.
@@ -32,21 +38,30 @@ test/                  Jest stand-ins
 
 ## Running it on an Android phone
 
+The map uses MapLibre, which Expo Go does not include, so the app runs in
+its own **development build**: an APK of this app with the developer tools
+in it. Build it once (and again only when a native library is added):
+
+```bash
+cd mobile
+npm install
+npx eas-cli@latest build --platform android --profile development
+```
+
+Install the APK it links to on the phone. Then, day to day:
+
 1. Start the backend (see `../SETUP.md`) so it listens on your network:
    `python manage.py runserver 0.0.0.0:8000`, with your computer's address
-   in `DJANGO_ALLOWED_HOSTS`.
-2. Install dependencies and set the API address:
+   in `DJANGO_ALLOWED_HOSTS`. Or use the staging server.
+2. Set the API address:
    ```bash
-   cd mobile
-   npm install
    cp .env.example .env   # then put your computer's address in it
    ```
-3. Start the app and scan the QR code with **Expo Go** (Play Store) on the
-   phone, on the same Wi-Fi:
+3. Start the app and open it in the development build (scan the QR code,
+   on the same Wi-Fi):
    ```bash
    npx expo start
    ```
-   Or press `a` with an Android emulator running.
 
 ## Checks
 
@@ -62,6 +77,7 @@ npm run export:android   # bundles for Android, as a build would
 With an Expo account (free) and the EAS CLI:
 
 ```bash
+npx eas-cli@latest build --platform android --profile development  # for developing (see above)
 npx eas-cli@latest build --platform android --profile preview      # an APK to share for testing
 npx eas-cli@latest build --platform android --profile production   # an AAB for the Play Store
 ```

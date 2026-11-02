@@ -55,6 +55,7 @@ export default function RootLayout() {
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="map" options={{ animation: "slide_from_bottom" }} />
           </Stack>
         </TabBarVisibilityProvider>
       </QueryClientProvider>

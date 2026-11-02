@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
+import { MapButton } from "./MapButton";
 import { Text } from "./Text";
 
 /**
@@ -16,12 +17,15 @@ export function Hero({
   body,
   action,
   onAction,
+  onMap,
 }: {
   eyebrow: string;
   title: string;
   body: string;
   action: string;
   onAction: () => void;
+  /** Shows the map button in the card's top-right corner. */
+  onMap?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -34,6 +38,11 @@ export function Hero({
       >
         <View style={[styles.glow, styles.glowPink]} />
         <View style={[styles.glow, styles.glowSand]} />
+        {onMap ? (
+          <View style={styles.corner}>
+            <MapButton tone="onDark" onPress={onMap} />
+          </View>
+        ) : null}
         <Text variant="eyebrow" style={styles.eyebrow}>
           {eyebrow}
         </Text>
@@ -62,6 +71,7 @@ const styles = StyleSheet.create({
   glow: { position: "absolute", borderRadius: 999 },
   glowPink: { width: 220, height: 220, right: -70, top: -80, backgroundColor: colors.brandPink, opacity: 0.28 },
   glowSand: { width: 160, height: 160, left: -60, bottom: -70, backgroundColor: colors.peach, opacity: 0.2 },
+  corner: { position: "absolute", top: space.lg, right: space.lg },
   eyebrow: { color: colors.peach },
   title: {
     marginTop: space.sm,

@@ -26,6 +26,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Fliiptech uses your location to show training workshops near you."
+        }
+      ],
       [
         "expo-splash-screen",
         {
