@@ -57,7 +57,8 @@
     "statWorkshops": "{count, plural, one {workshop listed} other {workshops listed}}",
     "statVisited": "visited by {brand}",
     "statLessons": "{count, plural, one {lesson online} other {lessons online}}",
-    "statProducts": "{count, plural, one {product for sale} other {products for sale}}"
+    "statProducts": "{count, plural, one {product for sale} other {products for sale}}",
+    "shopsTitle": "Featured shops"
   },
   "Marketplace": {
     "metaTitle": "Marketplace — buy what Ghana's workshops make",
@@ -257,7 +258,26 @@
     "keepOrderTitle": "Keep this order in an account",
     "keepOrderBody": "Sign in with the phone you paid with and this order, and any others, will be in your account on every phone.",
     "keepOrderAction": "Create an account",
-    "allMyOrders": "See all your orders"
+    "allMyOrders": "See all your orders",
+    "stockAlertLead": "We can text you when it's available again.",
+    "stockAlertAction": "Tell me when it's back",
+    "stockAlertDone": "Done. We'll text you once when it's back.",
+    "awayUntil": "{seller} is away until {date}.",
+    "depositNote": "Made to order: pay a {percent}% deposit now to start the work, and the rest when it's ready.",
+    "termsLink": "Terms of sale",
+    "recentlyViewed": "Recently viewed",
+    "follow": "Follow this shop",
+    "following": "Following",
+    "followSignIn": "Sign in to follow",
+    "followersCount": "# following",
+    "depositNow": "Deposit now ({percent}%)",
+    "balanceLater": "Balance when it's ready",
+    "balance": {
+      "waiting": "You paid a deposit of {deposit}. {seller} is making it, and will ask for the balance of {balance} when it's ready.",
+      "due": "{seller} has finished it. Pay the balance of {balance} to collect it.",
+      "paid": "Fully paid. {seller} will contact you to hand it over."
+    },
+    "payBalance": "Pay the balance · {balance}"
   },
   "Layout": {
     "titleDefault": "{brand} Skills Hub — find practical skills training in Ghana",
@@ -297,7 +317,8 @@
     "forProviders": "For providers",
     "trainerSignIn": "Trainer sign-in",
     "about": "About",
-    "copyright": "© {year} {brand} Skills Hub. All rights reserved."
+    "copyright": "© {year} {brand} Skills Hub. All rights reserved.",
+    "marketTerms": "Marketplace terms"
   },
   "AccountNav": {
     "myAccount": "Sign in",
@@ -742,6 +763,51 @@
     "addressPlaceholder": "Area, street and a landmark",
     "saveDetails": "Save",
     "detailsSaved": "Saved."
+  },
+  "MarketTerms": {
+    "title": "Marketplace terms of sale",
+    "updated": "Draft, November 2026",
+    "intro": "These terms cover buying and selling on the {brand} Skills Hub marketplace. They are written in plain words. If anything here is unclear, contact us before you buy or sell.",
+    "who": {
+      "title": "Who you are buying from",
+      "body": "Every product is sold by the seller named on it, not by {brand}. {brand} lists the product, takes payment on the seller's behalf through Paystack when you use Buy now, and helps when something goes wrong. Sellers are confirmed by our staff before they can sell; a \"Verified maker\" badge means a member of staff also visited them."
+    },
+    "buying": {
+      "title": "Buying",
+      "body": "The price, any delivery fee and any discount are shown before you pay, and that total is what you are charged. You can pay with mobile money or a card through Paystack. You can also ask the seller a question and pay them directly; {brand} is then not part of the sale and cannot refund it."
+    },
+    "deposits": {
+      "title": "Made-to-order work and deposits",
+      "body": "For something made to order you pay the deposit shown at checkout to start the work. When the seller marks it ready, we text you to pay the balance. The seller hands it over once the balance is paid. If the seller cannot finish the work, contact us: we will help arrange a refund of the deposit."
+    },
+    "delivery": {
+      "title": "Collecting and delivery",
+      "body": "You choose to collect or to have it delivered. A delivery fee, when the seller sets one, is added at checkout; otherwise the seller agrees delivery with you by phone. The seller is responsible for getting it to you as agreed."
+    },
+    "problems": {
+      "title": "When something goes wrong",
+      "body": "If it never arrives, is damaged or is not what was described, use \"Something's wrong\" on your order page, or contact us with your order number, within 7 days of the handover. When buyer protection is on, the seller is not paid until you confirm you have it or 3 days pass after handover without a problem reported."
+    },
+    "refunds": {
+      "title": "Refunds",
+      "body": "If we agree with you that something went wrong, we refund you through Paystack to the way you paid. Refunds can take several working days to reach you. We do not refund a change of mind once a made-to-order item has been started."
+    },
+    "sellers": {
+      "title": "For sellers",
+      "body": "You must describe products honestly, use your own photos, keep availability up to date, reply to buyers promptly and hand over what was paid for. Payments for Buy now go to your payout account through Paystack, less {brand}'s commission and Paystack's fee. We may take down a product or switch off a shop that breaks these terms, and we may hold or reverse a payment while a problem is looked at."
+    },
+    "banned": {
+      "title": "Things that cannot be sold",
+      "body": "Weapons, drugs and medicines, alcohol and tobacco, anything stolen or counterfeit, live animals, adult content, and anything illegal in Ghana. Report a product that breaks this and our staff will look at it."
+    },
+    "fees": {
+      "title": "Fees",
+      "body": "Buyers pay no fee to {brand}. Sellers pay {brand} a commission on goods sold with Buy now (not on delivery), and pay for boosts, the Shop plan, quote leads and verification visits only if they choose them. Prices are shown before anything is paid."
+    },
+    "privacy": {
+      "title": "Your details",
+      "body": "We share a buyer's name and phone number with the seller only to complete an order or answer a question. See our privacy policy for how we keep and use your information."
+    }
   },
   "JoinPage": {
     "metaTitle": "Sign up",
@@ -1719,7 +1785,26 @@
     "deliveryFeeLabel": "Delivery fee (GH₵, 0 for free)",
     "deliveryAreaLabel": "Where",
     "deliveryAreaPlaceholder": "Within Accra",
-    "deliveryHelp": "Added to the buyer's total when they choose delivery with Buy now. Without it, you agree delivery with each buyer."
+    "deliveryHelp": "Added to the buyer's total when they choose delivery with Buy now. Without it, you agree delivery with each buyer.",
+    "tip": {
+      "add_photo": "Add a photo. Products without one are rarely asked about.",
+      "more_photos": "Add another photo, from a different side or in use.",
+      "add_price": "Add a price. Buyers ask more when they can see one.",
+      "describe": "Describe it in a sentence or two: size, material, colours.",
+      "trade": "Choose a trade, so it shows up in that trade and in quote requests."
+    },
+    "copy": "Copy",
+    "copied": "Copied as a draft. Change the name and price, then publish it.",
+    "depositLabel": "Made-to-order work bought on the site",
+    "depositOff": "Ask me first (no online buying)",
+    "depositPercent": "Take a {percent}% deposit",
+    "depositHelp": "With a deposit, buyers can order your made-to-order products with Buy now. They pay the deposit to start, and the rest when you mark the order ready.",
+    "awayTitle": "Away mode",
+    "awayUntil": "Away until",
+    "awayNote": "Note for buyers (optional)",
+    "awayNotePlaceholder": "At a trade fair; back on Monday",
+    "awayHelp": "While you're away, Buy now is off and your shop says when you're back. Buyers can still ask you questions.",
+    "awayClear": "I'm back"
   },
   "SellerGrowth": {
     "loading": "Loading…",
@@ -1844,7 +1929,27 @@
       "released": "Sent to your payout account.",
       "failed": "Couldn't be sent yet; Fliiptech staff will sort it.",
       "refunded": "Refunded to the buyer."
-    }
+    },
+    "deposit": {
+      "waiting": "Deposit {deposit} paid. Balance {balance} when you mark it ready.",
+      "due": "Ready. Waiting for the buyer to pay the balance of {balance}.",
+      "paid": "Fully paid: {deposit} deposit and {balance} balance."
+    },
+    "markReady": "It's ready: ask for the balance",
+    "readySaved": "We've texted the buyer to pay the balance.",
+    "earningsTitle": "Earnings",
+    "earningsLead": "What you sold each month, Fliiptech's share and yours.",
+    "earningsMonth": "Month",
+    "earningsDownload": "Download (CSV)",
+    "earnings": {
+      "orders": "orders",
+      "sales": "Sales",
+      "fliiptech": "Fliiptech's share",
+      "yours": "Your share"
+    },
+    "earningsDate": "Date",
+    "earningsWhat": "What",
+    "earningsNone": "No paid orders this month."
   },
   "Learn": {
     "metaTitle": "Online learning: trade lessons on video",

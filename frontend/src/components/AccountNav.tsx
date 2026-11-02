@@ -43,8 +43,14 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
         // One login can hold several roles now. The account page lists them
         // all, so the header always goes there; the trainee's picture is the
         // only face anybody has.
-        const name = who.customer?.name ?? who.trainer?.name ?? who.seller?.name ?? who.trainee?.name;
-        if (name) setAccount({href: "/account", name, avatar: who.trainee?.avatar});
+        if (!who.customer && !who.trainer && !who.seller && !who.trainee) return;
+        // A name if there is one; a bare phone number is no name, and the
+        // header then says "My account".
+        const name =
+          [who.customer?.name, who.trainer?.name, who.seller?.name, who.trainee?.name].find(
+            (candidate) => candidate && !/^\+?\d[\d\s]+$/.test(candidate),
+          ) ?? labels.myAccount;
+        setAccount({href: "/account", name, avatar: who.trainee?.avatar});
       })
       // Signed out is the safe answer: it offers a way in rather than a link
       // to a dashboard that would bounce them.
@@ -52,7 +58,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [labels.myAccount]);
 
   if (account) {
     // Their own face, at both widths. The button is the same element on a

@@ -15,6 +15,7 @@ import type {BagItem} from "./types";
 
 const BAGS = "fliiptech:bags";
 const SAVED = "fliiptech:saved";
+const RECENT = "fliiptech:recent";
 const CHANGED = "fliiptech:bag-changed";
 
 export type StoredLine = BagItem & {name: string; optionLabel: string};
@@ -109,5 +110,19 @@ export async function syncSavedWithAccount() {
     write(SAVED, ids);
   } catch {
     // Signed out, or offline: the browser's list stands.
+  }
+}
+
+/** Recently viewed products, newest first, on this phone only. */
+export function recentIds(): number[] {
+  return read<number[]>(RECENT, []).filter((id) => Number.isInteger(id));
+}
+
+export function rememberViewed(id: number) {
+  try {
+    const next = [id, ...recentIds().filter((x) => x !== id)].slice(0, 12);
+    window.localStorage.setItem(RECENT, JSON.stringify(next));
+  } catch {
+    // Not kept; nothing depends on it.
   }
 }

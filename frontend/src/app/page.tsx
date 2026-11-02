@@ -44,6 +44,7 @@ import {
   getUpcomingIntakes,
   listCourses,
   searchProducts,
+  getFeaturedShops,
   searchProviders,
 } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
@@ -86,7 +87,7 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, areas, pictures, workshops, courses, products, stats, upcoming, t] = await Promise.all([
+  const [trades, areas, pictures, workshops, courses, products, stats, upcoming, t, shops] = await Promise.all([
     // getAllTrades, not getTrades: categories are created by staff in the
     // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
@@ -98,7 +99,9 @@ export default async function Home({
     getSiteStats().catch(() => null),
     getUpcomingIntakes(3).catch(() => []),
     getTranslations("LandingPage"),
+    getFeaturedShops().catch(() => null),
   ]);
+  const featuredShops = shops?.results ?? [];
 
   const featuredCourses = courses?.results.slice(0, FEATURED) ?? [];
   const featuredProducts = products?.results.slice(0, FEATURED) ?? [];
@@ -339,6 +342,32 @@ export default async function Home({
           )}
         </div>
       </section>
+
+      {/* --------------------------------------------------- featured shops */}
+      {/* Shop plan shops, a few at a time in an order that changes daily. */}
+      {featuredShops.length ? (
+        <section className="app-shell mt-12 sm:mt-14">
+          <SectionHead title={t("shopsTitle")} linkHref="/marketplace" linkLabel={t("productsAll")} />
+          <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {featuredShops.map((shop) => (
+              <li key={shop.id}>
+                <Link
+                  href={`/marketplace/seller/${shop.id}`}
+                  className="group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30"
+                >
+                  <div className="relative aspect-square bg-[var(--color-muted)]">
+                    {shop.photo ? (
+                      <Image src={shop.photo} alt="" fill sizes="(min-width: 1024px) 16vw, 50vw" className="object-cover" />
+                    ) : null}
+                  </div>
+                  <p className="truncate px-3 pt-2.5 text-sm font-bold">{shop.business_name}</p>
+                  <p className="truncate px-3 pb-3 text-xs text-[var(--color-muted-foreground)]">{shop.area}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* ------------------------------------------------------- become one */}
       <section className="app-shell mt-12 sm:mt-14">

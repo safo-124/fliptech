@@ -775,6 +775,17 @@ def _create_order(request, seller, data):
             )
             for line in lines
         )
+    # A signed-in buyer with no name yet keeps the one typed here.
+    from accounts.auth import own_customer_account
+
+    customer = own_customer_account(request)
+    if (
+        customer is not None
+        and not customer.display_name
+        and str(customer.phone) == str(order.buyer_phone)
+    ):
+        customer.display_name = order.buyer_name[:120]
+        customer.save(update_fields=["display_name", "updated_at"])
     # This browser may see the order afterwards, whatever happens to the
     # hour-long trust in the phone number.
     request.session[SESSION_ORDERS] = [

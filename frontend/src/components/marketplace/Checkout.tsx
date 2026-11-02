@@ -150,7 +150,8 @@ export function Checkout({
     setBusy(false);
   }
 
-  const total = price ? formatCedis(price.total) : "…";
+  // A deposit order charges the deposit now; the button says so.
+  const total = price ? formatCedis(price.plan === "deposit" ? price.pay_now : price.total) : "…";
   const payLabel = t("payAction", { total });
 
   return (
@@ -277,6 +278,18 @@ export function Checkout({
                 <dt>{t("totalLine")}</dt>
                 <dd className="tabular-nums">{formatCedis(price.total)}</dd>
               </div>
+              {price.plan === "deposit" ? (
+                <>
+                  <div className="flex justify-between gap-3 text-[var(--color-brand-strong)]">
+                    <dt>{t("depositNow", { percent: price.deposit_percent ?? 0 })}</dt>
+                    <dd className="tabular-nums">{formatCedis(price.pay_now)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 text-[var(--color-muted-foreground)]">
+                    <dt>{t("balanceLater")}</dt>
+                    <dd className="tabular-nums">{formatCedis(price.balance)}</dd>
+                  </div>
+                </>
+              ) : null}
             </dl>
           ) : null}
           {priceProblem ? (

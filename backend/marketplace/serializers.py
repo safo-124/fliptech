@@ -63,6 +63,17 @@ class SellerCardSerializer(serializers.ModelSerializer):
     rating = serializers.SerializerMethodField()
     replies_fast = serializers.SerializerMethodField()
     verified = serializers.SerializerMethodField()
+    away_until = serializers.SerializerMethodField()
+    away_note = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DateField(allow_null=True))
+    def get_away_until(self, obj):
+        """Only while it is still ahead: a past date is not "away"."""
+        return obj.away_until.isoformat() if obj.is_away else None
+
+    @extend_schema_field(serializers.CharField())
+    def get_away_note(self, obj):
+        return obj.away_note if obj.is_away else ""
 
     @extend_schema_field(serializers.BooleanField())
     def get_replies_fast(self, obj):

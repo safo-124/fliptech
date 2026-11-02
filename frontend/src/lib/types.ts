@@ -593,6 +593,11 @@ export type SellerCard = {
   /** Cedis added for delivery at checkout; null when they don't deliver through the site. */
   delivery_fee: string | null;
   delivery_area: string;
+  /** Made-to-order work can be bought for this deposit (%), or ask-only when null. */
+  deposit_percent: number | null;
+  /** Away: Buy now is off until this date. */
+  away_until: string | null;
+  away_note: string;
 };
 
 export type ProductCard = {
@@ -657,6 +662,12 @@ export type MarketplaceOrder = {
     unit_price: string;
     quantity: number;
   }[];
+  plan: "full" | "deposit";
+  /** For a deposit order: what was paid first, and what is owed when ready. */
+  deposit: string;
+  balance: string;
+  balance_status: "none" | "waiting" | "due" | "paid";
+  ready_at: string | null;
   delivery: string;
   discount: string;
   discount_code: string;
@@ -696,7 +707,14 @@ export type BasketPrice = {
   delivery_area: string;
   total: string;
   protected: boolean;
+  /** "deposit" when anything is made to order: pay_now now, balance when ready. */
+  plan: "full" | "deposit";
+  deposit_percent: number | null;
+  pay_now: string;
+  balance: string;
 };
+
+export type FeaturedShop = SellerCard & {photo: string | null};
 
 export type ProductOption = {id: number; label: string; price: string | null; available: boolean};
 

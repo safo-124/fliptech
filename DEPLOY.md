@@ -480,6 +480,33 @@ Before switching it on:
 
 ---
 
+## Marketplace: deposits, alerts and seller tools
+
+Nothing to switch on for most of these; they arrive with the release.
+
+- **Deposits for made-to-order work.** A seller chooses a deposit (30–70%)
+  under *Your shop*. Their made-to-order products then get Buy now: the
+  buyer pays the deposit, the seller taps *It's ready* on the order, the
+  buyer is texted and pays the balance, and only then can it be handed over.
+  Commission is split between the two payments. Balances are confirmed by
+  the same webhook (references starting `fb-`).
+- **Texts to buyers:** "it's back" for sold-out products they asked about,
+  "handed over, did you get it?", "your balance is due", and one text a day
+  at most about new products from shops they follow (sent by
+  `marketplace_daily`).
+- **Away mode:** a seller sets a date; Buy now is off until then.
+- **Copy a product, listing tips, and monthly earnings** with a CSV download
+  are in the seller dashboard.
+- **Featured shops** (Shop plan shops) appear on the home page.
+- **Terms of sale** are at `/marketplace/terms`, linked from the footer and
+  every product. They are a plain-language draft: **have a lawyer read them**
+  before relying on them, and edit the wording in
+  `frontend/messages/en.json` under `MarketTerms`.
+- **Holding a new seller's first payments:** set
+  `MARKETPLACE_HOLD_FIRST_ORDERS=5` (in `backend.env`) to hold each seller's
+  first five Buy now payments for buyer protection, then pay them straight.
+  It needs Paystack Transfers, set up as for buyer protection above.
+
 ## One account per person
 
 Everyone now signs in at `/account` with their phone and gets a customer

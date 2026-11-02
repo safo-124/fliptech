@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCedis } from "@/lib/format";
 import { getAccount } from "@/lib/account-api";
-import { confirmOrder, confirmReceived, reportOrderProblem } from "@/lib/marketplace-api";
+import { confirmOrder, confirmReceived, payBalance, reportOrderProblem } from "@/lib/marketplace-api";
 import type { MarketplaceOrder } from "@/lib/types";
 
 /**
@@ -165,6 +165,42 @@ export function OrderStatus({ reference }: { reference: string }) {
                 </a>
               </Button>
             ) : null}
+            {order.plan === "deposit" && order.balance_status !== "none" ? (
+              <div className="rounded-lg bg-[var(--color-brand-soft)] p-3 text-sm text-[var(--color-brand-strong)]">
+                <p>
+                  {t(`balance.${order.balance_status}`, {
+                    deposit: formatCedis(order.deposit),
+                    balance: formatCedis(order.balance),
+                    seller: order.seller_name,
+                  })}
+                </p>
+                {order.balance_status === "due" ? (
+                  <Button
+                    type="button"
+                    variant="brand"
+                    className="mt-2 w-full"
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      setActionError(null);
+                      try {
+                        const { authorization_url } = await payBalance(order.reference);
+                        window.location.assign(authorization_url);
+                        return;
+                      } catch (reason) {
+                        setActionError(reason instanceof Error ? reason.message : t("buyFailed"));
+                      }
+                      setBusy(false);
+                    }}
+                  >
+                    {t("payBalance", { balance: formatCedis(order.balance) })}
+                  </Button>
+                ) : null}
+                {actionError && order.balance_status === "due" ? (
+                  <p className="mt-2 text-sm text-[var(--color-destructive)]">{actionError}</p>
+                ) : null}
+              </div>
+            ) : null}
             {order.protected ? (
               <p className="flex items-start gap-1.5 rounded-lg bg-[var(--color-visit-bg)] p-3 text-xs text-[var(--color-visit)]">
                 <ShieldCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
@@ -180,7 +216,7 @@ export function OrderStatus({ reference }: { reference: string }) {
               <p role="status" className="text-sm text-[var(--color-visit)]">
                 {t("receivedThanks")}
               </p>
-            ) : order.stage !== "refunded" ? (
+            ) : order.stage !== "refunded" && order.balance_status !== "waiting" && order.balance_status !== "due" ? (
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <Button

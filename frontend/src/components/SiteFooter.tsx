@@ -49,7 +49,10 @@ export async function SiteFooter() {
     },
     {
       title: t("about"),
-      links: [["/privacy", t("privacy")]],
+      links: [
+        ["/privacy", t("privacy")],
+        ["/marketplace/terms", t("marketTerms")],
+      ],
     },
   ];
 

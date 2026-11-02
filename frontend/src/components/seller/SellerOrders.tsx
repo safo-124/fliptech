@@ -10,14 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatCedis } from "@/lib/format";
+import { API_URL } from "@/lib/trainer-fetch";
 import {
   SellerApiError,
   getSellerOrders,
   getSellerPayout,
   getSellerPayoutBanks,
+  getEarnings,
   markOrderHandedOver,
+  markOrderReady,
   saveSellerPayout,
   stopSellingOnline,
+  type Earnings,
   type SellerPayout,
 } from "@/lib/seller-api";
 import type { MarketplaceOrder, PayoutBank } from "@/lib/types";
@@ -298,6 +302,14 @@ export function SellerOrdersTab() {
                     {order.buyer_name} ·{" "}
                     {order.fulfilment === "delivery" ? t("deliverTo", { address: order.note }) : t("collects")}
                   </p>
+                  {order.plan === "deposit" && order.balance_status !== "none" ? (
+                    <p className="mt-2 rounded-lg bg-[var(--color-brand-soft)] px-3 py-2 text-xs text-[var(--color-brand-strong)]">
+                      {t(`deposit.${order.balance_status}`, {
+                        deposit: formatCedis(order.deposit),
+                        balance: formatCedis(order.balance),
+                      })}
+                    </p>
+                  ) : null}
                   {order.stage === "problem" ? (
                     <p className="mt-2 rounded-lg bg-[var(--color-warn-bg)] px-3 py-2 text-xs text-[var(--color-warn)]">
                       {t("orderProblem", { problem: order.problem })}
@@ -316,7 +328,18 @@ export function SellerOrdersTab() {
                         {order.buyer_phone}
                       </a>
                     </Button>
-                    {order.stage === "new" ? (
+                    {order.plan === "deposit" && order.balance_status === "waiting" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="brand"
+                        disabled={busy !== null}
+                        onClick={() => act(order.reference, () => markOrderReady(order.reference), t("readySaved"))}
+                      >
+                        {t("markReady")}
+                      </Button>
+                    ) : null}
+                    {order.stage === "new" && order.balance_status !== "waiting" && order.balance_status !== "due" ? (
                       <Button
                         type="button"
                         size="sm"
@@ -342,6 +365,105 @@ export function SellerOrdersTab() {
           )}
         </CardContent>
       </Card>
+
+      <EarningsCard />
     </div>
+  );
+}
+
+function thisMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** One month's sales, Fliiptech's share and the seller's, with a download. */
+function EarningsCard() {
+  const t = useTranslations("SellerGrowth");
+  const [month, setMonth] = useState(thisMonth);
+  const [data, setData] = useState<Earnings | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getEarnings(month)
+      .then((found) => {
+        if (active) setData(found);
+      })
+      .catch(() => {
+        if (active) setData(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [month]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("earningsTitle")}</CardTitle>
+        <CardDescription>{t("earningsLead")}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <Label htmlFor="earnings-month">{t("earningsMonth")}</Label>
+            <Input
+              id="earnings-month"
+              type="month"
+              value={month}
+              onChange={(event) => event.target.value && setMonth(event.target.value)}
+              className="w-44"
+            />
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <a href={`${API_URL}/api/seller/earnings/?month=${month}&download=csv`}>{t("earningsDownload")}</a>
+          </Button>
+        </div>
+        {data ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(
+                [
+                  ["orders", String(data.totals.orders)],
+                  ["sales", formatCedis(data.totals.sales)],
+                  ["fliiptech", formatCedis(data.totals.fliiptech)],
+                  ["yours", formatCedis(data.totals.yours)],
+                ] as const
+              ).map(([key, value]) => (
+                <div key={key} className="rounded-xl bg-[var(--color-muted)] p-3">
+                  <p className="text-lg font-extrabold tabular-nums">{value}</p>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">{t(`earnings.${key}`)}</p>
+                </div>
+              ))}
+            </div>
+            {data.orders.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[30rem] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-[var(--color-muted-foreground)]">
+                      <th scope="col" className="py-2 pr-2 font-medium">{t("earningsDate")}</th>
+                      <th scope="col" className="px-2 py-2 font-medium">{t("earningsWhat")}</th>
+                      <th scope="col" className="px-2 py-2 text-right font-medium">{t("earnings.sales")}</th>
+                      <th scope="col" className="py-2 pl-2 text-right font-medium">{t("earnings.yours")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.orders.map((row) => (
+                      <tr key={row.reference} className="border-t border-[var(--color-border)]">
+                        <td className="py-2 pr-2 tabular-nums">{row.paid_at}</td>
+                        <td className="px-2 py-2">{row.product}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{formatCedis(row.total)}</td>
+                        <td className="py-2 pl-2 text-right tabular-nums">{formatCedis(row.yours)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-muted-foreground)]">{t("earningsNone")}</p>
+            )}
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

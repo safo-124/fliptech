@@ -22,6 +22,7 @@ import type {
   ProviderDetail,
   Region,
   SellerShop,
+  FeaturedShop,
   Trade,
   UpcomingIntake,
 } from "./types";
@@ -301,6 +302,11 @@ export async function searchAllProducts() {
     if (!found.next) break;
   }
   return all;
+}
+
+/** Shop plan shops for the home page. */
+export function getFeaturedShops() {
+  return fetchJson<{results: FeaturedShop[]}>("/api/sellers/featured/");
 }
 
 export function getProduct(id: string | number) {

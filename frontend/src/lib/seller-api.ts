@@ -27,6 +27,9 @@ export type SellerProfile = {
   /** Cedis added for delivery at checkout; null: no delivery through the site. */
   delivery_fee: string | null;
   delivery_area: string;
+  deposit_percent: number | null;
+  away_until: string | null;
+  away_note: string;
   verified_at: string | null;
 };
 
@@ -45,6 +48,8 @@ export type SellerProduct = {
   availability: "available" | "made_to_order" | "sold_out";
   options: {id: number; label: string; price: string | null; available: boolean}[];
   status: "draft" | "published" | "suspended";
+  /** What would most help it sell; see backend OwnProductSerializer.get_tips. */
+  tips: ("add_photo" | "more_photos" | "add_price" | "describe" | "trade")[];
   status_label: string;
   staff_note: string;
   /** Published is not the same as visible: a published product whose seller
@@ -98,7 +103,19 @@ export function signOutSeller() {
 }
 
 export function saveShop(
-  patch: Partial<Pick<SellerProfile, "business_name" | "about" | "area" | "delivery_fee" | "delivery_area">>,
+  patch: Partial<
+    Pick<
+      SellerProfile,
+      | "business_name"
+      | "about"
+      | "area"
+      | "delivery_fee"
+      | "delivery_area"
+      | "deposit_percent"
+      | "away_until"
+      | "away_note"
+    >
+  >,
 ) {
   return sessionFetch<SellerProfile>("/api/seller/account/", {
     method: "PATCH",
@@ -356,4 +373,36 @@ export function unlockQuote(id: number) {
     `/api/seller/quotes/${id}/unlock/`,
     {method: "POST"},
   );
+}
+
+export function copyProduct(id: number) {
+  return sessionFetch<SellerProduct>(`/api/seller/products/${id}/copy/`, {method: "POST"});
+}
+
+export function markOrderReady(reference: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/seller/orders/${encodeURIComponent(reference)}/`, {
+    method: "PATCH",
+    body: JSON.stringify({stage: "ready"}),
+  });
+}
+
+export type Earnings = {
+  month: string;
+  totals: {orders: number; sales: string; fliiptech: string; yours: string};
+  orders: {
+    reference: string;
+    paid_at: string;
+    product: string;
+    buyer: string;
+    total: string;
+    paid: string;
+    fliiptech: string;
+    yours: string;
+    stage: string;
+    payout: string;
+  }[];
+};
+
+export function getEarnings(month: string) {
+  return sessionFetch<Earnings>(`/api/seller/earnings/?month=${encodeURIComponent(month)}`);
 }

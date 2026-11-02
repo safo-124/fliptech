@@ -13,6 +13,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { FollowShop } from "@/components/marketplace/FollowShop";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,26 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
         <div className="mt-2">
           <SellerBadges seller={seller} />
         </div>
+        <div className="mt-3">
+          <FollowShop
+            sellerId={seller.id}
+            labels={{
+              follow: t("follow"),
+              following: t("following"),
+              signIn: t("followSignIn"),
+              followers: t("followersCount"),
+            }}
+          />
+        </div>
+        {seller.away_until ? (
+          <p className="mt-3 rounded-xl bg-[var(--color-warn-bg)] px-3 py-2 text-sm text-[var(--color-warn)]">
+            {t("awayUntil", {
+              seller: seller.business_name,
+              date: new Date(seller.away_until).toLocaleDateString("en-GH", { day: "numeric", month: "long" }),
+            })}
+            {seller.away_note ? ` ${seller.away_note}` : ""}
+          </p>
+        ) : null}
         {seller.delivery_fee !== null ? (
           <p className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
             {Number(seller.delivery_fee) === 0
