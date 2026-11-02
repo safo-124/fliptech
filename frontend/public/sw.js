@@ -34,12 +34,16 @@
  * deleted when the new worker takes over.
  */
 
-const VERSION = 1;
+const VERSION = 2;
 const PAGES = `pages-v${VERSION}`;
 const FILES = `files-v${VERSION}`;
 const PHOTOS = `photos-v${VERSION}`;
 const SHELL = `shell-v${VERSION}`;
 const OFFLINE_URL = "/offline";
+// Lessons a learner chose to keep (src/lib/offline-lessons.ts). Written by
+// the page, never by this worker, and never deleted on an update: they are
+// the learner's, kept on purpose, and fetching them again costs their data.
+const LESSONS = "lessons-v1";
 
 // How many of each are kept, newest first. Pages and photos are what a phone
 // short of storage would notice; built files are small and shared by every page.
@@ -51,11 +55,14 @@ const DJANGO = /^\/(?:api|back-office|static|media|healthz)(?:\/|$)/;
 // First path segments that are the site's own sections, not an area.
 const SECTIONS = new Set([
   "_next",
+  "account",
+  "certificates",
   "dashboard",
   "enquiry",
   "icons",
   "join",
   "language",
+  "learn",
   "offline",
   "trades",
   "trainee",
@@ -70,6 +77,11 @@ function keepable(path) {
     return true;
   }
   if (/^\/trades\/[^/]+\/?$/.test(path)) return true;
+  // Online learning: the course list, a course's page (its lessons stream,
+  // so only the page is kept), and the lessons saved on this phone, which
+  // play from the phone itself. Not /learn/mine, which is personal.
+  if (path === "/learn" || path === "/learn/saved") return true;
+  if (/^\/learn\/(?!mine\/?$|saved\/?$)[^/]+\/[^/]+\/?$/.test(path)) return true;
   // A listing, /<area>/<workshop>. Not its "report a problem" form, which is
   // a third segment and so never matches.
   const listing = /^\/([^/]+)\/[^/]+\/?$/.exec(path);
@@ -86,7 +98,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  const current = new Set([PAGES, FILES, PHOTOS, SHELL]);
+  const current = new Set([PAGES, FILES, PHOTOS, SHELL, LESSONS]);
   event.waitUntil(
     (async () => {
       for (const name of await caches.keys()) {

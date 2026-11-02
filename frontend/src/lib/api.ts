@@ -10,6 +10,7 @@
 import {browserApiUrl} from "./api-origin";
 import type {
   AreaSummary,
+  Certificate,
   CourseCard,
   CourseDetail,
   HomePictures,
@@ -84,6 +85,8 @@ export class ApiError extends Error {
  * product and shop pages change at once instead of up to five minutes later.
  */
 export const MARKETPLACE_TAG = "marketplace";
+/** Course pages, expired by Django when a course changes. */
+export const LEARN_TAG = "learn";
 
 async function fetchJson<T>(
   path: string,
@@ -335,12 +338,31 @@ export function getSellerShop(id: string | number) {
 //
 // The workshops' approved videos, one course per workshop. Reads only.
 
-export function listCourses(params: { trade?: string; page?: string } = {}) {
-  return fetchJson<Paginated<CourseCard>>(`/api/courses/${buildQuery(params)}`);
+export type CourseQuery = {
+  trade?: string;
+  page?: string;
+  /** Words to look for in names, areas, trades and lesson titles. */
+  q?: string;
+  sort?: "newest" | "popular" | "rating" | "free";
+  level?: string;
+  price?: "free" | "paid";
+  featured?: "1";
+};
+
+export function listCourses(params: CourseQuery = {}) {
+  return fetchJson<Paginated<CourseCard>>(`/api/courses/${buildQuery(params)}`, {tags: [LEARN_TAG]});
 }
 
 export function getCourse(area: string, slug: string) {
-  return fetchJson<CourseDetail>(`/api/courses/${area}/${slug}/`);
+  return fetchJson<CourseDetail>(`/api/courses/${area}/${slug}/`, {tags: [LEARN_TAG]});
+}
+
+/** A course certificate, checked by its code. */
+export function getCertificate(code: string) {
+  return fetchJson<Certificate & {course_path: string}>(
+    `/api/certificates/${encodeURIComponent(code)}/`,
+    {revalidate: 60},
+  );
 }
 
 /** The home page's staff-chosen photographs. See types.HomePictures. */

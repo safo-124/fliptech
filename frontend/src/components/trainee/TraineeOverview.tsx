@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   GraduationCap,
+  PlayCircle,
   Search,
   Send,
 } from "lucide-react";
@@ -165,6 +166,20 @@ export function TraineeOverview({
         />
         <Stat label={t("savedWorkshops")} value={saved.length} Icon={Bookmark} onClick={() => onGo("saved")} />
       </div>
+
+      <Link
+        href="/learn/mine"
+        className="band group flex items-center gap-4 overflow-hidden rounded-2xl p-4 text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 sm:p-5"
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/15">
+          <PlayCircle aria-hidden="true" className="size-6" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold">{t("onlineTitle")}</span>
+          <span className="block text-sm text-white/75">{t("onlineBody")}</span>
+        </span>
+        <ArrowRight aria-hidden="true" className="size-5 shrink-0 transition-transform group-hover:translate-x-1" />
+      </Link>
 
       {nothingYet ? (
         <Card className="border-dashed p-6 text-center sm:p-8">

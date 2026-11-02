@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   FilePenLine,
+  GraduationCap,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -627,6 +628,21 @@ export function TrainerDashboard() {
 
       {tab === "videos" ? (
         <div className="space-y-5">
+          {/* The studio is where a course is shaped and sold; this tab
+              keeps the uploads and the price a tap away. */}
+          <Link
+            href="/trainer/course"
+            className="band group relative flex items-center gap-4 overflow-hidden rounded-2xl p-5 text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5"
+          >
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] text-[var(--color-brand-deep)]">
+              <GraduationCap aria-hidden="true" className="size-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-extrabold">{t("studioTitle")}</span>
+              <span className="block text-sm text-white/75">{t("studioBody")}</span>
+            </span>
+            <ArrowRight aria-hidden="true" className="size-5 shrink-0 transition-transform group-hover:translate-x-1" />
+          </Link>
           <TrainerCourseSales />
           <TrainerVideos listingLive={profile.status === "published"} />
         </div>

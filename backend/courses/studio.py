@@ -115,6 +115,13 @@ def details_payload(offer):
         "sale_ends_at": offer.sale_ends_at,
         "on_sale": offer.on_sale,
         "featured_until": offer.featured_until if offer.is_featured else None,
+        # Where learners find it, once it has an approved lesson and is live.
+        "course_path": (
+            f"/learn/{offer.provider.area.slug}/{offer.provider.slug}"
+            if offer.provider.status == offer.provider.Status.PUBLISHED
+            and offer.provider.videos.shown().exists()
+            else None
+        ),
     }
 
 
