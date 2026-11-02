@@ -1,0 +1,77 @@
+import { Search, X } from "lucide-react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
+
+import { colors, fonts, radius, space } from "@/theme/tokens";
+
+import { Text } from "./Text";
+
+/**
+ * A tab's title and its search box. The search runs when the keyboard's
+ * search key is pressed, not on every letter: each search costs data.
+ */
+export function PageHeader({
+  eyebrow,
+  title,
+  placeholder,
+  onSearch,
+}: {
+  eyebrow: string;
+  title: string;
+  placeholder: string;
+  onSearch: (words: string) => void;
+}) {
+  const [words, setWords] = useState("");
+  return (
+    <View style={styles.wrap}>
+      <Text variant="eyebrow">{eyebrow}</Text>
+      <Text variant="display" style={styles.title}>
+        {title}
+      </Text>
+      <View style={styles.search}>
+        <Search size={20} color={colors.mutedForeground} />
+        <TextInput
+          value={words}
+          onChangeText={setWords}
+          onSubmitEditing={() => onSearch(words.trim())}
+          placeholder={placeholder}
+          placeholderTextColor={colors.mutedForeground}
+          returnKeyType="search"
+          accessibilityLabel={placeholder}
+          style={styles.input}
+        />
+        {words ? (
+          <Pressable
+            onPress={() => {
+              setWords("");
+              onSearch("");
+            }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+          >
+            <X size={18} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { paddingHorizontal: space.lg, paddingTop: space.sm },
+  title: { marginTop: 4 },
+  search: {
+    marginTop: space.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    minHeight: 50,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  input: { flex: 1, fontFamily: fonts.regular, fontSize: 15, color: colors.foreground, paddingVertical: 12 },
+});

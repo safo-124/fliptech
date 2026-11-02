@@ -107,6 +107,40 @@ jobs:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           NEXT_PUBLIC_BRAND_NAME: Fliptech
 
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint src test
+
+      - name: Test
+        run: npx jest --ci
+
+      # Bundles the JavaScript for Android exactly as a build would, so a
+      # missing import or a web-only API fails here rather than on a phone.
+      - name: Bundle for Android
+        run: npx expo export --platform android --output-dir /tmp/android-export
+        env:
+          EXPO_OFFLINE: "1"
+          EXPO_PUBLIC_API_URL: https://example.invalid
+
   browser:
     # The Playwright suite in frontend/e2e, against a production build talking
     # to a real API with the demo data in it. Includes Section 10's search-page
