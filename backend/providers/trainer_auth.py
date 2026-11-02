@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils.translation import gettext as _
 
-from core.identities import create_dedicated_user, user_is_unprivileged
+from core.identities import roles_of, user_for_new_role, user_is_unprivileged
 
 from .models import TrainerAccount
 
@@ -23,8 +23,10 @@ def account_for_verified_phone(*, phone, verified_at):
         .first()
     )
     if account is None:
-        user_model = get_user_model()
-        user = create_dedicated_user(user_model, prefix="trainer")
+        # The person's existing login, if they already have an account of
+        # another kind: one person, one login (core/identities.py).
+        user = user_for_new_role(get_user_model(), phone, prefix="trainer")
+        fresh_user = not roles_of(user)
         try:
             # The savepoint contains the expected unique-phone race. If another
             # first login commits first, only this insert rolls back and the
@@ -36,7 +38,8 @@ def account_for_verified_phone(*, phone, verified_at):
                     phone_verified_at=verified_at,
                 )
         except IntegrityError:
-            user.delete()
+            if fresh_user:
+                user.delete()
             account = (
                 TrainerAccount.objects.select_for_update().select_related("user").get(phone=phone)
             )
@@ -53,6 +56,9 @@ def account_for_verified_phone(*, phone, verified_at):
 
     account.phone_verified_at = verified_at
     account.save(update_fields=["phone_verified_at", "updated_at"])
+    from accounts.auth import ensure_customer
+
+    ensure_customer(account.user, account.phone, verified_at)
     return account
 
 

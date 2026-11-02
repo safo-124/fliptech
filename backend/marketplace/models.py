@@ -176,6 +176,18 @@ class SellerAccount(TimeStampedModel):
     )
     verification_note = models.CharField(max_length=300, blank=True)
 
+    # Made-to-order work can be bought online for a deposit: this share of
+    # the goods at checkout, the rest when the seller says it is ready.
+    # Null: made-to-order is ask-only, as before.
+    deposit_percent = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(10), MaxValueValidator(90)]
+    )
+
+    # Away mode: Buy now is off and the shop says when they are back, so a
+    # seller who is travelling is not sent orders they cannot fill.
+    away_until = models.DateField(null=True, blank=True)
+    away_note = models.CharField(max_length=160, blank=True)
+
     class Meta:
         ordering = ["business_name"]
         permissions = [
@@ -200,6 +212,10 @@ class SellerAccount(TimeStampedModel):
         rule in SQL, and a test holds the two together.
         """
         return bool(self.is_active and self.is_confirmed and self.business_name and self.area_id)
+
+    @property
+    def is_away(self):
+        return bool(self.away_until and self.away_until >= timezone.localdate())
 
     @property
     def payout_ready(self):
@@ -315,6 +331,9 @@ class Product(TimeStampedModel):
     # Why a product was taken down, for the seller and for whoever reviews the
     # decision later. Staff-written, never the seller's.
     staff_note = models.CharField(max_length=300, blank=True)
+
+    # When it first went on show: what the shop's followers are told about.
+    published_at = models.DateTimeField(null=True, blank=True)
 
     objects = ProductQuerySet.as_manager()
 
@@ -674,6 +693,16 @@ class Order(TimeStampedModel):
         PICKUP = "pickup", "Collect from the seller"
         DELIVERY = "delivery", "Seller delivers"
 
+    class Plan(models.TextChoices):
+        FULL = "full", "Paid in full"
+        DEPOSIT = "deposit", "Deposit, then the balance when ready"
+
+    class Balance(models.TextChoices):
+        NONE = "none", "No balance"
+        WAITING = "waiting", "Being made"
+        DUE = "due", "Ready: balance due"
+        PAID = "paid", "Balance paid"
+
     class Stage(models.TextChoices):
         NEW = "new", "Paid, not yet handed over"
         DELIVERED = "delivered", "Handed over"
@@ -699,8 +728,18 @@ class Order(TimeStampedModel):
     quantity = models.PositiveSmallIntegerField(
         default=1, validators=[MinValueValidator(1), MaxValueValidator(200)]
     )
-    # Total paid: items + delivery - discount.
+    # What the first payment charged: items + delivery - discount, or, for a
+    # deposit order, the deposit alone. The balance is a second payment.
     amount_pesewas = models.PositiveIntegerField()
+    plan = models.CharField(max_length=10, choices=Plan.choices, default=Plan.FULL)
+    balance_pesewas = models.PositiveIntegerField(default=0)
+    balance_status = models.CharField(max_length=10, choices=Balance.choices, default=Balance.NONE)
+    balance_reference = models.CharField(max_length=40, unique=True, null=True, blank=True)
+    balance_paid_at = models.DateTimeField(null=True, blank=True)
+    ready_at = models.DateTimeField(null=True, blank=True)
+    # Fliiptech's share of the balance, taken when it is paid; the rest of
+    # commission_pesewas is taken with the deposit.
+    balance_commission_pesewas = models.PositiveIntegerField(default=0)
     delivery_pesewas = models.PositiveIntegerField(default=0)
     discount_pesewas = models.PositiveIntegerField(default=0)
     discount_code = models.CharField(max_length=30, blank=True)
@@ -743,8 +782,25 @@ class Order(TimeStampedModel):
         return f"{self.reference}: {self.product_name} x{self.quantity}"
 
     @property
+    def total_pesewas(self):
+        """Everything the buyer pays: the first payment and any balance."""
+        return self.amount_pesewas + self.balance_pesewas
+
+    @property
+    def paid_pesewas(self):
+        balance = self.balance_pesewas if self.balance_status == self.Balance.PAID else 0
+        return self.amount_pesewas + balance
+
+    @property
+    def fully_paid(self):
+        return self.status == PaymentStatus.PAID and self.balance_status in (
+            self.Balance.NONE,
+            self.Balance.PAID,
+        )
+
+    @property
     def seller_share_pesewas(self):
-        return self.amount_pesewas - self.commission_pesewas
+        return self.total_pesewas - self.commission_pesewas
 
     @property
     def amount(self):
@@ -975,3 +1031,44 @@ class SellerReview(TimeStampedModel):
 
     def __str__(self):
         return f"{self.rating}★ for {self.seller}"
+
+
+# --------------------------------------------------------------------------
+# Telling buyers when something changes
+
+
+class StockAlert(models.Model):
+    """ "Tell me when it's back": a phone waiting for a sold-out product."""
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="stock_alerts")
+    phone = PhoneNumberField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    notified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["product", "phone"], name="one_alert_per_phone"),
+        ]
+
+    def __str__(self):
+        return f"{self.phone} waiting for {self.product_id}"
+
+
+class ShopFollow(models.Model):
+    """A signed-in buyer following a shop, told about new products in one
+    text a day at most (marketplace_daily)."""
+
+    account = models.ForeignKey(
+        "accounts.CustomerAccount", on_delete=models.CASCADE, related_name="follows"
+    )
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="followers")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_told_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["account", "seller"], name="follow_a_shop_once"),
+        ]
+
+    def __str__(self):
+        return f"{self.account} follows {self.seller}"

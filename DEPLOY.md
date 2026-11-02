@@ -480,6 +480,69 @@ Before switching it on:
 
 ---
 
+## Marketplace: deposits, alerts and seller tools
+
+Nothing to switch on for most of these; they arrive with the release.
+
+- **Deposits for made-to-order work.** A seller chooses a deposit (30–70%)
+  under *Your shop*. Their made-to-order products then get Buy now: the
+  buyer pays the deposit, the seller taps *It's ready* on the order, the
+  buyer is texted and pays the balance, and only then can it be handed over.
+  Commission is split between the two payments. Balances are confirmed by
+  the same webhook (references starting `fb-`).
+- **Texts to buyers:** "it's back" for sold-out products they asked about,
+  "handed over, did you get it?", "your balance is due", and one text a day
+  at most about new products from shops they follow (sent by
+  `marketplace_daily`).
+- **Away mode:** a seller sets a date; Buy now is off until then.
+- **Copy a product, listing tips, and monthly earnings** with a CSV download
+  are in the seller dashboard.
+- **Featured shops** (Shop plan shops) appear on the home page.
+- **Terms of sale** are at `/marketplace/terms`, linked from the footer and
+  every product. They are a plain-language draft: **have a lawyer read them**
+  before relying on them, and edit the wording in
+  `frontend/messages/en.json` under `MarketTerms`.
+- **Instant page updates.** Product and shop pages are cached for five
+  minutes. To have them update the moment a seller changes something (a
+  price, back in stock, away mode), pick any long random string and set it
+  in both env files, then deploy:
+  ```
+  # /home/safo/deploy-staging/backend.env
+  FRONTEND_REVALIDATE_URL=http://127.0.0.1:3000/revalidate
+  FRONTEND_REVALIDATE_SECRET=<the string>
+  # /home/safo/deploy-staging/frontend.env.production
+  REVALIDATE_SECRET=<the same string>
+  ```
+  You can make one with `openssl rand -hex 24`. Without it, pages simply
+  update within five minutes, as before.
+- **Holding a new seller's first payments:** set
+  `MARKETPLACE_HOLD_FIRST_ORDERS=5` (in `backend.env`) to hold each seller's
+  first five Buy now payments for buyer protection, then pay them straight.
+  It needs Paystack Transfers, set up as for buyer protection above.
+
+## One account per person
+
+Everyone now signs in at `/account` with their phone and gets a customer
+account. Learning, teaching and selling are added to that same login from the
+account page (or through their old sign-up pages, which now also reuse it),
+so one phone is one person everywhere.
+
+Phone numbers that collected separate logins before this (say, a trainee who
+later registered a workshop) are joined up once, after the release is live:
+
+```bash
+cd /opt/fliptech/backend && sudo -u fliptech .venv/bin/python manage.py merge_phone_accounts
+```
+
+That is a dry run: it lists what it would move. **Back up the database
+first**, then run it again with `--yes`. It moves every account for a number
+onto one login, points anything else that named the old login at the kept
+one, and switches the old login off rather than deleting it. Logins with
+staff rights or a password are never touched. It is safe to run again.
+
+People already signed in on the old, switched-off logins are signed out and
+simply sign in again.
+
 ## Database
 
 Already done on this server, kept for reference.

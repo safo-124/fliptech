@@ -1,0 +1,58 @@
+"""The account everyone gets: sign in with a phone, buy, keep your orders.
+
+A customer account is the one thing every signed-in person has. Being a
+trainee, a trainer or a seller is something added to it later, on the same
+login (core/identities.py), when they ask for it. Buying needs nothing more
+than this, and buying without an account still works: an order is made with
+a verified phone, and signing in with that phone later shows it here, because
+orders are matched to an account by its number rather than copied onto it.
+"""
+
+from django.conf import settings
+from django.db import models
+from phonenumber_field.modelfields import PhoneNumberField
+
+from core.models import TimeStampedModel
+
+
+class CustomerAccount(TimeStampedModel):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="customer_account"
+    )
+    phone = PhoneNumberField(unique=True)
+    phone_verified_at = models.DateTimeField()
+    # A second way in and somewhere to send receipts. Null rather than blank
+    # so the uniqueness constraint ignores everyone without one.
+    email = models.EmailField(unique=True, null=True, blank=True)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    display_name = models.CharField(max_length=120, blank=True)
+    # Filled in at checkout so the next order does not ask again.
+    delivery_address = models.CharField(max_length=300, blank=True)
+    is_active = models.BooleanField(default=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.display_name or str(self.phone)
+
+
+class SavedProduct(models.Model):
+    """A product kept for later, on the account so it follows the person
+    from phone to phone. (Signed out, the heart keeps it in the browser.)"""
+
+    account = models.ForeignKey(CustomerAccount, on_delete=models.CASCADE, related_name="saved")
+    product = models.ForeignKey(
+        "marketplace.Product", on_delete=models.CASCADE, related_name="saved_by"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["account", "product"], name="save_a_product_once"),
+        ]
+
+    def __str__(self):
+        return f"{self.account} saved {self.product_id}"

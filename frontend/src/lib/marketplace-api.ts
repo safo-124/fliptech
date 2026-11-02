@@ -20,10 +20,12 @@ export function requestBuyerCode(phone: string) {
   );
 }
 
+/** Proving the number also signs the buyer in to a customer account (never a
+ *  trainee one: buying does not make anybody a trainee). */
 export function verifyBuyerCode(phone: string, code: string) {
   return sessionFetch<{verified: boolean; signed_in: boolean}>("/api/enquiries/verify-code/", {
     method: "POST",
-    body: JSON.stringify({phone, code}),
+    body: JSON.stringify({phone, code, context: "marketplace"}),
   });
 }
 
@@ -131,4 +133,32 @@ export function sendReview(token: string, body: {rating: number; comment: string
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** "Tell me when it's back" for a sold-out product. */
+export function waitForStock(productId: number, phone: string) {
+  return sessionFetch<{detail: string}>(`/api/products/${productId}/notify/`, {
+    method: "POST",
+    body: JSON.stringify({phone}),
+  });
+}
+
+export type FollowState = {following: boolean; followers: number; signed_in: boolean};
+
+export function getFollow(sellerId: number) {
+  return sessionFetch<FollowState>(`/api/sellers/${sellerId}/follow/`);
+}
+
+export function setFollow(sellerId: number, follow: boolean) {
+  return sessionFetch<FollowState>(`/api/sellers/${sellerId}/follow/`, {
+    method: follow ? "POST" : "DELETE",
+  });
+}
+
+/** Start paying the balance of a made-to-order order. */
+export function payBalance(reference: string) {
+  return sessionFetch<{authorization_url: string}>(
+    `/api/orders/${encodeURIComponent(reference)}/balance/`,
+    {method: "POST"},
+  );
 }

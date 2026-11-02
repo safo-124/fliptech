@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { browserApiUrl } from "@/lib/api-origin";
+import { rememberViewed } from "@/lib/bag";
 
 /**
  * Tells the API this product page was opened, for the seller's numbers.
@@ -11,6 +12,8 @@ import { browserApiUrl } from "@/lib/api-origin";
  */
 export function ProductViewBeacon({ productId }: { productId: number }) {
   useEffect(() => {
+    // For "Recently viewed", on this phone only.
+    rememberViewed(productId);
     const url = `${browserApiUrl()}/api/products/${productId}/viewed/`;
     try {
       if (navigator.sendBeacon?.(url)) return;

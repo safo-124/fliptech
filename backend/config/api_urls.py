@@ -7,6 +7,14 @@ endpoints, the tokenised dashboard, and the signed-in trainee and trainer areas.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts.views import AccountView
+from accounts.views import AddRoleView as AccountAddRoleView
+from accounts.views import CodeRequestView as AccountCodeRequestView
+from accounts.views import CodeVerifyView as AccountCodeVerifyView
+from accounts.views import LogoutView as AccountLogoutView
+from accounts.views import OrdersView as AccountOrdersView
+from accounts.views import QuestionsView as AccountQuestionsView
+from accounts.views import SavedView as AccountSavedView
 from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
 from core.site_stats import SiteStatsView
@@ -25,6 +33,10 @@ from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from marketplace.selling_views import (
     BasketPriceView,
+    CopyProductView,
+    FeaturedShopsView,
+    FollowShopView,
+    OrderBalanceView,
     OrderCreateView,
     OrderProblemView,
     OrderReceivedView,
@@ -39,6 +51,7 @@ from marketplace.selling_views import (
     SellerBoostView,
     SellerCodesView,
     SellerCodeView,
+    SellerEarningsView,
     SellerEnquiryRepliedView,
     SellerGrowthView,
     SellerPaymentVerifyView,
@@ -51,6 +64,7 @@ from marketplace.selling_views import (
     SellerStatsView,
     SellerVerificationView,
     ShopOrderCreateView,
+    StockAlertView,
 )
 from marketplace.views import (
     OwnEnquiriesView,
@@ -381,6 +395,12 @@ urlpatterns = [
         name="seller-enquiry-replied",
     ),
     path("seller/verification/", SellerVerificationView.as_view(), name="seller-verification"),
+    path("orders/<str:reference>/balance/", OrderBalanceView.as_view(), name="order-balance"),
+    path("products/<int:pk>/notify/", StockAlertView.as_view(), name="product-stock-alert"),
+    path("sellers/featured/", FeaturedShopsView.as_view(), name="sellers-featured"),
+    path("sellers/<int:pk>/follow/", FollowShopView.as_view(), name="shop-follow"),
+    path("seller/products/<int:pk>/copy/", CopyProductView.as_view(), name="seller-product-copy"),
+    path("seller/earnings/", SellerEarningsView.as_view(), name="seller-earnings"),
     path("reviews/<str:token>/", ReviewView.as_view(), name="seller-review"),
     path("seller/stats/", SellerStatsView.as_view(), name="seller-stats"),
     path("seller/growth/", SellerGrowthView.as_view(), name="seller-growth"),
@@ -396,5 +416,14 @@ urlpatterns = [
     path("seller/payout/banks/", SellerPayoutBanksView.as_view(), name="seller-payout-banks"),
     path("seller/orders/", OwnOrdersView.as_view(), name="seller-orders"),
     path("seller/orders/<str:reference>/", OwnOrderView.as_view(), name="seller-order"),
+    # One sign-in for everyone; see accounts/views.py.
+    path("account/", AccountView.as_view(), name="account"),
+    path("account/request-code/", AccountCodeRequestView.as_view(), name="account-request-code"),
+    path("account/verify-code/", AccountCodeVerifyView.as_view(), name="account-verify-code"),
+    path("account/logout/", AccountLogoutView.as_view(), name="account-logout"),
+    path("account/orders/", AccountOrdersView.as_view(), name="account-orders"),
+    path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
+    path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
+    path("account/roles/<str:role>/", AccountAddRoleView.as_view(), name="account-add-role"),
     path("", include(router.urls)),
 ]

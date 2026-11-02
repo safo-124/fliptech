@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Copy,
+  Lightbulb,
   ImagePlus,
   Loader2,
   MessageCircle,
@@ -17,6 +19,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useCallback, useEffect, useState} from "react";
@@ -35,6 +38,7 @@ import {NativeSelect} from "@/components/ui/native-select";
 import {Textarea} from "@/components/ui/textarea";
 import {
   addProductPhoto,
+  copyProduct,
   createProduct,
   deleteProduct,
   getSellerEnquiries,
@@ -393,10 +397,11 @@ function ProductsTab({
             <li key={product.id}>
               <Card className="overflow-hidden">
                 <div className="flex gap-3.5 p-3.5">
-                  <div className="size-20 shrink-0 overflow-hidden rounded-xl bg-[var(--color-muted)] sm:size-24">
+                  <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-[var(--color-muted)] sm:size-24">
                     {product.photos[0]?.image ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={product.photos[0].image} alt="" className="size-full object-cover" />
+                      // Through the image optimiser: the stored original can
+                      // be 2048px, for a 96px square.
+                      <Image src={product.photos[0].image} alt="" fill sizes="96px" className="object-cover" />
                     ) : (
                       <span className="grid size-full place-items-center text-[var(--color-muted-foreground)]">
                         <ImagePlus aria-hidden="true" className="size-5" />
@@ -421,11 +426,32 @@ function ProductsTab({
                         {product.staff_note}
                       </p>
                     ) : null}
+                    {/* What would most help it sell, one line each. */}
+                    {product.tips.length ? (
+                      <ul className="mt-1.5 space-y-0.5">
+                        {product.tips.map((tip) => (
+                          <li key={tip} className="flex items-start gap-1.5 text-xs text-[var(--color-warn)]">
+                            <Lightbulb aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+                            {t(`tip.${tip}`)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
 
                     <div className="mt-2.5 flex flex-wrap gap-2">
                       <Button type="button" variant="outline" size="sm" onClick={() => setEditing(product)}>
                         <Pencil aria-hidden="true" />
                         {t("edit")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => run(() => copyProduct(product.id), t("copied"))}
+                      >
+                        <Copy aria-hidden="true" />
+                        {t("copy")}
                       </Button>
                       {product.status === "draft" ? (
                         <Button
@@ -675,10 +701,7 @@ function ProductPhotos({
       <div className="mt-3 flex flex-wrap gap-2.5">
         {product.photos.map((photo) => (
           <div key={photo.id} className="group relative size-20 overflow-hidden rounded-xl bg-[var(--color-muted)]">
-            {photo.image ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={photo.image} alt="" className="size-full object-cover" />
-            ) : null}
+            {photo.image ? <Image src={photo.image} alt="" fill sizes="80px" className="object-cover" /> : null}
             <button
               type="button"
               aria-label={t("removePhoto")}
@@ -946,6 +969,9 @@ function ShopTab({
   const [delivers, setDelivers] = useState(seller.delivery_fee !== null);
   const [deliveryFee, setDeliveryFee] = useState(seller.delivery_fee ?? "");
   const [deliveryArea, setDeliveryArea] = useState(seller.delivery_area);
+  const [deposit, setDeposit] = useState(seller.deposit_percent ? String(seller.deposit_percent) : "");
+  const [awayUntil, setAwayUntil] = useState(seller.away_until ?? "");
+  const [awayNote, setAwayNote] = useState(seller.away_note);
 
   return (
     <Card>
@@ -965,6 +991,9 @@ function ShopTab({
                   area: area ? Number(area) : null,
                   delivery_fee: delivers ? deliveryFee.trim() || "0" : null,
                   delivery_area: delivers ? deliveryArea.trim() : "",
+                  deposit_percent: deposit ? Number(deposit) : null,
+                  away_until: awayUntil || null,
+                  away_note: awayUntil ? awayNote.trim() : "",
                 }),
               t("shopSaved"),
             );
@@ -1047,6 +1076,51 @@ function ShopTab({
               </div>
             ) : null}
             <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t("deliveryHelp")}</p>
+          </fieldset>
+
+          <div className="rounded-xl border border-[var(--color-border)] p-3">
+            <Label htmlFor="shop-deposit">{t("depositLabel")}</Label>
+            <NativeSelect id="shop-deposit" value={deposit} onChange={(event) => setDeposit(event.target.value)}>
+              <option value="">{t("depositOff")}</option>
+              {[30, 40, 50, 60, 70].map((percent) => (
+                <option key={percent} value={percent}>
+                  {t("depositPercent", {percent})}
+                </option>
+              ))}
+            </NativeSelect>
+            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("depositHelp")}</p>
+          </div>
+
+          <fieldset className="rounded-xl border border-[var(--color-border)] p-3">
+            <legend className="px-1 text-sm font-medium">{t("awayTitle")}</legend>
+            <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
+              <div>
+                <Label htmlFor="shop-away-until">{t("awayUntil")}</Label>
+                <Input
+                  id="shop-away-until"
+                  type="date"
+                  value={awayUntil}
+                  onChange={(event) => setAwayUntil(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="shop-away-note">{t("awayNote")}</Label>
+                <Input
+                  id="shop-away-note"
+                  value={awayNote}
+                  maxLength={160}
+                  onChange={(event) => setAwayNote(event.target.value)}
+                  placeholder={t("awayNotePlaceholder")}
+                  disabled={!awayUntil}
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t("awayHelp")}</p>
+            {awayUntil ? (
+              <Button type="button" variant="ghost" size="sm" className="mt-1" onClick={() => setAwayUntil("")}>
+                {t("awayClear")}
+              </Button>
+            ) : null}
           </fieldset>
 
           <Button type="submit" variant="brand" disabled={busy}>

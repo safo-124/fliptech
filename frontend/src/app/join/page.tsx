@@ -1,5 +1,5 @@
 import type {Metadata} from "next";
-import {ArrowRight, Building2, GraduationCap, ShieldCheck} from "lucide-react";
+import {ArrowRight, Building2, GraduationCap, ShieldCheck, ShoppingBag} from "lucide-react";
 import Link from "next/link";
 import {getTranslations} from "next-intl/server";
 
@@ -11,6 +11,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const CHOICES = [
+  // Everybody starts here; learning and teaching are added to the same login.
+  {
+    href: "/account?new=1",
+    Icon: ShoppingBag,
+    role: "customer",
+    points: ["buy", "orders", "later"],
+  },
   {
     href: "/trainee/sign-in?new=1",
     Icon: GraduationCap,
@@ -29,7 +36,7 @@ const CHOICES = [
 export default async function JoinPage() {
   const t = await getTranslations("JoinPage");
   return (
-    <div className="mx-auto max-w-4xl px-3 py-8 sm:py-12 lg:px-6">
+    <div className="mx-auto max-w-5xl px-3 py-8 sm:py-12 lg:px-6">
       <header className="mb-7 max-w-2xl">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
           {t("eyebrow")}
@@ -39,7 +46,7 @@ export default async function JoinPage() {
           {t("lead")}
         </p>
       </header>
-      <ul className="grid gap-4 md:grid-cols-2">
+      <ul className="grid gap-4 md:grid-cols-3">
         {CHOICES.map(({href, Icon, role, points}) => (
           <li key={href}>
             <Link

@@ -15,7 +15,9 @@ import { getTranslations } from "next-intl/server";
 
 import { AskSeller } from "@/components/marketplace/AskSeller";
 import { BuyNow } from "@/components/marketplace/BuyNow";
+import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
 import { ReportProduct } from "@/components/marketplace/ReportProduct";
+import { StockAlert } from "@/components/marketplace/StockAlert";
 import { SaveButton } from "@/components/marketplace/SaveButton";
 import { SalePrice, SellerBadges } from "@/components/marketplace/SellerBadges";
 import { ProductViewBeacon } from "@/components/marketplace/ProductViewBeacon";
@@ -259,15 +261,30 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
-          {product.availability === "sold_out" ? (
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-sm font-semibold">{t("soldOutTitle")}</p>
-                <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-muted-foreground)]">
-                  {t("soldOutBody")}
+          {/* Away: said before anything else, so nobody waits on a reply. */}
+          {product.seller.away_until ? (
+            <Card className="border-[var(--color-warn)]/40">
+              <CardContent className="pt-5 text-sm">
+                <p className="font-semibold">
+                  {t("awayUntil", {
+                    seller: product.seller.business_name,
+                    date: new Date(product.seller.away_until).toLocaleDateString("en-GH", {
+                      day: "numeric",
+                      month: "long",
+                    }),
+                  })}
                 </p>
+                {product.seller.away_note ? (
+                  <p className="mt-1 text-[var(--color-muted-foreground)]">{product.seller.away_note}</p>
+                ) : null}
               </CardContent>
             </Card>
+          ) : null}
+
+          {product.availability === "made_to_order" && product.buy_online && product.seller.deposit_percent ? (
+            <p className="rounded-xl bg-[var(--color-brand-soft)] px-3 py-2.5 text-sm text-[var(--color-brand-strong)]">
+              {t("depositNote", { percent: product.seller.deposit_percent })}
+            </p>
           ) : null}
 
           {/* A client subtree, so its strings have to be handed over
@@ -285,6 +302,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 sellerName={product.seller.business_name}
               />
             ) : null}
+            {product.availability === "sold_out" ? <StockAlert productId={product.id} /> : null}
             <AskSeller productId={product.id} sellerName={product.seller.business_name} />
             <ProductViewBeacon productId={product.id} />
             <ReportProduct productId={product.id} />
@@ -296,7 +314,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <p className="px-1 text-xs leading-relaxed text-[var(--color-muted-foreground)]">
             {product.buy_online
               ? t("paymentNoticeOnline", { brandShort: BRAND })
-              : t("paymentNotice", { brandShort: BRAND })}
+              : t("paymentNotice", { brandShort: BRAND })}{" "}
+            <Link href="/marketplace/terms" className="underline underline-offset-2">
+              {t("termsLink")}
+            </Link>
           </p>
         </aside>
       </div>
@@ -313,6 +334,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
         </section>
       ) : null}
+      <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+        <RecentlyViewed title={t("recentlyViewed")} exclude={product.id} />
+      </ClientMessages>
     </div>
   );
 }

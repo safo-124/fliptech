@@ -37,13 +37,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.identities import phone_vouched_for
 from core.images import strip_exif, stripped_name, validate_image_upload
 from core.media import public_url
 from core.network import canonical_client_ip, ratelimit_client_ip
 from courses import paystack
-from enquiries.otp import phone_is_trusted
 
-from . import payouts, quotes
+from . import alerts, payouts, quotes
 from .models import (
     Order,
     OrderItem,
@@ -58,7 +58,7 @@ from .models import (
     payment_reference,
     plan_running,
 )
-from .payments import confirm_order, confirm_seller_payment, payer_email
+from .payments import confirm_balance, confirm_order, confirm_seller_payment, payer_email
 from .reviews import read_token
 from .serializers import (
     BasketSerializer,
@@ -506,9 +506,19 @@ def price_basket(seller, data):
     """Work out an order before it exists: lines, delivery, discount, total.
 
     Every price is read from the database, never from the request. Each
-    item must be the seller's, on show, priced and ready now; an option
-    must be one of that product's and available.
+    item must be the seller's, on show and priced, and either ready now or
+    made to order by a seller who takes deposits; an option must be one of
+    that product's and available.
+
+    A bag with anything made to order is paid in two parts: the seller's
+    deposit share of the goods now, and the rest (with delivery) when the
+    seller says it is ready.
     """
+    if seller.is_away:
+        raise BasketError(
+            _("This seller is away until %(date)s. You can still ask them a question.")
+            % {"date": seller.away_until.strftime("%d %b")}
+        )
     raw = data.get("items") or []
     if not raw:
         raise BasketError(_("Choose something to buy."))
@@ -523,11 +533,18 @@ def price_basket(seller, data):
     lines = []
     for item in raw:
         product = products.get(item["product"])
-        if (
-            product is None
-            or not product.price
-            or product.availability != Product.Availability.AVAILABLE
-        ):
+        buyable = (
+            product is not None
+            and product.price
+            and (
+                product.availability == Product.Availability.AVAILABLE
+                or (
+                    product.availability == Product.Availability.MADE_TO_ORDER
+                    and seller.deposit_percent
+                )
+            )
+        )
+        if not buyable:
             raise BasketError(_("Something in your order can no longer be bought here."))
         options = list(product.options.all())
         option = None
@@ -566,6 +583,29 @@ def price_basket(seller, data):
     if data.get("fulfilment") == Order.Fulfilment.DELIVERY and seller.delivery_fee is not None:
         delivery = int(seller.delivery_fee * 100)
     paid_for_goods = subtotal - discount
+    # On the goods, not on delivery: that money is the seller's cost.
+    commission = commission_pesewas(paid_for_goods)
+    made_to_order = any(
+        line["product"].availability == Product.Availability.MADE_TO_ORDER for line in lines
+    )
+    if made_to_order:
+        pay_now = int(
+            (Decimal(paid_for_goods) * seller.deposit_percent / 100).quantize(
+                Decimal(1), rounding=ROUND_HALF_UP
+            )
+        )
+        commission_now = (
+            int(
+                (Decimal(commission) * pay_now / paid_for_goods).quantize(
+                    Decimal(1), rounding=ROUND_HALF_UP
+                )
+            )
+            if paid_for_goods
+            else 0
+        )
+        balance = paid_for_goods - pay_now + delivery
+    else:
+        pay_now, commission_now, balance = paid_for_goods + delivery, commission, 0
     return {
         "lines": lines,
         "subtotal": subtotal,
@@ -573,8 +613,12 @@ def price_basket(seller, data):
         "code": code,
         "delivery": delivery,
         "total": paid_for_goods + delivery,
-        # On the goods, not on delivery: that money is the seller's cost.
-        "commission": commission_pesewas(paid_for_goods),
+        "commission": commission,
+        "plan": Order.Plan.DEPOSIT if made_to_order else Order.Plan.FULL,
+        "pay_now": pay_now,
+        "commission_now": commission_now,
+        "balance": balance,
+        "balance_commission": commission - commission_now,
     }
 
 
@@ -596,6 +640,10 @@ def _basket_payload(priced, seller):
             }
             for line in priced["lines"]
         ],
+        "plan": priced["plan"],
+        "deposit_percent": seller.deposit_percent,
+        "pay_now": _pesewas(priced["pay_now"]),
+        "balance": _pesewas(priced["balance"]),
         "subtotal": _pesewas(priced["subtotal"]),
         "discount": _pesewas(priced["discount"]),
         "code": priced["code"],
@@ -651,6 +699,19 @@ class BasketPriceView(APIView):
         return Response(_basket_payload(priced, seller))
 
 
+def holds_payment(seller):
+    """Whether this seller's next order is held for buyer protection: for
+    everyone when MARKETPLACE_HOLD_PAYMENTS is on, otherwise for a new
+    seller's first few orders (MARKETPLACE_HOLD_FIRST_ORDERS), when they have
+    a transfer recipient to be paid through."""
+    if settings.MARKETPLACE_HOLD_PAYMENTS:
+        return True
+    first = settings.MARKETPLACE_HOLD_FIRST_ORDERS
+    if not first or not seller.paystack_recipient:
+        return False
+    return seller.orders.filter(status=PaymentStatus.PAID).count() < first
+
+
 def _create_order(request, seller, data):
     if not (paystack.enabled() and seller.payout_ready):
         return Response(
@@ -661,7 +722,7 @@ def _create_order(request, seller, data):
         priced = price_basket(seller, data)
     except BasketError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
-    if not phone_is_trusted(request.session, data["phone"]):
+    if not phone_vouched_for(request, data["phone"]):
         return Response(
             {"detail": _("Verify this phone number before paying.")},
             status=status.HTTP_403_FORBIDDEN,
@@ -680,7 +741,7 @@ def _create_order(request, seller, data):
     summary = first["product"].name
     if len(lines) > 1:
         summary = _("%(name)s and %(more)s more") % {"name": summary, "more": len(lines) - 1}
-    held = settings.MARKETPLACE_HOLD_PAYMENTS
+    held = holds_payment(seller)
     with transaction.atomic():
         order = Order.objects.create(
             reference=payment_reference("fo"),
@@ -689,7 +750,10 @@ def _create_order(request, seller, data):
             product_name=summary[:200],
             unit_price=first["unit_price"],
             quantity=count,
-            amount_pesewas=priced["total"],
+            amount_pesewas=priced["pay_now"],
+            plan=priced["plan"],
+            balance_pesewas=priced["balance"],
+            balance_commission_pesewas=priced["balance_commission"],
             delivery_pesewas=priced["delivery"],
             discount_pesewas=priced["discount"],
             discount_code=priced["code"],
@@ -711,6 +775,17 @@ def _create_order(request, seller, data):
             )
             for line in lines
         )
+    # A signed-in buyer with no name yet keeps the one typed here.
+    from accounts.auth import own_customer_account
+
+    customer = own_customer_account(request)
+    if (
+        customer is not None
+        and not customer.display_name
+        and str(customer.phone) == str(order.buyer_phone)
+    ):
+        customer.display_name = order.buyer_name[:120]
+        customer.save(update_fields=["display_name", "updated_at"])
     # This browser may see the order afterwards, whatever happens to the
     # hour-long trust in the phone number.
     request.session[SESSION_ORDERS] = [
@@ -726,7 +801,8 @@ def _create_order(request, seller, data):
             # Held: all of it to Fliiptech, and the seller's share follows by
             # transfer. Split: straight to the seller, less the commission.
             subaccount=None if held else seller.paystack_subaccount,
-            transaction_charge=None if held else order.commission_pesewas,
+            # A deposit carries its share of the commission; the balance the rest.
+            transaction_charge=None if held else priced["commission_now"],
             metadata={"seller_id": seller.pk, "items": len(lines)},
         )
     except paystack.PaystackError as exc:
@@ -777,10 +853,15 @@ class ShopOrderCreateView(APIView):
 
 
 def _buyers_order(request, reference):
-    if reference not in request.session.get(SESSION_ORDERS, []):
-        raise NotFound(_("No such order."))
+    """The order, for the browser that made it or the signed-in person whose
+    phone paid for it, from any phone."""
+    from core.identities import signed_in_phones
+
     order = Order.objects.select_related("seller").filter(reference=reference).first()
-    if order is None:
+    if order is None or (
+        reference not in request.session.get(SESSION_ORDERS, [])
+        and str(order.buyer_phone) not in signed_in_phones(request)
+    ):
         raise NotFound(_("No such order."))
     return order
 
@@ -805,6 +886,14 @@ class OrderView(APIView):
                 order = confirm_order(reference, paystack.verify(reference)) or order
             except paystack.PaystackError as exc:
                 return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        if order.balance_status == Order.Balance.DUE and order.balance_reference:
+            # Perhaps back from paying the balance: ask Paystack. A failed
+            # question leaves the balance due and the page still shows.
+            try:
+                verified = paystack.verify(order.balance_reference)
+                order = confirm_balance(order.balance_reference, verified) or order
+            except paystack.PaystackError:
+                pass
         return Response(OrderSerializer(order).data)
 
 
@@ -842,16 +931,76 @@ class OwnOrderView(APIView):
         )
         if order is None:
             raise NotFound(_("No such order."))
-        if request.data.get("stage") != Order.Stage.DELIVERED:
+        wanted = request.data.get("stage")
+        if wanted == "ready":
+            # Made-to-order work is finished: ask the buyer for the balance.
+            if order.plan != Order.Plan.DEPOSIT or order.balance_status != Order.Balance.WAITING:
+                return Response(
+                    {"stage": [_("This order is not waiting to be finished.")]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            order.balance_status = Order.Balance.DUE
+            order.ready_at = timezone.now()
+            order.save(update_fields=["balance_status", "ready_at", "updated_at"])
+            transaction.on_commit(lambda: alerts.balance_due(order))
+            return Response(OrderSerializer(order).data)
+        if wanted != Order.Stage.DELIVERED:
             return Response(
-                {"stage": [_("Orders can only be marked as handed over here.")]},
+                {"stage": [_("Orders can only be marked as ready or handed over here.")]},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not order.fully_paid:
+            return Response(
+                {"stage": [_("Wait for the buyer to pay the balance before handing it over.")]},
+                status=status.HTTP_409_CONFLICT,
             )
         if order.stage == Order.Stage.NEW:
             order.stage = Order.Stage.DELIVERED
             order.delivered_at = timezone.now()
             order.save(update_fields=["stage", "delivered_at", "updated_at"])
+            transaction.on_commit(lambda: alerts.handed_over(order))
         return Response(OrderSerializer(order).data)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class OrderBalanceView(APIView):
+    """Pay the balance of a made-to-order order, once the seller says it is
+    ready. Same split (or hold) as the deposit, with the rest of the
+    commission."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request, reference):
+        order = _buyers_order(request, reference)
+        if order.balance_status != Order.Balance.DUE:
+            return Response(
+                {"detail": _("There is no balance to pay on this order now.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+        reference_now = payment_reference("fb")
+        split = order.payout == Order.Payout.SPLIT
+        try:
+            url = paystack.initialize(
+                email=payer_email(None, order.buyer_phone),
+                amount_pesewas=order.balance_pesewas,
+                reference=reference_now,
+                callback_url=_site(f"/marketplace/order/{order.reference}"),
+                subaccount=order.seller.paystack_subaccount if split else None,
+                transaction_charge=order.balance_commission_pesewas if split else None,
+                metadata={"order": order.reference, "part": "balance"},
+            )
+        except paystack.PaystackError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        # Kept only once Paystack has it, so the order page never asks
+        # Paystack about a payment that was never started.
+        order.balance_reference = reference_now
+        order.save(update_fields=["balance_reference", "updated_at"])
+        return Response(
+            {"authorization_url": url, "reference": order.balance_reference},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # --------------------------------------------------------------------------
@@ -1052,7 +1201,7 @@ class QuoteCreateView(APIView):
         if trade is None:
             return Response({"trade": [_("Choose a trade.")]}, status=status.HTTP_400_BAD_REQUEST)
         area = Area.objects.filter(slug=data.get("area")).first() if data.get("area") else None
-        if not phone_is_trusted(request.session, data["phone"]):
+        if not phone_vouched_for(request, data["phone"]):
             return Response(
                 {"detail": _("Verify this phone number first.")},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1301,3 +1450,298 @@ class SellerVerificationView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         return _start_seller_payment(request, seller, SellerPayment.Kind.VERIFICATION)
+
+
+# --------------------------------------------------------------------------
+# Back in stock, and following a shop
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class StockAlertView(APIView):
+    """ "Tell me when it's back", for a sold-out product. The phone must be
+    the signed-in person's or verified in this browser, as for a question,
+    so nobody can sign a stranger up for texts."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request, pk):
+        from phonenumber_field.phonenumber import to_python
+
+        product = _public_products().filter(pk=pk).first()
+        if product is None:
+            raise NotFound(_("No such product."))
+        if product.availability != Product.Availability.SOLD_OUT:
+            return Response({"detail": _("This is not sold out.")}, status=status.HTTP_409_CONFLICT)
+        phone = to_python(str(request.data.get("phone") or ""), region="GH")
+        if phone is None or not phone.is_valid():
+            return Response(
+                {"phone": [_("Enter a phone number.")]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not phone_vouched_for(request, phone):
+            return Response(
+                {"detail": _("Verify this phone number first.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        alerts.wait_for_stock(product, phone)
+        return Response(
+            {"detail": _("We will text you when it is back.")}, status=status.HTTP_201_CREATED
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class FollowShopView(APIView):
+    """Follow a shop to hear about new products. Signed-in buyers only."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    def _state(self, request, seller):
+        from accounts.auth import own_customer_account
+
+        account = own_customer_account(request)
+        following = bool(account and seller.followers.filter(account=account).exists())
+        return {
+            "following": following,
+            "followers": seller.followers.count(),
+            "signed_in": account is not None,
+        }
+
+    @extend_schema(responses={200: None})
+    def get(self, request, pk):
+        return Response(self._state(request, _shop(pk)))
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, pk):
+        from accounts.auth import own_customer_account
+
+        from .models import ShopFollow
+
+        seller = _shop(pk)
+        account = own_customer_account(request)
+        if account is None:
+            return Response(
+                {"detail": _("Sign in to follow a shop.")}, status=status.HTTP_403_FORBIDDEN
+            )
+        ShopFollow.objects.get_or_create(account=account, seller=seller)
+        return Response(self._state(request, seller))
+
+    @extend_schema(responses={200: None})
+    def delete(self, request, pk):
+        from accounts.auth import own_customer_account
+
+        seller = _shop(pk)
+        account = own_customer_account(request)
+        if account is not None:
+            seller.followers.filter(account=account).delete()
+        return Response(self._state(request, seller))
+
+
+# --------------------------------------------------------------------------
+# Seller tools: copy a product, earnings, featured shops
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CopyProductView(APIView):
+    """A draft copy of one of the seller's products: the same description,
+    price, trade, options and photos, for listing similar things quickly.
+    The photos point at the same files; removing one from either product
+    leaves the other's alone."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request, pk):
+        from .models import ProductPhoto
+        from .serializers import OwnProductSerializer
+        from .views import _unique_slug
+
+        seller = _account(request)
+        original = seller.products.filter(pk=pk).prefetch_related("photos", "options").first()
+        if original is None:
+            raise NotFound(_("No such product."))
+        name = _("%(name)s (copy)") % {"name": original.name}
+        with transaction.atomic():
+            copy = Product.objects.create(
+                seller=seller,
+                name=name[:200],
+                slug=_unique_slug(seller, name),
+                description=original.description,
+                price=original.price,
+                was_price=original.was_price,
+                trade=original.trade,
+                availability=original.availability,
+                status=Product.Status.DRAFT,
+            )
+            ProductOption.objects.bulk_create(
+                ProductOption(
+                    product=copy,
+                    label=option.label,
+                    price=option.price,
+                    available=option.available,
+                    display_order=option.display_order,
+                )
+                for option in original.options.all()
+            )
+            ProductPhoto.objects.bulk_create(
+                ProductPhoto(
+                    product=copy,
+                    image=photo.image.name,
+                    caption=photo.caption,
+                    display_order=photo.display_order,
+                    exif_stripped=True,
+                    uploaded_by=request.user,
+                )
+                for photo in original.photos.all()
+            )
+        return Response(OwnProductSerializer(copy).data, status=status.HTTP_201_CREATED)
+
+
+def _month(raw):
+    today = timezone.localdate()
+    try:
+        year, month = (int(part) for part in str(raw or "").split("-"))
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        year, month = today.year, today.month
+    return year, month
+
+
+class SellerEarningsView(APIView):
+    """One month of sales: each paid order, Fliiptech's share, the seller's
+    share and whether it has reached them. ?download=csv downloads it."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        import csv
+        from io import StringIO
+
+        from django.http import HttpResponse
+
+        seller = _account(request)
+        year, month = _month(request.query_params.get("month"))
+        orders = list(
+            seller.orders.filter(
+                status=PaymentStatus.PAID, paid_at__year=year, paid_at__month=month
+            ).order_by("paid_at")
+        )
+        rows = [
+            {
+                "reference": order.reference,
+                "paid_at": timezone.localtime(order.paid_at).strftime("%Y-%m-%d"),
+                "product": order.product_name,
+                "buyer": order.buyer_name,
+                "total": order.total_pesewas,
+                "paid": order.paid_pesewas,
+                "fliiptech": order.commission_pesewas,
+                "yours": order.seller_share_pesewas,
+                "stage": order.get_stage_display(),
+                "payout": order.get_payout_display(),
+            }
+            for order in orders
+        ]
+        if request.query_params.get("download") == "csv":
+            out = StringIO()
+            writer = csv.writer(out)
+            writer.writerow(
+                [
+                    "Order",
+                    "Paid on",
+                    "What",
+                    "Buyer",
+                    "Total (GH₵)",
+                    "Paid so far (GH₵)",
+                    "Fliiptech share (GH₵)",
+                    "Your share (GH₵)",
+                    "Stage",
+                    "Payout",
+                ]
+            )
+            for row in rows:
+                writer.writerow(
+                    [
+                        row["reference"],
+                        row["paid_at"],
+                        row["product"],
+                        row["buyer"],
+                        _pesewas(row["total"]),
+                        _pesewas(row["paid"]),
+                        _pesewas(row["fliiptech"]),
+                        _pesewas(row["yours"]),
+                        row["stage"],
+                        row["payout"],
+                    ]
+                )
+            response = HttpResponse(out.getvalue(), content_type="text/csv; charset=utf-8")
+            response["Content-Disposition"] = f'attachment; filename="sales-{year}-{month:02d}.csv"'
+            return response
+        return Response(
+            {
+                "month": f"{year}-{month:02d}",
+                "totals": {
+                    "orders": len(rows),
+                    "sales": _pesewas(sum(row["total"] for row in rows)),
+                    "fliiptech": _pesewas(sum(row["fliiptech"] for row in rows)),
+                    "yours": _pesewas(sum(row["yours"] for row in rows)),
+                },
+                "orders": [
+                    {
+                        **row,
+                        "total": _pesewas(row["total"]),
+                        "paid": _pesewas(row["paid"]),
+                        "fliiptech": _pesewas(row["fliiptech"]),
+                        "yours": _pesewas(row["yours"]),
+                    }
+                    for row in rows
+                ],
+            }
+        )
+
+
+class FeaturedShopsView(APIView):
+    """Shop plan shops for the home page: up to six, in an order that
+    changes each day so none is always first."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        import random
+
+        from .models import SellerAccount
+        from .serializers import SellerCardSerializer
+
+        now = timezone.now()
+        on_plan = SellerPayment.objects.filter(
+            status=PaymentStatus.PAID,
+            kind=SellerPayment.Kind.PLAN_MONTH,
+            starts_at__lte=now,
+            ends_at__gt=now,
+        ).values("seller_id")
+        sellers = list(
+            SellerAccount.objects.filter(pk__in=on_plan, products__in=Product.objects.visible())
+            .distinct()
+            .select_related("area", "area__region", "provider")
+        )
+        random.Random(timezone.localdate().toordinal()).shuffle(sellers)
+        sellers = sellers[:6]
+        covers = {}
+        for product in (
+            _public_products().filter(seller__in=sellers).order_by("-boosted", "-created_at")
+        ):
+            if product.seller_id not in covers:
+                first = next(iter(product.photos.all()), None)
+                covers[product.seller_id] = (
+                    public_url(first.image.url, request) if first and first.image else None
+                )
+        cards = SellerCardSerializer(sellers, many=True, context={"request": request}).data
+        for card in cards:
+            card["photo"] = covers.get(card["id"])
+        return Response({"results": cards})

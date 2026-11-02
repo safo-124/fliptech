@@ -18,6 +18,9 @@ import { getTranslations } from "next-intl/server";
 import { BrandShards } from "@/components/BrandShards";
 import { NearMeButton } from "@/components/marketplace/NearMeButton";
 import { ProductTile } from "@/components/marketplace/ProductTile";
+import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
+import { ClientMessages } from "@/i18n/ClientMessages";
+import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getAllAreas, getAllTrades, searchProducts, type MarketplaceParams } from "@/lib/api";
@@ -218,6 +221,9 @@ export default async function MarketplacePage({
             </div>
           </>
         )}
+        <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+          <RecentlyViewed title={t("recentlyViewed")} />
+        </ClientMessages>
       </section>
     </div>
   );

@@ -88,6 +88,9 @@ def confirm_order(reference, data):
         if order is None or order.status == PaymentStatus.PAID:
             return order
         paid = _apply(order, data)
+        if paid and order.plan == Order.Plan.DEPOSIT:
+            # The deposit is in; the work starts, and the balance waits.
+            order.balance_status = Order.Balance.WAITING
         order.save()
         if paid:
             if order.discount_code:
@@ -100,15 +103,30 @@ def confirm_order(reference, data):
         return order
 
 
+def _paid_words(order, buyer=False):
+    """What was paid, saying "deposit" when it was one, so neither side
+    mistakes a deposit for the whole price."""
+    paid = order.amount_pesewas / 100
+    if order.plan == Order.Plan.DEPOSIT:
+        rest = order.balance_pesewas / 100
+        if buyer:
+            return f"you paid a GH₵{paid:.2f} deposit (GH₵{rest:.2f} due when it is ready)"
+        return f"GH₵{paid:.2f} deposit paid, GH₵{rest:.2f} to come when ready"
+    return f"you paid GH₵{paid:.2f}" if buyer else f"GH₵{paid:.2f}"
+
+
 def _tell_seller(order):
     """Straight away, by text, so a paid order never waits on the staff
     outbox. The WhatsApp message staff send follows as a second reminder."""
     how = "Deliver it" if order.fulfilment == order.Fulfilment.DELIVERY else "They will collect"
+    paid = _paid_words(order)
+    if order.plan == Order.Plan.DEPOSIT:
+        how = "Start the work; mark it ready in your dashboard to ask for the balance"
     try:
         send_sms(
             order.seller.phone,
             f"{settings.BRAND_NAME}: NEW PAID ORDER {order.reference}. {order.quantity} x "
-            f"{order.product_name}, GH₵{order.amount:.2f}. {how}. Call "
+            f"{order.product_name}, {paid}. {how}. Call "
             f"{order.buyer_name} on {order.buyer_phone}.",
         )
     except Exception:
@@ -120,7 +138,7 @@ def _tell_buyer(order):
     try:
         send_sms(
             order.buyer_phone,
-            f"{settings.BRAND_NAME}: you paid GH₵{order.amount:.2f} for "
+            f"{settings.BRAND_NAME}: {_paid_words(order, buyer=True)} for "
             f"{order.quantity} x {order.product_name}. Order {order.reference}. "
             f"{order.seller.business_name} will contact you; their number is "
             f"{order.seller.phone}.",
@@ -129,10 +147,50 @@ def _tell_buyer(order):
         logger.exception("Could not text the receipt for %s", order.reference)
 
 
+def confirm_balance(reference, data):
+    """The second payment of a deposit order. The same rule as every other:
+    paid only for a successful charge of exactly the balance."""
+    data = data or {}
+    with transaction.atomic():
+        order = (
+            Order.objects.select_for_update(of=("self",))
+            .select_related("seller")
+            .filter(balance_reference=reference)
+            .first()
+        )
+        if order is None or order.balance_status == Order.Balance.PAID:
+            return order
+        exact = (
+            int(data.get("amount") or 0) == order.balance_pesewas
+            and str(data.get("currency") or "").upper() == order.currency
+        )
+        if data.get("status") == "success" and exact:
+            order.balance_status = Order.Balance.PAID
+            order.balance_paid_at = timezone.now()
+            order.save(update_fields=["balance_status", "balance_paid_at", "updated_at"])
+            transaction.on_commit(lambda: _tell_seller_balance(order))
+        elif data.get("status") == "success":
+            logger.error("Balance charge %s does not match the order; not granting", reference)
+        return order
+
+
+def _tell_seller_balance(order):
+    try:
+        send_sms(
+            order.seller.phone,
+            f"{settings.BRAND_NAME}: {order.buyer_name} has paid the balance for order "
+            f"{order.reference}. Hand it over and mark it in your dashboard.",
+        )
+    except Exception:
+        logger.exception("Could not text the seller about %s", order.reference)
+
+
 def confirm_reference(reference, data):
     """The webhook's way in: whichever kind the reference is."""
     if reference.startswith("fm-"):
         return confirm_seller_payment(reference, data)
     if reference.startswith("fo-"):
         return confirm_order(reference, data)
+    if reference.startswith("fb-"):
+        return confirm_balance(reference, data)
     return None

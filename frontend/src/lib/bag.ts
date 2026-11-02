@@ -15,6 +15,7 @@ import type {BagItem} from "./types";
 
 const BAGS = "fliiptech:bags";
 const SAVED = "fliiptech:saved";
+const RECENT = "fliiptech:recent";
 const CHANGED = "fliiptech:bag-changed";
 
 export type StoredLine = BagItem & {name: string; optionLabel: string};
@@ -89,5 +90,39 @@ export function toggleSaved(id: number) {
   const ids = savedIds();
   const next = ids.includes(id) ? ids.filter((x) => x !== id) : [id, ...ids].slice(0, 50);
   write(SAVED, next);
-  return next.includes(id);
+  const saved = next.includes(id);
+  // Kept on the account too, when there is one signed in; refused quietly
+  // when there is not, and the browser copy is enough.
+  void import("./account-api")
+    .then(({changeSaved}) => changeSaved(saved ? {add: [id]} : {remove: [id]}))
+    .catch(() => {});
+  return saved;
+}
+
+/**
+ * After signing in: what this browser saved goes onto the account, and what
+ * the account had comes back here, so the hearts are right on every phone.
+ */
+export async function syncSavedWithAccount() {
+  try {
+    const {changeSaved} = await import("./account-api");
+    const {ids} = await changeSaved({add: savedIds()});
+    write(SAVED, ids);
+  } catch {
+    // Signed out, or offline: the browser's list stands.
+  }
+}
+
+/** Recently viewed products, newest first, on this phone only. */
+export function recentIds(): number[] {
+  return read<number[]>(RECENT, []).filter((id) => Number.isInteger(id));
+}
+
+export function rememberViewed(id: number) {
+  try {
+    const next = [id, ...recentIds().filter((x) => x !== id)].slice(0, 12);
+    window.localStorage.setItem(RECENT, JSON.stringify(next));
+  } catch {
+    // Not kept; nothing depends on it.
+  }
 }

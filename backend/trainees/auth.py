@@ -5,7 +5,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from core.identities import create_dedicated_user, user_is_unprivileged
+from core.identities import roles_of, user_for_new_role, user_is_unprivileged
 
 from .models import TraineeAccount
 
@@ -117,7 +117,10 @@ def account_for_verified_phone(*, phone, verified_at, display_name="", profile=N
     )
     created = False
     if account is None:
-        user = create_dedicated_user(get_user_model(), prefix="trainee")
+        # The person's existing login, if they already have an account of
+        # another kind: one person, one login (core/identities.py).
+        user = user_for_new_role(get_user_model(), phone, prefix="trainee")
+        fresh_user = not roles_of(user)
         try:
             with transaction.atomic():
                 account = TraineeAccount.objects.create(
@@ -128,7 +131,8 @@ def account_for_verified_phone(*, phone, verified_at, display_name="", profile=N
                 )
                 created = True
         except IntegrityError:
-            user.delete()
+            if fresh_user:
+                user.delete()
             account = (
                 TraineeAccount.objects.select_for_update().select_related("user").get(phone=phone)
             )
@@ -150,6 +154,9 @@ def account_for_verified_phone(*, phone, verified_at, display_name="", profile=N
     account.save(update_fields=fields)
 
     link_history(account)
+    from accounts.auth import ensure_customer
+
+    ensure_customer(account.user, account.phone, verified_at)
     account._just_created = created
     # Read by the view, which is the only place that knows whether there is
     # anybody to tell.

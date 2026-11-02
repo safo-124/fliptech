@@ -44,6 +44,7 @@ def due_for_release(now=None):
         | Q(stage=Order.Stage.DELIVERED, delivered_at__lte=handed_over_before),
         status=PaymentStatus.PAID,
         payout__in=[Order.Payout.HELD, Order.Payout.FAILED],
+        balance_status__in=[Order.Balance.NONE, Order.Balance.PAID],
     )
 
 
@@ -62,7 +63,9 @@ def release(order):
             Order.Payout.FAILED,
         ):
             return order
-        if order.stage in (Order.Stage.PROBLEM, Order.Stage.REFUNDED):
+        if order.stage in (Order.Stage.PROBLEM, Order.Stage.REFUNDED) or not order.fully_paid:
+            # Nothing goes to the seller while a deposit order's balance is
+            # still owed: the seller's share includes money not yet paid.
             return order
         if not order.seller.paystack_recipient:
             order.payout = Order.Payout.FAILED

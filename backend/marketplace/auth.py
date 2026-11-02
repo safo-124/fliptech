@@ -19,7 +19,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils.translation import gettext as _
 
-from core.identities import create_dedicated_user, user_is_unprivileged
+from core.identities import roles_of, user_for_new_role, user_is_unprivileged
 
 from .models import SellerAccount
 
@@ -67,7 +67,13 @@ def account_for_verified_phone(*, phone, verified_at, user=None):
     if account is None:
         owner = user
         if owner is None:
-            owner = create_dedicated_user(get_user_model(), prefix="seller")
+            # The person's existing login, if they already have an account
+            # of another kind: one person, one login (core/identities.py).
+            owner = user_for_new_role(get_user_model(), phone, prefix="seller")
+        fresh_user = user is None and not roles_of(owner)
+        if SellerAccount.objects.filter(user=owner).exists():
+            # This login already sells under another number.
+            raise SellerAccountElsewhere(other_number_message())
         try:
             # The savepoint contains the expected unique-phone race. If
             # another first sign-in commits first, only this insert rolls
@@ -82,7 +88,7 @@ def account_for_verified_phone(*, phone, verified_at, user=None):
             # Only a user this call invented may be cleaned up. Deleting a
             # signed-in trainer's user because their seller insert raced
             # would take the workshop with it.
-            if user is None:
+            if fresh_user:
                 owner.delete()
             account = (
                 SellerAccount.objects.select_for_update(of=("self",))
@@ -103,6 +109,9 @@ def account_for_verified_phone(*, phone, verified_at, user=None):
 
     account.phone_verified_at = verified_at
     account.save(update_fields=["phone_verified_at", "updated_at"])
+    from accounts.auth import ensure_customer
+
+    ensure_customer(account.user, account.phone, verified_at)
     return account
 
 

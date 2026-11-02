@@ -24,6 +24,12 @@ class OTPRequestSerializer(serializers.Serializer):
 class OTPVerifySerializer(serializers.Serializer):
     phone = PhoneNumberField()
     code = serializers.CharField(min_length=4, max_length=8)
+    # Who is asking. A training enquiry makes the number a trainee; asking
+    # or paying in the marketplace makes it only a customer, so nobody is
+    # signed up as a trainee for buying a bag.
+    context = serializers.ChoiceField(
+        choices=["training", "marketplace"], required=False, default="training"
+    )
 
 
 class EnquiryCreateSerializer(serializers.ModelSerializer):

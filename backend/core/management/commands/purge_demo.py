@@ -97,7 +97,7 @@ class Command(BaseCommand):
                     and not hasattr(user, "trainer_account")
                     and not hasattr(user, "trainee_account")
                 ):
-                    user.delete()
+                    user.delete()  # Its customer account goes with it.
         self.stdout.write(f"Deleted the demo shops and {files} product pictures.")
 
     def handle(self, *args, **options):

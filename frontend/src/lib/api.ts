@@ -22,6 +22,7 @@ import type {
   ProviderDetail,
   Region,
   SellerShop,
+  FeaturedShop,
   Trade,
   UpcomingIntake,
 } from "./types";
@@ -77,16 +78,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The one cache tag on every marketplace read. When a seller saves anything,
+ * Django asks /revalidate to expire it (see app/revalidate/route.ts), so
+ * product and shop pages change at once instead of up to five minutes later.
+ */
+export const MARKETPLACE_TAG = "marketplace";
+
 async function fetchJson<T>(
   path: string,
-  { revalidate = LIST_REVALIDATE_SECONDS, retries = 2 }: { revalidate?: number; retries?: number } = {},
+  {
+    revalidate = LIST_REVALIDATE_SECONDS,
+    retries = 2,
+    tags,
+  }: { revalidate?: number; retries?: number; tags?: string[] } = {},
 ): Promise<T> {
   const url = `${API_URL}${path}`;
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, { next: { revalidate }, headers: SSR_HEADERS });
+      const response = await fetch(url, { next: { revalidate, tags }, headers: SSR_HEADERS });
       if (response.status === 404) throw new ApiError("Not found", 404);
       if (!response.ok) throw new ApiError(`API ${response.status}`, response.status);
       return (await response.json()) as T;
@@ -289,7 +301,9 @@ export type MarketplaceParams = {
 };
 
 export function searchProducts(params: MarketplaceParams = {}) {
-  return fetchJson<Paginated<ProductCard>>(`/api/products/${buildQuery(params)}`);
+  return fetchJson<Paginated<ProductCard>>(`/api/products/${buildQuery(params)}`, {
+    tags: [MARKETPLACE_TAG],
+  });
 }
 
 /** Every product on show, for the sitemap. Capped, like the providers. */
@@ -303,12 +317,17 @@ export async function searchAllProducts() {
   return all;
 }
 
+/** Shop plan shops for the home page. */
+export function getFeaturedShops() {
+  return fetchJson<{results: FeaturedShop[]}>("/api/sellers/featured/", {tags: [MARKETPLACE_TAG]});
+}
+
 export function getProduct(id: string | number) {
-  return fetchJson<ProductDetail>(`/api/products/${id}/`);
+  return fetchJson<ProductDetail>(`/api/products/${id}/`, {tags: [MARKETPLACE_TAG]});
 }
 
 export function getSellerShop(id: string | number) {
-  return fetchJson<SellerShop>(`/api/sellers/${id}/`);
+  return fetchJson<SellerShop>(`/api/sellers/${id}/`, {tags: [MARKETPLACE_TAG]});
 }
 
 // ---------------------------------------------------------------------------

@@ -123,6 +123,7 @@ LOCAL_APPS = [
     "trainees",
     "marketplace",
     "courses",
+    "accounts",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -567,6 +568,17 @@ MARKETPLACE_VERIFICATION_PRICE = env.int("MARKETPLACE_VERIFICATION_PRICE", defau
 # payment is split straight to the seller.
 MARKETPLACE_HOLD_PAYMENTS = env.bool("MARKETPLACE_HOLD_PAYMENTS", default=False)
 MARKETPLACE_RELEASE_DAYS = env.int("MARKETPLACE_RELEASE_DAYS", default=3)
+# Hold payments for a seller's first this-many paid orders even with buyer
+# protection off: the risk is a new, unproven seller. 0 switches it off. Also
+# needs Paystack Transfers, like buyer protection.
+MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default=0)
+
+# Where to ask the frontend to refresh marketplace pages when a seller changes
+# something (marketplace/page_refresh.py), and the secret it checks; the same
+# value goes in the frontend's REVALIDATE_SECRET. Either empty: off, and pages
+# refresh on their five-minute timer.
+FRONTEND_REVALIDATE_URL = env("FRONTEND_REVALIDATE_URL", default="")
+FRONTEND_REVALIDATE_SECRET = env("FRONTEND_REVALIDATE_SECRET", default="")
 
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")
