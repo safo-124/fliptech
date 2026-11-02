@@ -1,7 +1,7 @@
 /**
- * POST /revalidate: Django asking for the marketplace's cached pages to be
- * thrown away, because a seller just changed something (backend
- * marketplace/page_refresh.py).
+ * POST /revalidate: Django asking for the marketplace's and the courses'
+ * cached pages to be thrown away, because a seller or a trainer just changed
+ * something (backend marketplace/page_refresh.py, courses/page_refresh.py).
  *
  * Not under /api, which Caddy sends to Django. Guarded by a shared secret,
  * REVALIDATE_SECRET, read on the server only; with none set the endpoint
@@ -12,7 +12,7 @@
 import {revalidateTag} from "next/cache";
 import {timingSafeEqual} from "node:crypto";
 
-import {MARKETPLACE_TAG} from "@/lib/api";
+import {LEARN_TAG, MARKETPLACE_TAG} from "@/lib/api";
 
 function allowed(given: string | null) {
   const secret = process.env.REVALIDATE_SECRET;
@@ -29,5 +29,6 @@ export async function POST(request: Request) {
   // Expired at once, not stale-while-revalidate: the next visitor sees the
   // change, which is the point of being asked.
   revalidateTag(MARKETPLACE_TAG, {expire: 0});
+  revalidateTag(LEARN_TAG, {expire: 0});
   return Response.json({revalidated: true});
 }

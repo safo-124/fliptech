@@ -551,6 +551,9 @@ PAYSTACK_FALLBACK_EMAIL_DOMAIN = env(
 MARKETPLACE_BOOST_WEEK_PRICE = env.int("MARKETPLACE_BOOST_WEEK_PRICE", default=15)
 MARKETPLACE_BOOST_MONTH_PRICE = env.int("MARKETPLACE_BOOST_MONTH_PRICE", default=40)
 MARKETPLACE_PLAN_PRICE = env.int("MARKETPLACE_PLAN_PRICE", default=30)
+# Cedis for a course shown first on /learn and the home page (courses/studio.py).
+COURSE_BOOST_WEEK_PRICE = env.int("COURSE_BOOST_WEEK_PRICE", default=20)
+COURSE_BOOST_MONTH_PRICE = env.int("COURSE_BOOST_MONTH_PRICE", default=60)
 # How many products a shop without the Shop plan may show at once.
 MARKETPLACE_FREE_PRODUCT_LIMIT = env.int("MARKETPLACE_FREE_PRODUCT_LIMIT", default=5)
 # Fliiptech's share of a product bought on the site, as a percentage.
@@ -580,6 +583,9 @@ MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default
 FRONTEND_REVALIDATE_URL = env("FRONTEND_REVALIDATE_URL", default="")
 FRONTEND_REVALIDATE_SECRET = env("FRONTEND_REVALIDATE_SECRET", default="")
 
+# Streaming copies (HLS) of approved lessons, cut by the video worker from
+# the MP4s already made. See providers/video_hls.py. Off: players use the MP4s.
+VIDEO_HLS = env.bool("VIDEO_HLS", default=True)
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")
 # Threads each ffmpeg run may use. One keeps a two-CPU server answering web

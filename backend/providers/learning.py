@@ -10,7 +10,26 @@ staff have approved. The same two rules as the profile page, so nothing can
 be watched here that could not be watched there.
 """
 
-from django.db.models import Count, Max, Prefetch, Q, Sum
+from datetime import timedelta
+
+from django.db.models import (
+    Avg,
+    BooleanField,
+    Case,
+    Count,
+    F,
+    IntegerField,
+    Max,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework import serializers
@@ -37,19 +56,55 @@ def _courses():
     subquery for the same reason: joining courses as well would count every
     lesson once per course.
     """
+    from courses.models import CourseReview, LessonPlayDay
+
+    now = timezone.now()
+    reviews = CourseReview.objects.filter(provider=OuterRef("pk"), is_hidden=False).values(
+        "provider"
+    )
+    recent_plays = (
+        LessonPlayDay.objects.filter(
+            provider=OuterRef("pk"), day__gte=timezone.localdate() - timedelta(days=30)
+        )
+        .values("provider")
+        .annotate(total=Sum("plays"))
+        .values("total")[:1]
+    )
     return (
         Provider.objects.published()
         .annotate(
             lesson_count=Count("videos", filter=APPROVED),
             total_seconds=Sum("videos__duration_seconds", filter=APPROVED),
             last_approved=Max("videos__reviewed_at", filter=APPROVED),
+            rating_average=Subquery(reviews.annotate(a=Avg("rating")).values("a")[:1]),
+            rating_count=Coalesce(
+                Subquery(reviews.annotate(c=Count("id")).values("c")[:1]),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            recent_plays=Coalesce(Subquery(recent_plays), Value(0), output_field=IntegerField()),
+            featured=Case(
+                When(course_offer__featured_until__gt=now, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+            charges=Case(
+                When(
+                    Q(course_offer__price__isnull=False) & ~Q(course_offer__paystack_subaccount=""),
+                    then=Value(True),
+                ),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
         )
         .filter(lesson_count__gt=0)
         .select_related("area", "course_offer")
         .prefetch_related(
             Prefetch(
                 "videos",
-                queryset=ProviderVideo.objects.shown().order_by("created_at"),
+                queryset=ProviderVideo.objects.shown()
+                .in_course_order()
+                .prefetch_related("captions"),
                 to_attr="shown_videos",
             ),
             Prefetch(
@@ -60,7 +115,7 @@ def _courses():
                 to_attr="active_programmes",
             ),
         )
-        .order_by("-last_approved", "pk")
+        .order_by("-featured", F("last_approved").desc(nulls_last=True), "pk")
     )
 
 
@@ -88,6 +143,12 @@ class CourseCardSerializer(serializers.ModelSerializer):
     trade = serializers.SerializerMethodField()
     poster = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
+    full_price = serializers.SerializerMethodField()
+    level = serializers.SerializerMethodField()
+    summary = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    reviews = serializers.IntegerField(source="rating_count", read_only=True, default=0)
+    featured = serializers.BooleanField(read_only=True, default=False)
 
     class Meta:
         model = Provider
@@ -102,15 +163,47 @@ class CourseCardSerializer(serializers.ModelSerializer):
             "total_seconds",
             "poster",
             "price",
+            "full_price",
+            "level",
+            "summary",
+            "rating",
+            "reviews",
+            "featured",
         ]
+
+    def _offer(self, obj):
+        from courses.access import offer_for
+
+        return offer_for(obj)
 
     @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
     def get_price(self, obj):
-        """Cedis for the whole course, or null when it is free to watch."""
-        from courses.access import offer_for
+        """Cedis for the whole course today, or null when it is free to watch."""
+        offer = self._offer(obj)
+        return f"{offer.current_price:.2f}" if offer is not None and offer.is_paid else None
 
-        offer = offer_for(obj)
-        return f"{offer.price:.2f}" if offer is not None and offer.is_paid else None
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
+    def get_full_price(self, obj):
+        """The price before a launch sale, while one is on."""
+        offer = self._offer(obj)
+        return (
+            f"{offer.price:.2f}" if offer is not None and offer.is_paid and offer.on_sale else None
+        )
+
+    @extend_schema_field(serializers.CharField())
+    def get_level(self, obj):
+        offer = self._offer(obj)
+        return offer.level if offer is not None else ""
+
+    @extend_schema_field(serializers.CharField())
+    def get_summary(self, obj):
+        offer = self._offer(obj)
+        return (offer.summary[:180] if offer is not None else "") or ""
+
+    @extend_schema_field(serializers.FloatField(allow_null=True))
+    def get_rating(self, obj):
+        average = getattr(obj, "rating_average", None)
+        return round(float(average), 1) if average else None
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_trade(self, obj):
@@ -129,14 +222,54 @@ class CourseListView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = CourseCardSerializer
 
+    SORTS = {
+        "newest": (F("last_approved").desc(nulls_last=True), "pk"),
+        "popular": (
+            "-recent_plays",
+            "-rating_count",
+            F("last_approved").desc(nulls_last=True),
+            "pk",
+        ),
+        "rating": (F("rating_average").desc(nulls_last=True), "-rating_count", "pk"),
+        "free": ("charges", "-featured", F("last_approved").desc(nulls_last=True), "pk"),
+    }
+
     def get_queryset(self):
         courses = _courses()
-        trade = self.request.query_params.get("trade")
+        params = self.request.query_params
+        trade = params.get("trade")
         if trade:
             teaching = Programme.objects.filter(
                 is_active=True, trade__is_active=True, trade__slug=trade
             ).values("provider_id")
             courses = courses.filter(pk__in=teaching)
+        words = " ".join(str(params.get("q") or "").split())[:80]
+        if words:
+            trades = Programme.objects.filter(is_active=True).filter(
+                Q(trade__name__icontains=words) | Q(title__icontains=words)
+            )
+            lessons = ProviderVideo.objects.shown().filter(
+                Q(title__icontains=words) | Q(description__icontains=words)
+            )
+            courses = courses.filter(
+                Q(name__icontains=words)
+                | Q(area__name__icontains=words)
+                | Q(course_offer__summary__icontains=words)
+                | Q(pk__in=trades.values("provider_id"))
+                | Q(pk__in=lessons.values("provider_id"))
+            )
+        level = params.get("level")
+        if level:
+            courses = courses.filter(course_offer__level=level)
+        if params.get("featured") in ("1", "true"):
+            courses = courses.filter(featured=True)
+        if params.get("price") == "free":
+            courses = courses.filter(charges=False)
+        elif params.get("price") == "paid":
+            courses = courses.filter(charges=True)
+        sort = self.SORTS.get(params.get("sort") or "")
+        if sort:
+            courses = courses.order_by(*sort)
         return courses
 
 
@@ -160,9 +293,33 @@ class CourseDetailView(APIView):
 
         lessons = list(course.shown_videos)
         context = {"request": request, "gates": {course.pk: gate_for(course, None, videos=lessons)}}
+        from courses.access import offer_for
+        from courses.learner import rating_summary
+
+        offer = offer_for(course)
         return Response(
             {
                 "course": CourseCardSerializer(course, context=context).data,
                 "lessons": ProviderVideoSerializer(lessons, many=True, context=context).data,
+                "details": {
+                    "summary": offer.summary if offer else "",
+                    "outcomes": offer.lines("outcomes") if offer else [],
+                    "tools": offer.lines("tools") if offer else [],
+                    "level": offer.level if offer else "",
+                    "sale_ends_at": offer.sale_ends_at if offer and offer.on_sale else None,
+                },
+                "ratings": rating_summary(course),
+                # Learning it in person: the bundle offered once the videos
+                # are done.
+                "programmes": [
+                    {
+                        "id": programme.id,
+                        "title": programme.title,
+                        "trade": programme.trade.name,
+                        "fee": f"{programme.fee:.2f}",
+                        "duration_weeks": programme.duration_weeks,
+                    }
+                    for programme in course.active_programmes
+                ],
             }
         )

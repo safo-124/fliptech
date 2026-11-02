@@ -22,6 +22,7 @@ from urllib.parse import unquote, urlparse
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import F
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -39,11 +40,13 @@ from rest_framework.views import APIView
 from providers.learning import _courses
 from providers.serializers import video_sources
 from providers.trainer_views import IsActiveTrainer, _account, _profile_for
+from providers.video_hls import HLS_PREFIX, stream_url
 from trainees.access import own_trainee_account
 
 from . import paystack
 from .access import gate_for, gate_for_file, offer_for
-from .models import MAX_PRICE, MIN_PRICE, CourseOffer, CoursePurchase
+from .learner import learner_state
+from .models import MAX_PRICE, MIN_PRICE, CourseOffer, CoursePromoCode, CoursePurchase
 
 logger = logging.getLogger(__name__)
 
@@ -234,17 +237,24 @@ class CourseAccessView(APIView):
         course = _course_or_404(area_slug, slug)
         lessons = list(course.shown_videos)
         gate = gate_for(course, request, videos=lessons)
+        trainee = own_trainee_account(request)
+        offer = offer_for(course)
+        watchable = [video for video in lessons if gate.may_watch(video)]
         return Response(
             {
                 "price": f"{gate.price:.2f}" if gate.price else None,
+                "full_price": f"{gate.full_price:.2f}" if gate.full_price else None,
+                "sale_ends_at": offer.sale_ends_at if offer is not None and offer.on_sale else None,
                 "owned": gate.owned,
-                "signed_in": own_trainee_account(request) is not None,
+                "signed_in": trainee is not None,
                 "payments_enabled": paystack.enabled(),
-                "sources": {
-                    str(video.pk): video_sources(video, request)
-                    for video in lessons
-                    if gate.may_watch(video)
+                "sources": {str(video.pk): video_sources(video, request) for video in watchable},
+                "streams": {
+                    str(video.pk): stream_url(video, request)
+                    for video in watchable
+                    if stream_url(video, request)
                 },
+                **learner_state(trainee, course, lessons, request),
             }
         )
 
@@ -288,11 +298,24 @@ class CourseBuyView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
+        price, code = gate.price, None
+        typed = str(request.data.get("code") or "").strip()
+        if typed:
+            code = usable_code(course, typed)
+            if code is None:
+                return Response(
+                    {"code": [_("That code does not work for this course.")]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            price = code.apply(price)
+
         purchase = CoursePurchase.objects.create(
             reference=f"fc-{secrets.token_hex(10)}",
             provider=course,
             trainee=trainee,
-            amount_pesewas=int(gate.price * 100),
+            amount_pesewas=int(price * 100),
+            promo_code=code.code if code else "",
+            full_price_pesewas=int(gate.price * 100) if code else None,
         )
         callback = (
             f"{settings.PUBLIC_SITE_URL.rstrip('/')}/learn/{course.area.slug}/{course.slug}"
@@ -315,6 +338,42 @@ class CourseBuyView(APIView):
         return Response(
             {"authorization_url": url, "reference": purchase.reference},
             status=status.HTTP_201_CREATED,
+        )
+
+
+def usable_code(course, typed):
+    code = CoursePromoCode.objects.filter(provider=course, code__iexact=typed.strip()).first()
+    return code if code is not None and code.usable else None
+
+
+class CourseCodeCheckView(APIView):
+    """What a promo code makes the course cost, before paying."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, area_slug, slug):
+        if is_ratelimited(request, group="course-code", key="ip", rate="30/h", increment=True):
+            return Response(
+                {"detail": _("Too many attempts. Try again later.")},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        course = _course_or_404(area_slug, slug)
+        gate = gate_for(course, request)
+        code = usable_code(course, str(request.data.get("code") or ""))
+        if not gate.price or code is None:
+            return Response(
+                {"code": [_("That code does not work for this course.")]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {
+                "code": code.code,
+                "percent_off": code.percent_off,
+                "price": f"{code.apply(gate.price):.2f}",
+                "was": f"{gate.price:.2f}",
+            }
         )
 
 
@@ -341,6 +400,10 @@ def confirm(reference, data):
         if state == "success" and exact:
             purchase.status = CoursePurchase.Status.PAID
             purchase.paid_at = timezone.now()
+            if purchase.promo_code:
+                CoursePromoCode.objects.filter(
+                    provider_id=purchase.provider_id, code__iexact=purchase.promo_code
+                ).update(uses=F("uses") + 1)
         elif state == "success":
             logger.error("Paystack charge %s does not match its purchase; not unlocking", reference)
             purchase.status = CoursePurchase.Status.FAILED
@@ -399,6 +462,10 @@ class PaystackWebhookView(APIView):
                 from marketplace.payments import confirm_reference
 
                 confirm_reference(reference, data)
+            elif reference.startswith("fk-"):
+                from .studio import confirm_boost
+
+                confirm_boost(reference, data)
             else:
                 confirm(reference, data)
         elif str(event.get("event") or "").startswith("transfer."):
@@ -431,7 +498,12 @@ class MediaAccessView(APIView):
         prefix = "/" + settings.MEDIA_URL.strip("/") + "/"
         if not path.startswith(prefix):
             return HttpResponse(status=200)
-        video, gate = gate_for_file(path[len(prefix) :], request)
+        name = path[len(prefix) :]
+        video, gate = gate_for_file(name, request)
         if video is not None and not gate.may_watch(video):
+            return HttpResponse(status=403)
+        # A stream's pieces belong to an approved lesson or to nobody: left
+        # over from one taken down, they are not served.
+        if video is None and name.startswith(HLS_PREFIX):
             return HttpResponse(status=403)
         return HttpResponse(status=200)

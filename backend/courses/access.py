@@ -14,6 +14,7 @@ someone who bought the course, by the workshop's own trainers, and by staff.
 from dataclasses import dataclass, field
 
 from providers.models import ProviderVideo
+from providers.video_hls import HLS_PREFIX
 from trainees.access import own_trainee_account
 
 from .models import CourseOffer, has_paid
@@ -24,6 +25,8 @@ class Gate:
     """One workshop's course, from one viewer's side."""
 
     price: object = None
+    # The price before a launch sale, when one is on; else None.
+    full_price: object = None
     locked_ids: set = field(default_factory=set)
     preview_id: int | None = None
     owned: bool = False
@@ -63,11 +66,12 @@ def gate_for(provider, request=None, *, videos=None):
     if offer is None or not offer.is_paid:
         return Gate()
     if videos is None:
-        videos = list(provider.videos.shown().order_by("created_at"))
+        videos = list(provider.videos.shown().in_course_order())
     uploads = [video for video in videos if not video.is_youtube]
     preview = uploads[0].pk if uploads else None
     return Gate(
-        price=offer.price,
+        price=offer.current_price,
+        full_price=offer.price if offer.on_sale else None,
         preview_id=preview,
         locked_ids={video.pk for video in uploads if video.pk != preview},
         owned=_viewer_owns(provider, request),
@@ -77,13 +81,16 @@ def gate_for(provider, request=None, *, videos=None):
 def gate_for_file(name, request=None):
     """(video, gate) for a public video file's stored name, or (None, None).
 
-    Only the two playable copies are ever locked. A poster is a still, shown
-    on a locked lesson's card so a trainee can see what they would be buying.
+    Only the playable copies are ever locked: the two files, and every
+    playlist and piece of the streaming copy. A poster is a still, shown on a
+    locked lesson's card so a trainee can see what they would be buying.
     """
-    video = (
-        ProviderVideo.objects.shown().select_related("provider").filter(public_360=name).first()
-        or ProviderVideo.objects.shown().select_related("provider").filter(public_720=name).first()
-    )
+    shown = ProviderVideo.objects.shown().select_related("provider")
+    if name.startswith(HLS_PREFIX):
+        folder = name.rsplit("/", 1)[0]
+        video = shown.filter(hls_dir=folder).first() if folder else None
+    else:
+        video = shown.filter(public_360=name).first() or shown.filter(public_720=name).first()
     if video is None:
         return None, None
     return video, gate_for(video.provider, request)

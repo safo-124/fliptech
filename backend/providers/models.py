@@ -520,6 +520,14 @@ class ProviderVideoQuerySet(models.QuerySet):
     def shown(self):
         return self.filter(status=ProviderVideo.Status.APPROVED)
 
+    def in_course_order(self):
+        return self.order_by(*LESSON_ORDER)
+
+
+# The order a course plays its lessons: the trainer's, then the order they
+# were sent for any the trainer has not placed.
+LESSON_ORDER = ("position", "created_at", "pk")
+
 
 def _video_path(folder, filename):
     # A random name per file rather than the trainer's own: "IMG_2024..." says
@@ -573,6 +581,12 @@ class ProviderVideo(TimeStampedModel):
         APPROVED = "approved", "Shown on the listing"
         REJECTED = "rejected", "Not approved"
 
+    class HlsState(models.TextChoices):
+        NONE = "", "Not made"
+        PROCESSING = "processing", "Being made"
+        READY = "ready", "Ready"
+        FAILED = "failed", "Could not be made"
+
     # The states a reviewer can decide on. Anything earlier has nothing to
     # watch yet; approving it would publish an empty player.
     REVIEWABLE = (Status.PENDING, Status.APPROVED, Status.REJECTED)
@@ -615,6 +629,18 @@ class ProviderVideo(TimeStampedModel):
     # trainee before they spend data on it, and the measure pricing will use.
     size_360 = models.BigIntegerField(null=True, blank=True)
     size_720 = models.BigIntegerField(null=True, blank=True)
+
+    # The lesson as a course shows it: where it comes, the section heading it
+    # sits under (lessons sharing one are grouped), and what it covers.
+    position = models.PositiveIntegerField(default=0, db_index=True)
+    section = models.CharField(max_length=80, blank=True)
+    description = models.TextField(max_length=2000, blank=True)
+
+    # Streaming copies (HLS), made from the public files once approved, so a
+    # player can change sharpness as the signal comes and goes. `hls_dir` is
+    # the folder in public storage holding master.m3u8 and its pieces.
+    hls_state = models.CharField(max_length=12, choices=HlsState.choices, blank=True, default="")
+    hls_dir = models.CharField(max_length=200, blank=True)
 
     # Shown to the trainer when a video is not approved, so it says what to fix.
     review_note = models.CharField(max_length=300, blank=True)

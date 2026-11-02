@@ -32,12 +32,14 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, once=False, **options):
+        from providers import video_hls
         from providers.video_encoding import process_next, tidy
 
         last_tidy = 0.0
         while True:
             if time.monotonic() - last_tidy >= TIDY_SECONDS:
                 requeued, abandoned = tidy()
+                video_hls.tidy()
                 if requeued or abandoned:
                     self.stdout.write(
                         f"Requeued {requeued} stalled encoding(s); "
@@ -48,6 +50,11 @@ class Command(BaseCommand):
             video = process_next()
             if video is not None:
                 self.stdout.write(f"Video {video.pk}: {video.get_status_display()}")
+                continue
+            # Nothing to encode: cut a streaming copy of an approved lesson.
+            streamed = video_hls.process_next()
+            if streamed is not None:
+                self.stdout.write(f"Video {streamed.pk}: stream {streamed.hls_state or 'not made'}")
                 continue
             if once:
                 return

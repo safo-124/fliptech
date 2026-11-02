@@ -518,3 +518,90 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Online learning: the player's taps and menus, and the finished-course
+   celebration. All of it stills under prefers-reduced-motion above. */
+@keyframes skip {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(1.25);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -10vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0), 105vh, 0) rotate(var(--spin, 540deg));
+    opacity: 0.9;
+  }
+}
+
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-from, 0);
+  }
+}
+
+video::cue {
+  background: rgb(0 0 0 / 0.72);
+  color: white;
+  font-size: 1.05em;
+  line-height: 1.35;
+}
+
+/* A certificate prints as the paper alone: no header, footer or buttons. */
+@media print {
+  body:has(.certificate-page) header,
+  body:has(.certificate-page) footer,
+  body:has(.certificate-page) nav {
+    display: none !important;
+  }
+  .certificate-page {
+    padding: 0 !important;
+  }
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+}

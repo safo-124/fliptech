@@ -120,9 +120,19 @@ export type ProviderVideo = {
   duration_seconds: number | null;
   poster: string | null;
   sources: VideoSource[];
+  /** The HLS master playlist, for players that change sharpness with the signal. */
+  stream?: string | null;
+  /** Languages with captions; the WebVTT is behind the lesson's own lock. */
+  captions?: LessonCaption[];
   /** A lesson of a paid course this viewer has not bought: no sources. */
   locked?: boolean;
+  /** The heading this lesson sits under in its course; "" for none. */
+  section?: string;
+  /** What the lesson covers, in the trainer's words. */
+  description?: string;
 };
+
+export type LessonCaption = { language: string; label: string; url: string };
 
 /**
  * Online learning: a workshop's approved lessons, browsed as one course.
@@ -138,11 +148,104 @@ export type CourseCard = {
   lessons: number;
   total_seconds: number | null;
   poster: string | null;
-  /** Cedis for the whole course, or null when it is free. */
+  /** Cedis for the whole course today, or null when it is free. */
   price: string | null;
+  /** The price before a launch sale, while one is on. */
+  full_price?: string | null;
+  level?: CourseLevel | "";
+  summary?: string;
+  /** Average stars, or null before the first review. */
+  rating?: number | null;
+  reviews?: number;
+  featured?: boolean;
 };
 
-export type CourseDetail = { course: CourseCard; lessons: ProviderVideo[] };
+export type CourseLevel = "beginner" | "intermediate" | "advanced";
+
+export type RatingSummary = {
+  average: number | null;
+  count: number;
+  /** "5" to "1": how many gave each. */
+  spread: Record<string, number>;
+};
+
+export type CourseDetail = {
+  course: CourseCard;
+  lessons: ProviderVideo[];
+  details: {
+    summary: string;
+    outcomes: string[];
+    tools: string[];
+    level: CourseLevel | "";
+    sale_ends_at: string | null;
+  };
+  ratings: RatingSummary;
+  /** The workshop's in-person programmes, offered once the videos are done. */
+  programmes: {
+    id: number;
+    title: string;
+    trade: string;
+    fee: string;
+    duration_weeks: number;
+  }[];
+};
+
+export type LessonProgressRow = { position: number; furthest: number; completed: boolean };
+
+export type Certificate = {
+  code: string;
+  trainee_name: string;
+  course_name: string;
+  area_name: string;
+  trade_name: string;
+  lessons: number;
+  total_seconds: number;
+  issued_at: string;
+  is_revoked: boolean;
+  path: string;
+  course_path?: string;
+};
+
+export type CourseReview = {
+  id: number;
+  name: string;
+  rating: number;
+  body: string;
+  reply: string;
+  replied_at: string | null;
+  created_at: string;
+};
+
+export type LessonQuestion = {
+  id: number;
+  name: string;
+  body: string;
+  at_seconds: number | null;
+  answer: string;
+  answered_at: string | null;
+  created_at: string;
+};
+
+export type ProgressReply = {
+  lesson: LessonProgressRow;
+  course: {
+    done: number;
+    total: number;
+    finished: boolean;
+    needs_name: boolean;
+    certificate: Certificate | null;
+  };
+};
+
+export type MyCourse = {
+  course: CourseCard;
+  done: number;
+  total: number;
+  bought: boolean;
+  last_watched: string | null;
+  resume: { id: number; title: string; position: number; duration_seconds: number | null } | null;
+  certificate: Certificate | null;
+};
 
 export type ProviderDetail = ProviderCard & {
   address: string;
@@ -739,12 +842,81 @@ export type SiteStats = { workshops: number; visited: number; lessons: number; p
 /** What this browser may watch of a course. See backend courses/views.py. */
 export type CourseAccess = {
   price: string | null;
+  full_price: string | null;
+  sale_ends_at: string | null;
   owned: boolean;
   signed_in: boolean;
   payments_enabled: boolean;
   /** By lesson id: the sources this viewer may play. */
   sources: Record<string, VideoSource[]>;
+  /** By lesson id: the HLS stream, where one has been made. */
+  streams: Record<string, string>;
+  /** By lesson id, for a signed-in trainee. */
+  progress: Record<string, LessonProgressRow>;
+  certificate: Certificate | null;
+  my_review: CourseReview | null;
+  can_review: boolean;
 };
+
+/** The trainer's course studio. See backend courses/studio.py. */
+export type StudioDetails = {
+  summary: string;
+  outcomes: string;
+  tools: string;
+  level: CourseLevel | "";
+  levels: { value: CourseLevel; label: string }[];
+  price: string | null;
+  sale_price: string | null;
+  sale_ends_at: string | null;
+  on_sale: boolean;
+  featured_until: string | null;
+  course_path: string | null;
+};
+
+export type StudioLesson = {
+  id: number;
+  title: string;
+  status: string;
+  position: number;
+  section: string;
+  description: string;
+  duration_seconds: number | null;
+  poster: string | null;
+  kind: "upload" | "youtube";
+  stream: string;
+  captions: LessonCaption[];
+};
+
+export type StudioCode = {
+  id: number;
+  code: string;
+  percent_off: number;
+  max_uses: number | null;
+  uses: number;
+  expires_at: string | null;
+  is_active: boolean;
+  usable: boolean;
+};
+
+export type StudioStats = {
+  totals: {
+    plays: number;
+    plays_30: number;
+    learners: number;
+    certificates: number;
+    sales: number;
+    earned: string;
+    sales_30: number;
+    earned_30: string;
+    unanswered: number;
+  };
+  ratings: RatingSummary;
+  daily: { day: string; plays: number }[];
+  lessons: { id: number; title: string; plays: number; started: number; finished: number }[];
+  codes: { code: string; uses: number }[];
+};
+
+export type StudioQuestion = LessonQuestion & { lesson: { id: number; title: string } };
 
 /** A trainer's course price, payout account and sales. */
 export type TrainerCourse = {
