@@ -23,6 +23,7 @@ Nothing a trainer submits is public until staff approve it.
 |---|---|
 | Backend | Django 5.2 LTS, Django REST Framework, GeoDjango on PostgreSQL with PostGIS |
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS 4, next-intl, Leaflet |
+| Mobile app | Expo SDK 58 and React Native, Android first; same API (see `mobile/README.md`) |
 | Server | One VPS: Caddy in front, gunicorn and `next start` under systemd, PostgreSQL and Redis on the same box |
 
 ```
@@ -40,6 +41,9 @@ frontend/         Next.js site
   src/app/        pages
   src/components/ UI, maps, trainer and trainee areas
   messages/       interface text (en.json), ready for translation
+mobile/           Expo React Native app (Android first)
+  src/app/        screens: the five tabs
+  src/components/ the floating tab bar, cards, states
 deploy/           server bootstrap, systemd units, Caddyfile
 ```
 
