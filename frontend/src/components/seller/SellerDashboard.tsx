@@ -19,6 +19,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useCallback, useEffect, useState} from "react";
@@ -396,10 +397,11 @@ function ProductsTab({
             <li key={product.id}>
               <Card className="overflow-hidden">
                 <div className="flex gap-3.5 p-3.5">
-                  <div className="size-20 shrink-0 overflow-hidden rounded-xl bg-[var(--color-muted)] sm:size-24">
+                  <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-[var(--color-muted)] sm:size-24">
                     {product.photos[0]?.image ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={product.photos[0].image} alt="" className="size-full object-cover" />
+                      // Through the image optimiser: the stored original can
+                      // be 2048px, for a 96px square.
+                      <Image src={product.photos[0].image} alt="" fill sizes="96px" className="object-cover" />
                     ) : (
                       <span className="grid size-full place-items-center text-[var(--color-muted-foreground)]">
                         <ImagePlus aria-hidden="true" className="size-5" />
@@ -699,10 +701,7 @@ function ProductPhotos({
       <div className="mt-3 flex flex-wrap gap-2.5">
         {product.photos.map((photo) => (
           <div key={photo.id} className="group relative size-20 overflow-hidden rounded-xl bg-[var(--color-muted)]">
-            {photo.image ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={photo.image} alt="" className="size-full object-cover" />
-            ) : null}
+            {photo.image ? <Image src={photo.image} alt="" fill sizes="80px" className="object-cover" /> : null}
             <button
               type="button"
               aria-label={t("removePhoto")}

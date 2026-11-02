@@ -573,6 +573,13 @@ MARKETPLACE_RELEASE_DAYS = env.int("MARKETPLACE_RELEASE_DAYS", default=3)
 # needs Paystack Transfers, like buyer protection.
 MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default=0)
 
+# Where to ask the frontend to refresh marketplace pages when a seller changes
+# something (marketplace/page_refresh.py), and the secret it checks; the same
+# value goes in the frontend's REVALIDATE_SECRET. Either empty: off, and pages
+# refresh on their five-minute timer.
+FRONTEND_REVALIDATE_URL = env("FRONTEND_REVALIDATE_URL", default="")
+FRONTEND_REVALIDATE_SECRET = env("FRONTEND_REVALIDATE_SECRET", default="")
+
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")
 # Threads each ffmpeg run may use. One keeps a two-CPU server answering web

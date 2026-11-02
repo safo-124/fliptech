@@ -502,6 +502,19 @@ Nothing to switch on for most of these; they arrive with the release.
   every product. They are a plain-language draft: **have a lawyer read them**
   before relying on them, and edit the wording in
   `frontend/messages/en.json` under `MarketTerms`.
+- **Instant page updates.** Product and shop pages are cached for five
+  minutes. To have them update the moment a seller changes something (a
+  price, back in stock, away mode), pick any long random string and set it
+  in both env files, then deploy:
+  ```
+  # /home/safo/deploy-staging/backend.env
+  FRONTEND_REVALIDATE_URL=http://127.0.0.1:3000/revalidate
+  FRONTEND_REVALIDATE_SECRET=<the string>
+  # /home/safo/deploy-staging/frontend.env.production
+  REVALIDATE_SECRET=<the same string>
+  ```
+  You can make one with `openssl rand -hex 24`. Without it, pages simply
+  update within five minutes, as before.
 - **Holding a new seller's first payments:** set
   `MARKETPLACE_HOLD_FIRST_ORDERS=5` (in `backend.env`) to hold each seller's
   first five Buy now payments for buyer protection, then pay them straight.

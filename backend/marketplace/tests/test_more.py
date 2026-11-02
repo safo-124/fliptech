@@ -254,6 +254,22 @@ def test_a_made_to_order_dress_is_bought_with_a_deposit(client, seller, calls, t
 
 
 @pytest.mark.django_db
+def test_deposit_texts_say_it_is_a_deposit(
+    client, seller, calls, texts, django_capture_on_commit_callbacks
+):
+    order = deposit_order(client, seller, calls, texts)
+    pay(calls, 40000)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        client.post(reverse("order-detail", args=[order.reference]))
+
+    to_seller = [m for to, m in texts if to == str(seller.phone)]
+    to_buyer = [m for to, m in texts if to == BUYER and "deposit" in m]
+    assert any("GH₵400.00 deposit paid, GH₵600.00 to come" in m for m in to_seller)
+    assert any("GH₵400.00 deposit (GH₵600.00 due when it is ready)" in m for m in to_buyer)
+
+
+@pytest.mark.django_db
 def test_the_balance_is_asked_for_when_ready_and_then_it_can_be_handed_over(
     client, seller, calls, texts, django_capture_on_commit_callbacks
 ):
@@ -462,3 +478,91 @@ def test_a_buyers_account_was_made_by_proving_the_number(client, seller, texts):
     verify_phone(client)
 
     assert CustomerAccount.objects.filter(phone=BUYER).exists()
+
+
+# --------------------------------------------------------------------------
+# Refreshing cached pages
+
+
+@pytest.mark.django_db
+def test_a_change_asks_the_frontend_to_refresh_once_per_save(
+    client, seller, settings, monkeypatch, django_capture_on_commit_callbacks
+):
+    from marketplace import page_refresh
+
+    # Made before refreshing is switched on, so nothing is queued yet.
+    shirt = product(seller, "Shirt")
+    settings.FRONTEND_REVALIDATE_URL = "http://frontend.test/revalidate"
+    settings.FRONTEND_REVALIDATE_SECRET = "s3cret"
+    sent = []
+    monkeypatch.setattr(
+        page_refresh,
+        "_send",
+        lambda: sent.append(1),
+    )
+
+    class Now:
+        """Runs the thread's work at once, in the test."""
+
+        def __init__(self, target, daemon):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(page_refresh.threading, "Thread", Now)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        as_seller(client, seller).patch(
+            reverse("seller-product", args=[shirt.pk]),
+            {"price": "90.00", "availability": "made_to_order"},
+            content_type=JSON,
+        )
+    after_edit = len(sent)
+    with django_capture_on_commit_callbacks(execute=True):
+        # A sign-in only touches fields no buyer sees.
+        seller.save(update_fields=["phone_verified_at", "updated_at"])
+
+    # Several rows changed in one save, one request.
+    assert after_edit == 1
+    assert len(sent) == 1
+
+
+@pytest.mark.django_db
+def test_a_rolled_back_change_does_not_stop_later_refreshes(seller, settings, monkeypatch):
+    from django.db import transaction
+
+    from marketplace import page_refresh
+
+    settings.FRONTEND_REVALIDATE_URL = "http://frontend.test/revalidate"
+    settings.FRONTEND_REVALIDATE_SECRET = "s3cret"
+    queued = []
+    real = transaction.on_commit
+    monkeypatch.setattr(
+        page_refresh.transaction,
+        "on_commit",
+        lambda fn: queued.append(fn) or real(fn),
+    )
+
+    try:
+        with transaction.atomic():
+            product(seller, "Shirt")
+            raise RuntimeError("rolled back")
+    except RuntimeError:
+        pass
+    product(seller, "Dress")
+
+    assert len(queued) == 2
+
+
+@pytest.mark.django_db
+def test_no_refresh_is_asked_for_when_not_set_up(seller, settings, monkeypatch):
+    from marketplace import page_refresh
+
+    settings.FRONTEND_REVALIDATE_URL = ""
+    called = []
+    monkeypatch.setattr(page_refresh.transaction, "on_commit", lambda fn: called.append(fn))
+
+    product(seller, "Shirt")
+
+    assert called == []

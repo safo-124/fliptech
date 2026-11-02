@@ -103,15 +103,30 @@ def confirm_order(reference, data):
         return order
 
 
+def _paid_words(order, buyer=False):
+    """What was paid, saying "deposit" when it was one, so neither side
+    mistakes a deposit for the whole price."""
+    paid = order.amount_pesewas / 100
+    if order.plan == Order.Plan.DEPOSIT:
+        rest = order.balance_pesewas / 100
+        if buyer:
+            return f"you paid a GH₵{paid:.2f} deposit (GH₵{rest:.2f} due when it is ready)"
+        return f"GH₵{paid:.2f} deposit paid, GH₵{rest:.2f} to come when ready"
+    return f"you paid GH₵{paid:.2f}" if buyer else f"GH₵{paid:.2f}"
+
+
 def _tell_seller(order):
     """Straight away, by text, so a paid order never waits on the staff
     outbox. The WhatsApp message staff send follows as a second reminder."""
     how = "Deliver it" if order.fulfilment == order.Fulfilment.DELIVERY else "They will collect"
+    paid = _paid_words(order)
+    if order.plan == Order.Plan.DEPOSIT:
+        how = "Start the work; mark it ready in your dashboard to ask for the balance"
     try:
         send_sms(
             order.seller.phone,
             f"{settings.BRAND_NAME}: NEW PAID ORDER {order.reference}. {order.quantity} x "
-            f"{order.product_name}, GH₵{order.amount:.2f}. {how}. Call "
+            f"{order.product_name}, {paid}. {how}. Call "
             f"{order.buyer_name} on {order.buyer_phone}.",
         )
     except Exception:
@@ -123,7 +138,7 @@ def _tell_buyer(order):
     try:
         send_sms(
             order.buyer_phone,
-            f"{settings.BRAND_NAME}: you paid GH₵{order.amount:.2f} for "
+            f"{settings.BRAND_NAME}: {_paid_words(order, buyer=True)} for "
             f"{order.quantity} x {order.product_name}. Order {order.reference}. "
             f"{order.seller.business_name} will contact you; their number is "
             f"{order.seller.phone}.",

@@ -12,6 +12,7 @@ import {
   ShoppingBag,
   Trash2,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -347,8 +348,9 @@ export function SellerGrowthTab() {
                   {growth.plan.running ? t("bannerLead") : t("bannerNeedsPlan")}
                 </p>
                 {growth.banner ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={growth.banner} alt="" className="mt-3 aspect-[4/1] w-full rounded-lg object-cover" />
+                  <div className="relative mt-3 aspect-[4/1] w-full overflow-hidden rounded-lg">
+                    <Image src={growth.banner} alt="" fill sizes="(min-width: 1024px) 50vw, 100vw" className="object-cover" />
+                  </div>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--color-border-strong)] px-3 text-sm font-medium hover:bg-[var(--color-muted)]">
