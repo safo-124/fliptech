@@ -549,5 +549,6 @@ def _earned(SellerPayment, Order, PaymentStatus, Sum, since):
         "plans": f"{plans:,.2f}",
         "commission": f"{commission:,.2f}",
         "orders": orders.count(),
-        "sales": f"{cedis(orders, 'amount_pesewas'):,.2f}",
+        # Deposit orders count their balance once it is paid.
+        "sales": f"{cedis(orders, 'amount_pesewas') + cedis(orders.filter(balance_status='paid'), 'balance_pesewas'):,.2f}",
     }

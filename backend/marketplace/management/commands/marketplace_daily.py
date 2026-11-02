@@ -1,6 +1,6 @@
 """The marketplace's daily jobs: asking buyers for a review, telling sellers
 their Shop plan is about to end, and releasing held payments (buyer
-protection) that are due.
+protection) that are due, and telling shop followers about new products.
 
 Run once a day by fliptech-freshness.service, after the freshness prompts.
 Each text goes once: the row is stamped when it is sent, so running this
@@ -39,9 +39,12 @@ class Command(BaseCommand):
         asked = self.ask_for_reviews(now)
         reminded = self.remind_plans(now)
         released = self.release_payments(now)
+        from marketplace.alerts import tell_followers
+
+        followers = tell_followers(now)
         self.stdout.write(
             f"{asked} review request(s), {reminded} plan reminder(s) sent, "
-            f"{released} held payment(s) released."
+            f"{released} held payment(s) released, {followers} follower(s) told of new products."
         )
 
     def release_payments(self, now):

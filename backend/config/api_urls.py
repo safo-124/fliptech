@@ -33,6 +33,10 @@ from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from marketplace.selling_views import (
     BasketPriceView,
+    CopyProductView,
+    FeaturedShopsView,
+    FollowShopView,
+    OrderBalanceView,
     OrderCreateView,
     OrderProblemView,
     OrderReceivedView,
@@ -47,6 +51,7 @@ from marketplace.selling_views import (
     SellerBoostView,
     SellerCodesView,
     SellerCodeView,
+    SellerEarningsView,
     SellerEnquiryRepliedView,
     SellerGrowthView,
     SellerPaymentVerifyView,
@@ -59,6 +64,7 @@ from marketplace.selling_views import (
     SellerStatsView,
     SellerVerificationView,
     ShopOrderCreateView,
+    StockAlertView,
 )
 from marketplace.views import (
     OwnEnquiriesView,
@@ -389,6 +395,12 @@ urlpatterns = [
         name="seller-enquiry-replied",
     ),
     path("seller/verification/", SellerVerificationView.as_view(), name="seller-verification"),
+    path("orders/<str:reference>/balance/", OrderBalanceView.as_view(), name="order-balance"),
+    path("products/<int:pk>/notify/", StockAlertView.as_view(), name="product-stock-alert"),
+    path("sellers/featured/", FeaturedShopsView.as_view(), name="sellers-featured"),
+    path("sellers/<int:pk>/follow/", FollowShopView.as_view(), name="shop-follow"),
+    path("seller/products/<int:pk>/copy/", CopyProductView.as_view(), name="seller-product-copy"),
+    path("seller/earnings/", SellerEarningsView.as_view(), name="seller-earnings"),
     path("reviews/<str:token>/", ReviewView.as_view(), name="seller-review"),
     path("seller/stats/", SellerStatsView.as_view(), name="seller-stats"),
     path("seller/growth/", SellerGrowthView.as_view(), name="seller-growth"),

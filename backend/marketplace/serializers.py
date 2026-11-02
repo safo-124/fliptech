@@ -125,6 +125,9 @@ class SellerCardSerializer(serializers.ModelSerializer):
             "verified",
             "delivery_fee",
             "delivery_area",
+            "deposit_percent",
+            "away_until",
+            "away_note",
         ]
 
 
@@ -166,14 +169,20 @@ class ProductCardSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.BooleanField())
     def get_buy_online(self, obj):
         """Whether "Buy now" is offered: payments on, the seller can be
-        paid, a price to pay, and something ready to hand over."""
+        paid and is not away, a price to pay, and something ready now, or
+        made to order by a seller who takes deposits."""
         from courses import paystack
 
+        seller = obj.seller
+        sellable = obj.availability == Product.Availability.AVAILABLE or (
+            obj.availability == Product.Availability.MADE_TO_ORDER and seller.deposit_percent
+        )
         return bool(
             paystack.enabled()
-            and obj.seller.payout_ready
+            and seller.payout_ready
+            and not seller.is_away
             and obj.price
-            and obj.availability == Product.Availability.AVAILABLE
+            and sellable
         )
 
     @extend_schema_field(serializers.DictField(allow_null=True))
@@ -258,6 +267,26 @@ class OwnProductSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     visible = serializers.SerializerMethodField()
 
+    tips = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_tips(self, obj):
+        """What would most help this listing sell, as keys the dashboard
+        words. Empty: nothing obvious to fix."""
+        tips = []
+        photos = len(obj.photos.all())
+        if photos == 0:
+            tips.append("add_photo")
+        elif photos == 1:
+            tips.append("more_photos")
+        if obj.price is None:
+            tips.append("add_price")
+        if len(obj.description.strip()) < 40:
+            tips.append("describe")
+        if not obj.trade_id:
+            tips.append("trade")
+        return tips
+
     @extend_schema_field(serializers.BooleanField())
     def get_visible(self, obj):
         """Whether a buyer can actually see it, which is not the same as
@@ -281,6 +310,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "status_label",
             "staff_note",
             "visible",
+            "tips",
             "photos",
             "created_at",
             "updated_at",
@@ -332,6 +362,9 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             "ready_to_sell",
             "delivery_fee",
             "delivery_area",
+            "deposit_percent",
+            "away_until",
+            "away_note",
             "verified_at",
         ]
         read_only_fields = ["phone", "email", "verified_at"]
@@ -456,6 +489,8 @@ class OrderSerializer(serializers.ModelSerializer):
     """An order, as its buyer or its seller sees it."""
 
     items = OrderItemSerializer(many=True, read_only=True)
+    deposit = serializers.SerializerMethodField()
+    balance = serializers.SerializerMethodField()
     delivery = serializers.SerializerMethodField()
     discount = serializers.SerializerMethodField()
     protected = serializers.SerializerMethodField()
@@ -481,7 +516,16 @@ class OrderSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.CharField())
     def get_amount(self, obj):
+        """The whole order: the deposit and the balance together."""
+        return f"{obj.total_pesewas / 100:.2f}"
+
+    @extend_schema_field(serializers.CharField())
+    def get_deposit(self, obj):
         return f"{obj.amount_pesewas / 100:.2f}"
+
+    @extend_schema_field(serializers.CharField())
+    def get_balance(self, obj):
+        return f"{obj.balance_pesewas / 100:.2f}"
 
     @extend_schema_field(serializers.CharField())
     def get_commission(self, obj):
@@ -509,6 +553,11 @@ class OrderSerializer(serializers.ModelSerializer):
             "fulfilment",
             "note",
             "items",
+            "plan",
+            "deposit",
+            "balance",
+            "balance_status",
+            "ready_at",
             "delivery",
             "discount",
             "discount_code",

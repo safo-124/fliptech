@@ -568,6 +568,10 @@ MARKETPLACE_VERIFICATION_PRICE = env.int("MARKETPLACE_VERIFICATION_PRICE", defau
 # payment is split straight to the seller.
 MARKETPLACE_HOLD_PAYMENTS = env.bool("MARKETPLACE_HOLD_PAYMENTS", default=False)
 MARKETPLACE_RELEASE_DAYS = env.int("MARKETPLACE_RELEASE_DAYS", default=3)
+# Hold payments for a seller's first this-many paid orders even with buyer
+# protection off: the risk is a new, unproven seller. 0 switches it off. Also
+# needs Paystack Transfers, like buyer protection.
+MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default=0)
 
 VIDEO_FFMPEG = env("VIDEO_FFMPEG", default="ffmpeg")
 VIDEO_FFPROBE = env("VIDEO_FFPROBE", default="ffprobe")

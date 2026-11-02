@@ -395,7 +395,7 @@ class PaystackWebhookView(APIView):
             data = event.get("data") or {}
             reference = str(data.get("reference") or "")
             # The prefix says whose payment it is (marketplace/models.py).
-            if reference.startswith(("fm-", "fo-")):
+            if reference.startswith(("fm-", "fo-", "fb-")):
                 from marketplace.payments import confirm_reference
 
                 confirm_reference(reference, data)

@@ -12,6 +12,7 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
+from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
 from django.db import transaction
 from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, When
 from django.middleware.csrf import get_token
@@ -392,9 +393,15 @@ class OwnProductView(APIView):
     @extend_schema(request=OwnProductSerializer, responses={200: None})
     def patch(self, request, pk):
         _seller, product = _owned_product(request, pk)
+        was = product.availability
         serializer = OwnProductSerializer(product, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        with transaction.atomic():
+            serializer.save()
+            # Back from sold out: the people waiting are texted.
+            from .alerts import after_availability_change
+
+            after_availability_change(product, was)
         return Response(OwnProductSerializer(product).data)
 
     @extend_schema(responses={204: None})
@@ -463,7 +470,12 @@ class ProductPublishView(APIView):
             )
 
         product.status = Product.Status.PUBLISHED
-        product.save(update_fields=["status", "updated_at"])
+        fields = ["status", "updated_at"]
+        if product.published_at is None:
+            # What the shop's followers are told about, once.
+            product.published_at = timezone.now()
+            fields.append("published_at")
+        product.save(update_fields=fields)
         return Response(OwnProductSerializer(product).data)
 
     @extend_schema(responses={200: None})
@@ -649,10 +661,23 @@ class ProductListView(ListAPIView):
         if availability:
             products = products.filter(availability=availability)
 
-        query = (params.get("q") or "").strip()
+        # Full-text search, so "bags" finds "bag" and a match in the name
+        # ranks above one in the description; the plain substring match is
+        # kept alongside it for part-words and names Postgres does not stem.
+        query = (params.get("q") or "").strip()[:100]
         if query:
-            products = products.filter(
-                Q(name__icontains=query)
+            vector = (
+                SearchVector("name", weight="A", config="english")
+                + SearchVector("seller__business_name", weight="B", config="english")
+                + SearchVector("description", weight="C", config="english")
+            )
+            products = products.annotate(
+                rank=SearchRank(
+                    vector, SearchQuery(query, search_type="websearch", config="english")
+                )
+            ).filter(
+                Q(rank__gt=0)
+                | Q(name__icontains=query)
                 | Q(description__icontains=query)
                 | Q(seller__business_name__icontains=query)
             )
@@ -683,6 +708,10 @@ class ProductListView(ListAPIView):
         # The default: boosted products first, then Shop plan shops, then the
         # rest, newest first within each. A buyer who chose a sort gets that
         # sort, boosts or not; "Sponsored" still marks them.
+        if query:
+            # A search ranks by how well each product matches; boosts and
+            # the plan still break ties.
+            return products.order_by("gone", "-rank", "-boosted", "-on_plan", "-created_at")
         return products.order_by("gone", "-boosted", "-on_plan", "-created_at")
 
     def list(self, request, *args, **kwargs):
