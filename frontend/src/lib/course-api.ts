@@ -96,7 +96,7 @@ export function countPlay(videoId: number) {
 }
 
 export function getMyCourses() {
-  return trainerFetch<{results: MyCourse[]}>("/api/learn/mine/");
+  return trainerFetch<{results: MyCourse[]; signed_in: boolean}>("/api/learn/mine/");
 }
 
 export function requestCertificate(area: string, slug: string, name?: string) {

@@ -520,6 +520,43 @@ Nothing to switch on for most of these; they arrive with the release.
   first five Buy now payments for buyer protection, then pay them straight.
   It needs Paystack Transfers, set up as for buyer protection above.
 
+## Online learning: progress, certificates, the course studio
+
+Arrives with the release; the migrations run during deploy. What changes:
+
+- **For learners:** a new player (speed, 10-second skips, captions,
+  picture choice, carry on where you stopped, "up next"), progress and
+  ticks, *My courses* at `/learn/mine`, a certificate at
+  `/certificates/<code>` once every lesson is finished (with a QR code
+  anyone can scan to check it), reviews, questions under each lesson, and
+  *Save to watch offline*, which keeps a lesson inside the site on the
+  phone (`/learn/saved`), never as a loose file that could be passed on.
+- **For trainers:** the course studio at `/trainer/course` (also linked
+  from the Videos tab): numbers, lesson order and sections, descriptions,
+  captions, the course page words, a launch price, promo codes, featuring,
+  and learners' questions and reviews. A question texts the trainer; the
+  answer texts the learner (through the SMS provider in `SMS_PROVIDER`).
+- **Streaming copies (HLS).** After this deploy the video worker cuts a
+  streaming copy of every approved lesson, the existing ones included, from
+  the files already made. It is quick (no re-encoding) but uses about as
+  much disk again as the lessons' MP4s. Watch it with
+  `journalctl -u fliptech-video -f` (lines like `Video 12: stream ready`).
+  The copies sit under `/media/videos/public/hls/`, which the existing
+  Caddy rule already checks with Django, so paid lessons stay locked. To
+  turn streaming off, set `VIDEO_HLS=False` in `backend.env`; players fall
+  back to the MP4s.
+- **Featuring a course** costs GH₵20 a week or GH₵60 a month by default
+  (`COURSE_BOOST_WEEK_PRICE`, `COURSE_BOOST_MONTH_PRICE` in `backend.env`).
+  Paid to Fliiptech through Paystack (references start `fk-`, confirmed by
+  the same webhook). Staff can also feature a course for free: back office,
+  *Courses*, set *Featured until*.
+- **Back office:** reviews and lesson questions can be hidden, certificates
+  revoked (the check page then says so), and captions deleted. Captions and
+  lesson descriptions are not reviewed before they show; staff remove any
+  that break the rules.
+- **Instant updates** for course pages use the same `REVALIDATE_SECRET`
+  setting as the marketplace above.
+
 ## One account per person
 
 Everyone now signs in at `/account` with their phone and gets a customer

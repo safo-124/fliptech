@@ -197,6 +197,11 @@ def test_no_certificate_before_every_lesson_is_finished(learner_client, course):
 
 
 @pytest.mark.django_db
+def test_my_courses_is_empty_not_an_error_for_a_stranger(client):
+    assert client.get(reverse("my-courses")).json() == {"results": [], "signed_in": False}
+
+
+@pytest.mark.django_db
 def test_my_courses_says_how_far_and_where_to_carry_on(learner_client, course):
     provider, lessons = course
     with_length(lessons)

@@ -568,7 +568,7 @@ function PromoCodes() {
 
   return (
     <Panel icon={Ticket} title={t("codesTitle")} lead={t("codesLead")}>
-      <form onSubmit={create} className="grid gap-2 sm:grid-cols-[1fr_6rem]">
+      <form onSubmit={create} className="grid gap-2 sm:grid-cols-[1fr_10rem]">
         <label htmlFor="code-word" className="sr-only">{t("codeLabel")}</label>
         <input id="code-word" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="LAUNCH20" maxLength={20} className={`${field} h-11 font-mono font-bold uppercase tracking-wider`} />
         <label htmlFor="code-off" className="sr-only">{t("percentLabel")}</label>

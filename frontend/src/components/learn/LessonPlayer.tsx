@@ -213,6 +213,15 @@ function ActivePlayer({
   const [failed, setFailed] = useState(false);
 
   // ------------------------------------------------------------ the source
+  // The files by address, not by array: the course refreshes what this
+  // viewer may watch (after a payment, at the end of the course) and hands
+  // over new arrays of the same files, which must not restart the lesson.
+  const files = useRef(video.sources);
+  useEffect(() => {
+    files.current = video.sources;
+  }, [video.sources]);
+  const fileKey = video.sources.map((file) => file.url).join(" ");
+
   useEffect(() => {
     let cancelled = false;
     let blob: string | null = null;
@@ -231,7 +240,7 @@ function ActivePlayer({
         return;
       }
       const file =
-        video.sources.find((candidate) => String(candidate.quality) === saved) ?? video.sources[0];
+        files.current.find((candidate) => String(candidate.quality) === saved) ?? files.current[0];
       if (file) {
         setQuality(String(file.quality));
         setSource({ kind: "file", url: file.url });
@@ -243,21 +252,23 @@ function ActivePlayer({
       cancelled = true;
       if (blob) URL.revokeObjectURL(blob);
     };
-  }, [video.id, video.stream, video.sources]);
+  }, [video.id, video.stream, fileKey]);
 
-  // hls.js where the browser cannot play HLS itself (everything but Safari).
+  // hls.js wherever Media Source is there, which is every phone browser but
+  // an iPhone's: it seeks reliably and lets the learner pick the picture.
+  // The browser's own HLS only where hls.js cannot run (iPhone Safari).
   useEffect(() => {
     const element = media.current;
     if (!element || source?.kind !== "hls") return;
-    if (element.canPlayType("application/vnd.apple.mpegurl")) {
-      element.src = source.url;
-      return;
-    }
     let destroyed = false;
     void import("hls.js").then(({ default: Hls }) => {
       if (destroyed || !media.current) return;
       if (!Hls.isSupported()) {
-        const file = video.sources[0];
+        if (media.current.canPlayType("application/vnd.apple.mpegurl")) {
+          media.current.src = source.url;
+          return;
+        }
+        const file = files.current[0];
         if (file) setSource({ kind: "file", url: file.url });
         return;
       }
@@ -279,7 +290,7 @@ function ActivePlayer({
         if ((data as { fatal?: boolean }).fatal) {
           player.destroy();
           hls.current = null;
-          const file = video.sources[0];
+          const file = files.current[0];
           if (file) setSource({ kind: "file", url: file.url });
         }
       });
@@ -291,15 +302,15 @@ function ActivePlayer({
       hls.current?.destroy();
       hls.current = null;
     };
-  }, [source, video.sources]);
+  }, [source]);
 
   // Captions arrive through the API, behind the lesson's lock, as a blob.
+  const captionAddress = video.captions?.[0]?.url;
   useEffect(() => {
-    const first = video.captions?.[0];
-    if (!first) return;
+    if (!captionAddress) return;
     let url: string | null = null;
     let cancelled = false;
-    fetch(first.url, { credentials: "include" })
+    fetch(captionAddress, { credentials: "include" })
       .then((response) => (response.ok ? response.text() : Promise.reject()))
       .then((text) => {
         if (cancelled) return;
@@ -311,7 +322,7 @@ function ActivePlayer({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [video.captions]);
+  }, [captionAddress]);
 
   useEffect(() => {
     const element = media.current;

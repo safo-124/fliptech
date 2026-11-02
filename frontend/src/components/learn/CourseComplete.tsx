@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowRight, Award, GraduationCap, Loader2, PartyPopper, Star, X } from "lucide-react";
+import {
+  ArrowRight,
+  Award,
+  GraduationCap,
+  Loader2,
+  PartyPopper,
+  Star,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -39,7 +47,10 @@ const PIECES = Array.from({ length: 70 }, (_, n) => ({
 function Confetti() {
   const pieces = PIECES;
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[60] overflow-hidden motion-reduce:hidden">
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 z-[60] overflow-hidden motion-reduce:hidden"
+    >
       {pieces.map((piece, n) => (
         <span
           key={n}
@@ -110,24 +121,27 @@ export function CourseComplete({
     try {
       setClaimed(await requestCertificate(area, slug, name.trim()));
     } catch (error) {
-      setProblem(error instanceof TrainerApiError ? error.message : t("tryAgain"));
+      setProblem(
+        error instanceof TrainerApiError ? error.message : t("tryAgain"),
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <>
+    <dialog
+      ref={dialog}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === dialog.current) dialog.current?.close();
+      }}
+      aria-labelledby="course-done-title"
+      className="m-auto w-[min(34rem,calc(100vw-2rem))] overflow-visible bg-transparent p-0 backdrop:bg-[oklch(0.2_0.06_292/0.6)] backdrop:backdrop-blur-sm"
+    >
+      {/* Inside the dialog, so it falls in front of the backdrop. */}
       <Confetti />
-      <dialog
-        ref={dialog}
-        onClose={onClose}
-        onClick={(event) => {
-          if (event.target === dialog.current) dialog.current?.close();
-        }}
-        aria-labelledby="course-done-title"
-        className="m-auto w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-3xl p-0 shadow-2xl backdrop:bg-[oklch(0.2_0.06_292/0.6)] backdrop:backdrop-blur-sm open:animate-[pop-in_0.35s_ease-out]"
-      >
+      <div className="relative max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-[var(--color-card)] shadow-2xl animate-[pop-in_0.35s_ease-out]">
         <div className="band relative isolate overflow-hidden px-6 pb-7 pt-8 text-center text-white">
           <button
             type="button"
@@ -140,10 +154,15 @@ export function CourseComplete({
           <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-gradient-to-br from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] text-[var(--color-brand-deep)] shadow-xl">
             <PartyPopper aria-hidden="true" className="size-8" />
           </span>
-          <h2 id="course-done-title" className="mt-4 text-2xl font-extrabold tracking-[-0.03em]">
+          <h2
+            id="course-done-title"
+            className="mt-4 text-2xl font-extrabold tracking-[-0.03em]"
+          >
             {t("doneTitle")}
           </h2>
-          <p className="mx-auto mt-1.5 max-w-[36ch] text-sm text-white/80">{t("doneBody", { name: courseName })}</p>
+          <p className="mx-auto mt-1.5 max-w-[36ch] text-sm text-white/80">
+            {t("doneBody", { name: courseName })}
+          </p>
         </div>
 
         <div className="space-y-5 p-6">
@@ -157,30 +176,47 @@ export function CourseComplete({
                 <Award aria-hidden="true" className="size-6" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-extrabold">{t("certificateReady")}</span>
+                <span className="block font-extrabold">
+                  {t("certificateReady")}
+                </span>
                 <span className="block truncate text-sm text-[var(--color-muted-foreground)]">
                   {certificate.trainee_name} · {certificate.code}
                 </span>
               </span>
-              <ArrowRight aria-hidden="true" className="size-5 text-[var(--color-warn)] transition-transform group-hover:translate-x-1" />
+              <ArrowRight
+                aria-hidden="true"
+                className="size-5 text-[var(--color-warn)] transition-transform group-hover:translate-x-1"
+              />
             </Link>
           ) : !signedIn ? (
             <a
               href={signInHref}
               className="flex items-center gap-4 rounded-2xl border border-dashed border-[var(--color-border-strong)] p-4 hover:bg-[var(--color-muted)]"
             >
-              <Award aria-hidden="true" className="size-8 text-[var(--color-warn)]" />
+              <Award
+                aria-hidden="true"
+                className="size-8 text-[var(--color-warn)]"
+              />
               <span>
-                <span className="block font-bold">{t("signInForCertificate")}</span>
-                <span className="block text-sm text-[var(--color-muted-foreground)]">{t("signInForCertificateBody")}</span>
+                <span className="block font-bold">
+                  {t("signInForCertificate")}
+                </span>
+                <span className="block text-sm text-[var(--color-muted-foreground)]">
+                  {t("signInForCertificateBody")}
+                </span>
               </span>
             </a>
           ) : needsName ? (
-            <form onSubmit={claim} className="rounded-2xl border border-[var(--color-border)] p-4">
+            <form
+              onSubmit={claim}
+              className="rounded-2xl border border-[var(--color-border)] p-4"
+            >
               <label htmlFor="certificate-name" className="font-bold">
                 {t("nameForCertificate")}
               </label>
-              <p className="text-sm text-[var(--color-muted-foreground)]">{t("nameForCertificateHelp")}</p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                {t("nameForCertificateHelp")}
+              </p>
               <div className="mt-3 flex gap-2">
                 <input
                   id="certificate-name"
@@ -195,12 +231,22 @@ export function CourseComplete({
                   disabled={busy || name.trim().length < 2}
                   className="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--color-brand)] px-4 text-sm font-bold text-white disabled:opacity-50"
                 >
-                  {busy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <Award aria-hidden="true" className="size-4" />}
+                  {busy ? (
+                    <Loader2
+                      aria-hidden="true"
+                      className="size-4 animate-spin"
+                    />
+                  ) : (
+                    <Award aria-hidden="true" className="size-4" />
+                  )}
                   {t("getCertificate")}
                 </button>
               </div>
               {problem ? (
-                <p role="alert" className="mt-2 text-sm text-[var(--color-destructive)]">
+                <p
+                  role="alert"
+                  className="mt-2 text-sm text-[var(--color-destructive)]"
+                >
                   {problem}
                 </p>
               ) : null}
@@ -217,10 +263,15 @@ export function CourseComplete({
               }}
               className="flex w-full items-center gap-3 rounded-2xl bg-[var(--color-muted)] p-4 text-left hover:bg-[var(--color-secondary)]"
             >
-              <Star aria-hidden="true" className="size-6 fill-[var(--color-warn)] text-[var(--color-warn)]" />
+              <Star
+                aria-hidden="true"
+                className="size-6 fill-[var(--color-warn)] text-[var(--color-warn)]"
+              />
               <span>
                 <span className="block font-bold">{t("rateCourse")}</span>
-                <span className="block text-sm text-[var(--color-muted-foreground)]">{t("rateCourseBody")}</span>
+                <span className="block text-sm text-[var(--color-muted-foreground)]">
+                  {t("rateCourseBody")}
+                </span>
               </span>
             </button>
           ) : null}
@@ -232,7 +283,9 @@ export function CourseComplete({
                 <GraduationCap aria-hidden="true" className="size-4" />
                 {t("inPersonTitle")}
               </p>
-              <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("inPersonBody")}</p>
+              <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+                {t("inPersonBody")}
+              </p>
               <ul className="mt-3 space-y-2">
                 {programmes.slice(0, 3).map((programme) => (
                   <li key={programme.id}>
@@ -241,14 +294,20 @@ export function CourseComplete({
                       className="group flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] p-3 transition hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand-soft)]/40"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold">{programme.title}</span>
+                        <span className="block truncate text-sm font-bold">
+                          {programme.title}
+                        </span>
                         <span className="block text-xs text-[var(--color-muted-foreground)]">
-                          {formatCedis(programme.fee)} · {t("weeks", { count: programme.duration_weeks })}
+                          {formatCedis(programme.fee)} ·{" "}
+                          {t("weeks", { count: programme.duration_weeks })}
                         </span>
                       </span>
                       <span className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-[var(--color-brand)]">
                         {t("ask")}
-                        <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
+                        <ArrowRight
+                          aria-hidden="true"
+                          className="size-4 transition-transform group-hover:translate-x-0.5"
+                        />
                       </span>
                     </Link>
                   </li>
@@ -257,7 +316,7 @@ export function CourseComplete({
             </div>
           ) : null}
         </div>
-      </dialog>
-    </>
+      </div>
+    </dialog>
   );
 }

@@ -302,7 +302,9 @@ class MyCoursesView(APIView):
     def get(self, request):
         trainee = own_trainee_account(request)
         if trainee is None:
-            return _sign_in_needed()
+            # Not an error: /learn asks for everybody, to offer "continue
+            # learning" to those who have something to continue.
+            return Response({"results": [], "signed_in": False})
         touched = dict(
             LessonProgress.objects.filter(trainee=trainee)
             .values("provider_id")
@@ -362,7 +364,7 @@ class MyCoursesView(APIView):
             )
         epoch = datetime(2000, 1, 1, tzinfo=UTC)
         results.sort(key=lambda row: row["last_watched"] or epoch, reverse=True)
-        return Response({"results": results})
+        return Response({"results": results, "signed_in": True})
 
 
 # --------------------------------------------------------------------------

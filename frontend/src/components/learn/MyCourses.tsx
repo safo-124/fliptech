@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { getMyCourses } from "@/lib/course-api";
-import { TrainerApiError } from "@/lib/trainer-fetch";
 import type { MyCourse } from "@/lib/types";
 
 import { clock } from "./LessonPlayer";
@@ -24,11 +23,11 @@ export function MyCourses() {
 
   useEffect(() => {
     getMyCourses()
-      .then((reply) => setRows(reply.results))
-      .catch((error) => {
-        if (error instanceof TrainerApiError && error.status === 401) setSignedOut(true);
-        setRows([]);
-      });
+      .then((reply) => {
+        setSignedOut(!reply.signed_in);
+        setRows(reply.results);
+      })
+      .catch(() => setRows([]));
   }, []);
 
   const going = rows?.filter((row) => row.done < row.total) ?? [];
