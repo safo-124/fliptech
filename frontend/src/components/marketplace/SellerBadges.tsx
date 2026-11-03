@@ -1,17 +1,27 @@
-import { BadgeCheck, Zap } from "lucide-react";
+import { BadgeCheck, GraduationCap, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { SellerCard } from "@/lib/types";
 
-/** "Verified maker" and "Usually replies within a day", where earned. */
+/** "Trainer" (the shop is a training workshop), "Verified maker" and
+    "Usually replies within a day", where earned. */
 export function SellerBadges({ seller, compact = false }: { seller: SellerCard; compact?: boolean }) {
   const t = useTranslations("Marketplace");
-  if (!seller.verified && !seller.replies_fast) return null;
+  if (!seller.workshop && !seller.verified && !seller.replies_fast) return null;
   const pill = compact
     ? "inline-flex items-center gap-1 text-[11px] font-semibold"
     : "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold";
   return (
     <span className="flex flex-wrap gap-1.5">
+      {seller.workshop ? (
+        <span
+          title={t("trainerBadgeLong")}
+          className={`${pill} ${compact ? "text-[var(--color-brand)]" : "bg-[var(--color-brand-soft)] text-[var(--color-brand)]"}`}
+        >
+          <GraduationCap aria-hidden="true" className="size-3.5" />
+          {compact ? t("trainerBadge") : t("trainerBadgeLong")}
+        </span>
+      ) : null}
       {seller.verified ? (
         <span className={`${pill} ${compact ? "text-[var(--color-visit)]" : "bg-[var(--color-visit-bg)] text-[var(--color-visit)]"}`}>
           <BadgeCheck aria-hidden="true" className="size-3.5" />

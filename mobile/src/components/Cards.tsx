@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { Clock3, MapPin, Sparkles, Star } from "lucide-react-native";
+import { Clock3, GraduationCap, MapPin, Sparkles, Star } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { cedis, courseLength } from "@/lib/format";
@@ -100,6 +100,12 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
         <Text variant="small" numberOfLines={1}>
           {product.seller.business_name}
         </Text>
+        {product.seller.workshop ? (
+          <View style={styles.trainer}>
+            <GraduationCap size={12} color={colors.brand} />
+            <Text style={styles.trainerText}>Trainer</Text>
+          </View>
+        ) : null}
         <View style={styles.row}>
           <Text style={styles.price}>{product.price ? cedis(product.price) : "Ask for price"}</Text>
           {product.was_price ? <Text style={styles.was}>{cedis(product.was_price)}</Text> : null}
@@ -151,6 +157,8 @@ export function WorkshopRow({ workshop, onPress }: { workshop: Workshop; onPress
 }
 
 const styles = StyleSheet.create({
+  trainer: { flexDirection: "row", alignItems: "center", gap: 4 },
+  trainerText: { fontFamily: fonts.semibold, fontSize: 11, color: colors.brand },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,

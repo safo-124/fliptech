@@ -86,6 +86,7 @@ from marketplace.views import (
     SellerProfileView,
     SellerSessionView,
     StartSellingView,
+    TrainerShopsView,
 )
 from providers.complaint_views import ComplaintCreateView
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
@@ -447,6 +448,7 @@ urlpatterns = [
         ProductEnquiryCreateView.as_view(),
         name="product-enquiry-create",
     ),
+    path("sellers/trainers/", TrainerShopsView.as_view(), name="sellers-trainers"),
     path("sellers/<int:pk>/", SellerDetailView.as_view(), name="seller-detail"),
     # The marketplace's measured and paid parts; see marketplace/selling_views.py.
     path("products/<int:pk>/viewed/", ProductViewedView.as_view(), name="product-viewed"),

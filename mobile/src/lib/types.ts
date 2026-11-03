@@ -34,7 +34,14 @@ export type ProductCard = {
   availability: "available" | "made_to_order" | "sold_out";
   trade: Trade | null;
   photo: string | null;
-  seller: { id: number; business_name: string; area: string | null };
+  seller: {
+    id: number;
+    business_name: string;
+    area: string | null;
+    /** The training listing, when the shop is also a workshop on the site. */
+    workshop: { name: string; slug: string; area_slug: string } | null;
+    verified?: boolean;
+  };
   sponsored: boolean;
 };
 
@@ -230,4 +237,14 @@ export type Order = {
   seller_phone: string | null;
   created_at?: string;
   paid_at?: string | null;
+};
+
+/** A shop that is also a training workshop. See backend TrainerShopsView. */
+export type TrainerShop = {
+  id: number;
+  business_name: string;
+  area: string;
+  photo: string | null;
+  product_count: number;
+  workshop: { name: string; slug: string; area_slug: string };
 };

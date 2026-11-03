@@ -8,6 +8,8 @@ scoped to `own_seller_account(request)` and never take an id from the caller
 that selects whose products are touched.
 """
 
+from decimal import Decimal, InvalidOperation
+
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.gis.db.models.functions import Distance
@@ -628,6 +630,83 @@ def _with_ratings(serializer_class, items, request, **kwargs):
     return serializer_class(items, many=True, context=context, **kwargs).data
 
 
+def _flag(params, name):
+    return (params.get(name) or "").lower() in {"1", "true", "yes", "on"}
+
+
+def _price(raw):
+    """A price bound from the query string, or None when it is not one."""
+    try:
+        value = Decimal(str(raw).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    return value if value.is_finite() and value >= 0 else None
+
+
+def _filter_products(products, params):
+    """The marketplace's filters, shared by the website, the app and anyone
+    reading the API. Each is optional and they combine with AND.
+
+    - sold_by: "trainers" (the shop is also a training workshop on the site)
+      or "makers" (a shop with no workshop behind it).
+    - workshop: a Provider id, its shop's products; seller: a shop's id.
+    - min_price, max_price: in cedis, inclusive. Products with no price
+      ("ask for the price") are left out once either is given.
+    - pay_online: products a buyer can pay for here (the "Buy now" rule).
+    - delivers: the seller set a delivery fee. verified: Fliiptech visited.
+    - on_sale: a real reduction, the crossed-out price above the price.
+    """
+    from courses import paystack
+
+    sold_by = params.get("sold_by")
+    if sold_by == "trainers":
+        products = products.filter(seller__provider__isnull=False)
+    elif sold_by == "makers":
+        products = products.filter(seller__provider__isnull=True)
+
+    workshop = params.get("workshop") or ""
+    if workshop.isdigit():
+        products = products.filter(seller__provider_id=int(workshop))
+    seller = params.get("seller") or ""
+    if seller.isdigit():
+        products = products.filter(seller_id=int(seller))
+
+    low, high = _price(params.get("min_price")), _price(params.get("max_price"))
+    if low is not None and high is not None and low > high:
+        low, high = high, low
+    if low is not None:
+        products = products.filter(price__gte=low)
+    if high is not None:
+        products = products.filter(price__lte=high)
+
+    if _flag(params, "delivers"):
+        products = products.filter(seller__delivery_fee__isnull=False)
+    if _flag(params, "verified"):
+        products = products.filter(seller__verified_at__isnull=False)
+    if _flag(params, "on_sale"):
+        products = products.filter(
+            price__isnull=False, was_price__isnull=False, was_price__gt=F("price")
+        )
+    if _flag(params, "pay_online"):
+        # ProductCardSerializer.get_buy_online, in SQL.
+        if not paystack.enabled():
+            return products.none()
+        payable = (
+            Q(seller__paystack_recipient__gt="")
+            if settings.MARKETPLACE_HOLD_PAYMENTS
+            else Q(seller__paystack_subaccount__gt="")
+        )
+        products = (
+            products.filter(payable, price__isnull=False)
+            .filter(
+                Q(availability=Product.Availability.AVAILABLE)
+                | Q(availability=Product.Availability.MADE_TO_ORDER, seller__deposit_percent__gt=0)
+            )
+            .exclude(seller__away_until__gte=timezone.localdate())
+        )
+    return products
+
+
 class ProductListView(ListAPIView):
     """Browse the marketplace. Filters mirror the training search's names so
     one set of query parameters is learned, not two."""
@@ -660,6 +739,8 @@ class ProductListView(ListAPIView):
         availability = params.get("availability")
         if availability:
             products = products.filter(availability=availability)
+
+        products = _filter_products(products, params)
 
         # Full-text search, so "bags" finds "bag" and a match in the name
         # ranks above one in the description; the plain substring match is
@@ -727,6 +808,49 @@ class ProductDetailView(RetrieveAPIView):
 
     def get_queryset(self):
         return _public_products()
+
+
+class TrainerShopsView(APIView):
+    """Training workshops that also sell: the shops with a workshop behind
+    them, most products first, each with a cover photo and its count.
+
+    The marketplace's strongest promise is "made by somebody who teaches it",
+    and this is where a buyer sees who those people are.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    LIMIT = 12
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from django.db.models import Count
+
+        visible = Product.objects.visible()
+        sellers = list(
+            SellerAccount.objects.filter(provider__isnull=False, products__in=visible)
+            .annotate(
+                product_count=Count("products", filter=Q(products__in=visible), distinct=True)
+            )
+            .select_related("area", "area__region", "provider", "provider__area")
+            .order_by("-product_count", "business_name")[: self.LIMIT]
+        )
+        covers = {}
+        for product in (
+            _public_products().filter(seller__in=sellers).order_by("-boosted", "-created_at")
+        ):
+            if product.seller_id not in covers:
+                first = next(iter(product.photos.all()), None)
+                covers[product.seller_id] = (
+                    public_url(first.image.url, request) if first and first.image else None
+                )
+        counts = {seller.pk: seller.product_count for seller in sellers}
+        cards = SellerCardSerializer(sellers, many=True, context={"request": request}).data
+        for card in cards:
+            card["photo"] = covers.get(card["id"])
+            card["product_count"] = counts[card["id"]]
+        return Response({"results": cards})
 
 
 class SellerDetailView(APIView):

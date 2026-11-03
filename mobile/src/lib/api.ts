@@ -12,6 +12,7 @@ import type {
   ProductCard,
   ProductDetail,
   ProviderCard,
+  TrainerShop,
   TradeOption,
   WorkshopDetail,
 } from "./types";
@@ -96,7 +97,9 @@ const MAP_PAGES = 10;
 export const api = {
   courses: (params: { q?: string; sort?: string; featured?: string } = {}) =>
     getJson<Paginated<CourseCard>>("/api/courses/", params),
-  products: (params: { q?: string } = {}) => getJson<Paginated<ProductCard>>("/api/products/", params),
+  products: (params: Record<string, string | undefined> = {}) =>
+    getJson<Paginated<ProductCard>>("/api/products/", params),
+  trainerShops: () => getJson<{ results: TrainerShop[] }>("/api/sellers/trainers/"),
   providers: (params: { q?: string; trade?: string } = {}) =>
     getJson<Paginated<ProviderCard>>("/api/providers/", params),
   /** Every workshop for the map, following the pages, inside a box if given. */

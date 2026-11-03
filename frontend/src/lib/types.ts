@@ -819,6 +819,9 @@ export type BasketPrice = {
 
 export type FeaturedShop = SellerCard & {photo: string | null};
 
+/** A shop that is also a training workshop, with how much it has on show. */
+export type TrainerShop = FeaturedShop & {product_count: number};
+
 export type ProductOption = {id: number; label: string; price: string | null; available: boolean};
 
 export type ProductDetail = ProductCard & {

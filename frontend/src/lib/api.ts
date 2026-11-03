@@ -24,6 +24,7 @@ import type {
   Region,
   SellerShop,
   FeaturedShop,
+  TrainerShop,
   Trade,
   UpcomingIntake,
 } from "./types";
@@ -301,6 +302,19 @@ export type MarketplaceParams = {
   /** Comma-separated ids: the products saved in this browser. */
   ids?: string;
   page?: string;
+  /** "trainers" (shops that are training workshops) or "makers". */
+  sold_by?: string;
+  /** One workshop's shop, by Provider id; or one shop, by seller id. */
+  workshop?: string;
+  seller?: string;
+  /** In cedis, inclusive. */
+  min_price?: string;
+  max_price?: string;
+  /** "1" to switch on. */
+  pay_online?: string;
+  delivers?: string;
+  verified?: string;
+  on_sale?: string;
 };
 
 export function searchProducts(params: MarketplaceParams = {}) {
@@ -321,6 +335,11 @@ export async function searchAllProducts() {
 }
 
 /** Shop plan shops for the home page. */
+/** Training workshops that also sell, most products first. */
+export function getTrainerShops() {
+  return fetchJson<{results: TrainerShop[]}>("/api/sellers/trainers/", {tags: [MARKETPLACE_TAG]});
+}
+
 export function getFeaturedShops() {
   return fetchJson<{results: FeaturedShop[]}>("/api/sellers/featured/", {tags: [MARKETPLACE_TAG]});
 }
