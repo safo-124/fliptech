@@ -700,6 +700,10 @@ export type SellerCard = {
   deposit_percent: number | null;
   /** Percent off for the workshop's own trainees, when the shop is a workshop. */
   student_discount: number | null;
+  /** Pay on collection: this share online, the rest in cash. */
+  collect_deposit_percent?: number | null;
+  /** confirmed (lists and answers), payments (ID checked), verified (visited). */
+  level?: "confirmed" | "payments" | "verified";
   /** Away: Buy now is off until this date. */
   away_until: string | null;
   away_note: string;
@@ -716,6 +720,8 @@ export type ProductCard = {
   availability: "available" | "made_to_order" | "sold_out";
   /** "used" for second-hand tools. */
   condition: "new" | "used";
+  /** "Only N left", when the seller counts stock and few remain. */
+  few_left?: number | null;
   trade: {name: string; slug: string; colour: string} | null;
   photo: string | null;
   seller: SellerCard;
@@ -769,7 +775,7 @@ export type MarketplaceOrder = {
     unit_price: string;
     quantity: number;
   }[];
-  plan: "full" | "deposit";
+  plan: "full" | "deposit" | "collect";
   /** For a deposit order: what was paid first, and what is owed when ready. */
   deposit: string;
   balance: string;
@@ -784,6 +790,12 @@ export type MarketplaceOrder = {
   /** Buyer protection: the seller is paid once the buyer has it. */
   protected: boolean;
   problem: string;
+  problem_at?: string | null;
+  /** The seller's side of a reported problem. */
+  problem_reply?: string;
+  problem_replied_at?: string | null;
+  /** Collect from the workshop, for a paid pickup order. */
+  pickup?: PickupPoint | null;
   seller_name: string;
   /** Only once paid. */
   seller_phone: string | null;
@@ -817,8 +829,10 @@ export type BasketPrice = {
   /** The workshop's student price was applied. */
   student?: boolean;
   /** "deposit" when anything is made to order: pay_now now, balance when ready. */
-  plan: "full" | "deposit";
+  plan: "full" | "deposit" | "collect";
   deposit_percent: number | null;
+  /** Pay on collection: this share online, the rest in cash. */
+  collect_deposit_percent?: number | null;
   pay_now: string;
   balance: string;
 };

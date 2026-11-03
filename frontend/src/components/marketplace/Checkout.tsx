@@ -7,7 +7,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getAccount, updateAccount } from "@/lib/account-api";
+import { getAccount, getAddresses, updateAccount, type SavedAddress } from "@/lib/account-api";
+import { savePaymentQueue, type QueuedSeller } from "@/lib/checkout-queue";
 import { formatCedis } from "@/lib/format";
 import {
   orderBag,
@@ -34,12 +35,16 @@ export function Checkout({
   sellerName,
   items,
   onPaying,
+  queue = [],
 }: {
   sellerId: number;
   sellerName: string;
   items: BagItem[];
   /** Called just before the browser leaves for Paystack. */
   onPaying?: () => void;
+  /** Other sellers' bags to pay for after this one, with the same details
+      ("one checkout for the whole bag"). */
+  queue?: QueuedSeller[];
 }) {
   const t = useTranslations("Marketplace");
   const [step, setStep] = useState<"details" | "code">("details");
@@ -55,6 +60,8 @@ export function Checkout({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAddress, setSavedAddress] = useState<string | null>(null);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  const [payAtCollection, setPayAtCollection] = useState(false);
 
   // Signed in: their number, name and last address are already known, and
   // the number needs no code (it is the account's own).
@@ -69,6 +76,9 @@ export function Checkout({
         if (session.account.delivery_address) {
           setNote((typed) => typed || session.account.delivery_address);
         }
+        getAddresses()
+          .then((found) => active && setAddresses(found.results))
+          .catch(() => {});
       })
       .catch(() => {});
     return () => {
@@ -80,7 +90,12 @@ export function Checkout({
   useEffect(() => {
     let active = true;
     const handle = window.setTimeout(() => {
-      priceBag(sellerId, { items: JSON.parse(itemsKey), fulfilment, code: appliedCode || undefined })
+      priceBag(sellerId, {
+        items: JSON.parse(itemsKey),
+        fulfilment,
+        code: appliedCode || undefined,
+        pay_at_collection: payAtCollection && fulfilment === "pickup",
+      })
         .then((priced) => {
           if (!active) return;
           setPrice(priced);
@@ -96,7 +111,7 @@ export function Checkout({
       active = false;
       window.clearTimeout(handle);
     };
-  }, [sellerId, itemsKey, fulfilment, appliedCode, t]);
+  }, [sellerId, itemsKey, fulfilment, appliedCode, payAtCollection, t]);
 
   async function pay(e164: string) {
     const { authorization_url } = await orderBag(sellerId, {
@@ -106,7 +121,10 @@ export function Checkout({
       fulfilment,
       note: note.trim() || undefined,
       code: appliedCode || undefined,
+      pay_at_collection: payAtCollection && fulfilment === "pickup",
     });
+    // The rest of the bag, paid one seller after another with these details.
+    savePaymentQueue(queue.length ? { details: { phone: e164, name: name.trim(), fulfilment, note: note.trim() }, sellers: queue } : null);
     // The first delivery address is kept for next time.
     if (savedAddress === "" && fulfilment === "delivery" && note.trim()) {
       await updateAccount({ delivery_address: note.trim() }).catch(() => {});
@@ -151,7 +169,7 @@ export function Checkout({
   }
 
   // A deposit order charges the deposit now; the button says so.
-  const total = price ? formatCedis(price.plan === "deposit" ? price.pay_now : price.total) : "…";
+  const total = price ? formatCedis(price.plan === "full" ? price.total : price.pay_now) : "…";
   const payLabel = t("payAction", { total });
 
   return (
@@ -230,6 +248,42 @@ export function Checkout({
             ) : null}
           </div>
 
+          {fulfilment === "delivery" && addresses.length ? (
+            <div className="flex flex-wrap gap-2">
+              {addresses.map((saved) => (
+                <button
+                  key={saved.id}
+                  type="button"
+                  onClick={() => setNote(saved.address)}
+                  className={`max-w-full truncate rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                    note === saved.address
+                      ? "border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-[var(--color-brand)]"
+                      : "border-[var(--color-border)]"
+                  }`}
+                >
+                  {saved.label || saved.address}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {fulfilment === "pickup" && price?.collect_deposit_percent ? (
+            <label className="flex items-start gap-2.5 rounded-xl border border-[var(--color-border)] p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={payAtCollection}
+                onChange={(event) => setPayAtCollection(event.target.checked)}
+                className="mt-0.5 size-4 accent-[var(--color-brand)]"
+              />
+              <span>
+                <span className="font-semibold">{t("collectOption")}</span>
+                <span className="block text-[var(--color-muted-foreground)]">
+                  {t("collectHelp", { percent: price.collect_deposit_percent })}
+                </span>
+              </span>
+            </label>
+          ) : null}
+
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <Label htmlFor="buy-discount">{t("discountLabel")}</Label>
@@ -278,6 +332,18 @@ export function Checkout({
                 <dt>{t("totalLine")}</dt>
                 <dd className="tabular-nums">{formatCedis(price.total)}</dd>
               </div>
+              {price.plan === "collect" ? (
+                <>
+                  <div className="flex justify-between gap-3 text-[var(--color-brand-strong)]">
+                    <dt>{t("collectNow", { percent: price.collect_deposit_percent ?? 0 })}</dt>
+                    <dd className="tabular-nums">{formatCedis(price.pay_now)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 text-[var(--color-muted-foreground)]">
+                    <dt>{t("collectCash")}</dt>
+                    <dd className="tabular-nums">{formatCedis(price.balance)}</dd>
+                  </div>
+                </>
+              ) : null}
               {price.plan === "deposit" ? (
                 <>
                   <div className="flex justify-between gap-3 text-[var(--color-brand-strong)]">

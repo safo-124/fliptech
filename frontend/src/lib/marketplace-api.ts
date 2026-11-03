@@ -44,7 +44,10 @@ export function askAboutProduct(
 export type Fulfilment = "pickup" | "delivery";
 
 /** The server's total for a bag: every price is read there, never sent. */
-export function priceBag(sellerId: number, body: {items: BagItem[]; fulfilment: Fulfilment; code?: string}) {
+export function priceBag(
+  sellerId: number,
+  body: {items: BagItem[]; fulfilment: Fulfilment; code?: string; pay_at_collection?: boolean},
+) {
   return sessionFetch<BasketPrice>(`/api/sellers/${sellerId}/price/`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -61,6 +64,7 @@ export function orderBag(
     fulfilment: Fulfilment;
     note?: string;
     code?: string;
+    pay_at_collection?: boolean;
   },
 ) {
   return sessionFetch<{authorization_url: string; reference: string}>(
@@ -172,4 +176,17 @@ export function orderBundle(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** The seller's side of a reported problem. */
+export function replyToProblem(reference: string, reply: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/seller/orders/${encodeURIComponent(reference)}/reply/`, {
+    method: "POST",
+    body: JSON.stringify({reply}),
+  });
+}
+
+/** An order, for the browser that made it or the signed-in buyer. */
+export function getOrder(reference: string) {
+  return sessionFetch<MarketplaceOrder>(`/api/orders/${encodeURIComponent(reference)}/`);
 }

@@ -31,6 +31,7 @@ import {DashboardBottomBar, DashboardSidebar, type DashboardTab} from "@/compone
 import {SellerGrowthTab} from "@/components/seller/SellerGrowth";
 import {SellerBundlesTab} from "@/components/seller/SellerBundles";
 import {SellerChatsTab} from "@/components/seller/SellerChats";
+import {SellerIdCard} from "@/components/seller/SellerIdCard";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
 import {checkPhoto} from "@/lib/photo-check";
@@ -433,6 +434,15 @@ function ProductsTab({
                         `GH₵${Number(product.price).toLocaleString("en-GH")}`
                       )}
                     </p>
+                    {product.stock !== null ? (
+                      <p
+                        className={`mt-1 text-xs font-semibold ${
+                          product.stock <= 2 ? "text-[var(--color-warn)]" : "text-[var(--color-muted-foreground)]"
+                        }`}
+                      >
+                        {product.stock === 0 ? t("stockNone") : t("stockLeft", {count: product.stock})}
+                      </p>
+                    ) : null}
                     {product.staff_note ? (
                       <p className="mt-1.5 rounded-lg bg-[var(--color-destructive)]/10 px-2 py-1 text-xs text-[var(--color-destructive)]">
                         {product.staff_note}
@@ -464,6 +474,24 @@ function ProductsTab({
                       >
                         <Copy aria-hidden="true" />
                         {t("copy")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() =>
+                          run(
+                            () =>
+                              updateProduct(product.id, {
+                                availability: product.availability === "sold_out" ? "available" : "sold_out",
+                                ...(product.availability === "sold_out" && product.stock === 0 ? {stock: null} : {}),
+                              }),
+                            product.availability === "sold_out" ? t("backInStock") : t("markedSoldOut"),
+                          )
+                        }
+                      >
+                        {product.availability === "sold_out" ? t("inStockAgain") : t("markSoldOut")}
                       </Button>
                       {product.status === "draft" ? (
                         <Button
@@ -541,6 +569,7 @@ function ProductEditor({
   const [wasPrice, setWasPrice] = useState(product?.was_price ?? "");
   const [availability, setAvailability] = useState(product?.availability ?? "available");
   const [condition, setCondition] = useState(product?.condition ?? "new");
+  const [stock, setStock] = useState(product?.stock !== null && product?.stock !== undefined ? String(product.stock) : "");
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -553,6 +582,7 @@ function ProductEditor({
       was_price: (wasPrice ?? "").trim() === "" ? null : (wasPrice ?? "").trim(),
       availability,
       condition,
+      stock: stock.trim() === "" ? null : Math.max(0, Number.parseInt(stock, 10) || 0),
     };
     await run(async () => {
       if (product) await updateProduct(product.id, body);
@@ -613,6 +643,18 @@ function ProductEditor({
                 {t("availabilityHelp")}
               </p>
             </div>
+          </div>
+
+          <div className="sm:w-1/2">
+            <Label htmlFor="product-stock">{t("stockLabel")}</Label>
+            <Input
+              id="product-stock"
+              inputMode="numeric"
+              value={stock}
+              onChange={(event) => setStock(event.target.value.replace(/\D/g, ""))}
+              placeholder={t("stockPlaceholder")}
+            />
+            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("stockHelp")}</p>
           </div>
 
           <div className="sm:w-1/2">
@@ -997,6 +1039,9 @@ function ShopTab({
   const [deliveryFee, setDeliveryFee] = useState(seller.delivery_fee ?? "");
   const [deliveryArea, setDeliveryArea] = useState(seller.delivery_area);
   const [deposit, setDeposit] = useState(seller.deposit_percent ? String(seller.deposit_percent) : "");
+  const [collect, setCollect] = useState(
+    seller.collect_deposit_percent ? String(seller.collect_deposit_percent) : "",
+  );
   const [student, setStudent] = useState(
     seller.student_discount_percent ? String(seller.student_discount_percent) : "",
   );
@@ -1005,6 +1050,7 @@ function ShopTab({
 
   return (
     <Card>
+      <SellerIdCard />
       <CardHeader>
         <CardTitle>{t("yourShop")}</CardTitle>
         <CardDescription>{t("yourShopLead")}</CardDescription>
@@ -1023,6 +1069,7 @@ function ShopTab({
                   delivery_area: delivers ? deliveryArea.trim() : "",
                   deposit_percent: deposit ? Number(deposit) : null,
                   student_discount_percent: student ? Number(student) : null,
+                  collect_deposit_percent: collect ? Number(collect) : null,
                   away_until: awayUntil || null,
                   away_note: awayUntil ? awayNote.trim() : "",
                 }),
@@ -1120,6 +1167,19 @@ function ShopTab({
               ))}
             </NativeSelect>
             <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("depositHelp")}</p>
+          </div>
+
+          <div className="rounded-xl border border-[var(--color-border)] p-3">
+            <Label htmlFor="shop-collect">{t("collectLabel")}</Label>
+            <NativeSelect id="shop-collect" value={collect} onChange={(event) => setCollect(event.target.value)}>
+              <option value="">{t("collectOff")}</option>
+              {[10, 20, 30, 50].map((percent) => (
+                <option key={percent} value={percent}>
+                  {t("collectPercent", {percent})}
+                </option>
+              ))}
+            </NativeSelect>
+            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("collectHelp")}</p>
           </div>
 
           {seller.workshop ? (

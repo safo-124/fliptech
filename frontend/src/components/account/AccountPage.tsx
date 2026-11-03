@@ -35,7 +35,7 @@ import {
   type AccountSession,
   type MyQuestions,
 } from "@/lib/account-api";
-import {syncSavedWithAccount} from "@/lib/bag";
+import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
 import {formatCedis} from "@/lib/format";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import type {MarketplaceOrder} from "@/lib/types";
@@ -68,7 +68,10 @@ export function AccountPage() {
   const load = useCallback(async () => {
     const found = await getAccount();
     setSession(found);
-    if (found.authenticated) void syncSavedWithAccount();
+    if (found.authenticated) {
+      void syncSavedWithAccount();
+      void syncBagWithAccount();
+    }
     return found;
   }, []);
 
@@ -78,7 +81,10 @@ export function AccountPage() {
       .then((found) => {
         if (!active) return;
         setSession(found);
-        if (found.authenticated) void syncSavedWithAccount();
+        if (found.authenticated) {
+      void syncSavedWithAccount();
+      void syncBagWithAccount();
+    }
       })
       .catch(() => {
         if (active) setSession({authenticated: false, account: null, roles: null});

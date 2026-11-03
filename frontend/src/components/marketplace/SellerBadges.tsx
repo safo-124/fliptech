@@ -1,4 +1,4 @@
-import { BadgeCheck, GraduationCap, Zap } from "lucide-react";
+import { BadgeCheck, GraduationCap, ShieldCheck, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { SellerCard } from "@/lib/types";
@@ -7,7 +7,8 @@ import type { SellerCard } from "@/lib/types";
     "Usually replies within a day", where earned. */
 export function SellerBadges({ seller, compact = false }: { seller: SellerCard; compact?: boolean }) {
   const t = useTranslations("Marketplace");
-  if (!seller.workshop && !seller.verified && !seller.replies_fast) return null;
+  const checked = seller.level === "payments";
+  if (!seller.workshop && !seller.verified && !seller.replies_fast && !checked) return null;
   const pill = compact
     ? "inline-flex items-center gap-1 text-[11px] font-semibold"
     : "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold";
@@ -20,6 +21,12 @@ export function SellerBadges({ seller, compact = false }: { seller: SellerCard; 
         >
           <GraduationCap aria-hidden="true" className="size-3.5" />
           {compact ? t("trainerBadge") : t("trainerBadgeLong")}
+        </span>
+      ) : null}
+      {checked && !compact ? (
+        <span className={`${pill} bg-[var(--color-visit-bg)] text-[var(--color-visit)]`}>
+          <ShieldCheck aria-hidden="true" className="size-3.5" />
+          {t("levelPayments")}
         </span>
       ) : null}
       {seller.verified ? (

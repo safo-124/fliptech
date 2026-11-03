@@ -91,6 +91,9 @@ export function ProductTile({ product }: { product: ProductCard }) {
             <p className="mt-2 truncate text-xs text-[var(--color-muted-foreground)]">
               {product.seller.business_name} &middot; {product.seller.area}
             </p>
+            {product.few_left ? (
+              <p className="mt-1 text-xs font-bold text-[var(--color-warn)]">{t("fewLeft", { count: product.few_left })}</p>
+            ) : null}
             <div className="mt-1">
               <SellerBadges seller={product.seller} compact />
             </div>
