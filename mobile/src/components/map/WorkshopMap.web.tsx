@@ -1,9 +1,4 @@
-import { MapPinned } from "lucide-react-native";
-import { StyleSheet, View } from "react-native";
-
-import { Text } from "@/components/Text";
-import { colors, space } from "@/theme/tokens";
-
+import { MapPlaceholder } from "./MapPlaceholder";
 import type { WorkshopMapProps } from "./types";
 
 /**
@@ -12,20 +7,5 @@ import type { WorkshopMapProps } from "./types";
  * screen's buttons, chips and card still work around it.
  */
 export function WorkshopMap({ workshops }: WorkshopMapProps) {
-  return (
-    <View style={[StyleSheet.absoluteFill, styles.box]}>
-      <MapPinned size={40} color={colors.brandViolet} />
-      <Text variant="heading" style={styles.center}>
-        The map shows on Android
-      </Text>
-      <Text variant="small" style={styles.center}>
-        {workshops.length} workshops would be pinned here.
-      </Text>
-    </View>
-  );
+  return <MapPlaceholder title="The map shows on Android" body={`${workshops.length} workshops would be pinned here.`} />;
 }
-
-const styles = StyleSheet.create({
-  box: { alignItems: "center", justifyContent: "center", gap: space.sm, backgroundColor: "#e8e4dc" },
-  center: { textAlign: "center" },
-});
