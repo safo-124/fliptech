@@ -1,22 +1,27 @@
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { TurboModuleRegistry } from "react-native";
 
-import { GoogleMap } from "./GoogleMap";
 import type { WorkshopMapProps } from "./types";
 
 /**
  * MapLibre (OpenStreetMap, like the website) is native code, only in the
  * app's own build, not in Expo Go; importing it where it is missing crashes
- * the whole app at load. So it is loaded only when its native module is
- * there, and Google Maps, which Expo Go includes, is used in the meantime.
+ * the whole app at load. Google Maps (react-native-maps), which Expo Go
+ * includes, is used in the meantime.
+ *
+ * Neither library is loaded until the map is first shown, so nothing about
+ * maps runs while the app starts.
  */
-const hasMapLibre = TurboModuleRegistry.get("MLRNCameraModule") != null;
-
-const Map: ComponentType<WorkshopMapProps> = hasMapLibre
-  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
-    (require("./MapLibreMap") as typeof import("./MapLibreMap")).MapLibreMap
-  : GoogleMap;
+function loadMap(): ComponentType<WorkshopMapProps> {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  if (TurboModuleRegistry.get("MLRNCameraModule") != null) {
+    return (require("./MapLibreMap") as typeof import("./MapLibreMap")).MapLibreMap;
+  }
+  return (require("./GoogleMap") as typeof import("./GoogleMap")).GoogleMap;
+  /* eslint-enable @typescript-eslint/no-require-imports */
+}
 
 export function WorkshopMap(props: WorkshopMapProps) {
+  const [Map] = useState(loadMap);
   return <Map {...props} />;
 }
