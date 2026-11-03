@@ -12,7 +12,6 @@ import { WorkshopSheet } from "@/components/map/WorkshopSheet";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
 import { bboxParam, boundsOf, type Bounds } from "@/lib/map";
-import { openOnSite } from "@/lib/open";
 import type { ProviderCard } from "@/lib/types";
 import { tradeHex } from "@/theme/trades";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
@@ -197,7 +196,7 @@ export default function MapScreen() {
           workshop={selected}
           bottom={bottom}
           onClose={() => setSelected(null)}
-          onView={() => void openOnSite(`/${selected.area_slug}/${selected.slug}`)}
+          onView={() => router.push(`/workshop/${selected.area_slug}/${selected.slug}`)}
           onDirections={() => directions(selected)}
         />
       ) : null}

@@ -37,6 +37,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.app_auth import payment_return
 from providers.learning import _courses
 from providers.serializers import video_sources
 from providers.trainer_views import IsActiveTrainer, _account, _profile_for
@@ -317,9 +318,10 @@ class CourseBuyView(APIView):
             promo_code=code.code if code else "",
             full_price_pesewas=int(gate.price * 100) if code else None,
         )
-        callback = (
+        callback = payment_return(
+            request,
             f"{settings.PUBLIC_SITE_URL.rstrip('/')}/learn/{course.area.slug}/{course.slug}"
-            f"?purchase={purchase.reference}"
+            f"?purchase={purchase.reference}",
         )
         try:
             url = paystack.initialize(

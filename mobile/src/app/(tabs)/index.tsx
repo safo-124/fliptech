@@ -8,7 +8,6 @@ import { Screen } from "@/components/Screen";
 import { Section, Shelf } from "@/components/Section";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { api } from "@/lib/api";
-import { openOnSite } from "@/lib/open";
 import { space } from "@/theme/tokens";
 
 /** Home: one message, then a window onto each part of the app. */
@@ -52,7 +51,7 @@ export default function HomeScreen() {
               <CourseCard
                 key={course.id}
                 course={course}
-                onPress={() => void openOnSite(`/learn/${course.area_slug}/${course.slug}`)}
+                onPress={() => router.push(`/course/${course.area_slug}/${course.slug}`)}
               />
             ))}
           </Shelf>
@@ -75,7 +74,7 @@ export default function HomeScreen() {
               <WorkshopRow
                 key={workshop.id}
                 workshop={workshop}
-                onPress={() => void openOnSite(`/${workshop.area_slug}/${workshop.slug}`)}
+                onPress={() => router.push(`/workshop/${workshop.area_slug}/${workshop.slug}`)}
               />
             ))}
           </View>
@@ -98,7 +97,7 @@ export default function HomeScreen() {
                 key={product.id}
                 product={product}
                 width={170}
-                onPress={() => void openOnSite(`/marketplace/${product.id}`)}
+                onPress={() => router.push(`/product/${product.id}`)}
               />
             ))}
           </Shelf>

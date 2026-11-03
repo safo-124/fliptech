@@ -1,14 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
+import { BagButton } from "@/components/BagButton";
 import { ProductCard } from "@/components/Cards";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
-import { openOnSite } from "@/lib/open";
 import { space } from "@/theme/tokens";
 
 /** Shop: the marketplace, two products to a row. */
@@ -25,6 +26,7 @@ export default function ShopScreen() {
         title="Tools and goods"
         placeholder="Search the marketplace"
         onSearch={setQ}
+        action={<BagButton />}
       />
       <View style={styles.list}>
         {products.isPending ? (
@@ -45,7 +47,7 @@ export default function ShopScreen() {
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onPress={() => void openOnSite(`/marketplace/${product.id}`)}
+                    onPress={() => router.push(`/product/${product.id}`)}
                   />
                 ))}
                 {pair.length === 1 ? <View style={{ flex: 1 }} /> : null}

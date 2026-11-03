@@ -37,6 +37,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.app_auth import payment_return
 from core.identities import phone_vouched_for
 from core.images import strip_exif, stripped_name, validate_image_upload
 from core.media import public_url
@@ -797,7 +798,7 @@ def _create_order(request, seller, data):
             email=payer_email(None, order.buyer_phone),
             amount_pesewas=order.amount_pesewas,
             reference=order.reference,
-            callback_url=_site(f"/marketplace/order/{order.reference}"),
+            callback_url=payment_return(request, _site(f"/marketplace/order/{order.reference}")),
             # Held: all of it to Fliiptech, and the seller's share follows by
             # transfer. Split: straight to the seller, less the commission.
             subaccount=None if held else seller.paystack_subaccount,
@@ -986,7 +987,9 @@ class OrderBalanceView(APIView):
                 email=payer_email(None, order.buyer_phone),
                 amount_pesewas=order.balance_pesewas,
                 reference=reference_now,
-                callback_url=_site(f"/marketplace/order/{order.reference}"),
+                callback_url=payment_return(
+                    request, _site(f"/marketplace/order/{order.reference}")
+                ),
                 subaccount=order.seller.paystack_subaccount if split else None,
                 transaction_charge=order.balance_commission_pesewas if split else None,
                 metadata={"order": order.reference, "part": "balance"},

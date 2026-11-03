@@ -14,6 +14,8 @@ import { useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { TabBarVisibilityProvider } from "@/components/FloatingTabBar";
+import { AuthProvider } from "@/lib/auth";
+import { BagProvider } from "@/lib/bag";
 import { colors } from "@/theme/tokens";
 
 SplashScreen.preventAutoHideAsync();
@@ -51,13 +53,26 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={client}>
-        <TabBarVisibilityProvider>
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="map" options={{ animation: "slide_from_bottom" }} />
-          </Stack>
-        </TabBarVisibilityProvider>
+        <AuthProvider>
+          <BagProvider>
+          <TabBarVisibilityProvider>
+            <StatusBar style="dark" />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="map" options={{ animation: "slide_from_bottom" }} />
+              <Stack.Screen name="sign-in" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+              <Stack.Screen name="enquire" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+              <Stack.Screen name="workshop/[area]/[slug]" />
+              <Stack.Screen name="course/[area]/[slug]" />
+              <Stack.Screen name="product/[id]" />
+              <Stack.Screen name="bag" />
+              <Stack.Screen name="checkout" />
+              <Stack.Screen name="my-courses" />
+              <Stack.Screen name="orders" />
+            </Stack>
+          </TabBarVisibilityProvider>
+          </BagProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

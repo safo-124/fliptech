@@ -21,9 +21,23 @@ React Native. It talks to the same Django API as the website, in
   trade, "near me", "search this area" after moving the map, and a card
   with directions and the workshop's page. MapLibre (open source, no
   Google) with OpenStreetMap tiles, like the website. See `src/app/map.tsx`.
-- Detail pages (a course, a product, a workshop) and the account rows open
-  the website's page **inside the app** for now (`src/lib/open.ts`); each
-  is replaced by a native screen as it is built.
+- **Sign in with a phone number** and a texted code (`src/app/sign-in.tsx`),
+  the same login as the website. The app keeps a token in the phone's secure
+  storage and sends it as `Authorization: Bearer flt_…`; the backend
+  (`backend/accounts/app_auth.py`) turns it into the signed-in user, so every
+  API endpoint works for the app unchanged. Staff can sign a phone out from
+  Django admin (App tokens).
+- **Native screens:** a workshop (photos, courses, fees, intakes, directions)
+  and its Enquire form; a course player (HLS streaming, your place kept,
+  lessons saved to the phone for no-data days, buying with Paystack,
+  certificate); a product, the bag (one checkout per seller) and checkout;
+  My courses and My orders.
+- **Paying:** Paystack opens in a browser sheet over the app. When paid,
+  Paystack returns to the website's `/app-return`, which opens
+  `fliiptech://paid` and closes the sheet; the app then asks the API whether
+  the money arrived. The website must be deployed with `/app-return` for this.
+- A few account rows (saved things, selling, teaching) still open the
+  website's page **inside the app** (`src/lib/open.ts`).
 
 ```
 src/

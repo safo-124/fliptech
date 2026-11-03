@@ -10,7 +10,6 @@ import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
-import { openOnSite } from "@/lib/open";
 import { space } from "@/theme/tokens";
 
 /** Explore: workshops that teach a trade in person, with fees and intakes. */
@@ -41,7 +40,7 @@ export default function ExploreScreen() {
               <WorkshopRow
                 key={workshop.id}
                 workshop={workshop}
-                onPress={() => void openOnSite(`/${workshop.area_slug}/${workshop.slug}`)}
+                onPress={() => router.push(`/workshop/${workshop.area_slug}/${workshop.slug}`)}
               />
             ))}
           </>
