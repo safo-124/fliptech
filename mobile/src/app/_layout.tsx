@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TabBarVisibilityProvider } from "@/components/FloatingTabBar";
 import { AuthProvider } from "@/lib/auth";
 import { BagProvider } from "@/lib/bag";
+import { SavedProvider } from "@/lib/saved";
 import { colors } from "@/theme/tokens";
 
 SplashScreen.preventAutoHideAsync();
@@ -54,6 +55,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={client}>
         <AuthProvider>
+          <SavedProvider>
           <BagProvider>
           <TabBarVisibilityProvider>
             <StatusBar style="dark" />
@@ -75,9 +77,13 @@ export default function RootLayout() {
               <Stack.Screen name="chats/new" />
               <Stack.Screen name="saved-searches" />
               <Stack.Screen name="bundle/[id]" />
+              <Stack.Screen name="saved" />
+              <Stack.Screen name="order/[reference]" />
+              <Stack.Screen name="seller" />
             </Stack>
           </TabBarVisibilityProvider>
           </BagProvider>
+          </SavedProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

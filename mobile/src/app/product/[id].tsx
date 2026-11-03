@@ -11,6 +11,7 @@ import { Button } from "@/components/Form";
 import { PhotoPager } from "@/components/PhotoPager";
 import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
+import { Heart } from "@/components/market/Heart";
 import { PickupCard } from "@/components/market/PickupCard";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -118,9 +119,15 @@ export default function ProductScreen() {
                   </View>
                 ) : null}
               </View>
-              <Text variant="title" style={{ marginTop: space.sm }}>
-                {data.name}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md, marginTop: space.sm }}>
+                <Text variant="title" style={{ flex: 1 }}>
+                  {data.name}
+                </Text>
+                <Heart productId={data.id} size={40} />
+              </View>
+              {data.few_left ? (
+                <Text style={{ color: colors.warn, fontFamily: fonts.bold, marginTop: 4 }}>Only {data.few_left} left</Text>
+              ) : null}
               <View style={styles.priceRow}>
                 <Text style={styles.price}>{price ? cedis(price) : "Ask for price"}</Text>
                 {data.was_price && !option ? <Text style={styles.was}>{cedis(data.was_price)}</Text> : null}

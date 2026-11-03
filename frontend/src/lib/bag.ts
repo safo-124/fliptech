@@ -30,12 +30,62 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function write(key: string, value: unknown) {
+function write(key: string, value: unknown, fromAccount = false) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
     window.dispatchEvent(new Event(CHANGED));
   } catch {
     // Not kept; the page still works for this visit.
+  }
+  if (key === BAGS && !fromAccount) pushBagSoon();
+}
+
+/** Every line of every bag, as the API takes them. */
+function allLines() {
+  return Object.values(read<Record<string, StoredBag>>(BAGS, {})).flatMap((bag) =>
+    bag.items.map((item) => ({product: item.product, option: item.option, quantity: item.quantity})),
+  );
+}
+
+let pushTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Keep the account's bag the same as this browser's (signed in only; a
+    refusal when signed out is quiet). Debounced: a burst of taps is one save. */
+function pushBagSoon() {
+  if (typeof window === "undefined") return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    void import("./account-api")
+      .then(({replaceBag}) => replaceBag(allLines()))
+      .catch(() => {});
+  }, 800);
+}
+
+/**
+ * After signing in, or on a visit while signed in: this browser's bag joins
+ * the account's, and the result comes back here, so the bag is the same on
+ * the phone and the website.
+ */
+export async function syncBagWithAccount() {
+  try {
+    const {addToAccountBag} = await import("./account-api");
+    const {items} = await addToAccountBag(allLines());
+    const bags: Record<string, StoredBag> = {};
+    for (const row of items) {
+      const key = String(row.seller.id);
+      const bag = bags[key] ?? {sellerName: row.seller.business_name, items: []};
+      bag.items.push({
+        product: row.product,
+        option: row.option,
+        quantity: row.quantity,
+        name: row.name,
+        optionLabel: row.option_label,
+      });
+      bags[key] = bag;
+    }
+    write(BAGS, bags, true);
+  } catch {
+    // Signed out, or offline: the browser's bag stands.
   }
 }
 

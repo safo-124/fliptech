@@ -46,6 +46,8 @@ export type ProductCard = {
   };
   /** "used" for second-hand tools. */
   condition?: "new" | "used";
+  /** "Only N left". */
+  few_left?: number | null;
   sponsored: boolean;
 };
 
@@ -224,8 +226,9 @@ export type BasketPrice = {
   delivery_area: string;
   total: string;
   protected: boolean;
-  plan: "full" | "deposit";
+  plan: "full" | "deposit" | "collect";
   deposit_percent: number | null;
+  collect_deposit_percent?: number | null;
   pay_now: string;
   balance: string;
   /** The workshop's student price was applied. */
@@ -242,7 +245,7 @@ export type Order = {
   fulfilment: "pickup" | "delivery";
   note: string;
   items: { product: number | null; product_name: string; option_label: string; unit_price: string; quantity: number }[];
-  plan: "full" | "deposit";
+  plan: "full" | "deposit" | "collect";
   deposit: string;
   balance: string;
   balance_status: string;
@@ -255,6 +258,12 @@ export type Order = {
   seller_phone: string | null;
   created_at?: string;
   paid_at?: string | null;
+  problem?: string;
+  problem_reply?: string;
+  pickup?: PickupPoint | null;
+  ready_at?: string | null;
+  delivered_at?: string | null;
+  received_at?: string | null;
 };
 
 /** A shop that is also a training workshop. See backend TrainerShopsView. */
@@ -336,4 +345,31 @@ export type Bundle = {
   delivery_fee: string | null;
   buy_online: boolean;
   problem: string;
+};
+
+export type SellerPayouts = {
+  results: {
+    reference: string;
+    product: string;
+    paid_at: string;
+    yours: string;
+    state: "paid_out" | "held" | "refunded";
+    stage: string;
+    due: string | null;
+    waiting_for: "" | "handover" | "buyer" | "problem";
+  }[];
+  totals: { paid_out: string; held: string; refunded: string };
+  level: "confirmed" | "payments" | "verified";
+  takes_payments: boolean;
+};
+
+export type SellerProduct = {
+  id: number;
+  name: string;
+  price: string | null;
+  availability: "available" | "made_to_order" | "sold_out";
+  stock: number | null;
+  status: "draft" | "published" | "suspended";
+  visible: boolean;
+  photos: { id: number; image: string | null }[];
 };

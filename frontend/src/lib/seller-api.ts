@@ -30,6 +30,10 @@ export type SellerProfile = {
   deposit_percent: number | null;
   /** Percent off for the workshop's own trainees; only for a workshop's shop. */
   student_discount_percent: number | null;
+  collect_deposit_percent: number | null;
+  id_status: "none" | "submitted" | "checked" | "rejected";
+  level: "confirmed" | "payments" | "verified";
+  takes_payments: boolean;
   /** The training listing this shop is, when it is one. */
   workshop: {name: string; slug: string; area_slug: string} | null;
   away_until: string | null;
@@ -51,6 +55,7 @@ export type SellerProduct = {
   trade: number | null;
   availability: "available" | "made_to_order" | "sold_out";
   condition: "new" | "used";
+  stock: number | null;
   options: {id: number; label: string; price: string | null; available: boolean}[];
   status: "draft" | "published" | "suspended";
   /** What would most help it sell; see backend OwnProductSerializer.get_tips. */
@@ -118,6 +123,7 @@ export function saveShop(
       | "delivery_area"
       | "deposit_percent"
       | "student_discount_percent"
+      | "collect_deposit_percent"
       | "away_until"
       | "away_note"
     >
@@ -140,6 +146,8 @@ export type ProductInput = {
   was_price?: string | null;
   trade?: number | null;
   availability?: SellerProduct["availability"];
+  condition?: SellerProduct["condition"];
+  stock?: number | null;
 };
 
 export function createProduct(body: ProductInput) {
@@ -454,4 +462,52 @@ export function updateBundle(id: number, body: BundleInput) {
 
 export function deleteBundle(id: number) {
   return sessionFetch<void>(`/api/seller/bundles/${id}/`, {method: "DELETE"});
+}
+
+export type SellerIdState = {
+  status: "none" | "submitted" | "checked" | "rejected";
+  status_label: string;
+  note: string;
+  submitted_at: string | null;
+  checked_at: string | null;
+  required: boolean;
+  level: "confirmed" | "payments" | "verified";
+  takes_payments: boolean;
+};
+
+export function getSellerId() {
+  return sessionFetch<SellerIdState>("/api/seller/id/");
+}
+
+export function sendSellerId(file: File) {
+  const body = new FormData();
+  body.append("document", file);
+  return sessionFetch<SellerIdState>("/api/seller/id/", {method: "POST", body});
+}
+
+export type SellerPayouts = {
+  results: {
+    reference: string;
+    product: string;
+    paid_at: string;
+    yours: string;
+    state: "paid_out" | "held" | "refunded";
+    stage: string;
+    due: string | null;
+    waiting_for: "" | "handover" | "buyer" | "problem";
+  }[];
+  totals: {paid_out: string; held: string; refunded: string};
+  level: "confirmed" | "payments" | "verified";
+  takes_payments: boolean;
+};
+
+export function getSellerPayouts() {
+  return sessionFetch<SellerPayouts>("/api/seller/payouts/");
+}
+
+export function replyToProblem(reference: string, reply: string) {
+  return sessionFetch<unknown>(`/api/seller/orders/${encodeURIComponent(reference)}/reply/`, {
+    method: "POST",
+    body: JSON.stringify({reply}),
+  });
 }

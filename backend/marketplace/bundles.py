@@ -150,7 +150,7 @@ def bundle_payload(bundle, request):
         problem = ""
     except BasketError as exc:
         priced, problem = None, str(exc)
-    payable = bool(priced and paystack.enabled() and bundle.seller.payout_ready)
+    payable = bool(priced and paystack.enabled() and bundle.seller.takes_payments)
     return {
         "id": bundle.pk,
         "title": bundle.title,

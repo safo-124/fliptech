@@ -9,7 +9,10 @@ from rest_framework.routers import DefaultRouter
 
 from accounts.app_views import AppCodeRequestView, AppCodeVerifyView, AppSignOutView
 from accounts.views import AccountView
+from accounts.views import AddressesView as AccountAddressesView
+from accounts.views import AddressView as AccountAddressView
 from accounts.views import AddRoleView as AccountAddRoleView
+from accounts.views import BagView as AccountBagView
 from accounts.views import CodeRequestView as AccountCodeRequestView
 from accounts.views import CodeVerifyView as AccountCodeVerifyView
 from accounts.views import LogoutView as AccountLogoutView
@@ -47,6 +50,7 @@ from marketplace.selling_views import (
     OrderProblemView,
     OrderReceivedView,
     OrderView,
+    OwnOrderReplyView,
     OwnOrdersView,
     OwnOrderView,
     ProductReportView,
@@ -60,8 +64,10 @@ from marketplace.selling_views import (
     SellerEarningsView,
     SellerEnquiryRepliedView,
     SellerGrowthView,
+    SellerIdView,
     SellerPaymentVerifyView,
     SellerPayoutBanksView,
+    SellerPayoutsView,
     SellerPayoutView,
     SellerPlanView,
     SellerProductOptionsView,
@@ -519,6 +525,13 @@ urlpatterns = [
     path("seller/payout/banks/", SellerPayoutBanksView.as_view(), name="seller-payout-banks"),
     path("seller/orders/", OwnOrdersView.as_view(), name="seller-orders"),
     path("seller/orders/<str:reference>/", OwnOrderView.as_view(), name="seller-order"),
+    path(
+        "seller/orders/<str:reference>/reply/",
+        OwnOrderReplyView.as_view(),
+        name="seller-order-reply",
+    ),
+    path("seller/id/", SellerIdView.as_view(), name="seller-id"),
+    path("seller/payouts/", SellerPayoutsView.as_view(), name="seller-payouts"),
     # The mobile app's sign-in: a token instead of a cookie. See
     # accounts/app_views.py and accounts/app_auth.py.
     path("app/request-code/", AppCodeRequestView.as_view(), name="app-request-code"),
@@ -532,6 +545,9 @@ urlpatterns = [
     path("account/orders/", AccountOrdersView.as_view(), name="account-orders"),
     path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
     path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
+    path("account/bag/", AccountBagView.as_view(), name="account-bag"),
+    path("account/addresses/", AccountAddressesView.as_view(), name="account-addresses"),
+    path("account/addresses/<int:pk>/", AccountAddressView.as_view(), name="account-address"),
     path("account/chats/", chat.BuyerChatsView.as_view(), name="account-chats"),
     path("account/chats/<int:pk>/", chat.BuyerChatView.as_view(), name="account-chat"),
     path("seller/chats/", chat.SellerChatsView.as_view(), name="seller-chats"),

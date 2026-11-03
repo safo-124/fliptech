@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2, Phone, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, Receipt, ShieldCheck, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCedis } from "@/lib/format";
 import { getAccount } from "@/lib/account-api";
-import { confirmOrder, confirmReceived, payBalance, reportOrderProblem } from "@/lib/marketplace-api";
+import { setBagLines } from "@/lib/bag";
+import { readPaymentQueue, savePaymentQueue, type PaymentQueue } from "@/lib/checkout-queue";
+import { confirmOrder, confirmReceived, orderBag, payBalance, reportOrderProblem } from "@/lib/marketplace-api";
 import type { MarketplaceOrder } from "@/lib/types";
 
 /**
@@ -102,6 +104,8 @@ export function OrderStatus({ reference }: { reference: string }) {
 
   const paid = order.status === "paid";
   return (
+    <>
+    {paid ? <NextPayment /> : null}
     <Card>
       <CardHeader>
         <div
@@ -118,6 +122,15 @@ export function OrderStatus({ reference }: { reference: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {paid ? (
+          <Link
+            href={`/marketplace/order/${order.reference}/receipt`}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-brand)] underline-offset-4 hover:underline"
+          >
+            <Receipt aria-hidden="true" className="size-4" />
+            {t("receiptLink")}
+          </Link>
+        ) : null}
         <ul className="space-y-1">
           {order.items.map((item, index) => (
             <li key={index} className="flex justify-between gap-3">
@@ -209,9 +222,16 @@ export function OrderStatus({ reference }: { reference: string }) {
             ) : null}
 
             {order.stage === "problem" ? (
-              <p role="status" className="rounded-lg bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
-                {t("problemReported")}
-              </p>
+              <div role="status" className="space-y-2 rounded-lg bg-[var(--color-warn-bg)] p-3 text-sm text-[var(--color-warn)]">
+                <p>{t("problemReported")}</p>
+                {order.problem_reply ? (
+                  <p className="rounded-md bg-[var(--color-card)] p-2 text-[var(--color-foreground)]">
+                    <strong className="block text-xs">{t("sellerReplied")}</strong>
+                    {order.problem_reply}
+                  </p>
+                ) : null}
+                <p className="text-xs">{t("staffDecide")}</p>
+              </div>
             ) : order.stage === "received" ? (
               <p role="status" className="text-sm text-[var(--color-visit)]">
                 {t("receivedThanks")}
@@ -288,5 +308,65 @@ export function OrderStatus({ reference }: { reference: string }) {
         </Button>
       </CardContent>
     </Card>
+    </>
+  );
+}
+
+
+/** "Next: pay Kofi (2 of 3)": the rest of a whole-bag checkout. */
+function NextPayment() {
+  const t = useTranslations("Marketplace");
+  const [queue, setQueue] = useState<PaymentQueue | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Read once, in the browser: the queue lives in this tab's session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQueue(readPaymentQueue());
+  }, []);
+
+  if (!queue || !queue.sellers.length) return null;
+  const [next, ...rest] = queue.sellers;
+  const total = queue.total ?? queue.sellers.length + 1;
+  const step = total - queue.sellers.length + 1;
+
+  async function payNext() {
+    if (!queue) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const { authorization_url } = await orderBag(next.sellerId, {
+        items: next.items,
+        phone: queue.details.phone,
+        name: queue.details.name,
+        fulfilment: queue.details.fulfilment,
+        note: queue.details.note || undefined,
+      });
+      savePaymentQueue(rest.length ? { ...queue, sellers: rest, total } : null);
+      setBagLines(next.sellerId, []);
+      window.location.assign(authorization_url);
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : t("nextPaymentFailed"));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border border-[var(--color-brand)]/30 bg-[var(--color-brand-soft)] p-4">
+      <p className="font-bold text-[var(--color-brand-strong)]">
+        {t("nextPayment", { seller: next.sellerName, step, total })}
+      </p>
+      <p className="mt-0.5 text-sm text-[var(--color-muted-foreground)]">{t("nextPaymentBody")}</p>
+      {problem ? (
+        <p role="alert" className="mt-2 text-sm text-[var(--color-destructive)]">
+          {problem}
+        </p>
+      ) : null}
+      <Button type="button" variant="brand" className="mt-3 w-full sm:w-auto" disabled={busy} onClick={() => void payNext()}>
+        {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+        {t("nextPayment", { seller: next.sellerName, step, total })}
+      </Button>
+    </div>
   );
 }

@@ -62,9 +62,15 @@ export default function BagScreen() {
             );
           })}
           {groups.length > 1 ? (
-            <Text variant="small" style={{ textAlign: "center" }}>
-              Each seller is paid separately, so each has its own checkout.
-            </Text>
+            <View style={{ gap: space.sm }}>
+              <Button
+                label={`Check out everything (${groups.length} sellers)`}
+                onPress={() => router.push({ pathname: "/checkout", params: { all: "1" } })}
+              />
+              <Text variant="small" style={{ textAlign: "center" }}>
+                Fill in your details once; each seller is paid in turn, straight to them.
+              </Text>
+            </View>
           ) : null}
         </ScrollView>
       )}

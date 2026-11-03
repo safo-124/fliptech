@@ -154,3 +154,36 @@ export function getChat(id: number) {
 export function sendChat(id: number, body: string) {
   return sessionFetch<ChatThread>(`/api/account/chats/${id}/`, {method: "POST", body: JSON.stringify({body})});
 }
+
+/** The bag kept on the account. See backend accounts/views.py BagView. */
+export type AccountBagLine = {
+  product: number;
+  option: number | null;
+  option_label: string;
+  quantity: number;
+  name: string;
+  price: string | null;
+  photo: string | null;
+  seller: {id: number; business_name: string};
+  available: boolean;
+};
+
+type Line = {product: number; option: number | null; quantity: number};
+
+export function replaceBag(items: Line[]) {
+  return sessionFetch<{items: AccountBagLine[]}>("/api/account/bag/", {method: "PUT", body: JSON.stringify({items})});
+}
+
+export function addToAccountBag(add: Line[]) {
+  return sessionFetch<{items: AccountBagLine[]}>("/api/account/bag/", {method: "POST", body: JSON.stringify({add})});
+}
+
+export type SavedAddress = {id: number; label: string; address: string};
+
+export function getAddresses() {
+  return sessionFetch<{results: SavedAddress[]}>("/api/account/addresses/");
+}
+
+export function deleteAddress(id: number) {
+  return sessionFetch<void>(`/api/account/addresses/${id}/`, {method: "DELETE"});
+}

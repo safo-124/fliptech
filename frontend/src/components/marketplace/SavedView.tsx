@@ -9,7 +9,8 @@ import { ProductTile } from "@/components/marketplace/ProductTile";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { searchProducts } from "@/lib/api";
-import { allBags, onBagChange, savedIds, type StoredBag } from "@/lib/bag";
+import { StockAlert } from "@/components/marketplace/StockAlert";
+import { allBags, onBagChange, savedIds, syncBagWithAccount, type StoredBag } from "@/lib/bag";
 import type { ProductCard } from "@/lib/types";
 
 /** What this browser saved, and any bags waiting to be paid for. */
@@ -37,6 +38,7 @@ export function SavedView() {
       }
     }
     void load();
+    void syncBagWithAccount();
     const stop = onBagChange(() => void load());
     return () => {
       active = false;
@@ -68,6 +70,14 @@ export function SavedView() {
               </li>
             ))}
           </ul>
+          {bagList.length > 1 ? (
+            <Button asChild variant="brand" className="mt-3 w-full sm:w-auto">
+              <Link href="/marketplace/checkout">
+                <ShoppingBag aria-hidden="true" />
+                {t("checkoutAll")}
+              </Link>
+            </Button>
+          ) : null}
         </section>
       ) : null}
 
@@ -76,7 +86,10 @@ export function SavedView() {
         {products === null ? null : products.length ? (
           <div className="mt-4 grid grid-cols-2 gap-3.5 sm:gap-4 lg:grid-cols-4">
             {products.map((product) => (
-              <ProductTile key={product.id} product={product} />
+              <div key={product.id} className="space-y-2">
+                <ProductTile product={product} />
+                {product.availability === "sold_out" ? <StockAlert productId={product.id} /> : null}
+              </div>
             ))}
           </div>
         ) : (

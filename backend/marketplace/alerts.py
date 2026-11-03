@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.utils import timezone
 
 from core.sms import send_sms
@@ -152,5 +152,69 @@ def tell_saved_searches(now=None):
         )
         search.last_told_at = now
         search.save(update_fields=["checked_at", "last_told_at"])
+        told += 1
+    return told
+
+
+def problem_reported(order):
+    """The buyer says something is wrong: the seller has a set time to answer
+    before staff decide."""
+    hours = settings.MARKETPLACE_DISPUTE_HOURS
+    _text(
+        order.seller.phone,
+        f"{settings.BRAND_NAME}: the buyer of order {order.reference} reported a problem: "
+        f'"{order.problem[:120]}". Reply within {hours} hours in your shop dashboard; then '
+        f"Fliiptech decides. {_site('/sell/shop?tab=orders')}",
+    )
+
+
+def problem_answered(order):
+    _text(
+        order.buyer_phone,
+        f"{settings.BRAND_NAME}: {order.seller.business_name} replied about order "
+        f"{order.reference}. Fliiptech will look at both sides and decide. "
+        f"{_site(f'/marketplace/order/{order.reference}')}",
+    )
+
+
+def received(order):
+    _text(
+        order.seller.phone,
+        f"{settings.BRAND_NAME}: the buyer confirmed they have order {order.reference}. Thank you.",
+    )
+
+
+def tell_price_drops(now=None):
+    """One text per buyer whose saved things got cheaper, at most once a day.
+
+    Each saved product remembers the price when it was saved (or when the
+    buyer was last told); a lower visible price now is a drop. Telling
+    resets the remembered price, so a drop is told once.
+    """
+    from accounts.models import SavedProduct
+
+    now = now or timezone.now()
+    drops = {}
+    for saved in (
+        SavedProduct.objects.select_related("account", "product")
+        .filter(
+            account__is_active=True, price_seen__isnull=False, product__price__lt=F("price_seen")
+        )
+        .filter(product__in=Product.objects.visible())
+    ):
+        drops.setdefault(saved.account, []).append(saved)
+    told = 0
+    for account, rows in drops.items():
+        names = ", ".join(
+            f"{row.product.name} (now GH₵{row.product.price:.0f})" for row in rows[:3]
+        )
+        more = f" and {len(rows) - 3} more" if len(rows) > 3 else ""
+        _text(
+            account.phone,
+            f"{settings.BRAND_NAME}: cheaper now: {names}{more}. {_site('/marketplace/saved')}",
+        )
+        for row in rows:
+            row.price_seen = row.product.price
+            row.save(update_fields=["price_seen"])
         told += 1
     return told

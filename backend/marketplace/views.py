@@ -731,6 +731,8 @@ def _filter_products(products, params):
             if settings.MARKETPLACE_HOLD_PAYMENTS
             else Q(seller__paystack_subaccount__gt="")
         )
+        if settings.MARKETPLACE_REQUIRE_ID:
+            payable &= Q(seller__id_status=SellerAccount.IdStatus.CHECKED)
         products = (
             products.filter(payable, price__isnull=False)
             .filter(

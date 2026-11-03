@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { CircleCheckBig, Package, Phone } from "lucide-react-native";
 import { FlatList, Linking, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,7 +9,6 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
 import { cedis, shortDate } from "@/lib/format";
-import { openOnSite } from "@/lib/open";
 import type { Order } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -66,7 +65,7 @@ function OrderCard({ order }: { order: Order }) {
   const items = order.items.length ? order.items : [{ product_name: order.product_name, quantity: order.quantity, option_label: "" }];
   return (
     <Pressable
-      onPress={() => void openOnSite(`/marketplace/order/${order.reference}`)}
+      onPress={() => router.push({ pathname: "/order/[reference]", params: { reference: order.reference } })}
       style={({ pressed }) => [styles.card, pressed ? { opacity: 0.85 } : null]}
       accessibilityRole="link"
     >

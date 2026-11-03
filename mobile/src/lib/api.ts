@@ -7,6 +7,8 @@ import type {
   ChatThread,
   FollowState,
   SavedSearch,
+  SellerPayouts,
+  SellerProduct,
   ShopDetail,
   CourseAccess,
   CourseCard,
@@ -157,6 +159,15 @@ export const api = {
     postJson<SavedSearch>("/api/account/searches/", { params, label }),
   deleteSearch: (id: number) => request<void>("DELETE", `/api/account/searches/${id}/`),
 
+  addresses: () => getJson<{ results: { id: number; label: string; address: string }[] }>("/api/account/addresses/"),
+  received: (reference: string) => postJson<Order>(`/api/orders/${reference}/received/`),
+  reportProblem: (reference: string, problem: string) =>
+    postJson<Order>(`/api/orders/${reference}/problem/`, { problem }),
+  sellerPayouts: () => getJson<SellerPayouts>("/api/seller/payouts/"),
+  sellerProducts: () => getJson<SellerProduct[] | { results: SellerProduct[] }>("/api/seller/products/"),
+  updateSellerProduct: (id: number, body: Partial<Pick<SellerProduct, "availability" | "stock">>) =>
+    request<SellerProduct>("PATCH", `/api/seller/products/${id}/`, { body }),
+  sellerId: () => getJson<{ status: string; status_label: string; level: string; takes_payments: boolean; note: string }>("/api/seller/id/"),
   courseTools: (area: string, slug: string) =>
     getJson<{ chosen: boolean; tools: string[]; products: ProductCard[] }>(`/api/courses/${area}/${slug}/tools/`),
   courseBundles: (area: string, slug: string) => getJson<{ results: Bundle[] }>(`/api/courses/${area}/${slug}/bundles/`),
@@ -169,4 +180,5 @@ export type BagRequest = {
   items: { product: number; option: number | null; quantity: number }[];
   fulfilment: "pickup" | "delivery";
   code?: string;
+  pay_at_collection?: boolean;
 };

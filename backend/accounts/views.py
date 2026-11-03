@@ -16,6 +16,7 @@ pages, and staff confirm them as before.
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
+from django.db import transaction
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -37,7 +38,7 @@ from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 
 from .auth import AccountDisabled, account_for_verified_phone, own_customer_account
-from .models import CustomerAccount, SavedProduct
+from .models import BagLine, CustomerAccount, DeliveryAddress, SavedProduct
 
 PURPOSE = PhoneVerification.Purpose.ACCOUNT_ACCESS
 
@@ -330,9 +331,12 @@ class SavedView(APIView):
         remove = [int(i) for i in request.data.get("remove", []) if str(i).isdigit()][:50]
         if remove:
             account.saved.filter(product_id__in=remove).delete()
-        visible = Product.objects.visible().filter(pk__in=add).values_list("pk", flat=True)
+        visible = Product.objects.visible().filter(pk__in=add).values_list("pk", "price")
         SavedProduct.objects.bulk_create(
-            [SavedProduct(account=account, product_id=pk) for pk in visible],
+            [
+                SavedProduct(account=account, product_id=pk, price_seen=price)
+                for pk, price in visible
+            ],
             ignore_conflicts=True,
         )
         return Response({"ids": list(account.saved.values_list("product_id", flat=True))})
@@ -405,6 +409,168 @@ class SavedSearchView(APIView):
     @extend_schema(responses={204: None})
     def delete(self, request, pk):
         _account(request).saved_searches.filter(pk=pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _bag_payload(account, request):
+    from core.media import public_url
+
+    lines = (
+        account.bag.select_related("product", "product__seller", "option")
+        .prefetch_related("product__photos")
+        .order_by("added_at", "pk")
+    )
+    rows = []
+    for line in lines:
+        product = line.product
+        first = next(iter(product.photos.all()), None)
+        unit = line.option.price if line.option and line.option.price is not None else product.price
+        rows.append(
+            {
+                "product": product.pk,
+                "option": line.option_id,
+                "option_label": line.option.label if line.option else "",
+                "quantity": line.quantity,
+                "name": product.name,
+                "price": f"{unit:.2f}" if unit is not None else None,
+                "photo": public_url(first.image.url, request) if first and first.image else None,
+                "seller": {"id": product.seller_id, "business_name": product.seller.business_name},
+                "available": product.availability != "sold_out" and product.seller.may_sell,
+            }
+        )
+    return {"items": rows}
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class BagView(APIView):
+    """The bag, kept on the account so it is the same on every device.
+
+    GET reads it. PUT replaces it with what the device sends (after the
+    device merged its own); POST {"add": [...]} adds lines, summing the
+    quantities, so a bag made signed out joins the account's on sign-in.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+    LIMIT = 50
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        return Response(_bag_payload(_account(request), request))
+
+    def _lines(self, raw):
+        from marketplace.models import Product, ProductOption
+
+        rows = []
+        for row in (raw or [])[: self.LIMIT]:
+            try:
+                product, option, quantity = (
+                    int(row["product"]),
+                    row.get("option"),
+                    int(row.get("quantity") or 1),
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+            option = int(option) if str(option or "").isdigit() else None
+            rows.append((product, option, max(1, min(quantity, 20))))
+        visible = set(
+            Product.objects.visible()
+            .filter(pk__in=[r[0] for r in rows])
+            .values_list("pk", flat=True)
+        )
+        options = set(
+            ProductOption.objects.filter(pk__in=[r[1] for r in rows if r[1]]).values_list(
+                "pk", "product_id"
+            )
+        )
+        return [r for r in rows if r[0] in visible and (r[1] is None or (r[1], r[0]) in options)]
+
+    @extend_schema(request=None, responses={200: None})
+    def put(self, request):
+        account = _account(request)
+        with transaction.atomic():
+            account.bag.all().delete()
+            merged = {}
+            for product, option, quantity in self._lines(request.data.get("items")):
+                merged[(product, option)] = quantity
+            BagLine.objects.bulk_create(
+                BagLine(account=account, product_id=p, option_id=o, quantity=q)
+                for (p, o), q in merged.items()
+            )
+        return Response(_bag_payload(account, request))
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request):
+        account = _account(request)
+        with transaction.atomic():
+            for product, option, quantity in self._lines(request.data.get("add")):
+                line, created = BagLine.objects.get_or_create(
+                    account=account,
+                    product_id=product,
+                    option_id=option,
+                    defaults={"quantity": quantity},
+                )
+                if not created:
+                    line.quantity = min(line.quantity + quantity, 20)
+                    line.save(update_fields=["quantity"])
+        return Response(_bag_payload(account, request))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class AddressesView(APIView):
+    """Saved delivery addresses (up to DeliveryAddress.LIMIT). POST keeps one,
+    or moves an existing one to the top; checkout saves the one it used."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        account = _account(request)
+        return Response(
+            {
+                "results": [
+                    {"id": a.pk, "label": a.label, "address": a.address}
+                    for a in account.addresses.all()
+                ]
+            }
+        )
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        account = _account(request)
+        address = str(request.data.get("address") or "").strip()[:300]
+        if not address:
+            return Response(
+                {"address": [_("Write the address.")]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        label = str(request.data.get("label") or "").strip()[:40]
+        remember_address(account, address, label)
+        return self.get(request)
+
+
+def remember_address(account, address, label=""):
+    """Keep an address used at checkout at the top of the list; drop the
+    oldest past the limit."""
+    existing = account.addresses.filter(address__iexact=address).first()
+    if existing:
+        if label:
+            existing.label = label
+        existing.save()
+    else:
+        DeliveryAddress.objects.create(account=account, address=address, label=label)
+    for old in account.addresses.all()[DeliveryAddress.LIMIT :]:
+        old.delete()
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class AddressView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+
+    @extend_schema(responses={204: None})
+    def delete(self, request, pk):
+        _account(request).addresses.filter(pk=pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

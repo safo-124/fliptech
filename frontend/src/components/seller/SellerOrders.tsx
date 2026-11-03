@@ -17,6 +17,9 @@ import {
   getSellerPayout,
   getSellerPayoutBanks,
   getEarnings,
+  getSellerPayouts,
+  replyToProblem,
+  type SellerPayouts,
   markOrderHandedOver,
   markOrderReady,
   saveSellerPayout,
@@ -259,6 +262,8 @@ export function SellerOrdersTab() {
         </CardContent>
       </Card>
 
+      <PayoutsSummary />
+
       {/* ------------------------------------------------------- orders */}
       <Card>
         <CardHeader>
@@ -311,9 +316,10 @@ export function SellerOrdersTab() {
                     </p>
                   ) : null}
                   {order.stage === "problem" ? (
-                    <p className="mt-2 rounded-lg bg-[var(--color-warn-bg)] px-3 py-2 text-xs text-[var(--color-warn)]">
-                      {t("orderProblem", { problem: order.problem })}
-                    </p>
+                    <div className="mt-2 space-y-2 rounded-lg bg-[var(--color-warn-bg)] px-3 py-2 text-xs text-[var(--color-warn)]">
+                      <p>{t("orderProblem", { problem: order.problem })}</p>
+                      <ProblemReply reference={order.reference} replied={order.problem_reply ?? ""} />
+                    </div>
                   ) : null}
                   {order.protected ? (
                     <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{t(`payout.${order.payout}`)}</p>
@@ -463,6 +469,93 @@ function EarningsCard() {
             )}
           </>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+/** The seller's side of a reported problem, before staff decide. */
+function ProblemReply({ reference, replied }: { reference: string; replied: string }) {
+  const t = useTranslations("SellerDashboard");
+  const [reply, setReply] = useState(replied);
+  const [sent, setSent] = useState(Boolean(replied));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (sent) {
+    return (
+      <p className="rounded-md bg-[var(--color-card)] p-2 text-[var(--color-foreground)]">
+        <strong className="block">{t("problemReplySent")}</strong>
+        {reply}
+      </p>
+    );
+  }
+  return (
+    <form
+      className="space-y-1.5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!reply.trim()) return;
+        setBusy(true);
+        setError(null);
+        replyToProblem(reference, reply.trim())
+          .then(() => setSent(true))
+          .catch((reason: Error) => setError(reason.message))
+          .finally(() => setBusy(false));
+      }}
+    >
+      <p>{t("problemDeadline")}</p>
+      <label className="sr-only" htmlFor={`reply-${reference}`}>
+        {t("problemReplyLabel")}
+      </label>
+      <textarea
+        id={`reply-${reference}`}
+        value={reply}
+        onChange={(event) => setReply(event.target.value)}
+        rows={2}
+        maxLength={1000}
+        placeholder={t("problemReplyLabel")}
+        className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2 text-sm text-[var(--color-foreground)]"
+      />
+      {error ? <p className="text-[var(--color-destructive)]">{error}</p> : null}
+      <Button type="submit" size="sm" variant="brand" disabled={busy || !reply.trim()}>
+        {t("problemReplySend")}
+      </Button>
+    </form>
+  );
+}
+
+/** Where the money is: paid out, held (and why), refunded. */
+function PayoutsSummary() {
+  const t = useTranslations("SellerDashboard");
+  const [data, setData] = useState<SellerPayouts | null>(null);
+  useEffect(() => {
+    getSellerPayouts()
+      .then(setData)
+      .catch(() => setData(null));
+  }, []);
+  if (!data || !data.results.length) return null;
+  const tiles = [
+    { label: t("payoutsPaidOut"), value: data.totals.paid_out, tone: "text-[var(--color-visit)]" },
+    { label: t("payoutsHeld"), value: data.totals.held, tone: "text-[var(--color-warn)]" },
+    { label: t("payoutsRefunded"), value: data.totals.refunded, tone: "text-[var(--color-muted-foreground)]" },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("payoutsTitle")}</CardTitle>
+        <CardDescription>{t("payoutsHeldWhy")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-3 gap-3">
+          {tiles.map((tile) => (
+            <div key={tile.label} className="rounded-xl bg-[var(--color-muted)] p-3">
+              <dt className="text-xs text-[var(--color-muted-foreground)]">{tile.label}</dt>
+              <dd className={`mt-1 text-lg font-extrabold tabular-nums ${tile.tone}`}>{formatCedis(tile.value)}</dd>
+            </div>
+          ))}
+        </dl>
       </CardContent>
     </Card>
   );

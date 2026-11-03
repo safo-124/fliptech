@@ -41,6 +41,13 @@ from core.models import TimeStampedModel
 from enquiries.models import generate_reference
 
 
+def _private_storage():
+    """Where ID documents go: never a public URL. See providers.models."""
+    from providers.models import private_storage
+
+    return private_storage()
+
+
 class SellerAccount(TimeStampedModel):
     """A passwordless, phone-verified identity that may list products.
 
@@ -183,6 +190,30 @@ class SellerAccount(TimeStampedModel):
         null=True, blank=True, validators=[MinValueValidator(10), MaxValueValidator(90)]
     )
 
+    # Pay on collection: for pickup, the buyer pays this share online to hold
+    # the order and the rest in cash when they collect. Null: not offered.
+    collect_deposit_percent = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(10), MaxValueValidator(50)]
+    )
+
+    # The ID check, needed before taking payments on the site (when
+    # MARKETPLACE_REQUIRE_ID is on). The document is private and replaced,
+    # never kept in several copies; staff check it against the name on the
+    # payout account.
+    class IdStatus(models.TextChoices):
+        NONE = "none", "Not sent"
+        SUBMITTED = "submitted", "Sent, waiting for a check"
+        CHECKED = "checked", "Checked"
+        REJECTED = "rejected", "Not accepted"
+
+    id_status = models.CharField(max_length=12, choices=IdStatus.choices, default=IdStatus.NONE)
+    id_document = models.FileField(
+        upload_to="seller-ids/%Y/%m/", storage=_private_storage, blank=True
+    )
+    id_submitted_at = models.DateTimeField(null=True, blank=True)
+    id_checked_at = models.DateTimeField(null=True, blank=True)
+    id_note = models.CharField(max_length=300, blank=True)
+
     # Student prices: a workshop's own trainees (enrolled there, or bought
     # its online course) pay this much less, applied at checkout without a
     # code. Only for a shop that is a workshop; see students.py.
@@ -223,6 +254,24 @@ class SellerAccount(TimeStampedModel):
     @property
     def is_away(self):
         return bool(self.away_until and self.away_until >= timezone.localdate())
+
+    @property
+    def takes_payments(self):
+        """Whether buyers may pay this seller on the site: a payout account,
+        and the ID check passed where it is required."""
+        if not self.payout_ready:
+            return False
+        return self.id_status == self.IdStatus.CHECKED or not settings.MARKETPLACE_REQUIRE_ID
+
+    @property
+    def level(self):
+        """The three levels a buyer is shown: confirmed (can list and answer),
+        payments (ID checked, can be paid), verified (staff visited)."""
+        if self.verified_at:
+            return "verified"
+        if self.takes_payments:
+            return "payments"
+        return "confirmed"
 
     @property
     def payout_ready(self):
@@ -332,6 +381,10 @@ class Product(TimeStampedModel):
         default=Availability.AVAILABLE,
         db_index=True,
     )
+    # How many are left, when the seller counts them. Null: not counted.
+    # Paid orders take from it; at 0 the product shows as sold out.
+    stock = models.PositiveIntegerField(null=True, blank=True)
+
     # Second-hand tools: a trainee who has finished their course sells the
     # kit on. Said on every card, so nobody buys used thinking it is new.
     condition = models.CharField(
@@ -715,6 +768,7 @@ class Order(TimeStampedModel):
     class Plan(models.TextChoices):
         FULL = "full", "Paid in full"
         DEPOSIT = "deposit", "Deposit, then the balance when ready"
+        COLLECT = "collect", "Deposit online, the rest in cash on collection"
 
     class Balance(models.TextChoices):
         NONE = "none", "No balance"
@@ -795,6 +849,10 @@ class Order(TimeStampedModel):
     received_at = models.DateTimeField(null=True, blank=True)
     problem = models.TextField(blank=True, max_length=1000)
     problem_at = models.DateTimeField(null=True, blank=True)
+    # The seller's side of a reported problem, due within 48 hours, before
+    # staff decide (release or refund in the back office).
+    problem_reply = models.TextField(max_length=1000, blank=True)
+    problem_replied_at = models.DateTimeField(null=True, blank=True)
     transfer_reference = models.CharField(max_length=40, blank=True)
     transfer_note = models.CharField(max_length=200, blank=True)
     released_at = models.DateTimeField(null=True, blank=True)

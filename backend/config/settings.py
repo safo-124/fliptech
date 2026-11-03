@@ -576,7 +576,20 @@ MARKETPLACE_RELEASE_DAYS = env.int("MARKETPLACE_RELEASE_DAYS", default=3)
 # Hold payments for a seller's first this-many paid orders even with buyer
 # protection off: the risk is a new, unproven seller. 0 switches it off. Also
 # needs Paystack Transfers, like buyer protection.
-MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default=0)
+MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default=5)
+# Trust and safety (marketplace/trust.py). Any order above this many cedis is
+# held for buyer protection, whoever the seller is. 0 switches it off.
+MARKETPLACE_HOLD_ABOVE = env.int("MARKETPLACE_HOLD_ABOVE", default=1000)
+# A new seller's orders are capped at this many cedis until they have
+# completed MARKETPLACE_NEW_SELLER_ORDERS orders. 0 switches it off.
+MARKETPLACE_NEW_SELLER_LIMIT = env.int("MARKETPLACE_NEW_SELLER_LIMIT", default=500)
+MARKETPLACE_NEW_SELLER_ORDERS = env.int("MARKETPLACE_NEW_SELLER_ORDERS", default=10)
+# Payments on the site only for sellers whose ID staff have checked.
+MARKETPLACE_REQUIRE_ID = env.bool("MARKETPLACE_REQUIRE_ID", default=True)
+# Hours a seller has to answer a reported problem before staff decide.
+MARKETPLACE_DISPUTE_HOURS = env.int("MARKETPLACE_DISPUTE_HOURS", default=48)
+# "Only N left": the seller is texted when stock falls to this.
+MARKETPLACE_LOW_STOCK = env.int("MARKETPLACE_LOW_STOCK", default=2)
 
 # Where to ask the frontend to refresh marketplace pages when a seller changes
 # something (marketplace/page_refresh.py), and the secret it checks; the same
