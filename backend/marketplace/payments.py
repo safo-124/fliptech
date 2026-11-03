@@ -101,6 +101,9 @@ def confirm_order(reference, data):
                 from .bundles import grant_course
 
                 grant_course(order)
+            from .stock import take_stock
+
+            take_stock(order)
             seller_messages.queue_order_alert(order)
             transaction.on_commit(lambda: _tell_buyer(order))
             transaction.on_commit(lambda: _tell_seller(order))
@@ -111,6 +114,11 @@ def _paid_words(order, buyer=False):
     """What was paid, saying "deposit" when it was one, so neither side
     mistakes a deposit for the whole price."""
     paid = order.amount_pesewas / 100
+    if order.plan == Order.Plan.COLLECT:
+        rest = order.balance_pesewas / 100
+        if buyer:
+            return f"you paid GH₵{paid:.2f} to hold it; pay GH₵{rest:.2f} in cash when you collect"
+        return f"GH₵{paid:.2f} paid to hold it, GH₵{rest:.2f} in cash on collection"
     if order.plan == Order.Plan.DEPOSIT:
         rest = order.balance_pesewas / 100
         if buyer:

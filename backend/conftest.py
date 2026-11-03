@@ -21,3 +21,15 @@ def _clear_cache():
     cache.clear()
     yield
     cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _marketplace_trust_off(settings):
+    """The marketplace's trust rules (ID check before payments, holding new
+    sellers' and large orders, the new-seller cap) are on in production.
+    Tests written before them assume them off; marketplace/tests/test_trust_rules.py
+    switches each on where it tests it."""
+    settings.MARKETPLACE_REQUIRE_ID = False
+    settings.MARKETPLACE_HOLD_FIRST_ORDERS = 0
+    settings.MARKETPLACE_HOLD_ABOVE = 0
+    settings.MARKETPLACE_NEW_SELLER_LIMIT = 0

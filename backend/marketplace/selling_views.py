@@ -54,6 +54,7 @@ from .models import (
     ProductOption,
     ProductReport,
     QuoteRequest,
+    SellerAccount,
     SellerPayment,
     SellerReview,
     payment_reference,
@@ -563,6 +564,10 @@ def price_basket(seller, data, student_percent=0):
                 )
         elif any(o.available for o in options):
             raise BasketError(_("Choose which %(name)s you want.") % {"name": product.name})
+        if product.stock is not None and item["quantity"] > product.stock:
+            raise BasketError(
+                _("Only %(count)s %(name)s left.") % {"count": product.stock, "name": product.name}
+            )
         unit = option.price if option and option.price is not None else product.price
         lines.append(
             {
@@ -605,6 +610,47 @@ def price_basket(seller, data, student_percent=0):
     made_to_order = any(
         line["product"].availability == Product.Availability.MADE_TO_ORDER for line in lines
     )
+    collect = (
+        bool(data.get("pay_at_collection"))
+        and data.get("fulfilment") != Order.Fulfilment.DELIVERY
+        and seller.collect_deposit_percent
+        and not made_to_order
+    )
+    if data.get("pay_at_collection") and not collect:
+        raise BasketError(_("This seller does not take payment on collection for this order."))
+    if collect:
+        # Pay on collection: a share online holds the order (and stops
+        # no-shows); the rest is paid in cash when it is collected.
+        pay_now = int(
+            (Decimal(paid_for_goods) * seller.collect_deposit_percent / 100).quantize(
+                Decimal(1), rounding=ROUND_HALF_UP
+            )
+        )
+        commission_now = (
+            int(
+                (Decimal(commission) * pay_now / paid_for_goods).quantize(
+                    Decimal(1), rounding=ROUND_HALF_UP
+                )
+            )
+            if paid_for_goods
+            else 0
+        )
+        balance = paid_for_goods - pay_now
+        return {
+            "lines": lines,
+            "subtotal": subtotal,
+            "discount": discount,
+            "code": code,
+            "delivery": 0,
+            "total": paid_for_goods,
+            "commission": commission_now,
+            "plan": Order.Plan.COLLECT,
+            "pay_now": pay_now,
+            "commission_now": commission_now,
+            "balance": balance,
+            "balance_commission": 0,
+            "student": code == STUDENT_PRICE,
+        }
     if made_to_order:
         pay_now = int(
             (Decimal(paid_for_goods) * seller.deposit_percent / 100).quantize(
@@ -660,6 +706,7 @@ def _basket_payload(priced, seller):
         ],
         "plan": priced["plan"],
         "deposit_percent": seller.deposit_percent,
+        "collect_deposit_percent": seller.collect_deposit_percent,
         "pay_now": _pesewas(priced["pay_now"]),
         "balance": _pesewas(priced["balance"]),
         "subtotal": _pesewas(priced["subtotal"]),
@@ -725,21 +772,15 @@ class BasketPriceView(APIView):
         return Response(_basket_payload(priced, seller))
 
 
-def holds_payment(seller):
-    """Whether this seller's next order is held for buyer protection: for
-    everyone when MARKETPLACE_HOLD_PAYMENTS is on, otherwise for a new
-    seller's first few orders (MARKETPLACE_HOLD_FIRST_ORDERS), when they have
-    a transfer recipient to be paid through."""
-    if settings.MARKETPLACE_HOLD_PAYMENTS:
-        return True
-    first = settings.MARKETPLACE_HOLD_FIRST_ORDERS
-    if not first or not seller.paystack_recipient:
-        return False
-    return seller.orders.filter(status=PaymentStatus.PAID).count() < first
+def holds_payment(seller, pay_now_pesewas=0):
+    """See trust.holds_payment."""
+    from .trust import holds_payment as rule
+
+    return rule(seller, pay_now_pesewas)
 
 
 def _create_order(request, seller, data, bundle=None):
-    if not (paystack.enabled() and seller.payout_ready):
+    if not (paystack.enabled() and seller.takes_payments):
         return Response(
             {"detail": _("This seller does not take payment on the site. Ask them instead.")},
             status=status.HTTP_409_CONFLICT,
@@ -755,6 +796,20 @@ def _create_order(request, seller, data, bundle=None):
             )
     except BasketError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    from .trust import over_new_seller_limit
+
+    limit = over_new_seller_limit(seller, priced["total"])
+    if limit:
+        return Response(
+            {
+                "detail": _(
+                    "%(seller)s is new on the site, so orders are limited to GH₵%(limit)s for now. "
+                    "Buy less at once, or ask them."
+                )
+                % {"seller": seller.business_name, "limit": limit}
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
     if not phone_vouched_for(request, data["phone"]):
         return Response(
             {"detail": _("Verify this phone number before paying.")},
@@ -774,7 +829,7 @@ def _create_order(request, seller, data, bundle=None):
     summary = first["product"].name
     if len(lines) > 1:
         summary = _("%(name)s and %(more)s more") % {"name": summary, "more": len(lines) - 1}
-    held = holds_payment(seller)
+    held = holds_payment(seller, priced["pay_now"])
     with transaction.atomic():
         order = Order.objects.create(
             reference=payment_reference("fo"),
@@ -821,6 +876,15 @@ def _create_order(request, seller, data, bundle=None):
     ):
         customer.display_name = order.buyer_name[:120]
         customer.save(update_fields=["display_name", "updated_at"])
+    if (
+        customer is not None
+        and data["fulfilment"] == Order.Fulfilment.DELIVERY
+        and str(customer.phone) == str(order.buyer_phone)
+        and data.get("note", "").strip()
+    ):
+        from accounts.views import remember_address
+
+        remember_address(customer, data["note"].strip())
     # This browser may see the order afterwards, whatever happens to the
     # hour-long trust in the phone number.
     request.session[SESSION_ORDERS] = [
@@ -1001,6 +1065,143 @@ class OwnOrderView(APIView):
         return Response(OrderSerializer(order).data)
 
 
+class SellerPayoutsView(APIView):
+    """Where the seller's money is: paid out, held (and when it is due), and
+    refunded, for their recent paid orders, with totals for each."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from datetime import timedelta
+
+        seller = _account(request)
+        orders = list(seller.orders.filter(status=PaymentStatus.PAID).order_by("-paid_at")[:100])
+        totals = {"paid_out": 0, "held": 0, "refunded": 0}
+        rows = []
+        for order in orders:
+            yours = order.seller_share_pesewas
+            if order.payout in (Order.Payout.SPLIT, Order.Payout.RELEASED):
+                state = "paid_out"
+            elif order.payout in (Order.Payout.REFUNDED,) or order.stage == Order.Stage.REFUNDED:
+                state = "refunded"
+            else:
+                state = "held"
+            totals[state] += yours
+            due = None
+            if state == "held":
+                if order.stage == Order.Stage.PROBLEM:
+                    due = None
+                elif order.delivered_at:
+                    due = order.delivered_at + timedelta(days=settings.MARKETPLACE_RELEASE_DAYS)
+            rows.append(
+                {
+                    "reference": order.reference,
+                    "product": order.product_name,
+                    "paid_at": order.paid_at,
+                    "yours": _pesewas(yours),
+                    "state": state,
+                    "stage": order.stage,
+                    "due": due,
+                    "waiting_for": (
+                        "problem"
+                        if order.stage == Order.Stage.PROBLEM
+                        else "handover"
+                        if state == "held" and order.stage == Order.Stage.NEW
+                        else "buyer"
+                        if state == "held"
+                        else ""
+                    ),
+                }
+            )
+        return Response(
+            {
+                "results": rows,
+                "totals": {key: _pesewas(value) for key, value in totals.items()},
+                "level": seller.level,
+                "takes_payments": seller.takes_payments,
+            }
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class OwnOrderReplyView(APIView):
+    """The seller's side of a problem the buyer reported. Staff then decide
+    (release or refund in the back office)."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, reference):
+        order = (
+            _account(request)
+            .orders.select_related("seller")
+            .filter(reference=reference, stage=Order.Stage.PROBLEM)
+            .first()
+        )
+        if order is None:
+            raise NotFound(_("No problem is open on this order."))
+        reply = str(request.data.get("reply") or "").strip()[:1000]
+        if not reply:
+            return Response(
+                {"reply": [_("Say what happened.")]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        order.problem_reply = reply
+        order.problem_replied_at = timezone.now()
+        order.save(update_fields=["problem_reply", "problem_replied_at", "updated_at"])
+        transaction.on_commit(lambda: alerts.problem_answered(order))
+        return Response(OrderSerializer(order).data)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SellerIdView(APIView):
+    """The seller's ID document, for the check before taking payments.
+    Private and replace-only; staff check it in the back office."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        seller = _account(request)
+        return Response(_id_payload(seller))
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        from core.images import validate_image_upload
+
+        seller = _account(request)
+        upload = request.FILES.get("document")
+        refusal = validate_image_upload(upload)
+        if refusal is not None:
+            return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
+        if seller.id_document:
+            seller.id_document.delete(save=False)
+        seller.id_document = upload
+        seller.id_status = SellerAccount.IdStatus.SUBMITTED
+        seller.id_submitted_at = timezone.now()
+        seller.id_note = ""
+        seller.save(
+            update_fields=["id_document", "id_status", "id_submitted_at", "id_note", "updated_at"]
+        )
+        return Response(_id_payload(seller), status=status.HTTP_201_CREATED)
+
+
+def _id_payload(seller):
+    return {
+        "status": seller.id_status,
+        "status_label": seller.get_id_status_display(),
+        "note": seller.id_note,
+        "submitted_at": seller.id_submitted_at,
+        "checked_at": seller.id_checked_at,
+        "required": settings.MARKETPLACE_REQUIRE_ID,
+        "level": seller.level,
+        "takes_payments": seller.takes_payments,
+    }
+
+
 @method_decorator(csrf_protect, name="dispatch")
 class OrderBalanceView(APIView):
     """Pay the balance of a made-to-order order, once the seller says it is
@@ -1147,6 +1348,7 @@ class OrderReceivedView(APIView):
         order.stage = Order.Stage.RECEIVED
         order.received_at = timezone.now()
         order.save(update_fields=["stage", "received_at", "updated_at"])
+        transaction.on_commit(lambda: alerts.received(order))
         order = payouts.release(order)
         return Response(OrderSerializer(order).data)
 
@@ -1176,6 +1378,7 @@ class OrderProblemView(APIView):
         order.problem = problem
         order.problem_at = timezone.now()
         order.save(update_fields=["stage", "problem", "problem_at", "updated_at"])
+        transaction.on_commit(lambda: alerts.problem_reported(order))
         return Response(OrderSerializer(order).data)
 
 

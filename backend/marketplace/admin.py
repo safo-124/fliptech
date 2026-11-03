@@ -70,7 +70,7 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
         "product_count",
         "created_at",
     )
-    list_filter = ("approval_status", "is_active", "area__region", "area")
+    list_filter = ("approval_status", "id_status", "is_active", "area__region", "area")
     search_fields = ("business_name", "phone", "email", "provider__name")
     ordering = ("-created_at",)
     list_select_related = ("area", "provider")
@@ -82,8 +82,11 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
         "restore_selling",
         "mark_verified",
         "remove_verified",
+        "id_checked",
+        "id_rejected",
     )
     readonly_fields = (
+        "id_document_link",
         "user",
         "phone",
         "phone_verified_at",
@@ -123,6 +126,22 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
                     "A verified phone proves somebody holds a SIM, not that they make "
                     "anything. Confirming says a real person sells real goods. Their "
                     "products go live by themselves afterwards, so this is the gate."
+                ),
+            },
+        ),
+        (
+            "ID check (before taking payments)",
+            {
+                "fields": (
+                    "id_status",
+                    "id_document_link",
+                    "id_submitted_at",
+                    "id_checked_at",
+                    "id_note",
+                ),
+                "description": (
+                    "Compare the name on the ID with the name on the payout account. Use the "
+                    '"ID checked" or "ID not accepted" actions on the list.'
                 ),
             },
         ),
@@ -321,6 +340,39 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
         """
         n = queryset.update(is_active=False)
         self.message_user(request, f"{n} seller(s) switched off. Their products are hidden.")
+
+    @admin.display(description="ID document")
+    def id_document_link(self, obj):
+        from django.utils.html import format_html
+
+        if not obj.id_document:
+            return "Not sent"
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener">Open (private link)</a>',
+            obj.id_document.url,
+        )
+
+    @admin.action(description="ID checked: may take payments on the site")
+    def id_checked(self, request, queryset):
+        """After comparing the ID with the name on the payout account."""
+        if not request.user.has_perm("marketplace.verify_seller"):
+            raise PermissionDenied
+        n = queryset.exclude(id_status="checked").update(
+            id_status="checked", id_checked_at=timezone.now(), id_note=""
+        )
+        self.message_user(request, f"{n} seller(s) may now take payments on the site.")
+
+    @admin.action(description="ID not accepted: ask for it again")
+    def id_rejected(self, request, queryset):
+        if not request.user.has_perm("marketplace.verify_seller"):
+            raise PermissionDenied
+        n = queryset.update(
+            id_status="rejected",
+            id_checked_at=None,
+            id_note="The ID could not be checked. Send a clear photo of a Ghana Card, passport or "
+            "driving licence in the name on your payout account.",
+        )
+        self.message_user(request, f"{n} seller(s) asked to send their ID again.")
 
     @admin.action(description="Mark as verified maker (after the visit)")
     def mark_verified(self, request, queryset):

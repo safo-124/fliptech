@@ -146,6 +146,8 @@ class SellerCardSerializer(serializers.ModelSerializer):
             "delivery_area",
             "deposit_percent",
             "student_discount",
+            "collect_deposit_percent",
+            "level",
             "away_until",
             "away_note",
         ]
@@ -161,6 +163,13 @@ class ProductCardSerializer(serializers.ModelSerializer):
     distance_km = serializers.SerializerMethodField()
     buy_online = serializers.SerializerMethodField()
     was_price = serializers.SerializerMethodField()
+
+    few_left = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_few_left(self, obj):
+        """ "Only 3 left", when the seller counts stock and few remain."""
+        return obj.stock if obj.stock is not None and 0 < obj.stock <= 5 else None
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_was_price(self, obj):
@@ -199,7 +208,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
         )
         return bool(
             paystack.enabled()
-            and seller.payout_ready
+            and seller.takes_payments
             and not seller.is_away
             and obj.price
             and sellable
@@ -228,6 +237,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
             "was_price",
             "availability",
             "condition",
+            "few_left",
             "trade",
             "photo",
             "seller",
@@ -351,6 +361,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "trade",
             "availability",
             "condition",
+            "stock",
             "options",
             "status",
             "status_label",
@@ -430,12 +441,16 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             "delivery_area",
             "deposit_percent",
             "student_discount_percent",
+            "collect_deposit_percent",
+            "id_status",
+            "level",
+            "takes_payments",
             "workshop",
             "away_until",
             "away_note",
             "verified_at",
         ]
-        read_only_fields = ["phone", "email", "verified_at"]
+        read_only_fields = ["phone", "email", "verified_at", "id_status", "level", "takes_payments"]
 
 
 class ProductEnquiryInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -531,6 +546,9 @@ class BasketSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1, max_value=20, required=False)
     fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices, default="pickup")
     code = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    # Pay part online now and the rest in cash on collection, where the
+    # seller offers it (SellerAccount.collect_deposit_percent).
+    pay_at_collection = serializers.BooleanField(required=False, default=False)
 
 
 class OrderInputSerializer(BasketSerializer):
@@ -643,6 +661,9 @@ class OrderSerializer(serializers.ModelSerializer):
             "payout",
             "protected",
             "problem",
+            "problem_at",
+            "problem_reply",
+            "problem_replied_at",
             "seller_name",
             "seller_phone",
             "pickup",

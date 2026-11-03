@@ -47,6 +47,9 @@ class SavedProduct(models.Model):
         "marketplace.Product", on_delete=models.CASCADE, related_name="saved_by"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # The price when saved (or when last told about a drop): a lower price
+    # than this is "now cheaper" (marketplace_daily).
+    price_seen = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -83,3 +86,51 @@ class AppToken(models.Model):
 
     def __str__(self):
         return f"{self.user} on {self.device or 'a phone'}"
+
+
+class BagLine(models.Model):
+    """One thing in a signed-in buyer's bag, kept on the account so the bag
+    is the same on the phone and the website. Prices are never kept: the
+    server prices the bag whenever it is shown or paid for."""
+
+    account = models.ForeignKey(CustomerAccount, on_delete=models.CASCADE, related_name="bag")
+    product = models.ForeignKey(
+        "marketplace.Product", on_delete=models.CASCADE, related_name="in_bags"
+    )
+    option = models.ForeignKey(
+        "marketplace.ProductOption",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    quantity = models.PositiveSmallIntegerField(default=1)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["added_at", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["account", "product", "option"], name="a_bag_line_once"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity} x {self.product_id} for {self.account_id}"
+
+
+class DeliveryAddress(models.Model):
+    """Saved delivery addresses, so checkout does not ask again."""
+
+    LIMIT = 5
+
+    account = models.ForeignKey(CustomerAccount, on_delete=models.CASCADE, related_name="addresses")
+    label = models.CharField(max_length=40, blank=True)
+    address = models.CharField(max_length=300)
+    last_used_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_used_at"]
+
+    def __str__(self):
+        return self.label or self.address[:40]
