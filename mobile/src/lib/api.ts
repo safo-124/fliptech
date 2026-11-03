@@ -2,6 +2,12 @@ import { API_URL } from "./config";
 import { token } from "./session";
 import type {
   BasketPrice,
+  Bundle,
+  ChatSummary,
+  ChatThread,
+  FollowState,
+  SavedSearch,
+  ShopDetail,
   CourseAccess,
   CourseCard,
   CourseDetail,
@@ -12,6 +18,7 @@ import type {
   ProductCard,
   ProductDetail,
   ProviderCard,
+  TrainerShop,
   TradeOption,
   WorkshopDetail,
 } from "./types";
@@ -96,7 +103,9 @@ const MAP_PAGES = 10;
 export const api = {
   courses: (params: { q?: string; sort?: string; featured?: string } = {}) =>
     getJson<Paginated<CourseCard>>("/api/courses/", params),
-  products: (params: { q?: string } = {}) => getJson<Paginated<ProductCard>>("/api/products/", params),
+  products: (params: Record<string, string | undefined> = {}) =>
+    getJson<Paginated<ProductCard>>("/api/products/", params),
+  trainerShops: () => getJson<{ results: TrainerShop[] }>("/api/sellers/trainers/"),
   providers: (params: { q?: string; trade?: string } = {}) =>
     getJson<Paginated<ProviderCard>>("/api/providers/", params),
   /** Every workshop for the map, following the pages, inside a box if given. */
@@ -131,6 +140,29 @@ export const api = {
   order: (reference: string) => getJson<Order>(`/api/orders/${reference}/`),
   confirmOrder: (reference: string) => postJson<Order>(`/api/orders/${reference}/`),
   myOrders: () => getJson<{ results: Order[] }>("/api/account/orders/"),
+
+  shop: (id: number | string) => getJson<ShopDetail>(`/api/sellers/${id}/`),
+  shopBundles: (id: number | string) => getJson<{ results: Bundle[] }>(`/api/sellers/${id}/bundles/`),
+  follow: (id: number, on: boolean) => request<FollowState>(on ? "POST" : "DELETE", `/api/sellers/${id}/follow/`),
+  followState: (id: number) => getJson<FollowState>(`/api/sellers/${id}/follow/`),
+
+  chats: () => getJson<{ results: ChatSummary[] }>("/api/account/chats/"),
+  chat: (id: number | string) => getJson<ChatThread>(`/api/account/chats/${id}/`),
+  startChat: (seller: number, body: string, product?: number) =>
+    postJson<ChatThread>("/api/account/chats/", { seller, body, ...(product ? { product } : {}) }),
+  sendChat: (id: number | string, body: string) => postJson<ChatThread>(`/api/account/chats/${id}/`, { body }),
+
+  savedSearches: () => getJson<{ results: SavedSearch[] }>("/api/account/searches/"),
+  saveSearch: (params: Record<string, string>, label: string) =>
+    postJson<SavedSearch>("/api/account/searches/", { params, label }),
+  deleteSearch: (id: number) => request<void>("DELETE", `/api/account/searches/${id}/`),
+
+  courseTools: (area: string, slug: string) =>
+    getJson<{ chosen: boolean; tools: string[]; products: ProductCard[] }>(`/api/courses/${area}/${slug}/tools/`),
+  courseBundles: (area: string, slug: string) => getJson<{ results: Bundle[] }>(`/api/courses/${area}/${slug}/bundles/`),
+  bundle: (id: number | string) => getJson<Bundle>(`/api/bundles/${id}/`),
+  buyBundle: (id: number, body: { phone: string; name: string; fulfilment: "pickup" | "delivery"; note?: string }) =>
+    postJson<{ authorization_url: string; reference: string }>(`/api/bundles/${id}/orders/`, body),
 };
 
 export type BagRequest = {

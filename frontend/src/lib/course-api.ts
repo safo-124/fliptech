@@ -139,6 +139,14 @@ export function getStudioDetails() {
   return trainerFetch<StudioDetails>("/api/trainer/course/details/");
 }
 
+/** Link marketplace products to the course's "Tools you need". */
+export function saveToolProducts(ids: number[]) {
+  return trainerFetch<StudioDetails>("/api/trainer/course/details/", {
+    method: "PATCH",
+    body: JSON.stringify({ tool_products: ids }),
+  });
+}
+
 export function saveStudioDetails(details: Partial<Record<keyof StudioDetails, string | null>>) {
   return trainerFetch<StudioDetails>("/api/trainer/course/details/", {
     method: "PATCH",

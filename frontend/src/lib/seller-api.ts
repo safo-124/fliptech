@@ -28,6 +28,10 @@ export type SellerProfile = {
   delivery_fee: string | null;
   delivery_area: string;
   deposit_percent: number | null;
+  /** Percent off for the workshop's own trainees; only for a workshop's shop. */
+  student_discount_percent: number | null;
+  /** The training listing this shop is, when it is one. */
+  workshop: {name: string; slug: string; area_slug: string} | null;
   away_until: string | null;
   away_note: string;
   verified_at: string | null;
@@ -46,6 +50,7 @@ export type SellerProduct = {
   was_price: string | null;
   trade: number | null;
   availability: "available" | "made_to_order" | "sold_out";
+  condition: "new" | "used";
   options: {id: number; label: string; price: string | null; available: boolean}[];
   status: "draft" | "published" | "suspended";
   /** What would most help it sell; see backend OwnProductSerializer.get_tips. */
@@ -112,6 +117,7 @@ export function saveShop(
       | "delivery_fee"
       | "delivery_area"
       | "deposit_percent"
+      | "student_discount_percent"
       | "away_until"
       | "away_note"
     >
@@ -405,4 +411,47 @@ export type Earnings = {
 
 export function getEarnings(month: string) {
   return sessionFetch<Earnings>(`/api/seller/earnings/?month=${encodeURIComponent(month)}`);
+}
+
+export function getSellerChats() {
+  return sessionFetch<{results: import("./account-api").ChatSummary[]}>("/api/seller/chats/");
+}
+
+export function getSellerChat(id: number) {
+  return sessionFetch<import("./account-api").ChatThread>(`/api/seller/chats/${id}/`);
+}
+
+export function sendSellerChat(id: number, body: string) {
+  return sessionFetch<import("./account-api").ChatThread>(`/api/seller/chats/${id}/`, {
+    method: "POST",
+    body: JSON.stringify({body}),
+  });
+}
+
+export function getOwnBundles() {
+  return sessionFetch<{results: import("./types").Bundle[]}>("/api/seller/bundles/");
+}
+
+export type BundleInput = {
+  title?: string;
+  blurb?: string;
+  percent_off?: number;
+  includes_course?: boolean;
+  is_active?: boolean;
+  items?: {product: number; quantity: number}[];
+};
+
+export function createBundle(body: BundleInput) {
+  return sessionFetch<import("./types").Bundle>("/api/seller/bundles/", {method: "POST", body: JSON.stringify(body)});
+}
+
+export function updateBundle(id: number, body: BundleInput) {
+  return sessionFetch<import("./types").Bundle>(`/api/seller/bundles/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteBundle(id: number) {
+  return sessionFetch<void>(`/api/seller/bundles/${id}/`, {method: "DELETE"});
 }

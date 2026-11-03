@@ -26,6 +26,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
+import { CourseShop } from "@/components/marketplace/CourseShop";
 import { Classroom } from "@/components/learn/Classroom";
 import { Button } from "@/components/ui/button";
 import { ClientMessages } from "@/i18n/ClientMessages";
@@ -198,6 +199,9 @@ export default async function CoursePage({ params }: { params: Promise<Params> }
           <Classroom data={data} />
         </ClientMessages>
       </section>
+
+      {/* ------------------------------------- learn and buy, tools you need */}
+      <CourseShop area={area} slug={slug} />
 
       {/* ------------------------------------------------- what you will learn */}
       {details.outcomes.length || details.tools.length ? (

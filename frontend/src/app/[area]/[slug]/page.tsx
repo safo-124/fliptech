@@ -32,6 +32,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { WorkshopShop } from "@/components/marketplace/WorkshopShop";
 import { ApiError, getProvider, searchProviders } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { formatFeeRange, titleCase } from "@/lib/format";
@@ -143,6 +144,7 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
             <ProviderProfile provider={provider} />
           </div>
         </div>
+        <WorkshopShop providerId={provider.id} name={provider.name} />
       </div>
     </>
   );

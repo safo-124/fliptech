@@ -779,3 +779,74 @@ def test_a_course_bought_from_the_app_returns_to_the_app(client, trainee, course
     as_user(client, trainee.user)
     client.post(reverse("course-buy", args=[provider.area.slug, provider.slug]))
     assert "/learn/" in calls[-1][2]["callback_url"]
+
+
+def _shop_product(django_user_model, area, name, **extra):
+    from datetime import timedelta as _td
+
+    from marketplace.models import Product, SellerAccount
+
+    seller = SellerAccount.objects.filter(
+        business_name="Tool Shop"
+    ).first() or SellerAccount.objects.create(
+        user=django_user_model.objects.create_user("tool-shop"),
+        phone="+233201119900",
+        phone_verified_at=timezone.now(),
+        business_name="Tool Shop",
+        area=area,
+        approval_status=SellerAccount.Approval.CONFIRMED,
+    )
+    return Product.objects.create(
+        seller=seller,
+        name=name,
+        slug=name.lower().replace(" ", "-"),
+        price="50.00",
+        status=Product.Status.PUBLISHED,
+        published_at=timezone.now() - _td(days=1),
+        **extra,
+    )
+
+
+def test_tools_you_need_suggests_then_shows_the_trainers_choice(
+    client, course, trainer_client, django_user_model
+):
+    from courses.models import CourseOffer
+    from marketplace.models import Product
+
+    provider, _ = course
+    CourseOffer.objects.create(provider=provider, tools="Hair clippers\n- Spray bottle\nTowel")
+    clippers = _shop_product(django_user_model, provider.area, "Wahl hair clippers")
+    bottle = _shop_product(django_user_model, provider.area, "Spray bottle 500ml")
+    _shop_product(django_user_model, provider.area, "Bead necklace")
+    url = reverse("course-tools", args=[provider.area.slug, provider.slug])
+
+    found = client.get(url).json()
+    assert found["chosen"] is False
+    assert found["tools"] == ["Hair clippers", "Spray bottle", "Towel"]
+    assert {row["name"] for row in found["products"]} == {clippers.name, bottle.name}
+
+    # The trainer picks; only products on sale may be picked.
+    draft = _shop_product(django_user_model, provider.area, "Draft comb")
+    draft.status = Product.Status.DRAFT
+    draft.save()
+    refused = trainer_client.patch(
+        reverse("studio-details"),
+        {"tool_products": [bottle.pk, draft.pk]},
+        content_type="application/json",
+    )
+    assert refused.status_code == 400
+    saved = trainer_client.patch(
+        reverse("studio-details"), {"tool_products": [bottle.pk]}, content_type="application/json"
+    )
+    assert saved.status_code == 200
+    assert [row["id"] for row in saved.json()["tool_products"]] == [bottle.pk]
+
+    shown = client.get(url).json()
+    assert shown["chosen"] is True
+    assert [row["name"] for row in shown["products"]] == [bottle.name]
+
+
+def test_tools_for_a_course_with_no_offer_is_empty(client, course):
+    provider, _ = course
+    found = client.get(reverse("course-tools", args=[provider.area.slug, provider.slug])).json()
+    assert found == {"chosen": False, "tools": [], "products": []}

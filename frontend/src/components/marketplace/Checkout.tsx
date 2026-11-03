@@ -264,7 +264,7 @@ export function Checkout({
               ))}
               {Number(price.discount) > 0 ? (
                 <div className="flex justify-between gap-3 text-[var(--color-visit)]">
-                  <dt>{t("discountLine", { code: price.code })}</dt>
+                  <dt>{price.student ? t("studentPrice") : t("discountLine", { code: price.code })}</dt>
                   <dd className="tabular-nums">−{formatCedis(price.discount)}</dd>
                 </div>
               ) : null}

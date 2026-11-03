@@ -117,3 +117,40 @@ def tell_followers(now=None):
         follow.save(update_fields=["last_told_at"])
         told += 1
     return told
+
+
+def tell_saved_searches(now=None):
+    """One text per saved search with new matches, at most once a day.
+
+    "New" is a product that first went on show since the search last
+    looked. The match is the marketplace's own (views.browse), so the link
+    in the text opens exactly what was counted.
+    """
+    from urllib.parse import urlencode
+
+    from .models import SavedSearch
+    from .views import browse
+
+    now = now or timezone.now()
+    told = 0
+    searches = (
+        SavedSearch.objects.select_related("account")
+        .filter(account__is_active=True)
+        .filter(Q(last_told_at__isnull=True) | Q(last_told_at__lte=now - timedelta(hours=20)))
+    )
+    for search in searches:
+        new = browse(search.params).filter(published_at__gt=search.checked_at).count()
+        search.checked_at = now
+        if not new:
+            search.save(update_fields=["checked_at"])
+            continue
+        what = "1 new match" if new == 1 else f"{new} new matches"
+        link = _site("/marketplace" + (f"?{urlencode(search.params)}" if search.params else ""))
+        _text(
+            search.account.phone,
+            f'{settings.BRAND_NAME}: {what} for "{search.label}". {link}',
+        )
+        search.last_told_at = now
+        search.save(update_fields=["checked_at", "last_told_at"])
+        told += 1
+    return told

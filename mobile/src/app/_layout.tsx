@@ -69,6 +69,12 @@ export default function RootLayout() {
               <Stack.Screen name="checkout" />
               <Stack.Screen name="my-courses" />
               <Stack.Screen name="orders" />
+              <Stack.Screen name="shop/[id]" />
+              <Stack.Screen name="chats/index" />
+              <Stack.Screen name="chats/[id]" />
+              <Stack.Screen name="chats/new" />
+              <Stack.Screen name="saved-searches" />
+              <Stack.Screen name="bundle/[id]" />
             </Stack>
           </TabBarVisibilityProvider>
           </BagProvider>

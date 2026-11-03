@@ -16,6 +16,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackBar } from "@/components/BackBar";
+import { ProductCard } from "@/components/Cards";
 import { Button } from "@/components/Form";
 import { PhotoPager } from "@/components/PhotoPager";
 import { ErrorState, Skeleton } from "@/components/States";
@@ -37,6 +38,13 @@ export default function WorkshopScreen() {
   const { area, slug } = useLocalSearchParams<{ area: string; slug: string }>();
   const insets = useSafeAreaInsets();
   const workshop = useQuery({ queryKey: ["workshop", area, slug], queryFn: () => api.workshop(area, slug) });
+
+  const workshopId = workshop.data?.id;
+  const shop = useQuery({
+    queryKey: ["products", "workshop", workshopId],
+    queryFn: () => api.products({ workshop: String(workshopId) }),
+    enabled: workshopId !== undefined,
+  });
 
   if (workshop.isPending) {
     return (
@@ -137,6 +145,30 @@ export default function WorkshopScreen() {
               </Text>
             </View>
           </Pressable>
+        ) : null}
+
+        {/* ------------------------------------------- what they sell, if any */}
+        {shop.data?.results.length ? (
+          <Section title="Shop at this workshop">
+            <Text variant="small" style={{ marginTop: -space.sm, marginBottom: space.md }}>
+              Things {w.name} makes and sells. Pay safely on Fliiptech or ask them about it.
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: space.md, paddingRight: space.lg }}
+              style={{ marginHorizontal: -space.lg, paddingLeft: space.lg }}
+            >
+              {shop.data.results.slice(0, 10).map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  width={150}
+                  onPress={() => router.push(`/product/${product.id}`)}
+                />
+              ))}
+            </ScrollView>
+          </Section>
         ) : null}
 
         {/* ---------------------------------------------------- the trainer */}

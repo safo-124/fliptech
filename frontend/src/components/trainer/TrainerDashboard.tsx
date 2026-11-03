@@ -31,6 +31,7 @@ import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
 import type {TrainerTab} from "@/components/trainer/TrainerNav";
 import {TRAINER_TAB_KEYS, useTrainerTabs} from "@/components/trainer/TrainerNav";
 import {TrainerCourseSales} from "@/components/trainer/TrainerCourseSales";
+import {TrainerShopCard} from "@/components/trainer/TrainerShopCard";
 import {TrainerVideos} from "@/components/trainer/TrainerVideos";
 import {Badge} from "@/components/ui/badge";
 import {Alert, AlertDescription} from "@/components/ui/alert";
@@ -777,6 +778,8 @@ export function TrainerDashboard() {
         )}
       </div>
       ) : null}
+
+      {tab === "overview" ? <TrainerShopCard /> : null}
 
       {tab === "overview" && profile.status === "published" ? (
         <PerformancePanel

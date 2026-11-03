@@ -103,11 +103,18 @@ def _bad(field, message):
 # Details
 
 
+MAX_TOOL_PRODUCTS = 12
+
+
 def details_payload(offer):
     return {
         "summary": offer.summary,
         "outcomes": offer.outcomes,
         "tools": offer.tools,
+        "tool_products": [
+            {"id": product.id, "name": product.name, "seller": product.seller.business_name}
+            for product in offer.tool_products.select_related("seller").order_by("name")
+        ],
         "level": offer.level,
         "levels": [{"value": v, "label": label} for v, label in CourseOffer.Level.choices],
         "price": f"{offer.price:.2f}" if offer.price else None,
@@ -171,6 +178,20 @@ class StudioDetailsView(TrainerView):
                     return _bad("sale_ends_at", _("Choose a day after today."))
                 offer.sale_ends_at = parsed
             fields += ["sale_price", "sale_ends_at"]
+        if "tool_products" in data:
+            from marketplace.models import Product
+
+            wanted = data.get("tool_products") or []
+            if not isinstance(wanted, list) or len(wanted) > MAX_TOOL_PRODUCTS:
+                return _bad(
+                    "tool_products",
+                    _("Choose up to %(count)s products.") % {"count": MAX_TOOL_PRODUCTS},
+                )
+            ids = [int(value) for value in wanted if str(value).isdigit()]
+            found = list(Product.objects.visible().filter(pk__in=ids))
+            if len(found) != len(set(ids)):
+                return _bad("tool_products", _("One of those products is not on sale."))
+            offer.tool_products.set(found)
         if fields:
             offer.save(update_fields=[*fields, "updated_at"])
         return Response(details_payload(offer))

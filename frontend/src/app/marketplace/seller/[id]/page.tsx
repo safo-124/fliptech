@@ -13,12 +13,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { BundleCard } from "@/components/marketplace/CourseShop";
 import { FollowShop } from "@/components/marketplace/FollowShop";
+import { MessageSeller } from "@/components/marketplace/MessageSeller";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ApiError, getSellerShop } from "@/lib/api";
+import { ClientMessages } from "@/i18n/ClientMessages";
+import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
+import { ApiError, getSellerShop, getShopBundles } from "@/lib/api";
 
 export const revalidate = 300;
 
@@ -46,7 +50,12 @@ export async function generateMetadata({
 
 export default async function SellerShopPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [shop, t] = await Promise.all([load(id), getTranslations("Marketplace")]);
+  const [shop, t, offered] = await Promise.all([
+    load(id),
+    getTranslations("Marketplace"),
+    /^\d+$/.test(id) ? getShopBundles(Number(id)).catch(() => null) : null,
+  ]);
+  const bundles = (offered?.results ?? []).filter((bundle) => bundle.buy_online);
   if (!shop) notFound();
 
   const { seller, products, banner, reviews } = shop;
@@ -77,6 +86,11 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
         </p>
         <div className="mt-2">
           <SellerBadges seller={seller} />
+        </div>
+        <div className="mt-3 max-w-sm">
+          <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+            <MessageSeller sellerId={seller.id} sellerName={seller.business_name} />
+          </ClientMessages>
         </div>
         <div className="mt-3">
           <FollowShop
@@ -132,6 +146,20 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
           </Link>
         ) : null}
       </header>
+
+      {bundles.length ? (
+        <section aria-labelledby="shop-bundles" className="mb-10">
+          <h2 id="shop-bundles" className="text-lg font-extrabold tracking-[-0.025em]">
+            {t("bundlesTitle")}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("bundlesBody")}</p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {bundles.map((bundle) => (
+              <BundleCard key={bundle.id} bundle={bundle} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {products.length ? (
         <div className="grid grid-cols-2 gap-3.5 sm:gap-4 lg:grid-cols-4">

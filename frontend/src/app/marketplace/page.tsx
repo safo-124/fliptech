@@ -16,17 +16,34 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { BrandShards } from "@/components/BrandShards";
+import {
+  ActiveFilterChips,
+  activeFilterCount,
+  MarketFilters,
+  marketHref,
+} from "@/components/marketplace/MarketFilters";
 import { NearMeButton } from "@/components/marketplace/NearMeButton";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
+import { SaveSearch } from "@/components/marketplace/SaveSearch";
+import { TrainerShops } from "@/components/marketplace/TrainerShops";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getAllAreas, getAllTrades, searchProducts, type MarketplaceParams } from "@/lib/api";
+import {
+  getAllAreas,
+  getAllTrades,
+  getTrainerShops,
+  searchProducts,
+  type MarketplaceParams,
+} from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 
 export const revalidate = 300;
+
+/** The API's page size (REST_FRAMEWORK PAGE_SIZE). */
+const PAGE_SIZE = 20;
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Marketplace");
@@ -46,15 +63,21 @@ export default async function MarketplacePage({
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
 
-  const [products, trades, areas, t] = await Promise.all([
+  const filterCount = activeFilterCount(params);
+  const filtered = Boolean(params.trade || params.area || params.q || filterCount);
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+
+  const [products, trades, areas, trainerShops, t] = await Promise.all([
     searchProducts(params).catch(() => null),
     getAllTrades().catch(() => []),
     getAllAreas().catch(() => []),
+    // The "made by people who teach it" row, on the plain first page only.
+    filtered || page > 1 ? null : getTrainerShops().catch(() => null),
     getTranslations("Marketplace"),
   ]);
 
   const results = products?.results ?? [];
-  const filtered = Boolean(params.trade || params.area || params.q);
+  const pages = products ? Math.max(1, Math.ceil(products.count / PAGE_SIZE)) : 1;
   // A sort and a place change the order, not what matches, so they keep the
   // "nothing yet" wording; only the filters above make it "nothing matches".
 
@@ -151,6 +174,7 @@ export default async function MarketplacePage({
                 <option value="price">{t("sortPriceLow")}</option>
                 <option value="-price">{t("sortPriceHigh")}</option>
                 <option value="newest">{t("sortNewest")}</option>
+                <option value="rating">{t("sortRating")}</option>
                 {params.near ? <option value="nearest">{t("sortNearest")}</option> : null}
               </select>
               <NearMeButton
@@ -161,6 +185,7 @@ export default async function MarketplacePage({
                 }}
               />
             </div>
+            <MarketFilters params={params} />
           </form>
 
           <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -169,6 +194,9 @@ export default async function MarketplacePage({
             </Link>
             <Link href="/marketplace/saved" className="font-semibold text-white underline underline-offset-4">
               {t("savedLink")}
+            </Link>
+            <Link href="/marketplace?condition=used" className="font-semibold text-white underline underline-offset-4">
+              {t("secondHandLink")}
             </Link>
           </p>
           <p className="mt-2 text-sm text-white/70">
@@ -181,6 +209,15 @@ export default async function MarketplacePage({
       </section>
 
       <section className="app-shell mt-8">
+        <TrainerShops shops={trainerShops?.results ?? []} />
+        <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+          <ActiveFilterChips params={params} />
+          {filtered ? (
+            <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+              <SaveSearch params={params} label={params.q || t("title")} />
+            </ClientMessages>
+          ) : null}
+        </div>
         {products === null ? (
           <Card className="p-8 text-center">
             <p className="text-sm text-[var(--color-muted-foreground)]">{t("unavailable")}</p>
@@ -219,6 +256,32 @@ export default async function MarketplacePage({
                 <ProductTile key={product.id} product={product} />
               ))}
             </div>
+            {pages > 1 ? (
+              <nav
+                aria-label={t("pageOf", { page, pages })}
+                className="mt-8 flex items-center justify-between gap-3"
+              >
+                {page > 1 ? (
+                  <Button asChild variant="outline">
+                    <Link href={marketHref(params, { page: page > 2 ? String(page - 1) : undefined })} rel="prev">
+                      {t("pagePrevious")}
+                    </Link>
+                  </Button>
+                ) : (
+                  <span />
+                )}
+                <p className="text-sm text-[var(--color-muted-foreground)]">{t("pageOf", { page, pages })}</p>
+                {products.next ? (
+                  <Button asChild variant="outline">
+                    <Link href={marketHref(params, { page: String(page + 1) })} rel="next">
+                      {t("pageNext")}
+                    </Link>
+                  </Button>
+                ) : (
+                  <span />
+                )}
+              </nav>
+            ) : null}
           </>
         )}
         <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>

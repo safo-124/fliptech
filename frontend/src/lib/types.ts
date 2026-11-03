@@ -698,6 +698,8 @@ export type SellerCard = {
   delivery_area: string;
   /** Made-to-order work can be bought for this deposit (%), or ask-only when null. */
   deposit_percent: number | null;
+  /** Percent off for the workshop's own trainees, when the shop is a workshop. */
+  student_discount: number | null;
   /** Away: Buy now is off until this date. */
   away_until: string | null;
   away_note: string;
@@ -712,6 +714,8 @@ export type ProductCard = {
   /** The price before a sale, shown crossed out; only when it was higher. */
   was_price: string | null;
   availability: "available" | "made_to_order" | "sold_out";
+  /** "used" for second-hand tools. */
+  condition: "new" | "used";
   trade: {name: string; slug: string; colour: string} | null;
   photo: string | null;
   seller: SellerCard;
@@ -810,6 +814,8 @@ export type BasketPrice = {
   delivery_area: string;
   total: string;
   protected: boolean;
+  /** The workshop's student price was applied. */
+  student?: boolean;
   /** "deposit" when anything is made to order: pay_now now, balance when ready. */
   plan: "full" | "deposit";
   deposit_percent: number | null;
@@ -819,6 +825,9 @@ export type BasketPrice = {
 
 export type FeaturedShop = SellerCard & {photo: string | null};
 
+/** A shop that is also a training workshop, with how much it has on show. */
+export type TrainerShop = FeaturedShop & {product_count: number};
+
 export type ProductOption = {id: number; label: string; price: string | null; available: boolean};
 
 export type ProductDetail = ProductCard & {
@@ -826,6 +835,37 @@ export type ProductDetail = ProductCard & {
   photos: {id: number; image: string | null; caption: string; display_order: number}[];
   /** Sizes, colours or versions; one must be chosen when any is available. */
   options: ProductOption[];
+  /** Collect from the workshop: its address and map point, for a shop that is one. */
+  pickup: PickupPoint | null;
+};
+
+export type PickupPoint = {
+  name: string;
+  address: string;
+  directions: string;
+  area: string;
+  lat: number | null;
+  lng: number | null;
+  workshop_path: string;
+};
+
+/** Learn and buy: a workshop's course and kit together. See backend bundles.py. */
+export type Bundle = {
+  id: number;
+  title: string;
+  blurb: string;
+  percent_off: number;
+  is_active: boolean;
+  includes_course: boolean;
+  course: {name: string; price: string | null; path: string; area_slug: string; slug: string} | null;
+  items: {product: {id: number; name: string; price: string | null; photo: string | null}; quantity: number}[];
+  seller: {id: number; business_name: string};
+  full_price: string | null;
+  price: string | null;
+  saving: string | null;
+  delivery_fee: string | null;
+  buy_online: boolean;
+  problem: string;
 };
 
 /** A staff-chosen home page photograph. See backend core.models.HomePicture. */
@@ -863,6 +903,8 @@ export type StudioDetails = {
   summary: string;
   outcomes: string;
   tools: string;
+  /** Marketplace products linked as "Tools you need". */
+  tool_products: { id: number; name: string; seller: string }[];
   level: CourseLevel | "";
   levels: { value: CourseLevel; label: string }[];
   price: string | null;

@@ -183,6 +183,13 @@ class SellerAccount(TimeStampedModel):
         null=True, blank=True, validators=[MinValueValidator(10), MaxValueValidator(90)]
     )
 
+    # Student prices: a workshop's own trainees (enrolled there, or bought
+    # its online course) pay this much less, applied at checkout without a
+    # code. Only for a shop that is a workshop; see students.py.
+    student_discount_percent = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(5), MaxValueValidator(50)]
+    )
+
     # Away mode: Buy now is off and the shop says when they are back, so a
     # seller who is travelling is not sent orders they cannot fill.
     away_until = models.DateField(null=True, blank=True)
@@ -264,6 +271,10 @@ class Product(TimeStampedModel):
         # are different events and the queue must tell them apart.
         SUSPENDED = "suspended", "Taken down by staff"
 
+    class Condition(models.TextChoices):
+        NEW = "new", "New"
+        USED = "used", "Used"
+
     class Availability(models.TextChoices):
         """Not a stock count.
 
@@ -319,6 +330,14 @@ class Product(TimeStampedModel):
         max_length=20,
         choices=Availability.choices,
         default=Availability.AVAILABLE,
+        db_index=True,
+    )
+    # Second-hand tools: a trainee who has finished their course sells the
+    # kit on. Said on every card, so nobody buys used thinking it is new.
+    condition = models.CharField(
+        max_length=10,
+        choices=Condition.choices,
+        default=Condition.NEW,
         db_index=True,
     )
     status = models.CharField(
@@ -743,6 +762,12 @@ class Order(TimeStampedModel):
     delivery_pesewas = models.PositiveIntegerField(default=0)
     discount_pesewas = models.PositiveIntegerField(default=0)
     discount_code = models.CharField(max_length=30, blank=True)
+    # Learn and buy: the bundle this order paid for, and the part of the
+    # amount that was the course, which is unlocked when the order is paid.
+    bundle = models.ForeignKey(
+        "Bundle", on_delete=models.SET_NULL, null=True, blank=True, related_name="orders"
+    )
+    course_pesewas = models.PositiveIntegerField(default=0)
     # Fliiptech's share, in pesewas, fixed when the order is made.
     commission_pesewas = models.PositiveIntegerField(default=0)
     currency = models.CharField(max_length=3, default="GHS")
@@ -1072,3 +1097,151 @@ class ShopFollow(models.Model):
 
     def __str__(self):
         return f"{self.account} follows {self.seller}"
+
+
+class SavedSearch(models.Model):
+    """A search a signed-in buyer keeps, and is texted about: "tell me when
+    sewing machines under GH₵500 appear". The parameters are the same as
+    /api/products/'s, so the alert finds what the search page would show.
+    marketplace_daily texts at most once a day per search."""
+
+    # The marketplace parameters a saved search may keep. Paging, sorting and
+    # "near me" change the order, not what matches, so they are left out.
+    KEYS = (
+        "q",
+        "trade",
+        "area",
+        "region",
+        "sold_by",
+        "min_price",
+        "max_price",
+        "condition",
+        "availability",
+        "min_rating",
+        "pay_online",
+        "delivers",
+        "verified",
+        "on_sale",
+    )
+    LIMIT = 10
+
+    account = models.ForeignKey(
+        "accounts.CustomerAccount", on_delete=models.CASCADE, related_name="saved_searches"
+    )
+    params = models.JSONField(default=dict)
+    label = models.CharField(max_length=160)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Products that went on show after this are "new" to this search.
+    checked_at = models.DateTimeField(default=timezone.now)
+    last_told_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.account}: {self.label}"
+
+    @classmethod
+    def clean_params(cls, raw):
+        """Only the known keys, as short strings, empties dropped."""
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            key: str(raw[key]).strip()[:100]
+            for key in cls.KEYS
+            if raw.get(key) not in (None, "", False)
+        }
+
+
+class Conversation(models.Model):
+    """A chat between one signed-in buyer and one shop, kept on the site
+    so neither has to hand out a phone number. One thread per pair; each
+    message may say which product it is about."""
+
+    seller = models.ForeignKey(
+        SellerAccount, on_delete=models.CASCADE, related_name="conversations"
+    )
+    buyer = models.ForeignKey(
+        "accounts.CustomerAccount", on_delete=models.CASCADE, related_name="conversations"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_message_at = models.DateTimeField(default=timezone.now, db_index=True)
+    buyer_read_at = models.DateTimeField(null=True, blank=True)
+    seller_read_at = models.DateTimeField(null=True, blank=True)
+    # When each side was last texted about a new message, so a quick back
+    # and forth is one text, not one per message.
+    buyer_texted_at = models.DateTimeField(null=True, blank=True)
+    seller_texted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-last_message_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["seller", "buyer"], name="one_chat_per_buyer_and_shop"),
+        ]
+
+    def __str__(self):
+        return f"{self.buyer} and {self.seller}"
+
+
+class Message(models.Model):
+    class Sender(models.TextChoices):
+        BUYER = "buyer", "Buyer"
+        SELLER = "seller", "Seller"
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="messages"
+    )
+    sender = models.CharField(max_length=10, choices=Sender.choices)
+    body = models.TextField(max_length=1000)
+    product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.sender}: {self.body[:40]}"
+
+
+class Bundle(TimeStampedModel):
+    """Learn and buy: a workshop's online course and the tool kit from its
+    own shop, sold together for less, in one payment to the workshop.
+
+    Only a shop that is a training workshop has bundles, and only with its
+    own products and its own course: one payment goes to one seller, and
+    the course is unlocked when it is paid (payments.confirm_order).
+    """
+
+    seller = models.ForeignKey(SellerAccount, on_delete=models.CASCADE, related_name="bundles")
+    title = models.CharField(max_length=120)
+    blurb = models.CharField(max_length=300, blank=True)
+    percent_off = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(0), MaxValueValidator(50)]
+    )
+    includes_course = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
+class BundleItem(models.Model):
+    bundle = models.ForeignKey(Bundle, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="bundle_items")
+    quantity = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+
+    class Meta:
+        ordering = ["pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["bundle", "product"], name="a_product_once_per_bundle"),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity} x {self.product_id} in {self.bundle_id}"

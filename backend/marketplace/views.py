@@ -8,6 +8,8 @@ scoped to `own_seller_account(request)` and never take an id from the caller
 that selects whose products are touched.
 """
 
+from decimal import Decimal, InvalidOperation
+
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.gis.db.models.functions import Distance
@@ -628,6 +630,205 @@ def _with_ratings(serializer_class, items, request, **kwargs):
     return serializer_class(items, many=True, context=context, **kwargs).data
 
 
+def _flag(params, name):
+    return (params.get(name) or "").lower() in {"1", "true", "yes", "on"}
+
+
+def _price(raw):
+    """A price bound from the query string, or None when it is not one."""
+    try:
+        value = Decimal(str(raw).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    return value if value.is_finite() and value >= 0 else None
+
+
+def _with_seller_rating(products):
+    """Each product carries its shop's average rating and number of reviews
+    (from shown reviews only), for the rating filter and the best-rated sort.
+    Ratings are per shop: a buyer reviews the seller, not one product."""
+    from django.db.models import Avg, Count, FloatField, IntegerField, Subquery
+    from django.db.models.functions import Coalesce
+
+    shown = SellerReview.objects.filter(
+        seller=OuterRef("seller"), visibility=SellerReview.Visibility.SHOWN
+    ).values("seller")
+    return products.annotate(
+        seller_rating=Subquery(
+            shown.annotate(value=Avg("rating")).values("value")[:1], output_field=FloatField()
+        ),
+        seller_reviews=Coalesce(
+            Subquery(
+                shown.annotate(value=Count("pk")).values("value")[:1], output_field=IntegerField()
+            ),
+            0,
+        ),
+    )
+
+
+def _filter_products(products, params):
+    """The marketplace's filters, shared by the website, the app and anyone
+    reading the API. Each is optional and they combine with AND.
+
+    - sold_by: "trainers" (the shop is also a training workshop on the site)
+      or "makers" (a shop with no workshop behind it).
+    - workshop: a Provider id, its shop's products; seller: a shop's id.
+    - min_price, max_price: in cedis, inclusive. Products with no price
+      ("ask for the price") are left out once either is given.
+    - pay_online: products a buyer can pay for here (the "Buy now" rule).
+    - delivers: the seller set a delivery fee. verified: Fliiptech visited.
+    - on_sale: a real reduction, the crossed-out price above the price.
+    """
+    from courses import paystack
+
+    sold_by = params.get("sold_by")
+    if sold_by == "trainers":
+        products = products.filter(seller__provider__isnull=False)
+    elif sold_by == "makers":
+        products = products.filter(seller__provider__isnull=True)
+
+    workshop = params.get("workshop") or ""
+    if workshop.isdigit():
+        products = products.filter(seller__provider_id=int(workshop))
+    seller = params.get("seller") or ""
+    if seller.isdigit():
+        products = products.filter(seller_id=int(seller))
+
+    low, high = _price(params.get("min_price")), _price(params.get("max_price"))
+    if low is not None and high is not None and low > high:
+        low, high = high, low
+    if low is not None:
+        products = products.filter(price__gte=low)
+    if high is not None:
+        products = products.filter(price__lte=high)
+
+    if _flag(params, "delivers"):
+        products = products.filter(seller__delivery_fee__isnull=False)
+    if _flag(params, "verified"):
+        products = products.filter(seller__verified_at__isnull=False)
+    if _flag(params, "on_sale"):
+        products = products.filter(
+            price__isnull=False, was_price__isnull=False, was_price__gt=F("price")
+        )
+    if params.get("min_rating") or params.get("sort") == "rating":
+        products = _with_seller_rating(products)
+        try:
+            least = float(params.get("min_rating") or 0)
+        except ValueError:
+            least = 0
+        if least > 0:
+            products = products.filter(seller_rating__gte=min(least, 5))
+
+    if params.get("condition") in (Product.Condition.NEW, Product.Condition.USED):
+        products = products.filter(condition=params["condition"])
+
+    if _flag(params, "pay_online"):
+        # ProductCardSerializer.get_buy_online, in SQL.
+        if not paystack.enabled():
+            return products.none()
+        payable = (
+            Q(seller__paystack_recipient__gt="")
+            if settings.MARKETPLACE_HOLD_PAYMENTS
+            else Q(seller__paystack_subaccount__gt="")
+        )
+        products = (
+            products.filter(payable, price__isnull=False)
+            .filter(
+                Q(availability=Product.Availability.AVAILABLE)
+                | Q(availability=Product.Availability.MADE_TO_ORDER, seller__deposit_percent__gt=0)
+            )
+            .exclude(seller__away_until__gte=timezone.localdate())
+        )
+    return products
+
+
+def browse(params):
+    """The marketplace's products for a set of query parameters: the
+    filters, the search and the order. The list view, saved-search alerts
+    and anything else that asks "what matches?" share it."""
+    products = _public_products()
+
+    trade = params.get("trade")
+    if trade:
+        products = products.filter(trade__slug=trade)
+
+    area = params.get("area")
+    if area:
+        products = products.filter(seller__area__slug=area)
+
+    region = params.get("region")
+    if region:
+        products = products.filter(seller__area__region__slug=region)
+
+    # "Saved for later": the ids this browser kept, in any order.
+    wanted = [part for part in (params.get("ids") or "").split(",") if part.isdigit()]
+    if wanted:
+        products = products.filter(pk__in=wanted[:50])
+
+    availability = params.get("availability")
+    if availability:
+        products = products.filter(availability=availability)
+
+    products = _filter_products(products, params)
+
+    # Full-text search, so "bags" finds "bag" and a match in the name
+    # ranks above one in the description; the plain substring match is
+    # kept alongside it for part-words and names Postgres does not stem.
+    query = (params.get("q") or "").strip()[:100]
+    if query:
+        vector = (
+            SearchVector("name", weight="A", config="english")
+            + SearchVector("seller__business_name", weight="B", config="english")
+            + SearchVector("description", weight="C", config="english")
+        )
+        products = products.annotate(
+            rank=SearchRank(vector, SearchQuery(query, search_type="websearch", config="english"))
+        ).filter(
+            Q(rank__gt=0)
+            | Q(name__icontains=query)
+            | Q(description__icontains=query)
+            | Q(seller__business_name__icontains=query)
+        )
+
+    near = _near(params.get("near"))
+    if near is not None:
+        products = products.annotate(distance=Distance("seller__area__centroid", near))
+
+    # Sold-out items sort last rather than being hidden: seeing that a
+    # maker's work goes is a reason to ask them, and hiding it makes a
+    # busy shop look empty.
+    products = products.annotate(
+        gone=Case(
+            When(availability=Product.Availability.SOLD_OUT, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    )
+    sort = params.get("sort")
+    if sort == "price":
+        return products.order_by("gone", F("price").asc(nulls_last=True), "-created_at")
+    if sort == "-price":
+        return products.order_by("gone", F("price").desc(nulls_last=True), "-created_at")
+    if sort == "newest":
+        return products.order_by("gone", "-created_at")
+    if sort == "rating":
+        # Best rated first; more reviews break a tie, so one 5-star
+        # review does not beat fifty 4.9s. Unrated shops come last.
+        return products.order_by(
+            "gone", F("seller_rating").desc(nulls_last=True), "-seller_reviews", "-created_at"
+        )
+    if sort == "nearest" and near is not None:
+        return products.order_by("gone", F("distance").asc(nulls_last=True), "-created_at")
+    # The default: boosted products first, then Shop plan shops, then the
+    # rest, newest first within each. A buyer who chose a sort gets that
+    # sort, boosts or not; "Sponsored" still marks them.
+    if query:
+        # A search ranks by how well each product matches; boosts and
+        # the plan still break ties.
+        return products.order_by("gone", "-rank", "-boosted", "-on_plan", "-created_at")
+    return products.order_by("gone", "-boosted", "-on_plan", "-created_at")
+
+
 class ProductListView(ListAPIView):
     """Browse the marketplace. Filters mirror the training search's names so
     one set of query parameters is learned, not two."""
@@ -637,82 +838,7 @@ class ProductListView(ListAPIView):
     serializer_class = ProductCardSerializer
 
     def get_queryset(self):
-        products = _public_products()
-        params = self.request.query_params
-
-        trade = params.get("trade")
-        if trade:
-            products = products.filter(trade__slug=trade)
-
-        area = params.get("area")
-        if area:
-            products = products.filter(seller__area__slug=area)
-
-        region = params.get("region")
-        if region:
-            products = products.filter(seller__area__region__slug=region)
-
-        # "Saved for later": the ids this browser kept, in any order.
-        wanted = [part for part in (params.get("ids") or "").split(",") if part.isdigit()]
-        if wanted:
-            products = products.filter(pk__in=wanted[:50])
-
-        availability = params.get("availability")
-        if availability:
-            products = products.filter(availability=availability)
-
-        # Full-text search, so "bags" finds "bag" and a match in the name
-        # ranks above one in the description; the plain substring match is
-        # kept alongside it for part-words and names Postgres does not stem.
-        query = (params.get("q") or "").strip()[:100]
-        if query:
-            vector = (
-                SearchVector("name", weight="A", config="english")
-                + SearchVector("seller__business_name", weight="B", config="english")
-                + SearchVector("description", weight="C", config="english")
-            )
-            products = products.annotate(
-                rank=SearchRank(
-                    vector, SearchQuery(query, search_type="websearch", config="english")
-                )
-            ).filter(
-                Q(rank__gt=0)
-                | Q(name__icontains=query)
-                | Q(description__icontains=query)
-                | Q(seller__business_name__icontains=query)
-            )
-
-        near = _near(params.get("near"))
-        if near is not None:
-            products = products.annotate(distance=Distance("seller__area__centroid", near))
-
-        # Sold-out items sort last rather than being hidden: seeing that a
-        # maker's work goes is a reason to ask them, and hiding it makes a
-        # busy shop look empty.
-        products = products.annotate(
-            gone=Case(
-                When(availability=Product.Availability.SOLD_OUT, then=Value(1)),
-                default=Value(0),
-                output_field=IntegerField(),
-            )
-        )
-        sort = params.get("sort")
-        if sort == "price":
-            return products.order_by("gone", F("price").asc(nulls_last=True), "-created_at")
-        if sort == "-price":
-            return products.order_by("gone", F("price").desc(nulls_last=True), "-created_at")
-        if sort == "newest":
-            return products.order_by("gone", "-created_at")
-        if sort == "nearest" and near is not None:
-            return products.order_by("gone", F("distance").asc(nulls_last=True), "-created_at")
-        # The default: boosted products first, then Shop plan shops, then the
-        # rest, newest first within each. A buyer who chose a sort gets that
-        # sort, boosts or not; "Sponsored" still marks them.
-        if query:
-            # A search ranks by how well each product matches; boosts and
-            # the plan still break ties.
-            return products.order_by("gone", "-rank", "-boosted", "-on_plan", "-created_at")
-        return products.order_by("gone", "-boosted", "-on_plan", "-created_at")
+        return browse(self.request.query_params)
 
     def list(self, request, *args, **kwargs):
         page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
@@ -727,6 +853,121 @@ class ProductDetailView(RetrieveAPIView):
 
     def get_queryset(self):
         return _public_products()
+
+
+class CourseToolsView(APIView):
+    """ "Tools you need" for a course, as marketplace products.
+
+    The ones the trainer chose, when they chose any; otherwise suggestions:
+    products whose names match the course's own "what you need" lines, in
+    the course's trades first. Its own endpoint rather than part of the
+    cached course page, so a product selling out shows at once.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    SUGGESTIONS = 4
+
+    @extend_schema(responses={200: None})
+    def get(self, request, area_slug, slug):
+        from courses.models import CourseOffer
+
+        offer = (
+            CourseOffer.objects.select_related("provider")
+            .filter(provider__area__slug=area_slug, provider__slug=slug)
+            .first()
+        )
+        if offer is None:
+            return Response({"chosen": False, "tools": [], "products": []})
+        tools = [line.strip(" -•\t") for line in offer.tools.splitlines() if line.strip(" -•\t")]
+
+        chosen = list(_public_products().filter(pk__in=offer.tool_products.values("pk")))
+        if chosen:
+            products = sorted(chosen, key=lambda product: product.availability == "sold_out")
+        else:
+            products = self._suggest(offer, tools)
+        return Response(
+            {
+                "chosen": bool(chosen),
+                "tools": tools[:20],
+                "products": _with_ratings(ProductCardSerializer, products, request),
+            }
+        )
+
+    def _suggest(self, offer, tools):
+        if not tools:
+            return []
+        query = Q()
+        for line in tools[:8]:
+            words = [word for word in line.split() if len(word) > 2][:4]
+            if words:
+                query |= Q(name__icontains=" ".join(words)) | Q(name__icontains=words[0])
+        if not query:
+            return []
+        trades = set(offer.provider.programmes.values_list("trade_id", flat=True))
+        matches = (
+            _public_products()
+            .filter(query)
+            .exclude(availability=Product.Availability.SOLD_OUT)
+            .annotate(
+                same_trade=Case(
+                    When(trade_id__in=trades, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                ),
+                own_shop=Case(
+                    When(seller__provider_id=offer.provider_id, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("own_shop", "same_trade", "-boosted", "-created_at")
+        )
+        return list(matches[: self.SUGGESTIONS])
+
+
+class TrainerShopsView(APIView):
+    """Training workshops that also sell: the shops with a workshop behind
+    them, most products first, each with a cover photo and its count.
+
+    The marketplace's strongest promise is "made by somebody who teaches it",
+    and this is where a buyer sees who those people are.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    LIMIT = 12
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from django.db.models import Count
+
+        visible = Product.objects.visible()
+        sellers = list(
+            SellerAccount.objects.filter(provider__isnull=False, products__in=visible)
+            .annotate(
+                product_count=Count("products", filter=Q(products__in=visible), distinct=True)
+            )
+            .select_related("area", "area__region", "provider", "provider__area")
+            .order_by("-product_count", "business_name")[: self.LIMIT]
+        )
+        covers = {}
+        for product in (
+            _public_products().filter(seller__in=sellers).order_by("-boosted", "-created_at")
+        ):
+            if product.seller_id not in covers:
+                first = next(iter(product.photos.all()), None)
+                covers[product.seller_id] = (
+                    public_url(first.image.url, request) if first and first.image else None
+                )
+        counts = {seller.pk: seller.product_count for seller in sellers}
+        cards = SellerCardSerializer(sellers, many=True, context={"request": request}).data
+        for card in cards:
+            card["photo"] = covers.get(card["id"])
+            card["product_count"] = counts[card["id"]]
+        return Response({"results": cards})
 
 
 class SellerDetailView(APIView):

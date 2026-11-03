@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { Minus, Plus, ShieldCheck, ShoppingBag, Store } from "lucide-react-native";
+import { GraduationCap, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
@@ -11,7 +11,9 @@ import { Button } from "@/components/Form";
 import { PhotoPager } from "@/components/PhotoPager";
 import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
+import { PickupCard } from "@/components/market/PickupCard";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { MAX_QUANTITY, useBag } from "@/lib/bag";
 import { SITE_URL } from "@/lib/config";
 import { cedis } from "@/lib/format";
@@ -30,6 +32,7 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const bag = useBag();
+  const auth = useAuth();
   const product = useQuery({ queryKey: ["product", id], queryFn: () => api.product(id) });
   const [optionId, setOptionId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -53,6 +56,23 @@ export default function ProductScreen() {
   const photos = (data?.photos.length ? data.photos.map((photo) => photo.image) : [data?.photo])
     .map((url) => mediaUrl(url))
     .filter((url): url is string => Boolean(url));
+
+  function message() {
+    if (!data) return;
+    if (!auth.signedIn) {
+      router.push({ pathname: "/sign-in", params: { why: "to message sellers" } });
+      return;
+    }
+    router.push({
+      pathname: "/chats/new",
+      params: {
+        seller: String(data.seller.id),
+        name: data.seller.business_name,
+        product: String(data.id),
+        productName: data.name,
+      },
+    });
+  }
 
   function add() {
     if (!data) return;
@@ -86,10 +106,17 @@ export default function ProductScreen() {
             </View>
           ) : (
             <>
-              <View style={[styles.badge, { backgroundColor: AVAILABILITY[data.availability].bg }]}>
-                <Text style={[styles.badgeText, { color: AVAILABILITY[data.availability].color }]}>
-                  {AVAILABILITY[data.availability].label}
-                </Text>
+              <View style={{ flexDirection: "row", gap: space.sm }}>
+                <View style={[styles.badge, { backgroundColor: AVAILABILITY[data.availability].bg }]}>
+                  <Text style={[styles.badgeText, { color: AVAILABILITY[data.availability].color }]}>
+                    {AVAILABILITY[data.availability].label}
+                  </Text>
+                </View>
+                {data.condition === "used" ? (
+                  <View style={[styles.badge, { backgroundColor: colors.warnBg }]}>
+                    <Text style={[styles.badgeText, { color: colors.warn }]}>Second-hand</Text>
+                  </View>
+                ) : null}
               </View>
               <Text variant="title" style={{ marginTop: space.sm }}>
                 {data.name}
@@ -100,7 +127,7 @@ export default function ProductScreen() {
               </View>
 
               <Pressable
-                onPress={() => void openOnSite(`/marketplace/seller/${data.seller.id}`)}
+                onPress={() => router.push(`/shop/${data.seller.id}`)}
                 style={styles.seller}
                 accessibilityRole="link"
               >
@@ -112,6 +139,26 @@ export default function ProductScreen() {
                   {data.seller.area ? <Text variant="small">{data.seller.area}</Text> : null}
                 </View>
               </Pressable>
+
+              <Button
+                label={`Message ${data.seller.business_name}`}
+                tone="outline"
+                icon={<MessageSquare size={16} color={colors.brand} />}
+                onPress={message}
+                style={{ marginTop: space.md }}
+              />
+
+              {data.seller.student_discount && data.seller.workshop ? (
+                <View style={styles.student}>
+                  <GraduationCap size={18} color={colors.visit} />
+                  <Text variant="small" style={{ flex: 1, color: colors.visit }}>
+                    Trainees of {data.seller.workshop.name} get {data.seller.student_discount}% off here. Sign in with the
+                    phone you trained with and it is taken off at checkout.
+                  </Text>
+                </View>
+              ) : null}
+
+              {data.pickup ? <PickupCard pickup={data.pickup} /> : null}
 
               {options.length ? (
                 <View style={{ marginTop: space.xl, gap: space.sm }}>
@@ -214,7 +261,7 @@ export default function ProductScreen() {
             <Button
               label={data.availability === "sold_out" ? "Get told when it is back" : "Ask the seller"}
               tone="outline"
-              onPress={() => void openOnSite(`/marketplace/${data.id}`)}
+              onPress={data.availability === "sold_out" ? () => void openOnSite(`/marketplace/${data.id}`) : message}
               style={{ flex: 1 }}
             />
           )}
@@ -282,6 +329,14 @@ const styles = StyleSheet.create({
   },
   step: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   count: { minWidth: 28, textAlign: "center", fontFamily: fonts.bold, fontSize: 16, color: colors.foreground },
+  student: {
+    marginTop: space.md,
+    flexDirection: "row",
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.visitBg,
+  },
   protect: {
     marginTop: space.xl,
     flexDirection: "row",

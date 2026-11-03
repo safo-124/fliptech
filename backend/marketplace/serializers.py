@@ -104,6 +104,14 @@ class SellerCardSerializer(serializers.ModelSerializer):
             return ratings.get(obj.pk)
         return rating_for(obj)
 
+    student_discount = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_student_discount(self, obj):
+        """Percent off for the workshop's own trainees, shown to everyone so a
+        trainee knows to sign in; only a shop that is a workshop has one."""
+        return obj.student_discount_percent if obj.provider_id else None
+
     @extend_schema_field(serializers.DictField(allow_null=True))
     def get_workshop(self, obj):
         """The training listing, when this seller is also a workshop.
@@ -137,6 +145,7 @@ class SellerCardSerializer(serializers.ModelSerializer):
             "delivery_fee",
             "delivery_area",
             "deposit_percent",
+            "student_discount",
             "away_until",
             "away_note",
         ]
@@ -218,6 +227,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
             "price",
             "was_price",
             "availability",
+            "condition",
             "trade",
             "photo",
             "seller",
@@ -236,9 +246,33 @@ class ProductOptionSerializer(serializers.ModelSerializer):
         fields = ["id", "label", "price", "available"]
 
 
+def pickup_point(seller):
+    """Where to collect, when the shop is a training workshop: the workshop's
+    own address, directions and map point, which the site already shows and
+    staff may have visited. None for a shop with no workshop, which arranges
+    collection with the buyer."""
+    provider = seller.provider if seller.provider_id else None
+    if provider is None:
+        return None
+    return {
+        "name": provider.name,
+        "address": provider.address,
+        "directions": provider.directions,
+        "area": provider.area.name,
+        "lat": provider.location.y if provider.location else None,
+        "lng": provider.location.x if provider.location else None,
+        "workshop_path": f"/{provider.area.slug}/{provider.slug}",
+    }
+
+
 class ProductDetailSerializer(ProductCardSerializer):
     photos = ProductPhotoSerializer(many=True, read_only=True)
     options = serializers.SerializerMethodField()
+    pickup = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_pickup(self, obj):
+        return pickup_point(obj.seller)
 
     @extend_schema_field(ProductOptionSerializer(many=True))
     def get_options(self, obj):
@@ -256,7 +290,7 @@ class ProductDetailSerializer(ProductCardSerializer):
         ]
 
     class Meta(ProductCardSerializer.Meta):
-        fields = [*ProductCardSerializer.Meta.fields, "description", "photos", "options"]
+        fields = [*ProductCardSerializer.Meta.fields, "description", "photos", "options", "pickup"]
 
 
 # --------------------------------------------------------------------------
@@ -316,6 +350,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "was_price",
             "trade",
             "availability",
+            "condition",
             "options",
             "status",
             "status_label",
@@ -338,6 +373,19 @@ class OwnProductSerializer(serializers.ModelSerializer):
 class SellerProfileSerializer(serializers.ModelSerializer):
     """The seller's own account, as the dashboard reads and writes it."""
 
+    workshop = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_workshop(self, obj):
+        """The training listing this shop is, for bundles and student prices."""
+        if not obj.provider_id:
+            return None
+        return {
+            "name": obj.provider.name,
+            "slug": obj.provider.slug,
+            "area_slug": obj.provider.area.slug,
+        }
+
     phone = serializers.CharField(read_only=True)
     approval_status = serializers.CharField(read_only=True)
     approval_note = serializers.CharField(read_only=True)
@@ -359,6 +407,13 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             missing.append("area")
         return missing
 
+    def validate_student_discount_percent(self, value):
+        if value and not (self.instance and self.instance.provider_id):
+            raise serializers.ValidationError(
+                "Student prices are for shops that are training workshops on the site."
+            )
+        return value
+
     class Meta:
         model = SellerAccount
         fields = [
@@ -374,6 +429,8 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             "delivery_fee",
             "delivery_area",
             "deposit_percent",
+            "student_discount_percent",
+            "workshop",
             "away_until",
             "away_note",
             "verified_at",
@@ -542,6 +599,15 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_commission(self, obj):
         return f"{obj.commission_pesewas / 100:.2f}"
 
+    pickup = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_pickup(self, obj):
+        """The workshop to collect from, for a paid order the buyer collects."""
+        if obj.status != "paid" or obj.fulfilment != Order.Fulfilment.PICKUP:
+            return None
+        return pickup_point(obj.seller)
+
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_seller_phone(self, obj):
         # Only once paid: the buyer needs it to arrange the handover, and an
@@ -579,6 +645,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "problem",
             "seller_name",
             "seller_phone",
+            "pickup",
             "paid_at",
             "delivered_at",
             "received_at",
@@ -615,3 +682,17 @@ class QuoteInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     needed_by = serializers.DateField(required=False, allow_null=True)
     name = serializers.CharField(max_length=120)
     phone = PhoneNumberField()
+
+
+class BundleOrderInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    """What a buyer sends to pay for a bundle: who and how, not what."""
+
+    phone = PhoneNumberField()
+    name = serializers.CharField(max_length=120)
+    fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices, default="pickup")
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["fulfilment"] == Order.Fulfilment.DELIVERY and not attrs.get("note", "").strip():
+            raise serializers.ValidationError({"note": "Say where it should be delivered."})
+        return attrs

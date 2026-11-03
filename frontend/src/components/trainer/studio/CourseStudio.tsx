@@ -49,6 +49,7 @@ import { TrainerApiError } from "@/lib/trainer-fetch";
 import type { CourseReview, StudioCode, StudioDetails, StudioQuestion, StudioStats } from "@/lib/types";
 
 import { LessonFunnel, PlaysChart } from "./StudioCharts";
+import { ToolProducts } from "@/components/trainer/studio/ToolProducts";
 import { StudioLessons } from "./StudioLessons";
 
 type Tab = "overview" | "lessons" | "page" | "selling" | "learners";
@@ -403,6 +404,9 @@ function CoursePageEditor() {
           ) : null}
         </div>
       </form>
+      <div className="lg:col-start-1">
+        <ToolProducts details={details} onSaved={setDetails} />
+      </div>
 
       {/* A preview of what learners will read. */}
       <aside aria-label={t("preview")} className="h-fit rounded-2xl border border-dashed border-[var(--color-border-strong)] p-5 lg:sticky lg:top-32">
