@@ -91,3 +91,66 @@ export function changeSaved(body: {add?: number[]; remove?: number[]}) {
 export function addRole(role: "trainee" | "trainer" | "seller") {
   return sessionFetch<AccountSession>(`/api/account/roles/${role}/`, {method: "POST"});
 }
+
+/** A marketplace search kept by the account, texted about new matches. */
+export type SavedSearch = {
+  id: number;
+  label: string;
+  params: Record<string, string>;
+  path: string;
+  created_at: string;
+  last_told_at: string | null;
+};
+
+export function getSavedSearches() {
+  return sessionFetch<{results: SavedSearch[]}>("/api/account/searches/");
+}
+
+export function saveSearch(params: Record<string, string>, label: string) {
+  return sessionFetch<SavedSearch>("/api/account/searches/", {
+    method: "POST",
+    body: JSON.stringify({params, label}),
+  });
+}
+
+export function deleteSavedSearch(id: number) {
+  return sessionFetch<void>(`/api/account/searches/${id}/`, {method: "DELETE"});
+}
+
+/** Chat with the seller. See backend marketplace/chat.py. */
+export type ChatMessage = {
+  id: number;
+  sender: "buyer" | "seller";
+  body: string;
+  product: {id: number; name: string; price: string | null; photo: string | null} | null;
+  created_at: string;
+};
+
+export type ChatSummary = {
+  id: number;
+  with: {name: string; id: number | null};
+  last: ChatMessage | null;
+  unread: number;
+  last_message_at: string;
+};
+
+export type ChatThread = ChatSummary & {messages: ChatMessage[]};
+
+export function getChats() {
+  return sessionFetch<{results: ChatSummary[]}>("/api/account/chats/");
+}
+
+export function startChat(seller: number, body: string, product?: number) {
+  return sessionFetch<ChatThread>("/api/account/chats/", {
+    method: "POST",
+    body: JSON.stringify({seller, body, ...(product ? {product} : {})}),
+  });
+}
+
+export function getChat(id: number) {
+  return sessionFetch<ChatThread>(`/api/account/chats/${id}/`);
+}
+
+export function sendChat(id: number, body: string) {
+  return sessionFetch<ChatThread>(`/api/account/chats/${id}/`, {method: "POST", body: JSON.stringify({body})});
+}

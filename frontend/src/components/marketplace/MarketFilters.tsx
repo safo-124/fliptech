@@ -23,6 +23,8 @@ const SWITCHES = [
 /** The parameters these filters own, for counting and clearing them. */
 export const FILTER_KEYS = [
   "sold_by",
+  "condition",
+  "min_rating",
   "min_price",
   "max_price",
   "availability",
@@ -56,7 +58,7 @@ export function MarketFilters({ params }: { params: MarketplaceParams }) {
         </span>
       </summary>
 
-      <div className="grid gap-5 border-t border-[var(--color-border)] px-4 py-4 sm:grid-cols-3">
+      <div className="grid gap-5 border-t border-[var(--color-border)] px-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
         <fieldset>
           <legend className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
             {t("soldByLabel")}
@@ -75,6 +77,32 @@ export function MarketFilters({ params }: { params: MarketplaceParams }) {
                   name="sold_by"
                   value={value}
                   defaultChecked={soldBy === value}
+                  className="size-4 accent-[var(--color-brand)]"
+                />
+                {t(label)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
+            {t("conditionLabel")}
+          </legend>
+          <div className="mt-2 flex flex-col gap-1.5">
+            {(
+              [
+                ["", "conditionAny"],
+                ["new", "conditionNew"],
+                ["used", "conditionUsedOnly"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={label} className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
+                <input
+                  type="radio"
+                  name="condition"
+                  value={value}
+                  defaultChecked={(params.condition ?? "") === value}
                   className="size-4 accent-[var(--color-brand)]"
                 />
                 {t(label)}
@@ -142,6 +170,16 @@ export function MarketFilters({ params }: { params: MarketplaceParams }) {
             <label className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
               <input
                 type="checkbox"
+                name="min_rating"
+                value="4"
+                defaultChecked={Boolean(params.min_rating)}
+                className="size-4 accent-[var(--color-brand)]"
+              />
+              {t("filterRating")}
+            </label>
+            <label className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
+              <input
+                type="checkbox"
                 name="availability"
                 value="available"
                 defaultChecked={params.availability === "available"}
@@ -152,7 +190,7 @@ export function MarketFilters({ params }: { params: MarketplaceParams }) {
           </div>
         </fieldset>
 
-        <div className="sm:col-span-3">
+        <div className="sm:col-span-2 lg:col-span-4">
           <button
             type="submit"
             className="h-11 w-full rounded-full bg-[var(--color-brand)] px-6 text-sm font-bold text-white sm:w-auto"
@@ -195,6 +233,9 @@ export function ActiveFilterChips({ params }: { params: MarketplaceParams }) {
     if (params[key]) chips.push({ label: t(label), change: { [key]: undefined } });
   }
   if (params.availability === "available") chips.push({ label: t("filterInStock"), change: { availability: undefined } });
+  if (params.condition === "used") chips.push({ label: t("conditionUsedOnly"), change: { condition: undefined } });
+  if (params.condition === "new") chips.push({ label: t("conditionNew"), change: { condition: undefined } });
+  if (params.min_rating) chips.push({ label: t("filterRating"), change: { min_rating: undefined } });
   if (!chips.length) return null;
 
   return (

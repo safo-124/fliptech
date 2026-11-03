@@ -13,6 +13,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { MessageSeller } from "@/components/marketplace/MessageSeller";
+import { PickupCard } from "@/components/marketplace/PickupCard";
 import { AskSeller } from "@/components/marketplace/AskSeller";
 import { BuyNow } from "@/components/marketplace/BuyNow";
 import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
@@ -170,8 +172,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 </>
               )}
             </p>
-            <p className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
+            <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
               {t(`availability.${product.availability}`)}
+              {product.condition === "used" ? (
+                <span className="rounded-full bg-[var(--color-warn-bg)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-warn)]">
+                  {t("conditionUsed")}
+                </span>
+              ) : null}
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
             <SaveButton
@@ -281,6 +288,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </Card>
           ) : null}
 
+          {product.pickup ? <PickupCard pickup={product.pickup} /> : null}
+
+          {product.seller.student_discount && product.seller.workshop ? (
+            <p className="rounded-xl bg-[var(--color-visit-bg)] px-3 py-2.5 text-sm text-[var(--color-visit)]">
+              {t("studentNote", {
+                workshop: product.seller.workshop.name,
+                percent: product.seller.student_discount,
+              })}
+            </p>
+          ) : null}
+
           {product.availability === "made_to_order" && product.buy_online && product.seller.deposit_percent ? (
             <p className="rounded-xl bg-[var(--color-brand-soft)] px-3 py-2.5 text-sm text-[var(--color-brand-strong)]">
               {t("depositNote", { percent: product.seller.deposit_percent })}
@@ -303,6 +321,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               />
             ) : null}
             {product.availability === "sold_out" ? <StockAlert productId={product.id} /> : null}
+            <MessageSeller
+              sellerId={product.seller.id}
+              sellerName={product.seller.business_name}
+              productId={product.id}
+              productName={product.name}
+            />
             <AskSeller productId={product.id} sellerName={product.seller.business_name} />
             <ProductViewBeacon productId={product.id} />
             <ReportProduct productId={product.id} />

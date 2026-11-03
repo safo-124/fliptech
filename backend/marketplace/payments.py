@@ -97,6 +97,10 @@ def confirm_order(reference, data):
                 DiscountCode.objects.filter(
                     seller=order.seller, code__iexact=order.discount_code
                 ).update(uses=F("uses") + 1)
+            if order.bundle_id:
+                from .bundles import grant_course
+
+                grant_course(order)
             seller_messages.queue_order_alert(order)
             transaction.on_commit(lambda: _tell_buyer(order))
             transaction.on_commit(lambda: _tell_seller(order))

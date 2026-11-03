@@ -25,6 +25,7 @@ import {
 import { NearMeButton } from "@/components/marketplace/NearMeButton";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
+import { SaveSearch } from "@/components/marketplace/SaveSearch";
 import { TrainerShops } from "@/components/marketplace/TrainerShops";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
@@ -173,6 +174,7 @@ export default async function MarketplacePage({
                 <option value="price">{t("sortPriceLow")}</option>
                 <option value="-price">{t("sortPriceHigh")}</option>
                 <option value="newest">{t("sortNewest")}</option>
+                <option value="rating">{t("sortRating")}</option>
                 {params.near ? <option value="nearest">{t("sortNearest")}</option> : null}
               </select>
               <NearMeButton
@@ -193,6 +195,9 @@ export default async function MarketplacePage({
             <Link href="/marketplace/saved" className="font-semibold text-white underline underline-offset-4">
               {t("savedLink")}
             </Link>
+            <Link href="/marketplace?condition=used" className="font-semibold text-white underline underline-offset-4">
+              {t("secondHandLink")}
+            </Link>
           </p>
           <p className="mt-2 text-sm text-white/70">
             {t("makeSomething")}{" "}
@@ -205,7 +210,14 @@ export default async function MarketplacePage({
 
       <section className="app-shell mt-8">
         <TrainerShops shops={trainerShops?.results ?? []} />
-        <ActiveFilterChips params={params} />
+        <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+          <ActiveFilterChips params={params} />
+          {filtered ? (
+            <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+              <SaveSearch params={params} label={params.q || t("title")} />
+            </ClientMessages>
+          ) : null}
+        </div>
         {products === null ? (
           <Card className="p-8 text-center">
             <p className="text-sm text-[var(--color-muted-foreground)]">{t("unavailable")}</p>

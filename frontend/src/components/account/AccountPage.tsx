@@ -18,6 +18,7 @@ import {useRouter, useSearchParams} from "next/navigation";
 import {useTranslations} from "next-intl";
 import {useCallback, useEffect, useState} from "react";
 
+import {AccountExtras} from "@/components/account/AccountExtras";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
@@ -332,6 +333,7 @@ function SignedIn({
           {t("signOut")}
         </Button>
       </header>
+      <AccountExtras />
 
       {message ? (
         <p role="status" className="rounded-lg bg-[var(--color-visit-bg)] px-3 py-2 text-sm text-[var(--color-visit)]">

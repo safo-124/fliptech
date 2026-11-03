@@ -9,8 +9,10 @@ import {
   ImagePlus,
   Loader2,
   MessageCircle,
+  MessagesSquare,
   FileText,
   Package,
+  PackagePlus,
   Pencil,
   Plus,
   ShoppingBag,
@@ -27,6 +29,8 @@ import {useTranslations} from "next-intl";
 
 import {DashboardBottomBar, DashboardSidebar, type DashboardTab} from "@/components/dashboard/DashboardNav";
 import {SellerGrowthTab} from "@/components/seller/SellerGrowth";
+import {SellerBundlesTab} from "@/components/seller/SellerBundles";
+import {SellerChatsTab} from "@/components/seller/SellerChats";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
 import {checkPhoto} from "@/lib/photo-check";
@@ -57,7 +61,7 @@ import {
   type SellerProfile,
 } from "@/lib/seller-api";
 
-type Tab = "products" | "grow" | "orders" | "quotes" | "enquiries" | "shop";
+type Tab = "products" | "grow" | "orders" | "chats" | "bundles" | "quotes" | "enquiries" | "shop";
 type Area = {slug: string; name: string; id?: number};
 
 /**
@@ -78,11 +82,13 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
   // Back from paying Paystack for a boost or the Shop plan: open the tab
   // that confirms it. Read once, in the browser; the server renders only
   // the loading state, so there is nothing to mismatch.
-  const [tab, setTab] = useState<Tab>(() =>
-    typeof window !== "undefined" && new URL(window.location.href).searchParams.has("payment")
-      ? "grow"
-      : "products",
-  );
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "products";
+    const query = new URL(window.location.href).searchParams;
+    if (query.has("payment")) return "grow";
+    // A text about a new message links here with ?tab=chats.
+    return query.get("tab") === "chats" ? "chats" : "products";
+  });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,6 +176,10 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
     {key: "products", label: t("tabProducts"), short: t("tabProductsShort"), Icon: Package},
     {key: "grow", label: t("tabGrow"), short: t("tabGrowShort"), Icon: TrendingUp},
     {key: "orders", label: t("tabOrders"), short: t("tabOrdersShort"), Icon: ShoppingBag},
+    {key: "chats", label: t("tabChats"), short: t("tabChatsShort"), Icon: MessagesSquare},
+    ...(seller.workshop
+      ? [{key: "bundles" as const, label: t("tabBundles"), short: t("tabBundlesShort"), Icon: PackagePlus}]
+      : []),
     {key: "quotes", label: t("tabQuotes"), short: t("tabQuotesShort"), Icon: FileText},
     {key: "enquiries", label: t("tabEnquiries"), short: t("tabEnquiriesShort"), Icon: MessageCircle},
     {key: "shop", label: t("tabShop"), short: t("tabShopShort"), Icon: Store},
@@ -231,6 +241,8 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
           ) : null}
           {tab === "grow" ? <SellerGrowthTab /> : null}
           {tab === "orders" ? <SellerOrdersTab /> : null}
+          {tab === "chats" ? <SellerChatsTab /> : null}
+          {tab === "bundles" ? <SellerBundlesTab products={products} /> : null}
           {tab === "quotes" ? <SellerQuotesTab /> : null}
           {tab === "enquiries" ? <EnquiriesTab enquiries={enquiries} run={run} /> : null}
           {tab === "shop" ? <ShopTab seller={seller} areas={areas} busy={busy} run={run} /> : null}
@@ -528,6 +540,7 @@ function ProductEditor({
   const [price, setPrice] = useState(product?.price ?? "");
   const [wasPrice, setWasPrice] = useState(product?.was_price ?? "");
   const [availability, setAvailability] = useState(product?.availability ?? "available");
+  const [condition, setCondition] = useState(product?.condition ?? "new");
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -539,6 +552,7 @@ function ProductEditor({
       price: price.trim() === "" ? null : price.trim(),
       was_price: (wasPrice ?? "").trim() === "" ? null : (wasPrice ?? "").trim(),
       availability,
+      condition,
     };
     await run(async () => {
       if (product) await updateProduct(product.id, body);
@@ -599,6 +613,19 @@ function ProductEditor({
                 {t("availabilityHelp")}
               </p>
             </div>
+          </div>
+
+          <div className="sm:w-1/2">
+            <Label htmlFor="product-condition">{t("conditionLabel")}</Label>
+            <NativeSelect
+              id="product-condition"
+              value={condition}
+              onChange={(event) => setCondition(event.target.value as SellerProduct["condition"])}
+            >
+              <option value="new">{t("conditionNew")}</option>
+              <option value="used">{t("conditionUsed")}</option>
+            </NativeSelect>
+            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("conditionHelp")}</p>
           </div>
 
           <div className="sm:w-1/2">
@@ -970,6 +997,9 @@ function ShopTab({
   const [deliveryFee, setDeliveryFee] = useState(seller.delivery_fee ?? "");
   const [deliveryArea, setDeliveryArea] = useState(seller.delivery_area);
   const [deposit, setDeposit] = useState(seller.deposit_percent ? String(seller.deposit_percent) : "");
+  const [student, setStudent] = useState(
+    seller.student_discount_percent ? String(seller.student_discount_percent) : "",
+  );
   const [awayUntil, setAwayUntil] = useState(seller.away_until ?? "");
   const [awayNote, setAwayNote] = useState(seller.away_note);
 
@@ -992,6 +1022,7 @@ function ShopTab({
                   delivery_fee: delivers ? deliveryFee.trim() || "0" : null,
                   delivery_area: delivers ? deliveryArea.trim() : "",
                   deposit_percent: deposit ? Number(deposit) : null,
+                  student_discount_percent: student ? Number(student) : null,
                   away_until: awayUntil || null,
                   away_note: awayUntil ? awayNote.trim() : "",
                 }),
@@ -1090,6 +1121,21 @@ function ShopTab({
             </NativeSelect>
             <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("depositHelp")}</p>
           </div>
+
+          {seller.workshop ? (
+            <div className="rounded-xl border border-[var(--color-border)] p-3">
+              <Label htmlFor="shop-student">{t("studentLabel")}</Label>
+              <NativeSelect id="shop-student" value={student} onChange={(event) => setStudent(event.target.value)}>
+                <option value="">{t("studentOff")}</option>
+                {[5, 10, 15, 20, 25, 30, 40, 50].map((percent) => (
+                  <option key={percent} value={percent}>
+                    {t("studentPercent", {percent})}
+                  </option>
+                ))}
+              </NativeSelect>
+              <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("studentHelp")}</p>
+            </div>
+          ) : null}
 
           <fieldset className="rounded-xl border border-[var(--color-border)] p-3">
             <legend className="px-1 text-sm font-medium">{t("awayTitle")}</legend>

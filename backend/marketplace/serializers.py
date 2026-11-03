@@ -373,6 +373,19 @@ class OwnProductSerializer(serializers.ModelSerializer):
 class SellerProfileSerializer(serializers.ModelSerializer):
     """The seller's own account, as the dashboard reads and writes it."""
 
+    workshop = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_workshop(self, obj):
+        """The training listing this shop is, for bundles and student prices."""
+        if not obj.provider_id:
+            return None
+        return {
+            "name": obj.provider.name,
+            "slug": obj.provider.slug,
+            "area_slug": obj.provider.area.slug,
+        }
+
     phone = serializers.CharField(read_only=True)
     approval_status = serializers.CharField(read_only=True)
     approval_note = serializers.CharField(read_only=True)
@@ -394,6 +407,13 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             missing.append("area")
         return missing
 
+    def validate_student_discount_percent(self, value):
+        if value and not (self.instance and self.instance.provider_id):
+            raise serializers.ValidationError(
+                "Student prices are for shops that are training workshops on the site."
+            )
+        return value
+
     class Meta:
         model = SellerAccount
         fields = [
@@ -410,6 +430,7 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             "delivery_area",
             "deposit_percent",
             "student_discount_percent",
+            "workshop",
             "away_until",
             "away_note",
             "verified_at",
@@ -661,3 +682,17 @@ class QuoteInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     needed_by = serializers.DateField(required=False, allow_null=True)
     name = serializers.CharField(max_length=120)
     phone = PhoneNumberField()
+
+
+class BundleOrderInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    """What a buyer sends to pay for a bundle: who and how, not what."""
+
+    phone = PhoneNumberField()
+    name = serializers.CharField(max_length=120)
+    fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices, default="pickup")
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["fulfilment"] == Order.Fulfilment.DELIVERY and not attrs.get("note", "").strip():
+            raise serializers.ValidationError({"note": "Say where it should be delivered."})
+        return attrs

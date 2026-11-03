@@ -738,16 +738,21 @@ def holds_payment(seller):
     return seller.orders.filter(status=PaymentStatus.PAID).count() < first
 
 
-def _create_order(request, seller, data):
+def _create_order(request, seller, data, bundle=None):
     if not (paystack.enabled() and seller.payout_ready):
         return Response(
             {"detail": _("This seller does not take payment on the site. Ask them instead.")},
             status=status.HTTP_409_CONFLICT,
         )
     try:
-        priced = price_basket(
-            seller, data, student_percent=student_discount_for(seller, request.user)
-        )
+        if bundle is not None:
+            from .bundles import bundle_priced
+
+            priced = bundle_priced(bundle, data.get("fulfilment"))
+        else:
+            priced = price_basket(
+                seller, data, student_percent=student_discount_for(seller, request.user)
+            )
     except BasketError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
     if not phone_vouched_for(request, data["phone"]):
@@ -785,6 +790,8 @@ def _create_order(request, seller, data):
             delivery_pesewas=priced["delivery"],
             discount_pesewas=priced["discount"],
             discount_code=priced["code"],
+            bundle=bundle,
+            course_pesewas=max(0, priced.get("course", 0)),
             commission_pesewas=priced["commission"],
             buyer_phone=data["phone"],
             buyer_name=data["name"].strip(),

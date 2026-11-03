@@ -162,3 +162,14 @@ export function payBalance(reference: string) {
     {method: "POST"},
   );
 }
+
+/** Pay for a learn-and-buy bundle: one order to the workshop's shop. */
+export function orderBundle(
+  bundleId: number,
+  body: {phone: string; name: string; fulfilment: Fulfilment; note?: string},
+) {
+  return sessionFetch<{authorization_url: string; reference: string}>(`/api/bundles/${bundleId}/orders/`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

@@ -23,6 +23,7 @@ import type {
   ProviderDetail,
   Region,
   SellerShop,
+  Bundle,
   FeaturedShop,
   TrainerShop,
   Trade,
@@ -315,6 +316,10 @@ export type MarketplaceParams = {
   delivers?: string;
   verified?: string;
   on_sale?: string;
+  /** "4" for shops rated 4 stars or more. */
+  min_rating?: string;
+  /** "new" or "used" (second-hand). */
+  condition?: string;
 };
 
 export function searchProducts(params: MarketplaceParams = {}) {
@@ -335,6 +340,27 @@ export async function searchAllProducts() {
 }
 
 /** Shop plan shops for the home page. */
+/** "Tools you need" for a course, as marketplace products. */
+export function getCourseTools(area: string, slug: string) {
+  return fetchJson<{chosen: boolean; tools: string[]; products: ProductCard[]}>(
+    `/api/courses/${area}/${slug}/tools/`,
+    {tags: [MARKETPLACE_TAG]},
+  );
+}
+
+/** Bundles a course is sold in (its workshop's shop's). */
+export function getCourseBundles(area: string, slug: string) {
+  return fetchJson<{results: Bundle[]}>(`/api/courses/${area}/${slug}/bundles/`, {tags: [MARKETPLACE_TAG]});
+}
+
+export function getShopBundles(sellerId: number) {
+  return fetchJson<{results: Bundle[]}>(`/api/sellers/${sellerId}/bundles/`, {tags: [MARKETPLACE_TAG]});
+}
+
+export function getBundle(id: string) {
+  return fetchJson<Bundle>(`/api/bundles/${id}/`, {tags: [MARKETPLACE_TAG]});
+}
+
 /** Training workshops that also sell, most products first. */
 export function getTrainerShops() {
   return fetchJson<{results: TrainerShop[]}>("/api/sellers/trainers/", {tags: [MARKETPLACE_TAG]});

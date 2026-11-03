@@ -54,6 +54,10 @@ export function ProductTile({ product }: { product: ProductCard }) {
               <span className="absolute left-2 top-2 rounded-full bg-[var(--color-card)] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--color-muted-foreground)]">
                 {t("soldOut")}
               </span>
+            ) : product.condition === "used" ? (
+              <span className="absolute left-2 top-2 rounded-full bg-[var(--color-warn-bg)] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--color-warn)]">
+                {t("conditionUsed")}
+              </span>
             ) : product.availability === "made_to_order" ? (
               <span className="absolute left-2 top-2 rounded-full bg-[var(--color-card)] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--trade-fg)]">
                 {t("madeToOrder")}

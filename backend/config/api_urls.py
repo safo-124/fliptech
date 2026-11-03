@@ -36,6 +36,7 @@ from courses.views import (
 )
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
+from marketplace import bundles, chat
 from marketplace.selling_views import (
     BasketPriceView,
     CopyProductView,
@@ -304,6 +305,16 @@ urlpatterns = [
         name="trainer-course-payout",
     ),
     path(
+        "courses/<slug:area_slug>/<slug:slug>/bundles/",
+        bundles.CourseBundlesView.as_view(),
+        name="course-bundles",
+    ),
+    path("bundles/<int:pk>/", bundles.BundleView.as_view(), name="bundle-detail"),
+    path("bundles/<int:pk>/orders/", bundles.BundleOrderView.as_view(), name="bundle-order"),
+    path("sellers/<int:pk>/bundles/", bundles.ShopBundlesView.as_view(), name="shop-bundles"),
+    path("seller/bundles/", bundles.OwnBundlesView.as_view(), name="seller-bundles"),
+    path("seller/bundles/<int:pk>/", bundles.OwnBundleView.as_view(), name="seller-bundle"),
+    path(
         "courses/<slug:area_slug>/<slug:slug>/tools/",
         CourseToolsView.as_view(),
         name="course-tools",
@@ -521,6 +532,10 @@ urlpatterns = [
     path("account/orders/", AccountOrdersView.as_view(), name="account-orders"),
     path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
     path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
+    path("account/chats/", chat.BuyerChatsView.as_view(), name="account-chats"),
+    path("account/chats/<int:pk>/", chat.BuyerChatView.as_view(), name="account-chat"),
+    path("seller/chats/", chat.SellerChatsView.as_view(), name="seller-chats"),
+    path("seller/chats/<int:pk>/", chat.SellerChatView.as_view(), name="seller-chat"),
     path("account/searches/", AccountSavedSearchesView.as_view(), name="account-searches"),
     path(
         "account/searches/<int:pk>/",
