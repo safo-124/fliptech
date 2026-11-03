@@ -14,6 +14,12 @@ const SOLD_BY: { value: MarketFilters["sold_by"]; label: string }[] = [
   { value: "makers", label: "Independent makers" },
 ];
 
+const CONDITIONS: { value: MarketFilters["condition"]; label: string }[] = [
+  { value: undefined, label: "New or used" },
+  { value: "new", label: "New only" },
+  { value: "used", label: "Second-hand" },
+];
+
 /**
  * Every marketplace filter on one sheet: who sells it, price, sort, and the
  * switches. Changes apply when "Show results" is tapped, so the list does
@@ -63,6 +69,20 @@ export function FilterSheet({
                     label={option.label}
                     on={draft.sold_by === option.value}
                     onPress={() => set({ sold_by: option.value })}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <View style={{ gap: space.sm }}>
+              <Text variant="label">Condition</Text>
+              <View style={styles.chips}>
+                {CONDITIONS.map((option) => (
+                  <Chip
+                    key={option.label}
+                    label={option.label}
+                    on={draft.condition === option.value}
+                    onPress={() => set({ condition: option.value })}
                   />
                 ))}
               </View>

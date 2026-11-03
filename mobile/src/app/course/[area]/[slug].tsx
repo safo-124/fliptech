@@ -9,6 +9,8 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-n
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackBar } from "@/components/BackBar";
+import { ProductCard } from "@/components/Cards";
+import { BundleCard } from "@/components/market/BundleCard";
 import { Button } from "@/components/Form";
 import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
@@ -44,6 +46,8 @@ export default function CourseScreen() {
     queryKey: ["course-access", area, slug, auth.signedIn],
     queryFn: () => api.courseAccess(area, slug),
   });
+  const tools = useQuery({ queryKey: ["course-tools", area, slug], queryFn: () => api.courseTools(area, slug) });
+  const bundles = useQuery({ queryKey: ["course-bundles", area, slug], queryFn: () => api.courseBundles(area, slug) });
   const [current, setCurrent] = useState<number | null>(startAt ? Number(startAt) : null);
   const [buying, setBuying] = useState(false);
   // Lessons saved on this phone: what was there when the course opened, and
@@ -303,6 +307,45 @@ export default function CourseScreen() {
                     You will need: {data.details.tools.join(", ")}
                   </Text>
                 ) : null}
+              </View>
+            ) : null}
+
+            {(bundles.data?.results ?? []).some((bundle) => bundle.buy_online) ? (
+              <View style={styles.section}>
+                <Text variant="heading">Learn and buy</Text>
+                <Text variant="small">The course and the tools for it, together for less.</Text>
+                <View style={{ gap: space.md, marginTop: space.md }}>
+                  {bundles.data!.results
+                    .filter((bundle) => bundle.buy_online)
+                    .map((bundle) => (
+                      <BundleCard key={bundle.id} bundle={bundle} />
+                    ))}
+                </View>
+              </View>
+            ) : null}
+
+            {tools.data?.products.length ? (
+              <View style={styles.section}>
+                <Text variant="heading">Tools you need</Text>
+                <Text variant="small">
+                  {tools.data.chosen
+                    ? "Chosen by the trainer, from the marketplace."
+                    : "From the marketplace, matching this course's list of tools."}
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: space.md, paddingVertical: space.md }}
+                >
+                  {tools.data.products.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      width={150}
+                      onPress={() => router.push(`/product/${product.id}`)}
+                    />
+                  ))}
+                </ScrollView>
               </View>
             ) : null}
 

@@ -1,12 +1,14 @@
 import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
 import {
+  BellRing,
   BookOpen,
   ChevronRight,
   FileText,
   Heart,
   Languages,
   LogOut,
+  MessageSquare,
   Package,
   ShieldCheck,
   Store,
@@ -32,6 +34,8 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     rows: [
       { icon: BookOpen, label: "My courses", to: "/my-courses", signedIn: true },
       { icon: Package, label: "My orders", to: "/orders", signedIn: true },
+      { icon: MessageSquare, label: "Messages", to: "/chats", signedIn: true },
+      { icon: BellRing, label: "Saved searches", to: "/saved-searches", signedIn: true },
       { icon: Heart, label: "Saved", site: "/account" },
     ],
   },

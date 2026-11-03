@@ -87,6 +87,10 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
           <View style={styles.soldOut}>
             <Text style={styles.soldOutText}>Sold out</Text>
           </View>
+        ) : product.condition === "used" ? (
+          <View style={[styles.featured, { backgroundColor: colors.warnBg }]}>
+            <Text style={[styles.featuredText, { color: colors.warn }]}>Second-hand</Text>
+          </View>
         ) : product.sponsored ? (
           <View style={styles.featured}>
             <Text style={styles.featuredText}>Sponsored</Text>

@@ -41,7 +41,11 @@ export type ProductCard = {
     /** The training listing, when the shop is also a workshop on the site. */
     workshop: { name: string; slug: string; area_slug: string } | null;
     verified?: boolean;
+    rating?: { average: number; count: number } | null;
+    student_discount?: number | null;
   };
+  /** "used" for second-hand tools. */
+  condition?: "new" | "used";
   sponsored: boolean;
 };
 
@@ -188,6 +192,18 @@ export type ProductDetail = ProductCard & {
   buy_online: boolean;
   photos: { id: number; image: string | null; caption: string; display_order: number }[];
   options: ProductOption[];
+  /** Collect from the workshop, when the shop is a training workshop. */
+  pickup: PickupPoint | null;
+};
+
+export type PickupPoint = {
+  name: string;
+  address: string;
+  directions: string;
+  area: string;
+  lat: number | null;
+  lng: number | null;
+  workshop_path: string;
 };
 
 export type BasketPrice = {
@@ -212,6 +228,8 @@ export type BasketPrice = {
   deposit_percent: number | null;
   pay_now: string;
   balance: string;
+  /** The workshop's student price was applied. */
+  student?: boolean;
 };
 
 export type Order = {
@@ -247,4 +265,75 @@ export type TrainerShop = {
   photo: string | null;
   product_count: number;
   workshop: { name: string; slug: string; area_slug: string };
+};
+
+/** A shop page. See backend SellerDetailView. */
+export type ShopDetail = {
+  seller: {
+    id: number;
+    business_name: string;
+    about: string;
+    area: string;
+    region: string;
+    workshop: { name: string; slug: string; area_slug: string } | null;
+    rating: { average: number; count: number } | null;
+    verified: boolean;
+    replies_fast: boolean;
+    delivery_fee: string | null;
+    delivery_area: string;
+    student_discount: number | null;
+    away_until: string | null;
+    away_note: string;
+  };
+  products: ProductCard[];
+  on_plan: boolean;
+  banner: string | null;
+  reviews: { id: number; rating: number; comment: string; bought: boolean; product_name: string; buyer_name: string; created_at: string }[];
+};
+
+export type FollowState = { following: boolean; followers: number; signed_in: boolean };
+
+export type ChatMessage = {
+  id: number;
+  sender: "buyer" | "seller";
+  body: string;
+  product: { id: number; name: string; price: string | null; photo: string | null } | null;
+  created_at: string;
+};
+
+export type ChatSummary = {
+  id: number;
+  with: { name: string; id: number | null };
+  last: ChatMessage | null;
+  unread: number;
+  last_message_at: string;
+};
+
+export type ChatThread = ChatSummary & { messages: ChatMessage[] };
+
+export type SavedSearch = {
+  id: number;
+  label: string;
+  params: Record<string, string>;
+  path: string;
+  created_at: string;
+  last_told_at: string | null;
+};
+
+/** Learn and buy: a workshop's course and kit together. See backend bundles.py. */
+export type Bundle = {
+  id: number;
+  title: string;
+  blurb: string;
+  percent_off: number;
+  includes_course: boolean;
+  course: { name: string; price: string | null; path: string; area_slug: string; slug: string } | null;
+  items: { product: { id: number; name: string; price: string | null; photo: string | null }; quantity: number }[];
+  seller: { id: number; business_name: string };
+  full_price: string | null;
+  price: string | null;
+  saving: string | null;
+  delivery_fee: string | null;
+  buy_online: boolean;
+  problem: string;
 };

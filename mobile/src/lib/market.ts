@@ -11,12 +11,15 @@ export type MarketFilters = {
   seller?: { id: number; name: string };
   min_price?: string;
   max_price?: string;
-  sort?: "" | "price" | "-price" | "newest";
+  sort?: "" | "price" | "-price" | "newest" | "rating";
   pay_online?: boolean;
   delivers?: boolean;
   verified?: boolean;
   on_sale?: boolean;
   in_stock?: boolean;
+  /** Shops rated 4 stars and up. */
+  top_rated?: boolean;
+  condition?: "new" | "used";
 };
 
 export const SORTS: { value: NonNullable<MarketFilters["sort"]>; label: string }[] = [
@@ -24,6 +27,7 @@ export const SORTS: { value: NonNullable<MarketFilters["sort"]>; label: string }
   { value: "price", label: "Price: low to high" },
   { value: "-price", label: "Price: high to low" },
   { value: "newest", label: "Newest" },
+  { value: "rating", label: "Best rated" },
 ];
 
 /** The switches, in the order the chips show them. */
@@ -33,6 +37,7 @@ export const SWITCHES = [
   ["on_sale", "On sale"],
   ["in_stock", "In stock"],
   ["verified", "Verified"],
+  ["top_rated", "4★ and up"],
 ] as const;
 
 /** A price as typed, kept only when it is a number. */
@@ -56,6 +61,8 @@ export function queryParams(filters: MarketFilters, page = 1): Record<string, st
     verified: filters.verified ? "1" : undefined,
     on_sale: filters.on_sale ? "1" : undefined,
     availability: filters.in_stock ? "available" : undefined,
+    min_rating: filters.top_rated ? "4" : undefined,
+    condition: filters.condition,
     page: page > 1 ? String(page) : undefined,
   };
 }
@@ -66,6 +73,13 @@ export function activeCount(filters: MarketFilters) {
   if (filters.sold_by) count++;
   if (filters.seller) count++;
   if (price(filters.min_price) || price(filters.max_price)) count++;
+  if (filters.condition) count++;
   for (const [key] of SWITCHES) if (filters[key]) count++;
   return count;
+}
+
+/** The parameters a saved search keeps (the API's names): not the order or the page. */
+export function savedSearchParams(filters: MarketFilters): Record<string, string> {
+  const { sort: _sort, page: _page, seller: _seller, ...rest } = queryParams(filters) as Record<string, string | undefined>;
+  return Object.fromEntries(Object.entries(rest).filter((entry): entry is [string, string] => Boolean(entry[1])));
 }

@@ -8,6 +8,7 @@ import { BagButton } from "@/components/BagButton";
 import { ProductCard } from "@/components/Cards";
 import { Button } from "@/components/Form";
 import { Chip, FilterSheet } from "@/components/market/FilterSheet";
+import { SaveSearchButton } from "@/components/market/SaveSearchButton";
 import { TrainerShops } from "@/components/market/TrainerShops";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
@@ -93,6 +94,12 @@ export default function ShopScreen() {
             shops={trainers.data.results}
             onPick={(shop) => toggle({ seller: { id: shop.id, name: shop.business_name } })}
           />
+        ) : null}
+
+        {!plain ? (
+          <View style={{ paddingHorizontal: space.lg }}>
+            <SaveSearchButton filters={filters} />
+          </View>
         ) : null}
 
         {products.isPending ? (
