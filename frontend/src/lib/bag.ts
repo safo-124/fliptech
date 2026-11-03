@@ -47,14 +47,14 @@ function allLines() {
   );
 }
 
-let pushTimer: number | undefined;
+let pushTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Keep the account's bag the same as this browser's (signed in only; a
     refusal when signed out is quiet). Debounced: a burst of taps is one save. */
 function pushBagSoon() {
   if (typeof window === "undefined") return;
-  window.clearTimeout(pushTimer);
-  pushTimer = window.setTimeout(() => {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
     void import("./account-api")
       .then(({replaceBag}) => replaceBag(allLines()))
       .catch(() => {});
