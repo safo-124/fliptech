@@ -7,6 +7,7 @@ import { mediaUrl } from "@/lib/media";
 import type { CourseCard as Course, ProductCard as Product, ProviderCard as Workshop } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
+import { Heart } from "./market/Heart";
 import { Text } from "./Text";
 
 const LEVELS: Record<string, string> = {
@@ -75,9 +76,10 @@ export function CourseCard({
 export function ProductCard({ product, onPress, width }: { product: Product; onPress: () => void; width?: number }) {
   const soldOut = product.availability === "sold_out";
   return (
+    <View style={width ? { width } : styles.flexCard}>
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, width ? { width } : styles.flexCard, pressed ? styles.pressed : null]}
+      style={({ pressed }) => [styles.card, { flex: 1 }, pressed ? styles.pressed : null]}
       accessibilityRole="button"
       accessibilityLabel={product.name}
     >
@@ -104,6 +106,7 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
         <Text variant="small" numberOfLines={1}>
           {product.seller.business_name}
         </Text>
+        {product.few_left ? <Text style={styles.fewLeft}>Only {product.few_left} left</Text> : null}
         {product.seller.workshop ? (
           <View style={styles.trainer}>
             <GraduationCap size={12} color={colors.brand} />
@@ -116,6 +119,12 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
         </View>
       </View>
     </Pressable>
+      {/* Beside the card, not inside it: a button inside a button is not
+          allowed, and a tap on the heart must not open the product. */}
+      <View style={styles.heart}>
+        <Heart productId={product.id} size={32} />
+      </View>
+    </View>
   );
 }
 
@@ -161,6 +170,8 @@ export function WorkshopRow({ workshop, onPress }: { workshop: Workshop; onPress
 }
 
 const styles = StyleSheet.create({
+  heart: { position: "absolute", top: 8, right: 8, zIndex: 2 },
+  fewLeft: { fontFamily: fonts.bold, fontSize: 11, color: colors.warn },
   trainer: { flexDirection: "row", alignItems: "center", gap: 4 },
   trainerText: { fontFamily: fonts.semibold, fontSize: 11, color: colors.brand },
   card: {

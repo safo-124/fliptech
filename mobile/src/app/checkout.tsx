@@ -22,13 +22,21 @@ import { colors, fonts, radius, space } from "@/theme/tokens";
  * the phone's sum: delivery, codes and deposits are worked out there.
  */
 export default function CheckoutScreen() {
-  const { seller: sellerParam } = useLocalSearchParams<{ seller: string }>();
-  const sellerId = Number(sellerParam);
+  const { seller: sellerParam, all } = useLocalSearchParams<{ seller?: string; all?: string }>();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
   const bag = useBag();
   const client = useQueryClient();
-  const group = bySeller(bag.items).find((row) => row.seller.id === sellerId);
+  // One checkout for the whole bag: every seller in turn, with the same
+  // details. Each is still paid separately: the money goes to them.
+  const everything = all === "1";
+  const groups = bySeller(bag.items);
+  const [total] = useState(groups.length);
+  const [paidRefs, setPaidRefs] = useState<string[]>([]);
+  const group = everything ? groups[0] : groups.find((row) => row.seller.id === Number(sellerParam));
+  const sellerId = group?.seller.id ?? Number(sellerParam);
+  const addresses = useQuery({ queryKey: ["addresses"], queryFn: api.addresses, enabled: auth.signedIn });
+  const [payAtCollection, setPayAtCollection] = useState(false);
   const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
   const [name, setName] = useState(auth.account?.display_name ?? "");
   const [note, setNote] = useState(auth.account?.delivery_address ?? "");
@@ -42,6 +50,7 @@ export default function CheckoutScreen() {
     items: (group?.items ?? []).map((row) => ({ product: row.product, option: row.option, quantity: row.quantity })),
     fulfilment,
     ...(code ? { code } : {}),
+    ...(payAtCollection && fulfilment === "pickup" ? { pay_at_collection: true } : {}),
   };
   const price = useQuery({
     queryKey: ["bag-price", sellerId, request],
@@ -74,7 +83,15 @@ export default function CheckoutScreen() {
       if (order.status === "paid") {
         bag.clearSeller(sellerId);
         void client.invalidateQueries({ queryKey: ["orders"] });
-        router.replace({ pathname: "/orders", params: { paid: order.reference } });
+        const left = groups.filter((row) => row.seller.id !== sellerId);
+        if (everything && left.length) {
+          setPaidRefs((now) => [...now, order.reference]);
+          setPayAtCollection(false);
+          setCode("");
+          setTypedCode("");
+          return;
+        }
+        router.replace({ pathname: "/order/[reference]", params: { reference: order.reference } });
       } else {
         Alert.alert(
           "Not paid yet",
@@ -93,6 +110,10 @@ export default function CheckoutScreen() {
     }
   }
 
+  if (!group && paidRefs.length) {
+    router.replace("/orders");
+    return null;
+  }
   if (!group) {
     return (
       <View style={styles.screen}>
@@ -109,11 +130,28 @@ export default function CheckoutScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <StackHeader eyebrow="CHECKOUT" title={group.seller.business_name} />
+      <StackHeader
+        eyebrow={everything && total > 1 ? `PAY ${paidRefs.length + 1} OF ${total}` : "CHECKOUT"}
+        title={group.seller.business_name}
+      />
       <ScrollView
         contentContainerStyle={{ padding: space.lg, gap: space.xl, paddingBottom: insets.bottom + 140 }}
         keyboardShouldPersistTaps="handled"
       >
+        {paidRefs.length ? (
+          <View style={styles.paidNote}>
+            <ShieldCheck size={18} color={colors.visit} />
+            <Text variant="small" style={{ flex: 1, color: colors.visit }}>
+              Paid {paidRefs.length} of {total}. Now {group.seller.business_name}, with the same details.
+            </Text>
+          </View>
+        ) : null}
+        {everything && groups.length > 1 ? (
+          <Text variant="small">
+            Then: {groups.slice(1).map((row) => row.seller.business_name).join(", ")}. Each seller is paid separately,
+            straight to them.
+          </Text>
+        ) : null}
         <View style={{ gap: space.sm }}>
           <Text variant="label">How do you want it?</Text>
           <View style={{ flexDirection: "row", gap: space.sm }}>
@@ -137,6 +175,20 @@ export default function CheckoutScreen() {
           ) : null}
         </View>
 
+        {fulfilment === "pickup" && priced?.collect_deposit_percent ? (
+          <Pressable
+            onPress={() => setPayAtCollection((on) => !on)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: payAtCollection }}
+            style={[styles.collect, payAtCollection ? styles.collectOn : null]}
+          >
+            <Text variant="label">Pay part now, the rest in cash when you collect</Text>
+            <Text variant="small">
+              Pay {priced.collect_deposit_percent}% now to hold it. If the seller cannot hand it over, you get it back.
+            </Text>
+          </Pressable>
+        ) : null}
+
         <Field label="Your name" value={name} onChangeText={setName} autoComplete="name" maxLength={120} error={fields.name} />
         <Field
           label={fulfilment === "delivery" ? "Where to deliver" : "A note for the seller (optional)"}
@@ -147,6 +199,22 @@ export default function CheckoutScreen() {
           placeholder={fulfilment === "delivery" ? "House number, street, a landmark" : "Anything they should know"}
           error={fields.note}
         />
+        {fulfilment === "delivery" && addresses.data?.results.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }} style={{ marginTop: -space.md }}>
+            {addresses.data.results.map((saved) => (
+              <Pressable
+                key={saved.id}
+                onPress={() => setNote(saved.address)}
+                style={[styles.address, note === saved.address ? styles.addressOn : null]}
+                accessibilityRole="button"
+              >
+                <Text style={{ fontSize: 13 }} numberOfLines={1}>
+                  {saved.label || saved.address}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
         <View style={{ flexDirection: "row", gap: space.sm, alignItems: "flex-end" }}>
           <View style={{ flex: 1 }}>
             <Field
@@ -173,10 +241,17 @@ export default function CheckoutScreen() {
                   value={cedis(line.total)}
                 />
               ))}
-              {Number(priced.discount) > 0 ? <Row label={`Code ${priced.code}`} value={`−${cedis(priced.discount)}`} /> : null}
+              {Number(priced.discount) > 0 ? (
+                <Row label={priced.student ? "Student price" : `Code ${priced.code}`} value={`−${cedis(priced.discount)}`} />
+              ) : null}
               {fulfilment === "delivery" ? <Row label="Delivery" value={cedis(priced.delivery)} /> : null}
               <View style={styles.divider} />
               <Row label="Total" value={cedis(priced.total)} strong />
+              {priced.plan === "collect" ? (
+                <Text variant="small">
+                  Pay {cedis(priced.pay_now)} now to hold it and {cedis(priced.balance)} in cash when you collect.
+                </Text>
+              ) : null}
               {priced.plan === "deposit" ? (
                 <Text variant="small">
                   Made to order: pay {cedis(priced.pay_now)} now ({priced.deposit_percent}% deposit) and{" "}
@@ -282,6 +357,19 @@ const styles = StyleSheet.create({
   strongValue: { fontFamily: fonts.extrabold, fontSize: 20, color: colors.brandDeep },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 },
   protect: { flexDirection: "row", gap: space.md, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
+  paidNote: { flexDirection: "row", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
+  collect: { gap: 4, padding: space.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
+  collectOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  address: {
+    maxWidth: 220,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  addressOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
   cta: {
     position: "absolute",
     left: 0,

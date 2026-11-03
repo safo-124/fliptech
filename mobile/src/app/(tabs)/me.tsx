@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Package,
   ShieldCheck,
+  Wallet,
   Store,
   UserRound,
   type LucideIcon,
@@ -26,7 +27,7 @@ import { showPhone } from "@/lib/phone";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /** A row opens an app screen (`to`) or, until the app has one, the website (`site`). */
-type Row = { icon: LucideIcon; label: string; to?: Href; site?: string; signedIn?: boolean };
+type Row = { icon: LucideIcon; label: string; to?: Href; site?: string; signedIn?: boolean; sellerOnly?: boolean };
 
 const GROUPS: { title: string; rows: Row[] }[] = [
   {
@@ -36,14 +37,15 @@ const GROUPS: { title: string; rows: Row[] }[] = [
       { icon: Package, label: "My orders", to: "/orders", signedIn: true },
       { icon: MessageSquare, label: "Messages", to: "/chats", signedIn: true },
       { icon: BellRing, label: "Saved searches", to: "/saved-searches", signedIn: true },
-      { icon: Heart, label: "Saved", site: "/account" },
+      { icon: Heart, label: "Saved", to: "/saved" },
     ],
   },
   {
     title: "Work with us",
     rows: [
       { icon: UserRound, label: "Teach a course or list your workshop", site: "/join" },
-      { icon: Store, label: "Sell on the marketplace", site: "/sell" },
+      { icon: Store, label: "Sell on the marketplace", site: "/sell", sellerOnly: false },
+      { icon: Wallet, label: "My shop: sales and stock", to: "/seller", signedIn: true, sellerOnly: true },
     ],
   },
   {
@@ -120,7 +122,11 @@ export default function MeScreen() {
             {group.title}
           </Text>
           <View style={styles.list}>
-            {group.rows.map((row, index) => (
+            {group.rows
+              .filter((row) =>
+                row.sellerOnly === undefined ? true : row.sellerOnly ? Boolean(auth.roles?.seller) : !auth.roles?.seller,
+              )
+              .map((row, index) => (
               <Pressable
                 key={row.label}
                 onPress={() => open(row)}

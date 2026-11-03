@@ -1,5 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+import { request } from "./api";
+import { useAuth } from "./auth";
 
 /** One thing in the bag: what the API needs, and what the bag shows. */
 export type BagItem = {
@@ -31,6 +34,31 @@ const BagContext = createContext<Bag | null>(null);
 
 const same = (item: BagItem, product: number, option: number | null) =>
   item.product === product && item.option === option;
+
+type ServerLine = {
+  product: number;
+  option: number | null;
+  option_label: string;
+  quantity: number;
+  name: string;
+  price: string | null;
+  photo: string | null;
+  seller: { id: number; business_name: string };
+};
+
+const lines = (items: BagItem[]) =>
+  items.map((item) => ({ product: item.product, option: item.option, quantity: item.quantity }));
+
+const fromLine = (row: ServerLine): BagItem => ({
+  product: row.product,
+  option: row.option,
+  optionLabel: row.option_label,
+  quantity: row.quantity,
+  name: row.name,
+  photo: row.photo,
+  price: row.price,
+  seller: row.seller,
+});
 
 /** Add to a bag that may already hold the same thing: the numbers add up. */
 export function addTo(items: BagItem[], item: BagItem): BagItem[] {
@@ -72,6 +100,42 @@ export function BagProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loaded) void AsyncStorage.setItem(KEY, JSON.stringify(items)).catch(() => undefined);
   }, [items, loaded]);
+
+  // Signed in, the bag follows the account: on sign-in this phone's bag joins
+  // the account's and the result comes back; after that each change is saved
+  // there too (a burst of taps is one save).
+  const { signedIn } = useAuth();
+  const synced = useRef(false);
+  const fromServer = useRef(false);
+  useEffect(() => {
+    if (!loaded || !signedIn) {
+      synced.current = false;
+      return;
+    }
+    if (synced.current) return;
+    synced.current = true;
+    request<{ items: ServerLine[] }>("POST", "/api/account/bag/", { body: { add: lines(items) } })
+      .then((reply) => {
+        fromServer.current = true;
+        setItems(reply.items.map(fromLine));
+      })
+      .catch(() => {
+        synced.current = false;
+      });
+    // Only when signing in or on first load, not on every change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, signedIn]);
+  useEffect(() => {
+    if (!loaded || !signedIn || !synced.current) return;
+    if (fromServer.current) {
+      fromServer.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      void request("PUT", "/api/account/bag/", { body: { items: lines(items) } }).catch(() => undefined);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [items, loaded, signedIn]);
 
   const add = useCallback((item: BagItem) => setItems((now) => addTo(now, item)), []);
   const setQuantity = useCallback(
