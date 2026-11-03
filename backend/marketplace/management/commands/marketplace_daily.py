@@ -39,12 +39,14 @@ class Command(BaseCommand):
         asked = self.ask_for_reviews(now)
         reminded = self.remind_plans(now)
         released = self.release_payments(now)
-        from marketplace.alerts import tell_followers
+        from marketplace.alerts import tell_followers, tell_saved_searches
 
         followers = tell_followers(now)
+        searches = tell_saved_searches(now)
         self.stdout.write(
             f"{asked} review request(s), {reminded} plan reminder(s) sent, "
-            f"{released} held payment(s) released, {followers} follower(s) told of new products."
+            f"{released} held payment(s) released, {followers} follower(s) told of new products, "
+            f"{searches} saved search(es) with new matches."
         )
 
     def release_payments(self, now):

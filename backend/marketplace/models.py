@@ -183,6 +183,13 @@ class SellerAccount(TimeStampedModel):
         null=True, blank=True, validators=[MinValueValidator(10), MaxValueValidator(90)]
     )
 
+    # Student prices: a workshop's own trainees (enrolled there, or bought
+    # its online course) pay this much less, applied at checkout without a
+    # code. Only for a shop that is a workshop; see students.py.
+    student_discount_percent = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(5), MaxValueValidator(50)]
+    )
+
     # Away mode: Buy now is off and the shop says when they are back, so a
     # seller who is travelling is not sent orders they cannot fill.
     away_until = models.DateField(null=True, blank=True)
@@ -264,6 +271,10 @@ class Product(TimeStampedModel):
         # are different events and the queue must tell them apart.
         SUSPENDED = "suspended", "Taken down by staff"
 
+    class Condition(models.TextChoices):
+        NEW = "new", "New"
+        USED = "used", "Used"
+
     class Availability(models.TextChoices):
         """Not a stock count.
 
@@ -319,6 +330,14 @@ class Product(TimeStampedModel):
         max_length=20,
         choices=Availability.choices,
         default=Availability.AVAILABLE,
+        db_index=True,
+    )
+    # Second-hand tools: a trainee who has finished their course sells the
+    # kit on. Said on every card, so nobody buys used thinking it is new.
+    condition = models.CharField(
+        max_length=10,
+        choices=Condition.choices,
+        default=Condition.NEW,
         db_index=True,
     )
     status = models.CharField(
@@ -1072,3 +1091,57 @@ class ShopFollow(models.Model):
 
     def __str__(self):
         return f"{self.account} follows {self.seller}"
+
+
+class SavedSearch(models.Model):
+    """A search a signed-in buyer keeps, and is texted about: "tell me when
+    sewing machines under GH₵500 appear". The parameters are the same as
+    /api/products/'s, so the alert finds what the search page would show.
+    marketplace_daily texts at most once a day per search."""
+
+    # The marketplace parameters a saved search may keep. Paging, sorting and
+    # "near me" change the order, not what matches, so they are left out.
+    KEYS = (
+        "q",
+        "trade",
+        "area",
+        "region",
+        "sold_by",
+        "min_price",
+        "max_price",
+        "condition",
+        "availability",
+        "min_rating",
+        "pay_online",
+        "delivers",
+        "verified",
+        "on_sale",
+    )
+    LIMIT = 10
+
+    account = models.ForeignKey(
+        "accounts.CustomerAccount", on_delete=models.CASCADE, related_name="saved_searches"
+    )
+    params = models.JSONField(default=dict)
+    label = models.CharField(max_length=160)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Products that went on show after this are "new" to this search.
+    checked_at = models.DateTimeField(default=timezone.now)
+    last_told_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.account}: {self.label}"
+
+    @classmethod
+    def clean_params(cls, raw):
+        """Only the known keys, as short strings, empties dropped."""
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            key: str(raw[key]).strip()[:100]
+            for key in cls.KEYS
+            if raw.get(key) not in (None, "", False)
+        }

@@ -72,6 +72,7 @@ from .serializers import (
     ReviewInputSerializer,
 )
 from .stats import record_product_view, seller_stats
+from .students import student_discount_for, who_is_asking
 from .views import IsActiveSeller, _account, _public_products
 
 SESSION_ORDERS = "marketplace_orders"
@@ -503,7 +504,12 @@ class BasketError(Exception):
     """Something in the basket cannot be bought; the message says what."""
 
 
-def price_basket(seller, data):
+# How a student price is recorded on an order in place of a code. Typed
+# codes never have spaces (price_basket strips them), so this cannot clash.
+STUDENT_PRICE = "Student price"
+
+
+def price_basket(seller, data, student_percent=0):
     """Work out an order before it exists: lines, delivery, discount, total.
 
     Every price is read from the database, never from the request. Each
@@ -580,6 +586,16 @@ def price_basket(seller, data):
         discount = int(
             (Decimal(subtotal) * found.percent / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
         )
+    # A student price and a code do not stack: the better of the two applies.
+    student = (
+        int(
+            (Decimal(subtotal) * student_percent / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+        )
+        if student_percent
+        else 0
+    )
+    if student > discount:
+        discount, code = student, STUDENT_PRICE
     delivery = 0
     if data.get("fulfilment") == Order.Fulfilment.DELIVERY and seller.delivery_fee is not None:
         delivery = int(seller.delivery_fee * 100)
@@ -620,6 +636,7 @@ def price_basket(seller, data):
         "commission_now": commission_now,
         "balance": balance,
         "balance_commission": commission - commission_now,
+        "student": code == STUDENT_PRICE,
     }
 
 
@@ -653,6 +670,7 @@ def _basket_payload(priced, seller):
         "delivery_area": seller.delivery_area,
         "total": _pesewas(priced["total"]),
         "protected": settings.MARKETPLACE_HOLD_PAYMENTS,
+        "student": priced["student"],
     }
 
 
@@ -694,7 +712,14 @@ class BasketPriceView(APIView):
         ):
             return Response(status=429)
         try:
-            priced = price_basket(seller, dict(serializer.validated_data))
+            priced = price_basket(
+                seller,
+                dict(serializer.validated_data),
+                # No DRF authentication on pricing, but the session (or the
+                # app's token) still says who is asking: a student sees
+                # their price before paying.
+                student_percent=student_discount_for(seller, who_is_asking(request)),
+            )
         except BasketError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_basket_payload(priced, seller))
@@ -720,7 +745,9 @@ def _create_order(request, seller, data):
             status=status.HTTP_409_CONFLICT,
         )
     try:
-        priced = price_basket(seller, data)
+        priced = price_basket(
+            seller, data, student_percent=student_discount_for(seller, request.user)
+        )
     except BasketError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
     if not phone_vouched_for(request, data["phone"]):
@@ -858,7 +885,11 @@ def _buyers_order(request, reference):
     phone paid for it, from any phone."""
     from core.identities import signed_in_phones
 
-    order = Order.objects.select_related("seller").filter(reference=reference).first()
+    order = (
+        Order.objects.select_related("seller", "seller__provider", "seller__provider__area")
+        .filter(reference=reference)
+        .first()
+    )
     if order is None or (
         reference not in request.session.get(SESSION_ORDERS, [])
         and str(order.buyer_phone) not in signed_in_phones(request)
@@ -1576,6 +1607,7 @@ class CopyProductView(APIView):
                 was_price=original.was_price,
                 trade=original.trade,
                 availability=original.availability,
+                condition=original.condition,
                 status=Product.Status.DRAFT,
             )
             ProductOption.objects.bulk_create(

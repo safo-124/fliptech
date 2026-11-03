@@ -249,7 +249,7 @@ class OrdersView(APIView):
         account = _account(request)
         orders = (
             Order.objects.filter(buyer_phone=account.phone, status=PaymentStatus.PAID)
-            .select_related("seller")
+            .select_related("seller", "seller__provider", "seller__provider__area")
             .prefetch_related("items")
             .order_by("-paid_at")[:100]
         )
@@ -336,6 +336,76 @@ class SavedView(APIView):
             ignore_conflicts=True,
         )
         return Response({"ids": list(account.saved.values_list("product_id", flat=True))})
+
+
+def _saved_search_payload(search):
+    from urllib.parse import urlencode
+
+    return {
+        "id": search.pk,
+        "label": search.label,
+        "params": search.params,
+        "path": "/marketplace" + (f"?{urlencode(search.params)}" if search.params else ""),
+        "created_at": search.created_at,
+        "last_told_at": search.last_told_at,
+    }
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SavedSearchesView(APIView):
+    """Saved marketplace searches. POST keeps one (texted about new matches
+    once a day at most); up to SavedSearch.LIMIT each."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        account = _account(request)
+        return Response(
+            {"results": [_saved_search_payload(s) for s in account.saved_searches.all()]}
+        )
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        from marketplace.models import SavedSearch
+
+        account = _account(request)
+        params = SavedSearch.clean_params(request.data.get("params"))
+        if not params:
+            return Response(
+                {"detail": _("Search for something or choose a filter first.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        existing = next((s for s in account.saved_searches.all() if s.params == params), None)
+        if existing is not None:
+            return Response(_saved_search_payload(existing))
+        if account.saved_searches.count() >= SavedSearch.LIMIT:
+            return Response(
+                {
+                    "detail": _("You can keep %(n)s searches. Delete one first.")
+                    % {"n": SavedSearch.LIMIT}
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        label = (
+            str(request.data.get("label") or "").strip()[:160]
+            or params.get("q")
+            or _("Marketplace search")
+        )
+        search = SavedSearch.objects.create(account=account, params=params, label=label)
+        return Response(_saved_search_payload(search), status=status.HTTP_201_CREATED)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SavedSearchView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+
+    @extend_schema(responses={204: None})
+    def delete(self, request, pk):
+        _account(request).saved_searches.filter(pk=pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @method_decorator(csrf_protect, name="dispatch")

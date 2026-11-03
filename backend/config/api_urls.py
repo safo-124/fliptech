@@ -15,6 +15,8 @@ from accounts.views import CodeVerifyView as AccountCodeVerifyView
 from accounts.views import LogoutView as AccountLogoutView
 from accounts.views import OrdersView as AccountOrdersView
 from accounts.views import QuestionsView as AccountQuestionsView
+from accounts.views import SavedSearchesView as AccountSavedSearchesView
+from accounts.views import SavedSearchView as AccountSavedSearchView
 from accounts.views import SavedView as AccountSavedView
 from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
@@ -70,6 +72,7 @@ from marketplace.selling_views import (
     StockAlertView,
 )
 from marketplace.views import (
+    CourseToolsView,
     OwnEnquiriesView,
     OwnProductsView,
     OwnProductView,
@@ -301,6 +304,11 @@ urlpatterns = [
         name="trainer-course-payout",
     ),
     path(
+        "courses/<slug:area_slug>/<slug:slug>/tools/",
+        CourseToolsView.as_view(),
+        name="course-tools",
+    ),
+    path(
         "courses/<slug:area_slug>/<slug:slug>/code/",
         CourseCodeCheckView.as_view(),
         name="course-code",
@@ -513,6 +521,12 @@ urlpatterns = [
     path("account/orders/", AccountOrdersView.as_view(), name="account-orders"),
     path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
     path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
+    path("account/searches/", AccountSavedSearchesView.as_view(), name="account-searches"),
+    path(
+        "account/searches/<int:pk>/",
+        AccountSavedSearchView.as_view(),
+        name="account-search",
+    ),
     path("account/roles/<str:role>/", AccountAddRoleView.as_view(), name="account-add-role"),
     path("", include(router.urls)),
 ]

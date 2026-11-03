@@ -68,6 +68,11 @@ class CourseOffer(TimeStampedModel):
     summary = models.TextField(max_length=1200, blank=True)
     outcomes = models.TextField("what you will learn", max_length=1500, blank=True)
     tools = models.TextField("what you need", max_length=1000, blank=True)
+    # "Tools you need", linked to the marketplace: products the trainer
+    # chose for this course, theirs or anybody's. Only visible ones are shown.
+    tool_products = models.ManyToManyField(
+        "marketplace.Product", blank=True, related_name="courses_needing"
+    )
     level = models.CharField(max_length=20, choices=Level.choices, blank=True)
 
     # A launch price: lower than `price` until it ends. Never below the floor,

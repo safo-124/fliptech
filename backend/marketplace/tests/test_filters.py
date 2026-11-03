@@ -184,3 +184,157 @@ def test_a_workshop_shop_with_nothing_on_show_is_not_listed(client, shops):
     draft.status = Product.Status.DRAFT
     draft.save()
     assert client.get(reverse("sellers-trainers")).json()["results"] == []
+
+
+def review(seller, rating, shown=True):
+    from marketplace.models import SellerReview
+
+    return SellerReview.objects.create(
+        seller=seller,
+        product_name="Something",
+        rating=rating,
+        visibility=SellerReview.Visibility.SHOWN if shown else SellerReview.Visibility.HIDDEN,
+    )
+
+
+@pytest.mark.django_db
+def test_rating_filter_and_best_rated_sort(client, shops, django_user_model, area):
+    trainer, maker = shops
+    unrated = shop(django_user_model, area, "New Shop", "+233201110803")
+    product(trainer, "Kente shirt")
+    product(maker, "Bead bracelet")
+    product(unrated, "Fresh soap")
+    for rating in (5, 4):
+        review(trainer, rating)  # 4.5 from two
+    review(maker, 5)  # 5.0 from one
+    review(maker, 1, shown=False)  # hidden: does not count
+
+    assert names(client, min_rating="4.5") == ["Bead bracelet", "Kente shirt"]
+    assert names(client, min_rating="4.8") == ["Bead bracelet"]
+    rows = client.get(reverse("product-list"), {"sort": "rating"}).json()["results"]
+    assert [row["name"] for row in rows] == ["Bead bracelet", "Kente shirt", "Fresh soap"]
+
+
+@pytest.mark.django_db
+def test_second_hand_filter(client, shops):
+    trainer, _ = shops
+    product(trainer, "New scissors")
+    product(trainer, "Used sewing machine", condition=Product.Condition.USED)
+    assert names(client, condition="used") == ["Used sewing machine"]
+    assert names(client, condition="new") == ["New scissors"]
+    row = client.get(reverse("product-list"), {"condition": "used"}).json()["results"][0]
+    assert row["condition"] == "used"
+
+
+@pytest.mark.django_db
+def test_a_workshop_shop_offers_pickup_at_the_workshop(client, shops, workshop):
+    trainer, maker = shops
+    workshop.address = "Behind Adenta Barrier"
+    workshop.directions = "Blue gate after the church"
+    workshop.save()
+    theirs = product(trainer, "Kente shirt")
+    other = product(maker, "Bead bracelet")
+    pickup = client.get(reverse("product-detail", args=[theirs.pk])).json()["pickup"]
+    assert pickup["address"] == "Behind Adenta Barrier"
+    assert pickup["directions"] == "Blue gate after the church"
+    assert pickup["workshop_path"] == f"/adenta/{workshop.slug}"
+    assert round(pickup["lat"], 3) == 5.604
+    assert client.get(reverse("product-detail", args=[other.pk])).json()["pickup"] is None
+
+
+@pytest.mark.django_db
+def test_saved_searches_text_new_matches_once(client, shops, monkeypatch, settings):
+    from accounts.models import CustomerAccount
+    from marketplace import alerts
+    from marketplace.models import SavedSearch
+
+    settings.PUBLIC_SITE_URL = "https://skills.example"
+    sent = []
+    monkeypatch.setattr(alerts, "send_sms", lambda to, message: sent.append((str(to), message)))
+    trainer, maker = shops
+    buyer = CustomerAccount.objects.create(
+        user=trainer.user.__class__.objects.create_user("buyer-kofi"),
+        phone="+233201112233",
+        phone_verified_at=timezone.now(),
+    )
+    client.force_login(buyer.user)
+
+    refused = client.post(
+        reverse("account-searches"), {"params": {"page": "2"}}, content_type="application/json"
+    )
+    assert refused.status_code == 400
+    made = client.post(
+        reverse("account-searches"),
+        {
+            "params": {"q": "machine", "max_price": "500", "junk": "x"},
+            "label": "Machines under 500",
+        },
+        content_type="application/json",
+    )
+    assert made.status_code == 201
+    assert made.json()["params"] == {"q": "machine", "max_price": "500"}
+    again = client.post(
+        reverse("account-searches"),
+        {"params": {"q": "machine", "max_price": "500"}},
+        content_type="application/json",
+    )
+    assert again.json()["id"] == made.json()["id"]
+
+    search = SavedSearch.objects.get()
+    search.checked_at = timezone.now() - timedelta(days=1)
+    search.save()
+    product(maker, "Sewing machine", price="450.00")
+    product(maker, "Grinding machine", price="900.00")  # too dear
+    product(maker, "Scissors", price="20.00")  # does not match
+    Product.objects.update(published_at=timezone.now())
+
+    assert alerts.tell_saved_searches() == 1
+    assert len(sent) == 1
+    assert sent[0][0] == "+233201112233"
+    assert '1 new match for "Machines under 500"' in sent[0][1]
+    assert "/marketplace?q=machine&max_price=500" in sent[0][1]
+    # Nothing new, or too soon: no second text.
+    assert alerts.tell_saved_searches() == 0
+
+    listed = client.get(reverse("account-searches")).json()["results"]
+    assert [row["label"] for row in listed] == ["Machines under 500"]
+    client.delete(reverse("account-search", args=[listed[0]["id"]]))
+    assert not SavedSearch.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_workshops_own_students_get_its_student_price(client, shops, workshop):
+    from courses.models import CoursePurchase
+    from trainees.auth import account_for_verified_phone
+
+    trainer, _ = shops
+    trainer.student_discount_percent = 20
+    trainer.save()
+    kit = product(trainer, "Tailoring kit", price="200.00")
+    body = {"items": [{"product": kit.pk, "quantity": 1}], "fulfilment": "pickup"}
+    url = reverse("shop-price", args=[trainer.pk])
+
+    stranger = client.post(url, body, content_type="application/json").json()
+    assert stranger["total"] == "200.00"
+    assert stranger["student"] is False
+
+    trainee = account_for_verified_phone(phone="+233241110000", verified_at=timezone.now())
+    client.force_login(trainee.user)
+    assert client.post(url, body, content_type="application/json").json()["student"] is False
+
+    CoursePurchase.objects.create(
+        reference="fc-test", provider=workshop, trainee=trainee, amount_pesewas=5000, status="paid"
+    )
+    student = client.post(url, body, content_type="application/json").json()
+    assert student["student"] is True
+    assert student["discount"] == "40.00"
+    assert student["total"] == "160.00"
+
+    # A code worth more wins; they do not stack.
+    trainer.codes.create(code="HALF", percent=50)
+    coded = client.post(url, {**body, "code": "HALF"}, content_type="application/json").json()
+    assert coded["discount"] == "100.00"
+    assert coded["student"] is False
+
+    card = client.get(reverse("product-detail", args=[kit.pk])).json()["seller"]
+    assert card["student_discount"] == 20
