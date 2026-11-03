@@ -56,3 +56,30 @@ class SavedProduct(models.Model):
 
     def __str__(self):
         return f"{self.account} saved {self.product_id}"
+
+
+class AppToken(models.Model):
+    """A sign-in for the mobile app, kept on the phone in place of a cookie.
+
+    The app sends it as `Authorization: Bearer <token>` (accounts/app_auth.py).
+    Only a hash is stored: a copy of this table is not a copy of anybody's
+    sign-in. Signing out of the app revokes it; staff can revoke one here too,
+    for a lost phone.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="app_tokens"
+    )
+    key_hash = models.CharField(max_length=64, unique=True)
+    # "Samsung SM-A145F", as the app says, so a person can tell their phones apart.
+    device = models.CharField(max_length=120, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "app sign-in"
+
+    def __str__(self):
+        return f"{self.user} on {self.device or 'a phone'}"

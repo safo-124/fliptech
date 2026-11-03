@@ -143,6 +143,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # The mobile app signs in with a bearer token, not a cookie.
+    "accounts.app_auth.AppTokenMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Records the author of every change. Structural rule 2 in DATA_MODEL.md.

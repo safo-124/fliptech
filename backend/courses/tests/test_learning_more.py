@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from django.core.files import File
+from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
@@ -758,3 +759,23 @@ def test_srt_and_vtt_both_become_webvtt():
     vtt = studio.to_vtt("WEBVTT\n\n00:01.000 --> 00:02.000\nHello")
     assert vtt == "WEBVTT\n\n00:01.000 --> 00:02.000\nHello\n"
     assert Decimal("1") == Decimal("1.0")
+
+
+@pytest.mark.django_db
+def test_a_course_bought_from_the_app_returns_to_the_app(client, trainee, course, calls):
+    from accounts.app_auth import issue_token
+
+    provider, _ = course
+    priced(provider)
+    calls.answers["/transaction/initialize"] = {"authorization_url": "https://pay.example"}
+    token = issue_token(trainee.user, device="test phone")
+    bought = Client().post(
+        reverse("course-buy", args=[provider.area.slug, provider.slug]),
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+    assert bought.status_code == 201
+    assert calls[-1][2]["callback_url"] == "https://skills.example/app-return"
+
+    as_user(client, trainee.user)
+    client.post(reverse("course-buy", args=[provider.area.slug, provider.slug]))
+    assert "/learn/" in calls[-1][2]["callback_url"]

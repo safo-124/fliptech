@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 
@@ -8,7 +9,6 @@ import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
-import { openOnSite } from "@/lib/open";
 import { space } from "@/theme/tokens";
 
 /**
@@ -42,7 +42,7 @@ export default function LearnScreen() {
                 key={course.id}
                 course={course}
                 fill
-                onPress={() => void openOnSite(`/learn/${course.area_slug}/${course.slug}`)}
+                onPress={() => router.push(`/course/${course.area_slug}/${course.slug}`)}
               />
             ))}
           </>

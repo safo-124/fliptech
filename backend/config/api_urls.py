@@ -7,6 +7,7 @@ endpoints, the tokenised dashboard, and the signed-in trainee and trainer areas.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts.app_views import AppCodeRequestView, AppCodeVerifyView, AppSignOutView
 from accounts.views import AccountView
 from accounts.views import AddRoleView as AccountAddRoleView
 from accounts.views import CodeRequestView as AccountCodeRequestView
@@ -497,6 +498,11 @@ urlpatterns = [
     path("seller/payout/banks/", SellerPayoutBanksView.as_view(), name="seller-payout-banks"),
     path("seller/orders/", OwnOrdersView.as_view(), name="seller-orders"),
     path("seller/orders/<str:reference>/", OwnOrderView.as_view(), name="seller-order"),
+    # The mobile app's sign-in: a token instead of a cookie. See
+    # accounts/app_views.py and accounts/app_auth.py.
+    path("app/request-code/", AppCodeRequestView.as_view(), name="app-request-code"),
+    path("app/verify-code/", AppCodeVerifyView.as_view(), name="app-verify-code"),
+    path("app/sign-out/", AppSignOutView.as_view(), name="app-sign-out"),
     # One sign-in for everyone; see accounts/views.py.
     path("account/", AccountView.as_view(), name="account"),
     path("account/request-code/", AccountCodeRequestView.as_view(), name="account-request-code"),
