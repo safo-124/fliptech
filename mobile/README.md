@@ -21,6 +21,11 @@ React Native. It talks to the same Django API as the website, in
   trade, "near me", "search this area" after moving the map, and a card
   with directions and the workshop's page. MapLibre (open source, no
   Google) with OpenStreetMap tiles, like the website. See `src/app/map.tsx`.
+  **For now**, where MapLibre is not in the app (Expo Go), the same map is
+  drawn with Google Maps (`react-native-maps`, built into Expo Go), so it
+  shows something; `src/components/map/WorkshopMap.tsx` picks. A store build
+  that uses Google Maps needs a Maps API key in `app.json`
+  (`android.config.googleMaps.apiKey`).
 - **Sign in with a phone number** and a texted code (`src/app/sign-in.tsx`),
   the same login as the website. The app keeps a token in the phone's secure
   storage and sends it as `Authorization: Bearer flt_…`; the backend
