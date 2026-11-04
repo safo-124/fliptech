@@ -24,7 +24,7 @@
  * the site is usable on a cheap phone on a slow network.
  */
 
-import { ArrowRight, GraduationCap, MapPin, PlayCircle, Search, ShoppingBag } from "lucide-react";
+import { ArrowRight, ArrowUpRight, GraduationCap, MapPin, PlayCircle, Search, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -33,7 +33,7 @@ import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
 import { IntakesBoard } from "@/components/IntakesBoard";
-import { TradeArt } from "@/components/TradeArt";
+import { TradeIcon } from "@/components/TradeArt";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { Button } from "@/components/ui/button";
 import {
@@ -265,33 +265,22 @@ export default async function Home({
             linkHref="/training"
             linkLabel={t("viewAll")}
           />
-          {/* auto-fit, not a column count: staff decide how many categories
-              exist. 8.5rem fits eight across a desktop, as the design has
-              them, and two fixed columns on a phone, where auto-fit alone
-              would collapse to one tile a row. */}
-          <ul className="mt-5 grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr))]">
+          {/* Quiet tiles: the trade's colour is a hint (the icon, a glow in
+              the corner, the border on hover), not a full pastel block. */}
+          <ul className={styles.skills}>
             {trades.map((trade) => (
               <li key={trade.slug}>
-                <Link
-                  href={`/trades/${trade.slug}`}
-                  className={`${tradeClass(trade.colour)} group block h-full overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-card)]`}
-                >
-                  <div className="relative grid aspect-[4/3] place-items-center overflow-hidden bg-[var(--trade-bg)]">
+                <Link href={`/trades/${trade.slug}`} className={`${tradeClass(trade.colour)} ${styles.skill}`}>
+                  <span className={styles.skillIcon}>
                     {trade.picture ? (
-                      <Image
-                        src={trade.picture}
-                        alt=""
-                        fill
-                        sizes="(min-width: 1024px) 12vw, 50vw"
-                        className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                      />
+                      <Image src={trade.picture} alt="" fill sizes="48px" className="object-cover" />
                     ) : (
-                      <TradeArt colour={trade.colour} picture={null} className="size-16" />
+                      <TradeIcon colour={trade.colour} className="size-6" />
                     )}
-                  </div>
-                  <span className="block px-2 py-2.5 text-center text-[13px] font-bold leading-tight tracking-[-0.01em]">
-                    {trade.name}
                   </span>
+                  <ArrowUpRight aria-hidden="true" className={styles.skillArrow} />
+                  <span className={styles.skillName}>{trade.name}</span>
+                  <span className={styles.skillCount}>{t("skillCount", { count: trade.provider_count })}</span>
                 </Link>
               </li>
             ))}

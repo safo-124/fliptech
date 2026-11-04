@@ -39,6 +39,7 @@
     "pillarMarketBody": "Shop products made by trainers and skilled professionals.",
     "skillsTitle": "Explore popular skills",
     "skillsBody": "Discover something you can learn, practise or turn into a business.",
+    "skillCount": "{count, plural, =0 {New on the site} one {# workshop} other {# workshops}}",
     "providerTitle": "Have a skill to share?",
     "providerBody": "Register as a trainer or seller, showcase your expertise and connect with new learners and customers.",
     "providerAction": "Become a provider",

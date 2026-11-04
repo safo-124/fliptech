@@ -65,3 +65,9 @@ export function TradeArt({
     </div>
   );
 }
+
+/** The trade's icon on its own, in the current text colour. */
+export function TradeIcon({ colour, className }: { colour: string; className?: string }) {
+  const Icon = ICONS[tradeColour(colour)];
+  return <Icon aria-hidden="true" className={className} strokeWidth={1.6} />;
+}
