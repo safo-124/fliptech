@@ -51,6 +51,7 @@ import { BRAND } from "@/lib/brand";
 import { searchRedirectTarget } from "@/lib/search-redirect";
 import { tradeClass } from "@/lib/trades";
 import type { HomePicture, HomePictures, SiteStats } from "@/lib/types";
+import styles from "./page.module.css";
 
 /** Long enough to be cheap, short enough that a new listing shows up today. */
 export const revalidate = 300;
@@ -133,7 +134,7 @@ export default async function Home({
       {/* ------------------------------------------------------------ hero */}
       <section className="hero-wash">
         <div className="app-shell grid items-center gap-8 py-8 sm:py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-10 lg:py-14">
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--color-brand)] sm:text-xs">
               {t("eyebrow")}
             </p>
@@ -191,10 +192,13 @@ export default async function Home({
             </form>
 
             {trades.length ? (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="mt-4">
                 <span className="text-xs font-semibold text-[var(--color-muted-foreground)]">
                   {t("popular")}
                 </span>
+                {/* One row that scrolls sideways, edge to edge on a phone,
+                    fading out at the end so it reads as "there is more". */}
+                <div className={styles.chipRow}>
                 {/* The first six by the display order staff set, so which
                     trades lead the hero is an editorial choice in the back
                     office rather than something hardcoded here. */}
@@ -202,11 +206,12 @@ export default async function Home({
                   <Link
                     key={trade.slug}
                     href={`/training?trade=${trade.slug}`}
-                    className="inline-flex min-h-9 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-xs font-semibold transition-colors hover:border-[var(--color-brand)]/40 hover:text-[var(--color-brand)]"
+                    className={styles.chip}
                   >
                     {trade.name}
                   </Link>
                 ))}
+                </div>
               </div>
             ) : null}
           </div>
