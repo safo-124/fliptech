@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { View } from "react-native";
+import { Search } from "lucide-react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { CourseCard, ProductCard, WorkshopRow } from "@/components/Cards";
 import { Hero } from "@/components/Hero";
@@ -8,7 +9,8 @@ import { Screen } from "@/components/Screen";
 import { Section, Shelf } from "@/components/Section";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { api } from "@/lib/api";
-import { space } from "@/theme/tokens";
+import { Text } from "@/components/Text";
+import { colors, radius, shadow, space } from "@/theme/tokens";
 
 /** Home: one message, then a window onto each part of the app. */
 export default function HomeScreen() {
@@ -35,6 +37,19 @@ export default function HomeScreen() {
         onAction={() => router.navigate("/learn")}
         onMap={() => router.push("/map")}
       />
+
+      {/* Search everything, as you type, on its own screen. */}
+      <Pressable
+        onPress={() => router.push("/search")}
+        accessibilityRole="search"
+        accessibilityLabel="Search training, courses and tools"
+        style={({ pressed }) => [styles.search, pressed ? { opacity: 0.9 } : null]}
+      >
+        <Search size={20} color={colors.brand} />
+        <Text variant="body" style={{ color: colors.mutedForeground, flex: 1 }}>
+          Search training, courses, tools
+        </Text>
+      </Pressable>
 
       <Section title="Top" accent="courses" action="See all" onAction={() => router.navigate("/learn")}>
         {courses.isPending ? (
@@ -108,3 +123,20 @@ export default function HomeScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  search: {
+    marginHorizontal: space.lg,
+    marginTop: space.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    minHeight: 52,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
+  },
+});

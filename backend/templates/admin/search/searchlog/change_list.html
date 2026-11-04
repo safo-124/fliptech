@@ -1,0 +1,35 @@
+{% extends "admin/change_list.html" %}
+{% block result_list %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:1.5rem;margin:0 0 1.5rem">
+  <section>
+    <h2>Most searched, last {{ report_days }} days ({{ total_searches }} searches)</h2>
+    <table style="width:100%">
+      <thead><tr><th>Search</th><th>Times</th><th>Average results</th></tr></thead>
+      <tbody>
+        {% for row in top_searches %}
+          <tr><td>{{ row.query }}</td><td>{{ row.times }}</td><td>{{ row.average|floatformat:0 }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3">No searches yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>Found nothing ({{ empty_total }})</h2>
+    <p style="margin:0 0 .5rem;color:var(--body-quiet-color)">
+      Trainers to recruit, or words to add to a trade's synonyms.
+    </p>
+    <table style="width:100%">
+      <thead><tr><th>Search</th><th>Times</th><th>Last</th></tr></thead>
+      <tbody>
+        {% for row in empty_searches %}
+          <tr><td>{{ row.query }}</td><td>{{ row.times }}</td><td>{{ row.last|date:"j M" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3">Every search found something.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{{ block.super }}
+{% endblock %}

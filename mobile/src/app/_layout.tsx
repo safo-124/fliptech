@@ -62,6 +62,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="map" options={{ animation: "slide_from_bottom" }} />
+              <Stack.Screen name="search" options={{ animation: "fade" }} />
               <Stack.Screen name="sign-in" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
               <Stack.Screen name="enquire" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
               <Stack.Screen name="workshop/[area]/[slug]" />

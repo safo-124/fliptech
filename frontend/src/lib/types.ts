@@ -990,3 +990,36 @@ export type TrainerCourse = {
 };
 
 export type PayoutBank = { code: string; name: string; type: "mobile_money" | "ghipss" };
+
+/** Site search (backend search/views.py). */
+export type SearchTrade = {slug: string; name: string; colour: string};
+export type SearchArea = {slug: string; name: string; region: string};
+
+export type SiteSearch = {
+  q: string;
+  /** The trade and place read out of the words, and what was left over. */
+  understood: {trade: SearchTrade | null; area: SearchArea | null; words: string};
+  trades: (SearchTrade & {provider_count: number})[];
+  workshops: {count: number; results: ProviderCard[]};
+  courses: {count: number; results: CourseCard[]};
+  products: {count: number; results: ProductCard[]};
+  shops: {count: number; results: SellerCard[]};
+  /** When no workshop matched a trade: the closest ones teaching it. */
+  nearby: ProviderCard[];
+  /** What else is taught in the area searched. */
+  trades_here: SearchTrade[];
+};
+
+export type SearchSuggestion =
+  | {kind: "trade_area"; label: string; trade: string; area: string}
+  | {kind: "trade"; label: string; trade: string; count: number}
+  | {kind: "area"; label: string; area: string}
+  | {kind: "workshop"; label: string; sub: string; slug: string; area: string}
+  | {kind: "product"; label: string; sub: string; id: number};
+
+export type NearbyHelp = {
+  trade: SearchTrade | null;
+  area: SearchArea | null;
+  nearby: ProviderCard[];
+  trades_here: SearchTrade[];
+};

@@ -14,6 +14,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  BellRing,
   Building2,
   GraduationCap,
   List,
@@ -39,6 +40,7 @@ import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import {
   buildQuery,
   getAllRegions,
+  getNearbyHelp,
   getTrades,
   getUpcomingIntakes,
   searchProviders,
@@ -64,6 +66,37 @@ function withoutPage(params: SearchParams): SearchParams {
 function listPageHref(params: SearchParams, page: number) {
   const next = { ...params, page: page > 1 ? String(page) : undefined };
   return `/training${buildQuery(next)}`;
+}
+
+const SORTS = [
+  ["", "sortBest"],
+  ["nearest", "sortNearest"],
+  ["cheapest", "sortCheapest"],
+  ["soonest", "sortSoonest"],
+] as const;
+
+function SortLinks({ params }: { params: SearchParams }) {
+  const t = useTranslations("SearchPage");
+  const current = params.sort ?? "";
+  return (
+    <nav aria-label={t("sortLabel")} className="-mt-2 mb-5 flex flex-wrap items-center gap-1.5 text-sm">
+      <span className="font-semibold text-[var(--color-muted-foreground)]">{t("sortLabel")}</span>
+      {SORTS.map(([value, label]) => (
+        <Link
+          key={label}
+          href={`/training${buildQuery({ ...params, sort: value || undefined, page: undefined })}`}
+          aria-current={current === value ? "true" : undefined}
+          className={`inline-flex min-h-9 items-center rounded-full border px-3 font-semibold ${
+            current === value
+              ? "border-transparent bg-[var(--color-brand)] text-white"
+              : "border-[var(--color-border)]"
+          }`}
+        >
+          {t(label)}
+        </Link>
+      ))}
+    </nav>
+  );
 }
 
 function ResultsViewSwitch({ listHref, mapHref }: { listHref: string; mapHref: string }) {
@@ -117,6 +150,12 @@ export default async function SearchPage({
     clientIntl(MAP_CLIENT_NAMESPACES),
     showBoard ? getUpcomingIntakes().catch(() => []) : Promise.resolve([]),
   ]);
+  // Nothing matched a search for a trade: the closest workshops for it, and
+  // what else is taught in the place. Fetched only then.
+  const help =
+    results && results.count === 0 && (params.trade || params.q)
+      ? await getNearbyHelp({ trade: params.trade, area: params.area, q: params.q }).catch(() => null)
+      : null;
   // "in Greater Accra" while that is the only live region, "across Ghana"
   // once naming them stops being readable.
   const coverage = coverageSuffix(regionNames, tCoverage);
@@ -268,6 +307,11 @@ export default async function SearchPage({
               <ResultsViewSwitch listHref={listHref} mapHref={mapHref} />
             </div>
 
+            {/* The order, once the visitor has searched or filtered: plain
+                links, so no script, and the unfiltered first page (the
+                budgeted one) stays as it was. */}
+            {!unfiltered && results.count > 1 ? <SortLinks params={params} /> : null}
+
             {/* Phone-only route to the map.
                 The switch above is the desktop affordance, but on a phone it
                 wraps under the heading and sits above the fold only until the
@@ -288,6 +332,7 @@ export default async function SearchPage({
             ) : null}
 
             {results.count === 0 ? (
+              <>
               <Card className="grid min-h-64 place-items-center border-dashed p-6 text-center">
                 <div className="max-w-md">
                   {/* The searched trade's own picture when there is one to
@@ -309,11 +354,65 @@ export default async function SearchPage({
                   <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
                     {t("noMatchBody")}
                   </p>
-                  <Button asChild variant="outline" className="mt-5">
-                    <Link href="/training">{t("clearAllFilters")}</Link>
-                  </Button>
+                  <div className="mt-5 flex flex-wrap justify-center gap-2">
+                    <Button asChild variant="outline">
+                      <Link href="/training">{t("clearAllFilters")}</Link>
+                    </Button>
+                    {help?.trade ? (
+                      <Button asChild variant="brand">
+                        <Link
+                          href={`/search?q=${encodeURIComponent(
+                            [help.trade.name, help.area?.name].filter(Boolean).join(" "),
+                          )}`}
+                        >
+                          <BellRing aria-hidden="true" />
+                          {t("alertLink")}
+                        </Link>
+                      </Button>
+                    ) : params.q ? (
+                      <Button asChild variant="ghost">
+                        <Link href={`/search?q=${encodeURIComponent(params.q)}`}>
+                          {t("searchEverything", { q: params.q })}
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </Card>
+              {help?.trade && help.nearby.length ? (
+                <div className="mt-8">
+                  <h3 className="text-lg font-bold tracking-tight">
+                    {help.area
+                      ? t("nearbyTitle", { trade: help.trade.name.toLowerCase(), area: help.area.name })
+                      : t("nearbyAnywhere", { trade: help.trade.name.toLowerCase() })}
+                  </h3>
+                  <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {help.nearby.map((provider) => (
+                      <li key={provider.id} className="min-w-0">
+                        <ProviderCard provider={provider} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {help?.area && help.trades_here.length ? (
+                <div className="mt-8">
+                  <h3 className="text-sm font-bold">{t("tradesHere", { area: help.area.name })}</h3>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {help.trades_here.map((here) => (
+                      <li key={here.slug}>
+                        <Link
+                          href={`/training?trade=${here.slug}&area=${help.area?.slug}`}
+                          className="inline-flex min-h-10 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-4 text-sm font-semibold hover:border-[var(--color-brand)]/40"
+                        >
+                          {here.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              </>
             ) : (
               <>
                 {/*

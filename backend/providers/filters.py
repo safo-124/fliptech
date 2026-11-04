@@ -140,28 +140,60 @@ class ProviderFilter(django_filters.FilterSet):
         ).distinct()
 
     def filter_search(self, queryset, name, value):
-        """Trigram search, so "welder" finds "Welding Works".
+        """Search the way people type: "welder tema", "sewing in madina", "weldng".
 
-        Plain full-text search cannot do this, and it is the reason pg_trgm is
-        in the extensions migration.
+        The trade and the area are read out of the words (search.understand)
+        and applied as filters; whatever is left is matched against workshop
+        names with trigrams, so "welder" still finds "Welding Works" and a
+        typo still finds the name. If the leftover words match nothing, they
+        are dropped rather than emptying a search whose trade and area were
+        clear ("best welding in tema").
         """
         from django.contrib.postgres.search import TrigramSimilarity
 
-        return (
-            queryset.annotate(similarity=TrigramSimilarity("name", value))
-            .filter(
-                Q(similarity__gt=0.15)
-                | Q(name__icontains=value)
-                | Q(
-                    programmes__is_active=True,
-                    programmes__trade__is_active=True,
-                    programmes__trade__name__icontains=value,
-                )
-                | Q(
-                    programmes__is_active=True,
-                    programmes__trade__is_active=True,
-                    programmes__trade__synonyms__contains=[value.lower()],
-                )
+        from search.understand import normalise, understand
+
+        value = normalise(value)
+        if not value:
+            return queryset
+        understood = understand(value)
+        queryset = queryset.annotate(similarity=TrigramSimilarity("name", value))
+
+        narrowed = queryset
+        if understood.trade is not None:
+            narrowed = narrowed.filter(
+                Exists(_teaching().filter(provider=OuterRef("pk"), trade=understood.trade))
             )
-            .distinct()
+        if understood.area is not None and not self.data.get("area"):
+            narrowed = narrowed.filter(area=understood.area)
+
+        if understood.trade is None and understood.area is None:
+            return _name_match(queryset, value)
+        if understood.words:
+            named = _name_match(narrowed, understood.words)
+            if named.exists():
+                return named
+        return narrowed
+
+
+def _teaching():
+    from catalog.models import Programme
+
+    return Programme.objects.filter(is_active=True, trade__is_active=True)
+
+
+def _name_match(queryset, words):
+    """A workshop's name close to the words, or a trade it teaches named by them."""
+    from django.contrib.postgres.search import TrigramSimilarity
+
+    return queryset.annotate(word_similarity=TrigramSimilarity("name", words)).filter(
+        Q(word_similarity__gt=0.15)
+        | Q(name__icontains=words)
+        | Q(
+            Exists(
+                _teaching()
+                .filter(provider=OuterRef("pk"))
+                .filter(Q(trade__name__icontains=words) | Q(trade__synonyms__contains=[words]))
+            )
         )
+    )

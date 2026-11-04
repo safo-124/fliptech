@@ -1,5 +1,5 @@
 import { Search, X } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import { colors, fonts, radius, space } from "@/theme/tokens";
@@ -8,7 +8,8 @@ import { Text } from "./Text";
 
 /**
  * A tab's title and its search box. The search runs when the keyboard's
- * search key is pressed, not on every letter: each search costs data.
+ * search key is pressed, or with `live`, a moment after the visitor stops
+ * typing (one request per pause, not per letter: each search costs data).
  */
 export function PageHeader({
   eyebrow,
@@ -16,6 +17,8 @@ export function PageHeader({
   placeholder,
   onSearch,
   action,
+  live = false,
+  initial = "",
 }: {
   eyebrow: string;
   title: string;
@@ -23,8 +26,23 @@ export function PageHeader({
   onSearch: (words: string) => void;
   /** A button for the top-right corner, such as the map. */
   action?: ReactNode;
+  /** Search as the visitor types. */
+  live?: boolean;
+  initial?: string;
 }) {
-  const [words, setWords] = useState("");
+  const [words, setWords] = useState(initial);
+  const first = useRef(true);
+  useEffect(() => {
+    if (!live) return;
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const timer = setTimeout(() => onSearch(words.trim()), 300);
+    return () => clearTimeout(timer);
+    // onSearch is the parent's setter; the words are what matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [words, live]);
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>

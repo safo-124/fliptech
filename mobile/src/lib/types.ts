@@ -373,3 +373,20 @@ export type SellerProduct = {
   visible: boolean;
   photos: { id: number; image: string | null }[];
 };
+
+/** Site search (backend search/views.py). */
+export type SiteSearch = {
+  q: string;
+  understood: {
+    trade: Trade | null;
+    area: { slug: string; name: string; region: string } | null;
+    words: string;
+  };
+  trades: (Trade & { provider_count: number })[];
+  workshops: { count: number; results: ProviderCard[] };
+  courses: { count: number; results: CourseCard[] };
+  products: { count: number; results: ProductCard[] };
+  shops: { count: number; results: { id: number; business_name: string; area: string }[] };
+  nearby: ProviderCard[];
+  trades_here: Trade[];
+};

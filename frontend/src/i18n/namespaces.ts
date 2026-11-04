@@ -101,3 +101,6 @@ export const ACCOUNT_CLIENT_NAMESPACES = [
   "Account",
   "Validation",
 ] as const satisfies readonly ClientNamespace[];
+
+/** /search: the live search box and its results. */
+export const SEARCH_CLIENT_NAMESPACES = ["SiteSearch"] as const satisfies readonly ClientNamespace[];

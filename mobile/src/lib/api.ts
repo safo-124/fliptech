@@ -1,6 +1,7 @@
 import { API_URL } from "./config";
 import { token } from "./session";
 import type {
+  SiteSearch,
   BasketPrice,
   Bundle,
   ChatSummary,
@@ -63,7 +64,8 @@ export async function request<T>(
   for (const [key, value] of Object.entries(params)) {
     if (value) query.set(key, value);
   }
-  const headers: Record<string, string> = { Accept: "application/json" };
+  // The header tells the search report a search came from the app.
+  const headers: Record<string, string> = { Accept: "application/json", "X-Fliptech-Client": "app" };
   const signedIn = token();
   if (signedIn) headers.Authorization = `Bearer ${signedIn}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -108,8 +110,20 @@ export const api = {
   products: (params: Record<string, string | undefined> = {}) =>
     getJson<Paginated<ProductCard>>("/api/products/", params),
   trainerShops: () => getJson<{ results: TrainerShop[] }>("/api/sellers/trainers/"),
-  providers: (params: { q?: string; trade?: string } = {}) =>
-    getJson<Paginated<ProviderCard>>("/api/providers/", params),
+  providers: (
+    params: { q?: string; trade?: string; area?: string; sort?: string; lat?: string; lng?: string; radius_km?: string } = {},
+  ) => getJson<Paginated<ProviderCard>>("/api/providers/", params),
+  /** Everything matching, a few of each, as the visitor types. log: count it in the report. */
+  search: (q: string, options: { lat?: number; lng?: number; log?: boolean } = {}) =>
+    getJson<SiteSearch>("/api/search/", {
+      q,
+      lat: options.lat?.toFixed(3),
+      lng: options.lng?.toFixed(3),
+      log: options.log ? "1" : undefined,
+    }),
+  /** "Text me when one opens": needs the app signed in. */
+  keepTrainingAlert: (trade: string, area?: string) =>
+    postJson<{ id: number }>("/api/search/alerts/", { trade, area: area || undefined }),
   /** Every workshop for the map, following the pages, inside a box if given. */
   async mapProviders(params: { trade?: string; bbox?: string } = {}) {
     const all: ProviderCard[] = [];

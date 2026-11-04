@@ -1,0 +1,93 @@
+/* The live search box and its results. Loaded only where they are used
+   (/search and the home page), so the training search page's budget does
+   not pay for them. */
+.box {
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.box:focus-within {
+  border-color: color-mix(in oklab, var(--color-brand) 50%, transparent);
+  box-shadow: var(--shadow-lg), 0 0 0 4px color-mix(in oklab, var(--color-brand) 10%, transparent);
+}
+.input::-webkit-search-cancel-button {
+  display: none;
+}
+/* The whole box shows focus (.box:focus-within); a second ring inside it
+   on the field itself only clutters it. */
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+@media (width < 40rem) {
+  .nearLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+.dim {
+  opacity: 0.6;
+}
+.tradeLink {
+  transition: border-color 0.15s;
+}
+.tradeLink:hover {
+  border-color: color-mix(in oklab, var(--trade-strong) 45%, transparent);
+}
+.tradeIcon {
+  background: color-mix(in oklab, var(--trade-strong) 14%, var(--color-card));
+}
+.cards {
+  display: grid;
+  gap: 0.75rem;
+}
+@media (width >= 48rem) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (width >= 80rem) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+@media (width >= 48rem) {
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.name:hover {
+  text-decoration: underline;
+}
+.list {
+  position: absolute;
+  left: -2.25rem;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  width: calc(100% + 3.5rem);
+}
+@media (width >= 40rem) {
+  .list {
+    width: max(100% + 2.25rem, 26rem);
+  }
+}
+.active {
+  background: var(--color-brand-soft);
+}
+.title {
+  max-width: 22ch;
+  font-size: 1.9rem;
+}
+@media (width >= 40rem) {
+  .title {
+    font-size: 2.25rem;
+  }
+}

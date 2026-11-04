@@ -44,10 +44,14 @@ class Command(BaseCommand):
         followers = tell_followers(now)
         searches = tell_saved_searches(now)
         drops = tell_price_drops(now)
+        from search.alerts import tell_training_alerts
+
+        training = tell_training_alerts(now)
         self.stdout.write(
             f"{asked} review request(s), {reminded} plan reminder(s) sent, "
             f"{released} held payment(s) released, {followers} follower(s) told of new products, "
-            f"{searches} saved search(es) with new matches, {drops} price-drop text(s)."
+            f"{searches} saved search(es) with new matches, {drops} price-drop text(s), "
+            f"{training} training alert(s) texted."
         )
 
     def release_payments(self, now):
