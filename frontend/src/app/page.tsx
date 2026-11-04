@@ -35,6 +35,7 @@ import { CourseTile } from "@/components/CourseTile";
 import { IntakesBoard } from "@/components/IntakesBoard";
 import { TradeIcon } from "@/components/TradeArt";
 import { ProductTile } from "@/components/marketplace/ProductTile";
+import { SuggestInput } from "@/components/search/SuggestInput";
 import { Button } from "@/components/ui/button";
 import {
   getAllAreas,
@@ -155,11 +156,13 @@ export default async function Home({
                   <label htmlFor="landing-q" className="sr-only">
                     {t("skillLabel")}
                   </label>
-                  <input
+                  {/* Suggests as the visitor types; submitting still
+                      searches training, as before. */}
+                  <SuggestInput
                     id="landing-q"
                     name="q"
-                    type="search"
                     placeholder={t("skillPlaceholder")}
+                    everythingLabel={t("searchEverything", { q: "{q}" })}
                     className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)]"
                   />
                 </div>

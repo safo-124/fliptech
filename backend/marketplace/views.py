@@ -783,10 +783,12 @@ def browse(params):
             + SearchVector("seller__business_name", weight="B", config="english")
             + SearchVector("description", weight="C", config="english")
         )
-        products = products.annotate(
-            rank=SearchRank(vector, SearchQuery(query, search_type="websearch", config="english"))
-        ).filter(
-            Q(rank__gt=0)
+        search = SearchQuery(query, search_type="websearch", config="english")
+        # The match itself (the document @@ the query), not rank > 0:
+        # Postgres ranks a document that does not match at 1e-20, so
+        # "rank > 0" let every product through every search.
+        products = products.annotate(document=vector, rank=SearchRank(vector, search)).filter(
+            Q(document=search)
             | Q(name__icontains=query)
             | Q(description__icontains=query)
             | Q(seller__business_name__icontains=query)
@@ -844,7 +846,13 @@ class ProductListView(ListAPIView):
 
     def list(self, request, *args, **kwargs):
         page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        return self.get_paginated_response(_with_ratings(ProductCardSerializer, page, request))
+        response = self.get_paginated_response(_with_ratings(ProductCardSerializer, page, request))
+        params = request.query_params
+        if params.get("q") and params.get("page") in (None, "", "1"):
+            from search.log import record
+
+            record(params.get("q"), "market", response.data.get("count", 0), request)
+        return response
 
 
 class ProductDetailView(RetrieveAPIView):

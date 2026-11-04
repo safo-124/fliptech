@@ -93,6 +93,11 @@ def _radius_from_query(params):
             OpenApiTypes.INT,
             description="Only providers with a course that can seat a group this size",
         ),
+        OpenApiParameter(
+            "sort",
+            OpenApiTypes.STR,
+            description="best (default: best match), nearest, cheapest or soonest",
+        ),
     ]
 )
 class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
@@ -132,6 +137,28 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_class(self):
         return ProviderDetailSerializer if self.action == "retrieve" else ProviderListSerializer
+
+    def filter_queryset(self, queryset):
+        """The filters, then the order the visitor chose.
+
+        Best match first when there are search words (the trigram similarity
+        the search annotates), and otherwise the order get_queryset set:
+        nearest when a point was given, else A to Z. "nearest" with no point
+        measures from the chosen area's centre.
+        """
+        queryset = super().filter_queryset(queryset)
+        if self.action != "list":
+            return queryset
+        return sort_providers(queryset, self.request.query_params)
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        params = request.query_params
+        if params.get("q") and not params.get("bbox") and params.get("page") in (None, "", "1"):
+            from search.log import record
+
+            record(params.get("q"), "training", response.data.get("count", 0), request)
+        return response
 
 
 @extend_schema_view(get=extend_schema(operation_id="providers_retrieve_by_slug"))
@@ -353,3 +380,38 @@ class TradeAreaSummaryView(APIView):
                 "minimum_for_indexing": MIN_LISTINGS_FOR_GENERATED_PAGE,
             }
         )
+
+
+def sort_providers(queryset, params):
+    """Order a provider search by params["sort"]; see ProviderViewSet.filter_queryset."""
+    from django.db.models import F
+
+    sort = params.get("sort") or "best"
+    if sort == "cheapest":
+        return queryset.order_by(F("lowest_fee").asc(nulls_last=True), "name", "pk")
+    if sort == "soonest":
+        return queryset.order_by(F("next_intake").asc(nulls_last=True), "name", "pk")
+    if sort == "nearest":
+        if "distance" in queryset.query.annotations:
+            return queryset.order_by("distance", "name", "pk")
+        origin = _area_origin(params)
+        if origin is not None:
+            return queryset.annotate(distance=Distance("location", origin)).order_by(
+                "distance", "name", "pk"
+            )
+        return queryset
+    if "similarity" in queryset.query.annotations and "distance" not in queryset.query.annotations:
+        return queryset.order_by("-similarity", "name", "pk")
+    return queryset
+
+
+def _area_origin(params):
+    """The centre of the area searched for, by slug or named in the words."""
+    from geography.models import Area
+    from search.understand import understand
+
+    slug = params.get("area")
+    area = Area.objects.filter(slug=slug).first() if slug else None
+    if area is None and params.get("q"):
+        area = understand(params.get("q")).area
+    return area.centroid if area is not None and area.centroid is not None else None

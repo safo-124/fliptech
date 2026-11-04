@@ -11,6 +11,9 @@ import {BRAND} from "@/lib/brand";
  * as a floating "island" with a panel of shortcuts under each, a search
  * pill, and the account.
  *
+ * The search button goes to /search, which searches the whole site as the
+ * visitor types.
+ *
  * Still no JavaScript of its own. The panels open on hover and on keyboard
  * focus (CSS group-hover and focus-within), and the phone menu is a
  * <details>: the search page's budget has no room for a header script, and
@@ -21,9 +24,13 @@ import {BRAND} from "@/lib/brand";
  */
 
 /** The shortcuts the phone menu lists under its three tiles: the rest are a
-    tap away on each section's own page, and every link here is paid for in
-    the search page's budget. */
-const PHONE_EXTRAS = ["/map", "/marketplace/saved", "/sell", "/trainer/join?new=1"];
+    tap away on each section's own page (the map from the training list), and
+    every link here is paid for in the search page's budget. */
+/** A variable, not a literal: the phone menu uses plain <a> on purpose (see
+    below), which the Link lint rule only checks in literals. */
+const SEARCH = "/search";
+
+const PHONE_EXTRAS = ["/marketplace/saved", "/sell", "/trainer/join?new=1"];
 
 type Shortcut = {href: string; label: string; hint: string};
 type Section = {
@@ -160,7 +167,7 @@ export function SiteHeader() {
           <div className="flex items-center gap-1.5">
             {/* One link: an icon from sm, a search pill from xl. */}
             <Link
-              href="/training"
+              href="/search"
               aria-label={t("search")}
               className="nav-search"
             >
@@ -191,6 +198,11 @@ export function SiteHeader() {
                 className="nav-sheet"
               >
                 <div className="app-shell space-y-4 py-4">
+                  {/* Phones have no search button in the bar: it starts here. */}
+                  <a href={SEARCH} className="nav-extra gap-2">
+                    <NavIcon id="search" />
+                    {t("searchPill")}
+                  </a>
                   <div className="grid grid-cols-3 gap-2">
                     {sections.map((section) => (
                       <a

@@ -235,42 +235,55 @@ class CourseListView(ListAPIView):
     }
 
     def get_queryset(self):
-        courses = _courses()
-        params = self.request.query_params
-        trade = params.get("trade")
-        if trade:
-            teaching = Programme.objects.filter(
-                is_active=True, trade__is_active=True, trade__slug=trade
-            ).values("provider_id")
-            courses = courses.filter(pk__in=teaching)
-        words = " ".join(str(params.get("q") or "").split())[:80]
-        if words:
-            trades = Programme.objects.filter(is_active=True).filter(
-                Q(trade__name__icontains=words) | Q(title__icontains=words)
-            )
-            lessons = ProviderVideo.objects.shown().filter(
-                Q(title__icontains=words) | Q(description__icontains=words)
-            )
-            courses = courses.filter(
-                Q(name__icontains=words)
-                | Q(area__name__icontains=words)
-                | Q(course_offer__summary__icontains=words)
-                | Q(pk__in=trades.values("provider_id"))
-                | Q(pk__in=lessons.values("provider_id"))
-            )
-        level = params.get("level")
-        if level:
-            courses = courses.filter(course_offer__level=level)
-        if params.get("featured") in ("1", "true"):
-            courses = courses.filter(featured=True)
-        if params.get("price") == "free":
-            courses = courses.filter(charges=False)
-        elif params.get("price") == "paid":
-            courses = courses.filter(charges=True)
-        sort = self.SORTS.get(params.get("sort") or "")
-        if sort:
-            courses = courses.order_by(*sort)
-        return courses
+        return browse_courses(self.request.query_params)
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        params = request.query_params
+        if params.get("q") and params.get("page") in (None, "", "1"):
+            from search.log import record
+
+            record(params.get("q"), "learn", response.data.get("count", 0), request)
+        return response
+
+
+def browse_courses(params):
+    """The course list's filters and sort, for the list and for site search."""
+    courses = _courses()
+    trade = params.get("trade")
+    if trade:
+        teaching = Programme.objects.filter(
+            is_active=True, trade__is_active=True, trade__slug=trade
+        ).values("provider_id")
+        courses = courses.filter(pk__in=teaching)
+    words = " ".join(str(params.get("q") or "").split())[:80]
+    if words:
+        trades = Programme.objects.filter(is_active=True).filter(
+            Q(trade__name__icontains=words) | Q(title__icontains=words)
+        )
+        lessons = ProviderVideo.objects.shown().filter(
+            Q(title__icontains=words) | Q(description__icontains=words)
+        )
+        courses = courses.filter(
+            Q(name__icontains=words)
+            | Q(area__name__icontains=words)
+            | Q(course_offer__summary__icontains=words)
+            | Q(pk__in=trades.values("provider_id"))
+            | Q(pk__in=lessons.values("provider_id"))
+        )
+    level = params.get("level")
+    if level:
+        courses = courses.filter(course_offer__level=level)
+    if params.get("featured") in ("1", "true"):
+        courses = courses.filter(featured=True)
+    if params.get("price") == "free":
+        courses = courses.filter(charges=False)
+    elif params.get("price") == "paid":
+        courses = courses.filter(charges=True)
+    sort = CourseListView.SORTS.get(params.get("sort") or "")
+    if sort:
+        courses = courses.order_by(*sort)
+    return courses
 
 
 class CourseDetailView(APIView):

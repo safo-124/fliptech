@@ -139,6 +139,13 @@ from providers.views import (
     TradeAreaSummaryView,
     UpcomingIntakesView,
 )
+from search.views import (
+    NearbyView,
+    SearchView,
+    SuggestView,
+    TrainingAlertsView,
+    TrainingAlertView,
+)
 
 router = DefaultRouter()
 router.register("providers", ProviderViewSet, basename="provider")
@@ -150,6 +157,13 @@ urlpatterns = [
     # Which account area the caller is signed into, for the site header. Kept
     # deliberately small: it is requested on every page, including search.
     path("session/whoami/", WhoAmIView.as_view(), name="session-whoami"),
+    # Site search: everything as the visitor types, the suggestions under the
+    # box, help when nothing matched, and "text me when one opens".
+    path("search/", SearchView.as_view(), name="search"),
+    path("search/suggest/", SuggestView.as_view(), name="search-suggest"),
+    path("search/nearby/", NearbyView.as_view(), name="search-nearby"),
+    path("search/alerts/", TrainingAlertsView.as_view(), name="search-alerts"),
+    path("search/alerts/<int:pk>/", TrainingAlertView.as_view(), name="search-alert"),
     # Passwordless trainer onboarding. Session bootstrap is first so the
     # frontend can obtain a CSRF cookie before any unsafe request.
     path("trainer/session/me/", TrainerSessionView.as_view(), name="trainer-session-me"),

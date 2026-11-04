@@ -10,6 +10,8 @@
 import {browserApiUrl} from "./api-origin";
 import type {
   AreaSummary,
+  NearbyHelp,
+  SiteSearch,
   Certificate,
   CourseCard,
   CourseDetail,
@@ -133,6 +135,8 @@ export type SearchParams = {
   radius_km?: string;
   bbox?: string;
   page?: string;
+  /** best (default), nearest, cheapest or soonest. */
+  sort?: string;
 };
 
 export function buildQuery(params: Record<string, string | undefined>): string {
@@ -146,6 +150,18 @@ export function buildQuery(params: Record<string, string | undefined>): string {
 
 export function searchProviders(params: SearchParams = {}) {
   return fetchJson<Paginated<ProviderCard>>(`/api/providers/${buildQuery(params)}`);
+}
+
+/** Everything matching a search, for the first paint of /search. Not cached:
+    the page is per-query, and the browser takes over as the visitor types. */
+export function siteSearch(q: string) {
+  return fetchJson<SiteSearch>(`/api/search/${buildQuery({q})}`, {revalidate: 0, retries: 1});
+}
+
+/** For a training search that found nothing: the nearest workshops for the
+    trade, and what else is taught in the area. */
+export function getNearbyHelp(params: {trade?: string; area?: string; q?: string}) {
+  return fetchJson<NearbyHelp>(`/api/search/nearby/${buildQuery(params)}`);
 }
 
 /**
