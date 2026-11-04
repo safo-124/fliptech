@@ -95,8 +95,10 @@ test.describe("with no signal", () => {
     await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
 
     const searchHeading = await heading(page);
+    // From the page itself, not the header: its shortcuts include personal
+    // pages (/learn/mine, /marketplace/saved) that are never kept.
     const listing = await page.evaluate(() =>
-      [...document.links]
+      [...document.querySelectorAll<HTMLAnchorElement>("main a[href]")]
         .map((link) => new URL(link.href).pathname)
         .find(
           (path) =>

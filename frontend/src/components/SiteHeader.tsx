@@ -7,114 +7,221 @@ import {BrandMark} from "@/components/BrandMark";
 import {BRAND} from "@/lib/brand";
 
 /**
- * A white bar with the brand on the left and the site's parts in the middle.
+ * The site's header: a brand stripe, the logo, the three parts of the site
+ * as a floating "island" with a panel of shortcuts under each, a search
+ * pill, and the account.
  *
- * Light, like the rest of the canvas: the trainee reading this is often
- * outdoors in direct sun, which is the reason globals.css pins
- * `color-scheme: light`. The brand's violet carries the one filled action.
+ * Still no JavaScript of its own. The panels open on hover and on keyboard
+ * focus (CSS group-hover and focus-within), and the phone menu is a
+ * <details>: the search page's budget has no room for a header script, and
+ * none is needed. The account buttons are the one client island, as before.
  *
- * Every link is plain: no active-page highlight, because knowing the current
- * page would make this a client component on every page, the search page
- * included, and its budget has no room for that.
+ * No active-page highlight, for the same reason: knowing the current page
+ * would make this a client component on every page.
  */
+
+/** The shortcuts the phone menu lists under its three tiles: the rest are a
+    tap away on each section's own page, and every link here is paid for in
+    the search page's budget. */
+const PHONE_EXTRAS = ["/map", "/marketplace/saved", "/sell", "/trainer/join?new=1"];
+
+type Shortcut = {href: string; label: string; hint: string};
+type Section = {
+  key: string;
+  href: string;
+  label: string;
+  /** The section's colours (globals.css .tint-*). */
+  tint: string;
+  /** Its icon's id in public/nav-icons.svg. */
+  icon: string;
+  shortcuts: Shortcut[];
+};
+
+/**
+ * An icon from one shared SVG file. Drawn inline, each icon would be sent
+ * twice on every page (in the HTML and again in the RSC payload); as a file
+ * it is fetched once and cached, and the search page's budget does not count
+ * it, as it does not count images.
+ */
+function NavIcon({id}: {id: string}) {
+  return (
+    <svg aria-hidden className={`nav-ico nav-ico-${id}`}>
+      <use href={`/nav-icons.svg#${id}`} />
+    </svg>
+  );
+}
+
 export function SiteHeader() {
   const t = useTranslations("SiteHeader");
   const tAccount = useTranslations("AccountNav");
-  // No display in the shared classes: each link says whether it shows, so
-  // "hidden" is never fighting an "inline-flex" for the same element.
-  const link =
-    "min-h-11 items-center rounded-lg px-2.5 text-sm font-medium text-[var(--color-foreground)]/80 transition-colors hover:text-[var(--color-brand)]";
+
+  const sections: Section[] = [
+    {
+      key: "training",
+      tint: "tint-training",
+      icon: "cap",
+      href: "/training",
+      label: t("findTraining"),
+
+      shortcuts: [
+        {href: "/training", label: t("searchWorkshops"), hint: t("searchWorkshopsHint")},
+        {href: "/map", label: t("map"), hint: t("mapHint")},
+        {href: "/trainer/join?new=1", label: t("becomeProvider"), hint: t("becomeProviderHint")},
+      ],
+    },
+    {
+      key: "learn",
+      tint: "tint-learn",
+      icon: "play",
+      href: "/learn",
+      label: t("learn"),
+
+      shortcuts: [
+        {href: "/learn", label: t("allCourses"), hint: t("allCoursesHint")},
+        {href: "/learn/mine", label: t("myCourses"), hint: t("myCoursesHint")},
+      ],
+    },
+    {
+      key: "market",
+      tint: "tint-market",
+      icon: "bag",
+      href: "/marketplace",
+      label: t("marketplace"),
+
+      shortcuts: [
+        {href: "/marketplace?sold_by=trainers", label: t("fromTrainers"), hint: t("fromTrainersHint")},
+        {href: "/marketplace?condition=used", label: t("secondHand"), hint: t("secondHandHint")},
+        {href: "/marketplace/saved", label: t("savedBag"), hint: t("savedBagHint")},
+        {href: "/sell", label: t("sell"), hint: t("sellHint")},
+      ],
+    },
+  ];
 
   return (
-    <header className="sticky top-0 z-[1000] border-b border-[var(--color-border)] bg-[var(--color-card)]/95 backdrop-blur">
-      <div className="app-shell flex h-16 items-center justify-between gap-3 lg:h-[4.5rem]">
-        <Link href="/" className="group inline-flex min-h-11 items-center gap-2.5 rounded-xl">
-          <BrandMark motion="open" className="size-9 transition-transform duration-500 group-hover:rotate-90" />
-          {/* The mark alone below 360px, where the wordmark, two account
-              buttons and the menu are wider than the screen. Still named. */}
-          <span className="sr-only min-[360px]:hidden">{BRAND}</span>
-          <span className="leading-none max-[359px]:hidden">
-            <span className="block text-lg font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)]">
-              {BRAND.toLowerCase()}
+    <header className="sticky top-0 z-[1000]">
+      {/* The brand stripe: the logo's colours, end to end. */}
+      <div
+        aria-hidden
+        className="nav-stripe"
+      />
+      <div className="nav-bar">
+        <div className="app-shell flex h-16 items-center justify-between gap-3 lg:h-[4.5rem]">
+          <Link href="/" className="group inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl">
+            <span className="nav-logo">
+              <BrandMark motion="open" className="size-7 transition-transform duration-500 group-hover:rotate-90" />
             </span>
-            <span className="mt-0.5 block text-[10px] font-extrabold uppercase tracking-[0.16em] text-[var(--color-brand-pink)]">
-              {t("productName")}
+            {/* The mark alone below 360px, where the wordmark, two account
+                buttons and the menu are wider than the screen. Still named. */}
+            <span className="sr-only min-[360px]:hidden">{BRAND}</span>
+            <span className="leading-none max-[359px]:hidden">
+              <span className="nav-word">
+                {BRAND.toLowerCase()}
+              </span>
+              <span className="nav-sub">
+                {t("productName")}
+              </span>
             </span>
-          </span>
-        </Link>
+          </Link>
 
-        <nav className="hidden items-center gap-0.5 md:flex" aria-label={t("mainNavigation")}>
-          {/* Two at tablet width, all five from lg: at 768px anything more
-              beside the account buttons pushes the page sideways. Below md
-              the home page's cards lead into each part. */}
-          <Link href="/" className={`${link} hidden lg:inline-flex`}>
-            {t("home")}
-          </Link>
-          <Link href="/training" className={`${link} inline-flex`}>
-            {t("findTraining")}
-          </Link>
-          <Link href="/learn" className={`${link} hidden lg:inline-flex`}>
-            {t("learn")}
-          </Link>
-          <Link href="/marketplace" className={`${link} inline-flex`}>
-            {t("marketplace")}
-          </Link>
-          <Link href="/trainer/join?new=1" className={`${link} hidden lg:inline-flex`}>
-            {t("becomeProvider")}
-          </Link>
-        </nav>
-
-        <div className="flex items-center gap-1.5">
-          <Link
-            href="/training"
-            aria-label={t("search")}
-            className="hidden size-11 place-items-center rounded-lg text-[var(--color-foreground)]/80 hover:text-[var(--color-brand)] sm:grid"
-          >
-            <Search aria-hidden className="size-5" />
-          </Link>
-          <AccountNav
-            labels={{
-              myAccount: tAccount("myAccount"),
-              signUp: tAccount("signUp"),
-            }}
-          />
-          {/* Every part of the site, below lg, where the bar has no room
-              for them. <details> rather than a script: it opens and closes
-              with no JavaScript, so it costs the search page's budget only
-              its few lines of HTML. Plain <a>, not <Link>: a full page load
-              is what closes it, since the header stays mounted across
-              client-side navigation and would otherwise stay open. */}
-          <details className="relative lg:hidden">
-            <summary
-              aria-label={t("menu")}
-              className="grid size-11 cursor-pointer list-none place-items-center rounded-lg text-[var(--color-foreground)]/80 hover:text-[var(--color-brand)] [&::-webkit-details-marker]:hidden"
-            >
-              <Menu aria-hidden className="size-5" />
-            </summary>
-            <nav
-              aria-label={t("mainNavigation")}
-              className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-[var(--shadow-lg)]"
-            >
-              {(
-                [
-                  ["/", t("home")],
-                  ["/training", t("findTraining")],
-                  ["/learn", t("learn")],
-                  ["/marketplace", t("marketplace")],
-                  ["/map", t("map")],
-                  ["/trainer/join?new=1", t("becomeProvider")],
-                ] as const
-              ).map(([href, label]) => (
-                <a
-                  key={href}
-                  href={href}
-                  className="flex min-h-11 items-center rounded-xl px-3 text-sm font-medium hover:bg-[var(--color-muted)] hover:text-[var(--color-brand)]"
-                >
-                  {label}
-                </a>
+          {/* The island: the three parts, each with its panel. From lg; at
+              tablet width the menu carries them, since the panels and the
+              account buttons do not fit side by side at 768px. */}
+          <nav aria-label={t("mainNavigation")} className="hidden lg:block">
+            <ul className="nav-island">
+              {sections.map((section) => (
+                <li key={section.key} className="nav-item relative">
+                  <Link href={section.href} className="nav-link">
+                    <NavIcon id={section.icon} />
+                    {section.label}
+                    <NavIcon id="down" />
+                  </Link>
+                  {/* The panel. pt-3 bridges the gap, so the pointer can
+                      travel from the button into it without it closing. */}
+                  <div className="nav-panel">
+                    <div className="nav-card">
+                      <div aria-hidden className={`h-1.5 ${section.tint}`} />
+                      <ul className="p-2">
+                        {section.shortcuts.map((shortcut) => (
+                          <li key={shortcut.href}>
+                            <Link href={shortcut.href} className="nav-shortcut">
+                              <b>{shortcut.label}</b>
+                              <small>{shortcut.hint}</small>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </li>
               ))}
-            </nav>
-          </details>
+            </ul>
+          </nav>
+
+          <div className="flex items-center gap-1.5">
+            {/* One link: an icon from sm, a search pill from xl. */}
+            <Link
+              href="/training"
+              aria-label={t("search")}
+              className="nav-search"
+            >
+              <Search aria-hidden className="size-5 text-[var(--color-brand)] xl:size-4" />
+              <span aria-hidden className="hidden xl:inline">
+                {t("searchPill")}
+              </span>
+            </Link>
+            <AccountNav
+              labels={{
+                myAccount: tAccount("myAccount"),
+                signUp: tAccount("signUp"),
+              }}
+            />
+            {/* Every part of the site below lg. <details> rather than a
+                script: it opens and closes with no JavaScript. Plain <a>,
+                not <Link>: a full page load is what closes it, since the
+                header stays mounted across client-side navigation. */}
+            <details className="lg:hidden">
+              <summary
+                aria-label={t("menu")}
+                className="nav-menu-btn"
+              >
+                <Menu aria-hidden className="size-5" />
+              </summary>
+              <nav
+                aria-label={t("mainNavigation")}
+                className="nav-sheet"
+              >
+                <div className="app-shell space-y-4 py-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {sections.map((section) => (
+                      <a
+                        key={section.key}
+                        href={section.href}
+                        className={`nav-tile ${section.tint}`}
+                      >
+                        <NavIcon id={section.icon} />
+                        {section.label}
+                      </a>
+                    ))}
+                  </div>
+                  <ul className="grid grid-cols-2 gap-1">
+                    {sections
+                      .flatMap((section) => section.shortcuts)
+                      .filter((shortcut) => PHONE_EXTRAS.includes(shortcut.href))
+                      .map((shortcut) => (
+                        <li key={shortcut.href}>
+                          <a
+                            href={shortcut.href}
+                            className="nav-extra"
+                          >
+                            {shortcut.label}
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </nav>
+            </details>
+          </div>
         </div>
       </div>
     </header>

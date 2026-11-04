@@ -57,7 +57,9 @@ const THREE_G = {
   uploadThroughput: (768 * 1_000) / 8,
 };
 
-const NOT_COUNTED = /\.(?:woff2?|ttf|otf|png|jpe?g|webp|avif|gif|svg|ico)(?:\?|$)|\/_next\/image|[?&]_rsc=/;
+// Images and fonts, by extension. "#" too: an SVG icon file is referenced as
+// /nav-icons.svg#cap, and the fragment is part of the entry's name.
+const NOT_COUNTED = /\.(?:woff2?|ttf|otf|png|jpe?g|webp|avif|gif|svg|ico)(?:[?#]|$)|\/_next\/image|[?&]_rsc=/;
 
 type Weighed = {url: string; type: string; bytes: number};
 
