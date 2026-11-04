@@ -32,10 +32,24 @@ type Section = {
   label: string;
   /** The section's colours (globals.css .tint-*). */
   tint: string;
-  /** A one-character mark for the phone menu's tile: far lighter than an icon. */
-  emoji: string;
+  /** Its icon's id in public/nav-icons.svg. */
+  icon: string;
   shortcuts: Shortcut[];
 };
+
+/**
+ * An icon from one shared SVG file. Drawn inline, each icon would be sent
+ * twice on every page (in the HTML and again in the RSC payload); as a file
+ * it is fetched once and cached, and the search page's budget does not count
+ * it, as it does not count images.
+ */
+function NavIcon({id}: {id: string}) {
+  return (
+    <svg aria-hidden className={`nav-ico nav-ico-${id}`}>
+      <use href={`/nav-icons.svg#${id}`} />
+    </svg>
+  );
+}
 
 export function SiteHeader() {
   const t = useTranslations("SiteHeader");
@@ -45,7 +59,7 @@ export function SiteHeader() {
     {
       key: "training",
       tint: "tint-training",
-      emoji: "🎓",
+      icon: "cap",
       href: "/training",
       label: t("findTraining"),
 
@@ -58,7 +72,7 @@ export function SiteHeader() {
     {
       key: "learn",
       tint: "tint-learn",
-      emoji: "▶",
+      icon: "play",
       href: "/learn",
       label: t("learn"),
 
@@ -70,7 +84,7 @@ export function SiteHeader() {
     {
       key: "market",
       tint: "tint-market",
-      emoji: "🛍",
+      icon: "bag",
       href: "/marketplace",
       label: t("marketplace"),
 
@@ -117,8 +131,9 @@ export function SiteHeader() {
               {sections.map((section) => (
                 <li key={section.key} className="nav-item relative">
                   <Link href={section.href} className="nav-link">
-                    <i aria-hidden className={`size-2 rounded-full ${section.tint}`} />
+                    <NavIcon id={section.icon} />
                     {section.label}
+                    <NavIcon id="down" />
                   </Link>
                   {/* The panel. pt-3 bridges the gap, so the pointer can
                       travel from the button into it without it closing. */}
@@ -183,7 +198,7 @@ export function SiteHeader() {
                         href={section.href}
                         className={`nav-tile ${section.tint}`}
                       >
-                        <span aria-hidden className="text-2xl leading-none">{section.emoji}</span>
+                        <NavIcon id={section.icon} />
                         {section.label}
                       </a>
                     ))}

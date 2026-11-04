@@ -160,6 +160,33 @@ body {
      markup twice (as HTML and as React's payload): each class string would
      be paid for twice per link, a stylesheet rule once. */
   /* Each part of the site's colours: a gradient, and text that reads on it. */
+  .nav-ico {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    color: var(--color-brand);
+    /* Inherited into the <use> copy: the sprite's own root attributes are not. */
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .nav-ico-down {
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-muted-foreground);
+    transition: transform 0.2s;
+  }
+  .nav-item:hover .nav-ico-down,
+  .nav-item:focus-within .nav-ico-down {
+    transform: rotate(180deg);
+  }
+  .nav-tile > .nav-ico {
+    width: 1.75rem;
+    height: 1.75rem;
+    color: inherit;
+  }
   .nav-stripe {
     height: 0.25rem;
     background: linear-gradient(90deg, var(--color-brand), var(--color-brand-pink), var(--color-peach));
