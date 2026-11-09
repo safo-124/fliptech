@@ -133,7 +133,7 @@ export default async function Home({
   return (
     <div>
       {/* ------------------------------------------------------------ hero */}
-      <section className="hero-wash">
+      <section className={styles.heroBleed}>
         <div className="app-shell grid items-center gap-8 py-8 sm:py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-10 lg:py-14">
           <div className="min-w-0">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--color-brand)] sm:text-xs">

@@ -128,3 +128,29 @@
   font-size: 0.75rem;
   color: var(--color-muted-foreground);
 }
+
+/* The hero's wash runs the full width of the window, however wide, while
+   its words and picture stay in line with the rest of the page. The wash
+   is drawn by a pseudo-element 100vw wide, centred under the section;
+   the page clips sideways overflow so the scrollbar's width in 100vw never
+   becomes a horizontal scroll. Clip, not hidden, so the sticky header still
+   sticks. */
+.heroBleed {
+  position: relative;
+  isolation: isolate;
+}
+.heroBleed::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  z-index: -1;
+  width: 100vw;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(ellipse at 90% 10%, oklch(0.93 0.05 350 / 0.7), transparent 55%),
+    radial-gradient(ellipse at 0% 100%, oklch(0.93 0.04 295 / 0.8), transparent 60%),
+    oklch(0.97 0.018 300);
+}
+:global(html):has(.heroBleed) {
+  overflow-x: clip;
+}
