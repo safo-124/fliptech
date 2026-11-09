@@ -44,3 +44,6 @@ example
 
 # Local API address (see .env.example)
 .env
+
+# Built by scripts/publish-update.sh
+dist-update/

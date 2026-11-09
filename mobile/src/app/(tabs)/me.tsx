@@ -1,21 +1,6 @@
 import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
-import {
-  BellRing,
-  BookOpen,
-  ChevronRight,
-  FileText,
-  Heart,
-  Languages,
-  LogOut,
-  MessageSquare,
-  Package,
-  ShieldCheck,
-  Wallet,
-  Store,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react-native";
+import { Bell, BellRing, BookOpen, ChevronRight, FileText, Heart, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/Form";
@@ -38,6 +23,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
       { icon: MessageSquare, label: "Messages", to: "/chats", signedIn: true },
       { icon: BellRing, label: "Saved searches", to: "/saved-searches", signedIn: true },
       { icon: Heart, label: "Saved", to: "/saved" },
+      { icon: Bell, label: "Notifications", to: "/notices", signedIn: true },
     ],
   },
   {
@@ -51,6 +37,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
   {
     title: "About",
     rows: [
+      { icon: Settings, label: "Settings and data saver", to: "/settings" },
       { icon: Languages, label: "Language", site: "/language" },
       { icon: ShieldCheck, label: "Privacy", site: "/privacy" },
       { icon: FileText, label: "Marketplace terms", site: "/marketplace/terms" },

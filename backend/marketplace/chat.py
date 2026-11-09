@@ -23,6 +23,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from appsupport.notify import notify
 from core.media import public_url
 from core.sms import send_sms
 
@@ -126,7 +127,7 @@ def _post(conversation, side, body, product, request):
 
 def _text(to, message):
     try:
-        send_sms(to, message)
+        notify(to, message, send=send_sms)
     except Exception:  # noqa: BLE001 - a text that fails must not lose the message
         import logging
 

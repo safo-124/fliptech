@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { CheckCircle2, Circle, Phone, Receipt, ShieldCheck, TriangleAlert } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Linking, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Alert, Linking, ScrollView, Share, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button, FormError } from "@/components/Form";
@@ -12,7 +12,6 @@ import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api, ApiError } from "@/lib/api";
 import { cedis, shortDate } from "@/lib/format";
-import { openOnSite } from "@/lib/open";
 import type { Order } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
@@ -204,7 +203,7 @@ export default function OrderScreen() {
                 label="Receipt"
                 tone="outline"
                 icon={<Receipt size={16} color={colors.brand} />}
-                onPress={() => void openOnSite(`/marketplace/order/${data.reference}/receipt`)}
+                onPress={() => void shareReceipt(data)}
                 style={{ flex: 1 }}
               />
             ) : null}
@@ -244,3 +243,20 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
 });
+
+/** The receipt as text, to keep or send on (WhatsApp, SMS, email): made on
+    the phone, so it works offline from the saved order. */
+function shareReceipt(order: Order) {
+  const lines = [
+    `Fliiptech receipt: order ${order.reference}`,
+    order.paid_at ? `Paid ${shortDate(order.paid_at)}` : "",
+    `Seller: ${order.seller_name}${order.seller_phone ? ` (${order.seller_phone})` : ""}`,
+    "",
+    ...order.items.map((item) => `${item.quantity} x ${item.product_name}${item.option_label ? ` (${item.option_label})` : ""}  ${cedis(item.unit_price)}`),
+    Number(order.delivery) ? `Delivery  ${cedis(order.delivery)}` : "",
+    Number(order.discount) ? `Discount  -${cedis(order.discount)}` : "",
+    `Total  ${cedis(order.amount)}`,
+    order.plan === "deposit" ? `Deposit paid; balance ${cedis(order.balance)}` : "",
+  ].filter((line, index, all) => line !== "" || (index > 0 && all[index - 1] !== ""));
+  return Share.share({ title: `Receipt ${order.reference}`, message: lines.join("\n") });
+}

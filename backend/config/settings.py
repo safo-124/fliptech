@@ -125,6 +125,7 @@ LOCAL_APPS = [
     "courses",
     "accounts",
     "search",
+    "appsupport",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -619,6 +620,10 @@ VIDEO_FFMPEG_THREADS = env.int("VIDEO_FFMPEG_THREADS", default=1)
 # same host as the API (127.0.0.1): browsers treat localhost as a different
 # site and would not send the staff session cookie.
 PUBLIC_SITE_URL = env("PUBLIC_SITE_URL", default="http://127.0.0.1:3000" if DEBUG else "")
+
+# App updates published by mobile/scripts/publish-update.sh and served by
+# appsupport/updates.py, one folder per runtime version.
+APP_UPDATES_ROOT = env("APP_UPDATES_ROOT", default=str(BASE_DIR / "app-updates"))
 
 # A support session ends on its own after this long. Short on purpose: it is
 # someone else's personal data on the screen.

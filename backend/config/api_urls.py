@@ -21,6 +21,12 @@ from accounts.views import QuestionsView as AccountQuestionsView
 from accounts.views import SavedSearchesView as AccountSavedSearchesView
 from accounts.views import SavedSearchView as AccountSavedSearchView
 from accounts.views import SavedView as AccountSavedView
+from appsupport.views import (
+    CrashReportView,
+    NoticesView,
+    update_asset,
+    update_manifest,
+)
 from catalog.views import TradeViewSet
 from core.home_pictures import HomePicturesView
 from core.site_stats import SiteStatsView
@@ -159,6 +165,16 @@ urlpatterns = [
     path("session/whoami/", WhoAmIView.as_view(), name="session-whoami"),
     # Site search: everything as the visitor types, the suggestions under the
     # box, help when nothing matched, and "text me when one opens".
+    # The mobile app: its notices (collected, not pushed: no Firebase), crash
+    # reports, and its updates, served from this server.
+    path("app/notices/", NoticesView.as_view(), name="app-notices"),
+    path("app/crash/", CrashReportView.as_view(), name="app-crash"),
+    path("app/updates/manifest/", update_manifest, name="app-update-manifest"),
+    path(
+        "app/updates/<str:runtime>/<str:update>/<path:path>",
+        update_asset,
+        name="app-update-asset",
+    ),
     path("search/", SearchView.as_view(), name="search"),
     path("search/suggest/", SuggestView.as_view(), name="search-suggest"),
     path("search/nearby/", NearbyView.as_view(), name="search-nearby"),

@@ -59,3 +59,6 @@ backend/.trade-photos/
 
 # Redis writes its snapshot to whatever directory it was started in.
 dump.rdb
+
+# Published app updates (appsupport/updates.py), kept on the server only.
+backend/app-updates/

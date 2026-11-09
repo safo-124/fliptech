@@ -178,6 +178,17 @@ export const api = {
   reportProblem: (reference: string, problem: string) =>
     postJson<Order>(`/api/orders/${reference}/problem/`, { problem }),
   sellerPayouts: () => getJson<SellerPayouts>("/api/seller/payouts/"),
+  /** A seller's paid orders, newest first. */
+  sellerOrders: () => getJson<{ results: Order[] }>("/api/seller/orders/"),
+  /** "delivered" (handed over) or "ready" (made to order: asks for the balance). */
+  sellerOrderStage: (reference: string, stage: "delivered" | "ready") =>
+    request<Order>("PATCH", `/api/seller/orders/${reference}/`, { body: { stage } }),
+  sellerChats: () => getJson<{ results: ChatSummary[] }>("/api/seller/chats/"),
+  sellerChat: (id: number | string) => getJson<ChatThread>(`/api/seller/chats/${id}/`),
+  sendSellerChat: (id: number | string, body: string) => postJson<ChatThread>(`/api/seller/chats/${id}/`, { body }),
+  /** "Text me when it is back", for a sold-out product. */
+  stockAlert: (product: number, phone: string) =>
+    postJson<{ detail: string }>(`/api/products/${product}/notify/`, { phone }),
   sellerProducts: () => getJson<SellerProduct[] | { results: SellerProduct[] }>("/api/seller/products/"),
   updateSellerProduct: (id: number, body: Partial<Pick<SellerProduct, "availability" | "stock">>) =>
     request<SellerProduct>("PATCH", `/api/seller/products/${id}/`, { body }),

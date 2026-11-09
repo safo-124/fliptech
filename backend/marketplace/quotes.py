@@ -15,6 +15,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from appsupport.notify import notify
 from core.sms import send_sms
 
 from .models import Product, QuoteLead, QuoteRequest, SellerAccount
@@ -51,11 +52,12 @@ def tell_makers(quote):
     makers = makers_for(quote.trade).order_by("-updated_at")[:NOTIFY_AT_MOST]
     for seller in makers:
         try:
-            send_sms(
+            notify(
                 seller.phone,
                 f"{settings.BRAND_NAME}: someone wants a quote for {quote.title[:60]} "
                 f"({quote.trade.name}). See it under Quote requests in your seller "
                 f"dashboard: {settings.PUBLIC_SITE_URL.rstrip('/')}/sell/shop",
+                send=send_sms,
             )
         except Exception:
             logger.exception("Could not text %s about quote %s", seller.pk, quote.reference)
@@ -81,10 +83,11 @@ def unlock(quote, seller, payment=None):
 
 def _tell_buyer(quote, seller):
     try:
-        send_sms(
+        notify(
             quote.buyer_phone,
             f"{settings.BRAND_NAME}: {seller.business_name} saw your request "
             f"{quote.reference} ({quote.title[:50]}) and will contact you.",
+            send=send_sms,
         )
     except Exception:
         logger.exception("Could not text the buyer of %s", quote.reference)

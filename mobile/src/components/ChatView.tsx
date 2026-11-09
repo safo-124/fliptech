@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FormError } from "@/components/Form";
 import { StackHeader } from "@/components/StackHeader";
 import { Text } from "@/components/Text";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { ChatMessage } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
@@ -31,6 +31,7 @@ export function ChatView({
   problem,
   onSend,
   initial = "",
+  me = "buyer",
 }: {
   title: string;
   messages: ChatMessage[];
@@ -39,6 +40,8 @@ export function ChatView({
   problem: string | null;
   onSend: (body: string) => Promise<boolean>;
   initial?: string;
+  /** Whose side of the chat this phone is on: the buyer's, or the shop's. */
+  me?: "buyer" | "seller";
 }) {
   const insets = useSafeAreaInsets();
   const [body, setBody] = useState(initial);
@@ -65,7 +68,7 @@ export function ChatView({
           </Text>
         ) : null}
         {messages.map((message) => {
-          const mine = message.sender === "buyer";
+          const mine = message.sender === me;
           return (
             <View key={message.id} style={[styles.bubbleRow, mine ? styles.right : styles.left]}>
               <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
@@ -76,7 +79,7 @@ export function ChatView({
                     accessibilityRole="link"
                   >
                     {message.product.photo ? (
-                      <Image source={mediaUrl(message.product.photo)} style={styles.thumb} contentFit="cover" />
+                      <Image source={photoUrl(message.product.photo)} style={styles.thumb} contentFit="cover" />
                     ) : null}
                     <Text style={[styles.productText, mine ? { color: "#ffffff" } : null]} numberOfLines={1}>
                       About {message.product.name}
