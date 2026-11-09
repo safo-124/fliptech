@@ -7,6 +7,9 @@
   management forms and save controls; this template supplies workflow context.
 {% endcomment %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block responsive %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_enquiry.css' %}">

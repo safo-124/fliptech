@@ -1,5 +1,5 @@
 {% extends "admin/index.html" %}
-{% load i18n log %}
+{% load i18n log static %}
 
 {% comment %}
   The oversight dashboard.
@@ -43,6 +43,9 @@
 
 {% block sidebar %}{% endblock %}
 
+{# The page draws its own heading; Django's would repeat the site's index title. #}
+{% block content_title %}{% endblock %}
+
 {% block content %}
 <style>
   /*
@@ -62,27 +65,96 @@
 
   .sh { margin-bottom: 8px; }
 
-  .sh > h1 {
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    margin: 0 0 4px;
+  /* The welcome band: the website's indigo, the aperture mark faint
+     behind the words, and the three places most days start from. */
+  .sh-hero {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 0 0 20px;
+    padding: 26px 28px;
+    border-radius: 20px;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(90% 140% at 100% 0%, oklch(0.62 0.18 300 / 0.55), transparent 55%),
+      radial-gradient(60% 120% at 85% 120%, oklch(0.72 0.17 350 / 0.45), transparent 60%),
+      linear-gradient(135deg, oklch(0.24 0.14 292), oklch(0.32 0.18 293));
+    box-shadow: 0 20px 40px -24px oklch(0.24 0.14 292 / 0.6);
   }
-  .sh-lede {
-    color: var(--muted-foreground);
-    font-size: 14px;
-    margin: 0 0 24px;
+  .sh-hero::after {
+    content: "";
+    position: absolute;
+    right: -60px;
+    top: -70px;
+    width: 220px;
+    height: 220px;
+    background: url("{% static 'core/brand-mark.svg' %}") center / contain no-repeat;
+    opacity: 0.12;
+    pointer-events: none;
+  }
+  .sh-hero-copy { position: relative; z-index: 1; min-width: 0; }
+  .sh-hello {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: oklch(0.9 0.05 320);
+  }
+  #content .sh-hero h1 {
+    margin: 0 0 6px;
+    color: #fff;
+    font-size: 30px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+  }
+  #content .sh-hero .sh-lede { margin: 0; color: oklch(1 0 0 / 0.78); font-size: 14.5px; }
+  .sh-hero-links { position: relative; z-index: 1; display: flex; gap: 8px; flex-wrap: wrap; }
+  #content .sh-hero-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid oklch(1 0 0 / 0.22);
+    background: oklch(1 0 0 / 0.1);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    backdrop-filter: blur(6px);
+  }
+  #content .sh-hero-links a:hover { background: oklch(1 0 0 / 0.2); color: #fff; }
+  @media (max-width: 767px) {
+    .sh-hero { padding: 20px; border-radius: 16px; }
+    #content .sh-hero h1 { font-size: 24px; }
   }
 
-  .sh h2 {
-    font-size: 14px;
+  /* "Show more" under the feed. */
+  .sh-more > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 12px 0 2px;
+    color: var(--brand, var(--foreground));
+    font-size: 13px;
     font-weight: 600;
+  }
+  .sh-more > summary::-webkit-details-marker { display: none; }
+  .sh-more > summary::after { content: " ↓"; }
+  .sh-more[open] > summary::after { content: " ↑"; }
+  .sh-more[open] > summary { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  #content .sh h2 {
+    font-size: 16px;
+    font-weight: 700;
     letter-spacing: 0;
     text-transform: none;
     color: var(--foreground);
-    margin: 28px 0 12px;
+    margin: 32px 0 12px;
   }
-  .sh h2:first-of-type { margin-top: 0; }
+
 
   .sh-grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
 
@@ -105,11 +177,13 @@
   .sh-card.w8 { grid-column: span 8; }
   .sh-card.w12 { grid-column: span 12; }
 
+  /* Four numbers to a row while they fit, then two by two: never three and
+     an orphan. */
   @media (max-width: 1500px) {
-    .sh-card, .sh-card.w4 { grid-column: span 4; }
+    .sh-card.w4 { grid-column: span 4; }
     .sh-card.w6, .sh-card.w8 { grid-column: span 8; }
   }
-  @media (max-width: 1100px) {
+  @media (max-width: 1200px) {
     .sh-card, .sh-card.w4, .sh-card.w6, .sh-card.w8 { grid-column: span 6; }
   }
   @media (max-width: 800px) {
@@ -287,8 +361,20 @@
 </style>
 
 <div class="sh">
-  <h1>Overview</h1>
-  <p class="sh-lede">Onboarding, verification and moderation for {{ panel.pipeline.published }} published provider{{ panel.pipeline.published|pluralize }}.</p>
+  <header class="sh-hero">
+    <div class="sh-hero-copy">
+      {% now "G" as hour %}
+      <p class="sh-hello">{% if hour|add:0 < 12 %}Good morning{% elif hour|add:0 < 17 %}Good afternoon{% else %}Good evening{% endif %}, {% firstof user.get_short_name user.get_username %} · {% now "l j F" %}</p>
+      <h1>Overview</h1>
+      <p class="sh-lede">Onboarding, verification and moderation for {{ panel.pipeline.published }} published provider{{ panel.pipeline.published|pluralize }}.</p>
+    </div>
+    {# Only the places this person may open: a link to a 403 is worse than none. #}
+    <nav class="sh-hero-links" aria-label="Start here">
+      {% if perms.providers.view_provider or perms.providers.change_provider %}<a href="{% url 'admin:providers_provider_changelist' %}">Providers</a>{% endif %}
+      {% if perms.enquiries.view_enquiry or perms.enquiries.change_enquiry %}<a href="{% url 'admin:enquiries_enquiry_changelist' %}">Enquiries</a>{% endif %}
+      {% if perms.marketplace.view_order or perms.marketplace.change_order %}<a href="{% url 'admin:marketplace_order_changelist' %}">Orders</a>{% endif %}
+    </nav>
+  </header>
 
   {% comment %}
     What is actually reaching anyone. First on the page on purpose. While
@@ -320,33 +406,6 @@
           <span>{{ channel.provider }}</span>
         </span>
       {% endfor %}
-    </div>
-  </div>
-
-  {% comment %}
-    What happened lately. Django's "recent actions" card further down covers
-    only changes made through the admin. Everything a trainer or a trainee did
-    themselves was invisible until this.
-  {% endcomment %}
-  <h2>Lately</h2>
-  <div class="sh-grid">
-    <div class="sh-card" style="grid-column: span 12;">
-      {% if activity %}
-        <ul class="sh-feed">
-          {% for event in activity %}
-            <li>
-              <time datetime="{{ event.at|date:'c' }}" title="{{ event.at }}">{{ event.at|timesince }} ago</time>
-              <span class="sh-kind {{ event.kind }}">{{ event.kind }}</span>
-              <span>
-                {% if event.url %}<a href="{{ event.url }}">{{ event.what }}</a>{% else %}{{ event.what }}{% endif %}
-                {% if event.who %}<span class="who">— {{ event.who }}</span>{% endif %}
-              </span>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="sh-foot-muted">Nothing has happened in the last two weeks.</p>
-      {% endif %}
     </div>
   </div>
 
@@ -424,6 +483,33 @@
       </div>
     </div>
 
+  </div>
+
+  {% comment %}
+    What happened lately. Django's "recent actions" card further down covers
+    only changes made through the admin. Everything a trainer or a trainee did
+    themselves was invisible until this. The newest few show; the rest of
+    the fortnight is one tap away, so the numbers above stay above the fold.
+  {% endcomment %}
+  <h2>Lately</h2>
+  <div class="sh-grid">
+    <div class="sh-card sh-lately" style="grid-column: span 12;">
+      {% if activity %}
+        <ul class="sh-feed">
+          {% for event in activity|slice:":6" %}{% include "admin/core/_activity_event.html" %}{% endfor %}
+        </ul>
+        {% if activity|length > 6 %}
+          <details class="sh-more">
+            <summary>Show {{ activity|length|add:"-6" }} more from the last two weeks</summary>
+            <ul class="sh-feed">
+              {% for event in activity|slice:"6:" %}{% include "admin/core/_activity_event.html" %}{% endfor %}
+            </ul>
+          </details>
+        {% endif %}
+      {% else %}
+        <p class="sh-foot-muted">Nothing has happened in the last two weeks.</p>
+      {% endif %}
+    </div>
   </div>
 
   {# ---- Trend ---- #}
