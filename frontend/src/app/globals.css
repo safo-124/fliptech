@@ -260,6 +260,19 @@ body {
     background: var(--color-brand);
     color: #fff;
   }
+  /* Tap outside the open menu to close it, with no script: a dimmed layer
+     that belongs to the menu button, so tapping it is tapping the button.
+     Fixed inside .nav-bar, whose backdrop-filter makes it the containing
+     box, so it covers the bar (clear: a tap on the logo closes the menu
+     too) and the screen below it (dimmed). The bar is 4rem below lg. */
+  details[open] > .nav-menu-btn::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: 100dvh;
+    background: linear-gradient(transparent 4rem, rgb(23 20 38 / 0.3) 0);
+    cursor: default;
+  }
   .nav-search {
     display: none;
     grid-auto-flow: column;
@@ -280,6 +293,7 @@ body {
   }
   .nav-sheet {
     position: absolute;
+    z-index: 1;
     inset-inline: 0;
     top: 100%;
     max-height: calc(100dvh - 4.25rem);
