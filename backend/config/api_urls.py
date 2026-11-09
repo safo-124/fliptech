@@ -8,7 +8,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from accounts.app_views import AppCodeRequestView, AppCodeVerifyView, AppSignOutView
-from accounts.views import AccountView
+from accounts.views import AccountPhotoView, AccountView
 from accounts.views import AddressesView as AccountAddressesView
 from accounts.views import AddressView as AccountAddressView
 from accounts.views import AddRoleView as AccountAddRoleView
@@ -175,6 +175,8 @@ urlpatterns = [
         update_asset,
         name="app-update-asset",
     ),
+    # The signed-in person's own picture, for the header and the app.
+    path("account/photo/", AccountPhotoView.as_view(), name="account-photo"),
     path("search/", SearchView.as_view(), name="search"),
     path("search/suggest/", SuggestView.as_view(), name="search-suggest"),
     path("search/nearby/", NearbyView.as_view(), name="search-nearby"),

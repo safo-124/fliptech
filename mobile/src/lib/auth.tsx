@@ -8,6 +8,8 @@ import { loadToken, saveToken, token } from "./session";
 export type Account = {
   phone: string;
   display_name: string;
+  /** Their own picture, or null. */
+  photo: string | null;
   email: string | null;
   delivery_address: string;
   created_at: string;

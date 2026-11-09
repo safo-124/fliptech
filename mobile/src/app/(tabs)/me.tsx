@@ -1,11 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { router, type Href } from "expo-router";
-import { Bell, BellRing, BookOpen, ChevronRight, FileText, Heart, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/Form";
 import { Screen } from "@/components/Screen";
 import { Text } from "@/components/Text";
+import { ApiError, request, uploadAccountPhoto } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { openOnSite } from "@/lib/open";
 import { showPhone } from "@/lib/phone";
@@ -47,6 +52,8 @@ const GROUPS: { title: string; rows: Row[] }[] = [
 
 export default function MeScreen() {
   const auth = useAuth();
+  const client = useQueryClient();
+  const [uploading, setUploading] = useState(false);
   const name = auth.account?.display_name || "";
 
   function open(row: Row) {
@@ -56,6 +63,53 @@ export default function MeScreen() {
       router.push(row.to);
     } else if (row.site) {
       void openOnSite(row.site);
+    }
+  }
+
+  /** Pick a photo from the phone (cropped square), or take the current one off. */
+  function choosePhoto() {
+    const options: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [
+      { text: "Choose from photos", onPress: () => void pick("library") },
+      { text: "Take a photo", onPress: () => void pick("camera") },
+    ];
+    if (auth.account?.photo) options.push({ text: "Remove photo", style: "destructive", onPress: () => void remove() });
+    options.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Your photo", "Only you see it, here and at the top of the website.", options);
+  }
+
+  async function pick(from: "library" | "camera") {
+    const permission =
+      from === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Allow access", "Fliiptech needs permission to use your photos for this. You can allow it in your phone's settings.");
+      return;
+    }
+    const options: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8 };
+    const result =
+      from === "camera" ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    const asset = result.canceled ? null : result.assets[0];
+    if (!asset) return;
+    setUploading(true);
+    try {
+      const reply = await uploadAccountPhoto(asset.uri, asset.mimeType ?? "image/jpeg");
+      client.setQueryData(["account"], reply);
+    } catch (error) {
+      Alert.alert("That did not work", error instanceof ApiError ? error.message : "Try another photo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function remove() {
+    setUploading(true);
+    try {
+      client.setQueryData(["account"], await request("DELETE", "/api/account/photo/"));
+    } catch (error) {
+      Alert.alert("That did not work", error instanceof ApiError ? error.message : "Try again.");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -77,12 +131,33 @@ export default function MeScreen() {
 
       {auth.signedIn && auth.account ? (
         <View style={styles.card}>
-          <View style={styles.avatar}>
-            <Text style={styles.initial}>{(name || "?").slice(0, 1).toUpperCase()}</Text>
-          </View>
+          <Pressable
+            onPress={choosePhoto}
+            disabled={uploading}
+            accessibilityRole="button"
+            accessibilityLabel={auth.account.photo ? "Change your photo" : "Add a photo"}
+            style={styles.avatar}
+          >
+            {auth.account.photo ? (
+              <Image source={auth.account.photo} style={[StyleSheet.absoluteFill, { borderRadius: 32 }]} contentFit="cover" transition={150} />
+            ) : (
+              <Text style={styles.initial}>{(name || "?").slice(0, 1).toUpperCase()}</Text>
+            )}
+            {uploading ? (
+              <View style={styles.avatarBusy}>
+                <ActivityIndicator color="#fff" />
+              </View>
+            ) : null}
+            <View style={styles.camera}>
+              <Camera size={13} color="#fff" />
+            </View>
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text variant="heading">{name || "Welcome"}</Text>
             <Text variant="small">{showPhone(auth.account.phone)}</Text>
+            <Pressable onPress={choosePhoto} disabled={uploading} hitSlop={6} accessibilityRole="button">
+              <Text style={styles.photoLink}>{auth.account.photo ? "Change photo" : "Add a photo"}</Text>
+            </Pressable>
           </View>
         </View>
       ) : (
@@ -170,14 +245,29 @@ const styles = StyleSheet.create({
   },
   signIn: { backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, alignItems: "flex-start" },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.brand,
     alignItems: "center",
     justifyContent: "center",
   },
   initial: { fontFamily: fonts.extrabold, fontSize: 22, color: "#ffffff" },
+  avatarBusy: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 32, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  camera: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brand,
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
+  photoLink: { marginTop: 4, fontFamily: fonts.semibold, fontSize: 13, color: colors.brand },
   avatarLight: {
     width: 56,
     height: 56,

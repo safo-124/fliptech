@@ -207,3 +207,29 @@ export type BagRequest = {
   code?: string;
   pay_at_collection?: boolean;
 };
+
+/**
+ * Set the signed-in account's photo from a picture on the phone. Multipart,
+ * so not through `request` (which sends JSON). Returns the account as the
+ * server now has it, to put straight into the ["account"] query.
+ */
+export async function uploadAccountPhoto(uri: string, mimeType = "image/jpeg") {
+  const body = new FormData();
+  const ext = mimeType.split("/")[1] || "jpg";
+  body.append("photo", { uri, name: `photo.${ext}`, type: mimeType } as unknown as Blob);
+  const headers: Record<string, string> = { Accept: "application/json", "X-Fliptech-Client": "app" };
+  const signedIn = token();
+  if (signedIn) headers.Authorization = `Bearer ${signedIn}`;
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/account/photo/`, { method: "POST", headers, body });
+  } catch {
+    throw new ApiError("No connection. Check your data or Wi-Fi and try again.", 0);
+  }
+  const data: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const fields = fieldErrors(data);
+    throw new ApiError(fields.detail ?? "That photo did not upload. Try another.", response.status, fields);
+  }
+  return data;
+}

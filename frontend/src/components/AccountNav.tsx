@@ -41,8 +41,8 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
       .then((who) => {
         if (!active) return;
         // One login can hold several roles now. The account page lists them
-        // all, so the header always goes there; the trainee's picture is the
-        // only face anybody has.
+        // all, so the header always goes there. The server picks the picture
+        // (the account's own, else the trainee's): core/whoami.py.
         if (!who.customer && !who.trainer && !who.seller && !who.trainee) return;
         // A name if there is one; a bare phone number is no name, and the
         // header then says "My account".
@@ -50,7 +50,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
           [who.customer?.name, who.trainer?.name, who.seller?.name, who.trainee?.name].find(
             (candidate) => candidate && !/^\+?\d[\d\s]+$/.test(candidate),
           ) ?? labels.myAccount;
-        setAccount({href: "/account", name, avatar: who.trainee?.avatar});
+        setAccount({href: "/account", name, avatar: who.customer?.avatar});
       })
       // Signed out is the safe answer: it offers a way in rather than a link
       // to a dashboard that would bounce them.
