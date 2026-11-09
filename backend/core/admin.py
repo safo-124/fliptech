@@ -68,11 +68,12 @@ class RelayedTextAdmin(admin.ModelAdmin):
             "admin/core/relayedtext/codes.html",
             {
                 **self.admin_site.each_context(request),
-                "title": "Codes to send",
+                "title": "Codes to send" if not relay.copying() else "Recent sign-in codes",
                 "opts": self.model._meta,
                 "waiting": [row for row in rows if row["text"].relayed_at is None],
                 "sent": [row for row in rows if row["text"].relayed_at is not None],
                 "relaying": settings.SMS_PROVIDER == "backoffice",
+                "copying": relay.copying(),
                 "provider": settings.SMS_PROVIDER,
                 "lifetime_minutes": settings.OTP_TTL_SECONDS // 60,
                 "can_mark": self.has_change_permission(request),

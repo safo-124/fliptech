@@ -73,6 +73,12 @@ class CourseReviewAdmin(admin.ModelAdmin):
     search_fields = ("provider__name", "trainee__phone", "body")
     readonly_fields = ("provider", "trainee", "rating", "body", "reply", "replied_at")
 
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
+
 
 @admin.register(LessonQuestion)
 class LessonQuestionAdmin(admin.ModelAdmin):
@@ -90,6 +96,12 @@ class LessonQuestionAdmin(admin.ModelAdmin):
         "answered_at",
         "answered_by",
     )
+
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
 
 
 @admin.register(Certificate)

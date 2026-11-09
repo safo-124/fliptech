@@ -99,6 +99,13 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
+
     fieldsets = (
         (None, {"fields": ("business_name", "is_active", "user", "phone", "phone_verified_at")}),
         (
@@ -531,6 +538,13 @@ class ProductEnquiryAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
+
     fieldsets = (
         (None, {"fields": ("reference_code", "state", "told")}),
         ("What was asked", {"fields": ("product", "product_name", "message")}),

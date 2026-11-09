@@ -220,6 +220,7 @@ def test_the_sidebar_has_no_codes_group_unless_relaying(
     client, django_user_model, groups, settings
 ):
     settings.SMS_PROVIDER = "console"
+    settings.OTP_COPY_TO_BACK_OFFICE = False
     client.force_login(staff(django_user_model, "lead", groups["lead"]))
 
     response, queues = code_queues(client)
@@ -244,3 +245,89 @@ def test_the_dashboard_says_texts_are_sent_by_staff(relaying):
 
     assert texts["live"] is True
     assert texts["provider"] == "sent by staff from the back office"
+
+
+# --- a copy of every texted code, for when the text does not arrive ----------
+
+
+@pytest.fixture
+def texting(settings):
+    settings.SMS_PROVIDER = "console"
+    settings.OTP_COPY_TO_BACK_OFFICE = True
+
+
+@pytest.mark.django_db
+def test_a_texted_code_is_also_kept_in_the_back_office(texting, monkeypatch):
+    monkeypatch.setattr(otp, "_generate_code", lambda: "731905")
+    sent = []
+    monkeypatch.setattr(otp, "send_sms", lambda to, body: sent.append((to, body)) or True)
+
+    otp.request_code(PHONE)
+
+    assert sent and "731905" in sent[0][1]  # still texted
+    text = RelayedText.objects.get()
+    assert (text.to, relay.code_in(text.body), text.texted) == (PHONE, "731905", True)
+    assert otp.verify_code(PHONE, "731905") == PhoneVerification.objects.get()
+
+
+@pytest.mark.django_db
+def test_a_code_the_gateway_failed_to_send_is_kept_and_marked_not_sent(texting, monkeypatch):
+    monkeypatch.setattr(otp, "_generate_code", lambda: "552211")
+
+    def broken(to, body):
+        raise RuntimeError("gateway down")
+
+    monkeypatch.setattr(otp, "send_sms", broken)
+
+    with pytest.raises(RuntimeError):
+        otp.request_code(PHONE)
+
+    text = RelayedText.objects.get()
+    assert (relay.code_in(text.body), text.texted) == ("552211", False)
+
+
+@pytest.mark.django_db
+def test_no_copy_when_switched_off(settings, monkeypatch):
+    settings.SMS_PROVIDER = "console"
+    settings.OTP_COPY_TO_BACK_OFFICE = False
+
+    otp.request_code(PHONE)
+
+    assert not RelayedText.objects.exists()
+
+
+@pytest.mark.django_db
+def test_relaying_does_not_store_each_code_twice(relaying):
+    otp.request_code(PHONE)
+
+    assert RelayedText.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_the_operations_lead_finds_texted_codes(
+    client, django_user_model, groups, texting, monkeypatch
+):
+    monkeypatch.setattr(otp, "_generate_code", lambda: "640218")
+    otp.request_code(PHONE)
+    client.force_login(staff(django_user_model, "lead", groups["lead"]))
+
+    response, queues = code_queues(client)
+    assert [(q["label"], q["count"]) for q in queues] == [("Recent sign-in codes", 0)]
+
+    page = client.get(page_url()).content.decode()
+    assert "640218" in page
+    assert PHONE in page
+    assert "a copy is kept here" in page
+
+
+@pytest.mark.django_db
+def test_a_field_officer_cannot_see_texted_codes(
+    client, django_user_model, groups, texting, monkeypatch
+):
+    monkeypatch.setattr(otp, "_generate_code", lambda: "640218")
+    otp.request_code(PHONE)
+    client.force_login(staff(django_user_model, "officer", groups["officer"]))
+
+    assert client.get(page_url()).status_code == 403
+    response, queues = code_queues(client)
+    assert queues == []
