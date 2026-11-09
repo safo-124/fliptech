@@ -77,3 +77,9 @@ class TrainingAlertAdmin(admin.ModelAdmin):
     list_filter = ("trade", "area")
     search_fields = ("account__phone", "trade__name", "area__name")
     readonly_fields = ("account", "trade", "area", "created_at", "checked_at", "last_told_at")
+
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
