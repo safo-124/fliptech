@@ -6,6 +6,9 @@
   prepopulation, inlines, object tools and submit controls remain native Django.
 {% endcomment %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block responsive %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_catalog.css' %}">

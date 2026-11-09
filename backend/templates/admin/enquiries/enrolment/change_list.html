@@ -7,6 +7,9 @@
   bulk actions, export and permission checks keep their stock behaviour.
 {% endcomment %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block extrastyle %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_enrolment.css' %}">

@@ -12,6 +12,9 @@
   <script src="{% static 'core/admin_enrolment.js' %}" defer></script>
 {% endblock %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block responsive %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_enrolment.css' %}">
