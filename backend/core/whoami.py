@@ -38,6 +38,15 @@ def _trainer_account(user):
     return account if account.is_active else None
 
 
+def _avatar(customer, request):
+    if customer.photo:
+        return public_url(customer.photo.url, request)
+    trainee = getattr(customer.user, "trainee_account", None)
+    if trainee is not None and trainee.avatar:
+        return public_url(trainee.avatar.url, request)
+    return None
+
+
 def whoami_payload(request):
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
@@ -54,7 +63,18 @@ def whoami_payload(request):
     return {
         # Everyone signed in has one; the header links to it when they hold
         # nothing more particular.
-        "customer": ({"name": customer.display_name or str(customer.phone)} if customer else None),
+        "customer": (
+            {
+                "name": customer.display_name or str(customer.phone),
+                # The picture the header shows: the account's own photo, or
+                # the one added as a trainee before accounts had one. Decided
+                # here so the header's script (on every page, inside the
+                # search page's budget) reads one field.
+                "avatar": _avatar(customer, request),
+            }
+            if customer
+            else None
+        ),
         "seller": ({"name": seller.business_name or str(seller.phone)} if seller else None),
         "trainer": ({"name": trainer.full_name or str(trainer.phone)} if trainer else None),
         # Only the trainee carries a picture, because only the trainee has one

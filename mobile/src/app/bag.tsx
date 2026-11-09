@@ -9,7 +9,7 @@ import { StackHeader } from "@/components/StackHeader";
 import { Text } from "@/components/Text";
 import { bySeller, MAX_QUANTITY, useBag, type BagItem } from "@/lib/bag";
 import { cedis } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /**
@@ -84,7 +84,7 @@ function Line({ item }: { item: BagItem }) {
     <View style={styles.line}>
       <Pressable onPress={() => router.push(`/product/${item.product}`)} style={styles.photo} accessibilityRole="link">
         {item.photo ? (
-          <Image source={{ uri: mediaUrl(item.photo) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={{ uri: photoUrl(item.photo) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : null}
       </Pressable>
       <View style={{ flex: 1, gap: 2 }}>

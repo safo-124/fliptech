@@ -18,6 +18,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from appsupport.notify import notify
 from core.sms import send_sms
 from marketplace.models import Order, PaymentStatus, ProductEnquiry, SellerPayment
 from marketplace.reviews import token_for
@@ -94,7 +95,7 @@ class Command(BaseCommand):
                 f"{settings.BRAND_NAME}: how was {thing.seller.business_name}? Tell other "
                 f"buyers about {what} {thing.product_name}: {review_link(token)}"
             )
-            send_sms(phone, message)
+            notify(phone, message, send=send_sms)
             texted.add(phone)
             thing.review_requested_at = now
             thing.save(update_fields=["review_requested_at", "updated_at"])
@@ -120,12 +121,13 @@ class Command(BaseCommand):
                 .exists()
             ):
                 continue
-            send_sms(
+            notify(
                 plan.seller.phone,
                 f"{settings.BRAND_NAME}: your Shop plan ends on "
                 f"{timezone.localtime(plan.ends_at):%d %b}. Keep your extra products on show "
                 f"by paying for another month in your seller dashboard: "
                 f"{settings.PUBLIC_SITE_URL.rstrip('/')}/sell/shop",
+                send=send_sms,
             )
             plan.reminded_at = now
             plan.save(update_fields=["reminded_at", "updated_at"])

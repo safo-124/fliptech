@@ -5,7 +5,7 @@ import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 
 import { Text } from "@/components/Text";
 import { cedis } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { ProviderCard } from "@/lib/types";
 import { tradeHex } from "@/theme/trades";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
@@ -35,7 +35,7 @@ export function WorkshopSheet({
     >
       <Pressable onPress={onView} style={styles.top} accessibilityRole="button" accessibilityLabel={workshop.name}>
         <View style={styles.photo}>
-          <Image source={mediaUrl(workshop.primary_photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={photoUrl(workshop.primary_photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
         </View>
         <View style={styles.body}>
           {workshop.trade ? (

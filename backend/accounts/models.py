@@ -12,6 +12,7 @@ from django.conf import settings
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
 
+from core.images import MAX_AVATAR_EDGE, strip_exif, stripped_name
 from core.models import TimeStampedModel
 
 
@@ -26,6 +27,11 @@ class CustomerAccount(TimeStampedModel):
     email = models.EmailField(unique=True, null=True, blank=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     display_name = models.CharField(max_length=120, blank=True)
+    # Their own picture, shown to them in the site header and the app. Not on
+    # any listing, and never shown to a seller or a workshop. Decoded,
+    # stripped of its metadata (a phone photograph carries GPS) and made
+    # small on save, however it arrives.
+    photo = models.ImageField(upload_to="accounts/%Y/%m/", blank=True)
     # Filled in at checkout so the next order does not ask again.
     delivery_address = models.CharField(max_length=300, blank=True)
     is_active = models.BooleanField(default=True)
@@ -36,6 +42,13 @@ class CustomerAccount(TimeStampedModel):
 
     def __str__(self):
         return self.display_name or str(self.phone)
+
+    def save(self, *args, **kwargs):
+        if self.photo and not self.photo._committed:
+            content = strip_exif(self.photo, max_edge=MAX_AVATAR_EDGE)
+            if content is not None:
+                self.photo.save(stripped_name(self.photo.name), content, save=False)
+        super().save(*args, **kwargs)
 
 
 class SavedProduct(models.Model):

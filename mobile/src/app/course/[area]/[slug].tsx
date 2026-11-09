@@ -17,7 +17,9 @@ import { Text } from "@/components/Text";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cedis, courseLength } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { SITE_URL } from "@/lib/config";
+import { dataSaving } from "@/lib/datasaver";
+import { mediaUrl, photoUrl } from "@/lib/media";
 import { forgetLesson, saveLesson, savedLesson } from "@/lib/offline";
 import { openOnSite } from "@/lib/open";
 import { payOnPaystack } from "@/lib/pay";
@@ -165,7 +167,9 @@ export default function CourseScreen() {
           <LockedPoster poster={active?.poster ?? data?.course.poster ?? null} loading={!data || access.isPending} />
         )}
       </View>
-      <BackBar />
+      <BackBar
+        share={data ? { message: `${data.course.name} on Fliiptech:`, url: `${SITE_URL}/learn/${area}/${slug}` } : undefined}
+      />
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}>
         {!data ? (
@@ -383,9 +387,12 @@ function canStream(lesson: Lesson, access: CourseAccess | undefined) {
  */
 function sourceFor(lesson: Lesson, access: CourseAccess | undefined, local?: string): PlayerSource {
   if (local) return { uri: local };
-  const stream = access?.streams[lesson.id];
   const files = [...(access?.sources[lesson.id] ?? [])].sort((a, b) => b.quality - a.quality);
-  const uri = mediaUrl(stream ?? files[0]?.url) ?? "";
+  // Data saver: the smallest file, rather than a stream that climbs to the
+  // sharpest copy whenever the signal allows.
+  const saving = dataSaving() && files.length > 0;
+  const stream = saving ? undefined : access?.streams[lesson.id];
+  const uri = mediaUrl(stream ?? (saving ? files[files.length - 1]?.url : files[0]?.url)) ?? "";
   const signedIn = token();
   return {
     uri,
@@ -415,7 +422,8 @@ function Player({
   const player = useVideoPlayer(source, (p) => {
     p.timeUpdateEventInterval = PROGRESS_EVERY;
     if (startAt > 5) p.currentTime = startAt;
-    p.play();
+    // With data saver on, nothing plays until the play button is pressed.
+    if (!dataSaving()) p.play();
   });
   const { status } = useEvent(player, "statusChange", {
     status: player.status,
@@ -468,7 +476,7 @@ function LockedPoster({ poster, loading }: { poster: string | null; loading: boo
   return (
     <View style={styles.video}>
       {poster ? (
-        <Image source={{ uri: mediaUrl(poster) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <Image source={{ uri: photoUrl(poster) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : null}
       {loading ? null : (
         <View style={styles.lockOverlay}>

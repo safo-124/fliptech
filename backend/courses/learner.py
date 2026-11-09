@@ -35,6 +35,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from appsupport.notify import notify
 from core.sms import send_sms
 from providers.learning import CourseCardSerializer, _courses
 from providers.models import ProviderVideo
@@ -488,7 +489,7 @@ def _tell_trainer(question):
     )
     for phone in trainer_phones(question.provider):
         try:
-            send_sms(phone, message)
+            notify(phone, message, send=send_sms)
         except Exception:
             logger.exception("Could not text the trainer about question %s", question.pk)
 

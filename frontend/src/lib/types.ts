@@ -662,7 +662,7 @@ export type TrainerEnquiry = {
  */
 export type Whoami = {
   /** Everyone signed in has a customer account. */
-  customer: {name: string} | null;
+  customer: {name: string; avatar?: string | null} | null;
   seller: {name: string} | null;
   trainer: {name: string} | null;
   // Only the trainee has a picture — a workshop is represented by its listing

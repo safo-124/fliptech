@@ -34,6 +34,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from appsupport.notify import notify
 from core.sms import send_sms
 from providers.trainer_views import IsActiveTrainer, _account, _profile_for
 
@@ -526,10 +527,11 @@ class StudioStatsView(TrainerView):
 
 def _tell_learner(question):
     try:
-        send_sms(
+        notify(
             question.trainee.phone,
             f"{settings.BRAND_NAME}: {question.provider.name} answered your question about "
             f'"{question.video.title}": "{question.answer[:140]}"',
+            send=send_sms,
         )
     except Exception:
         logger.exception("Could not text the answer to question %s", question.pk)

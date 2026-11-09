@@ -821,6 +821,10 @@
     "loadingEllipsis": "Loading enquiry form…"
   },
   "Account": {
+    "addPhoto": "Add a photo",
+    "changePhoto": "Change photo",
+    "removePhoto": "Remove",
+    "photoHint": "Only you see it, at the top of the site and in the app.",
     "metaTitle": "Your account",
     "signInTitle": "Sign in",
     "joinTitle": "Create your account",

@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, Trash2 } from "lucide-react-native";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
@@ -7,7 +8,7 @@ import { StackHeader } from "@/components/StackHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
-import { openOnSite } from "@/lib/open";
+import { appPath } from "@/lib/links";
 import { colors, radius, space } from "@/theme/tokens";
 
 /** Searches kept on the account; each is texted about new matches. */
@@ -43,7 +44,7 @@ export default function SavedSearchesScreen() {
           renderItem={({ item }) => (
             <View style={styles.row}>
               <BellRing size={18} color={colors.brand} />
-              <Pressable style={{ flex: 1 }} onPress={() => void openOnSite(item.path)} accessibilityRole="link">
+              <Pressable style={{ flex: 1 }} onPress={() => router.push(appPath(item.path) as never)} accessibilityRole="link">
                 <Text variant="label" numberOfLines={1}>
                   {item.label}
                 </Text>

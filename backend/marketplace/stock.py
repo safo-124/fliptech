@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 
+from appsupport.notify import notify
 from core.sms import send_sms
 
 from .models import Product
@@ -52,6 +53,6 @@ def take_stock(order):
 
 def _text(phone, message):
     try:
-        send_sms(phone, message)
+        notify(phone, message, send=send_sms)
     except Exception:
         logger.exception("Could not text a stock warning")
