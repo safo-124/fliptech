@@ -368,10 +368,11 @@
       <h1>Overview</h1>
       <p class="sh-lede">Onboarding, verification and moderation for {{ panel.pipeline.published }} published provider{{ panel.pipeline.published|pluralize }}.</p>
     </div>
+    {# Only the places this person may open: a link to a 403 is worse than none. #}
     <nav class="sh-hero-links" aria-label="Start here">
-      <a href="{% url 'admin:providers_provider_changelist' %}">Providers</a>
-      <a href="{% url 'admin:enquiries_enquiry_changelist' %}">Enquiries</a>
-      <a href="{% url 'admin:marketplace_order_changelist' %}">Orders</a>
+      {% if perms.providers.view_provider or perms.providers.change_provider %}<a href="{% url 'admin:providers_provider_changelist' %}">Providers</a>{% endif %}
+      {% if perms.enquiries.view_enquiry or perms.enquiries.change_enquiry %}<a href="{% url 'admin:enquiries_enquiry_changelist' %}">Enquiries</a>{% endif %}
+      {% if perms.marketplace.view_order or perms.marketplace.change_order %}<a href="{% url 'admin:marketplace_order_changelist' %}">Orders</a>{% endif %}
     </nav>
   </header>
 
