@@ -194,6 +194,10 @@ body {
     align-self: start;
   }
 
+  /* Collapsed: Django slides the sidebar off with a negative margin, which a
+     grid column ignores; take it out of the grid instead. */
+  body:not(.login):not(.popup) .main:not(.shifted) > #nav-sidebar { display: none; }
+
   body:not(.login):not(.popup) #toggle-nav-sidebar {
     grid-area: toggle;
     position: sticky;
@@ -861,4 +865,15 @@ body.login .errornote { margin: 0 0 18px; padding: 12px 14px; font-size: 14px; }
   .bo-login-sub, body.login #header .bo-login-foot { display: none !important; }
   .bo-login-eyebrow { margin-bottom: 8px; }
   body.login #main { place-items: start center; padding: 28px 20px 40px; }
+}
+
+/* On a phone, fields fit the screen; the edit/add/delete/view buttons wrap
+   under a field rather than pushing past the edge. Select2 keeps the real
+   <select> in the page, invisibly, for forms and screen readers: pin it
+   inside its row so it cannot widen the page either. */
+@media (max-width: 767px) {
+  #content input.vTextField, #content textarea, #content select { max-width: 100%; box-sizing: border-box; }
+  .related-widget-wrapper { flex-wrap: wrap; max-width: 100%; }
+  .related-widget-wrapper .select2-container { max-width: 100%; }
+  select.select2-hidden-accessible { left: 0; right: auto; max-width: 1px; }
 }

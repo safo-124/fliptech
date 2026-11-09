@@ -26,7 +26,9 @@
   {% endcomment %}
   <script>
     try {
-      if (window.innerWidth < 768 &&
+      // screen.width, not innerWidth: this runs before the viewport tag is
+      // read, when a phone still reports a 980px desktop-sized window.
+      if (Math.min(window.innerWidth, screen.width) < 768 &&
           localStorage.getItem('django.admin.navSidebarIsOpen') === null) {
         localStorage.setItem('django.admin.navSidebarIsOpen', 'false');
       }
