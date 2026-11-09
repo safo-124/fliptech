@@ -22,14 +22,18 @@ class TimeStampedModel(models.Model):
 class RelayedText(models.Model):
     """A text message the server cannot send yet, waiting for a person to.
 
-    Only written with SMS_PROVIDER=backoffice, a stand-in until an SMS gateway
-    is registered: staff see each sign-in code in the back office and send it
-    on themselves. See core/relay.py, including why the body does not outlive
+    Written for every sign-in code. With SMS_PROVIDER=backoffice, a stand-in
+    until an SMS gateway is registered, it is the only copy and staff send it
+    on themselves. Otherwise it is texted too, and this copy is there for when
+    the text does not arrive (OTP_COPY_TO_BACK_OFFICE). See core/relay.py, including why the body does not outlive
     the code in it.
     """
 
     to = models.CharField(max_length=32)
     body = models.TextField(blank=True)
+    # True when the SMS gateway also sent it: the copy here is the fallback,
+    # for when the person says the text never came.
+    texted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     relayed_at = models.DateTimeField(null=True, blank=True)
     relayed_by = models.ForeignKey(

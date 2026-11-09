@@ -19,15 +19,25 @@
       letter-spacing: 0.18em;
     }
     .relay-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .relay-actions .button, .relay-actions button { min-height: 44px; }
+    .relay-actions form { margin: 0; }
+    #content .relay-actions .button, #content .relay-actions a.button, #content .relay-actions button {
+      display: inline-flex; align-items: center; justify-content: center;
+      box-sizing: border-box; height: 44px; min-height: 44px; margin: 0; padding: 0 16px;
+      font-size: 14px; line-height: 1;
+    }
     .relay-table td { vertical-align: middle; }
+    .relay-texted, .relay-failed {
+      display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 650;
+    }
+    .relay-texted { background: var(--message-success-bg); color: var(--sh-positive); }
+    .relay-failed { background: var(--message-error-bg); color: var(--destructive); }
   </style>
 {% endblock %}
 
 {% block breadcrumbs %}
   <div class="breadcrumbs">
     <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
-    &rsaquo; {% translate 'Codes to send' %}
+    &rsaquo; {{ title }}
   </div>
 {% endblock %}
 
@@ -42,19 +52,27 @@
           that.
         {% endblocktranslate %}
       </p>
+    {% elif copying %}
+      <p class="help" style="margin-bottom: 16px">
+        {% blocktranslate %}
+          Every sign-in code is sent to the person by text message, and a copy is kept here for
+          {{ lifetime_minutes }} minutes. If somebody says theirs never arrived, find their number
+          and read the code to them, or send it on WhatsApp, then mark it as sent.
+        {% endblocktranslate %}
+      </p>
     {% else %}
       <ul class="messagelist">
         <li class="warning">
           {% blocktranslate %}
-            Codes only come here when SMS_PROVIDER is set to “backoffice”. It is currently
-            “{{ provider }}”, so new codes are not being added to this page.
+            Codes are not being kept here: SMS_PROVIDER is “{{ provider }}” and
+            OTP_COPY_TO_BACK_OFFICE is off.
           {% endblocktranslate %}
         </li>
       </ul>
     {% endif %}
 
     <div class="module">
-      <h2>{% blocktranslate count counter=waiting|length %}Waiting to send ({{ counter }}){% plural %}Waiting to send ({{ counter }}){% endblocktranslate %}</h2>
+      <h2>{% if copying %}{% blocktranslate count counter=waiting|length %}Codes still working ({{ counter }}){% plural %}Codes still working ({{ counter }}){% endblocktranslate %}{% else %}{% blocktranslate count counter=waiting|length %}Waiting to send ({{ counter }}){% plural %}Waiting to send ({{ counter }}){% endblocktranslate %}{% endif %}</h2>
       {% if waiting %}
         <table class="relay-table" style="width: 100%">
           <thead>
@@ -62,6 +80,7 @@
               <th scope="col">{% translate 'Send to' %}</th>
               <th scope="col">{% translate 'Code' %}</th>
               <th scope="col">{% translate 'Works for' %}</th>
+              {% if copying %}<th scope="col">{% translate 'Text message' %}</th>{% endif %}
               <th scope="col"><span class="visually-hidden">{% translate 'Send' %}</span></th>
             </tr>
           </thead>
@@ -71,6 +90,9 @@
                 <td><strong>{{ row.text.to }}</strong></td>
                 <td><span class="relay-code">{{ row.code|default:"—" }}</span></td>
                 <td>{% blocktranslate count counter=row.minutes_left %}{{ counter }} more minute{% plural %}{{ counter }} more minutes{% endblocktranslate %}</td>
+                {% if copying %}
+                  <td>{% if row.text.texted %}<span class="relay-texted">{% translate 'Sent' %}</span>{% else %}<span class="relay-failed">{% translate 'Not sent: pass it on' %}</span>{% endif %}</td>
+                {% endif %}
                 <td>
                   <div class="relay-actions">
                     <a class="button" href="{{ row.whatsapp }}" target="_blank" rel="noopener">{% translate 'WhatsApp' %}</a>
@@ -91,7 +113,7 @@
           </tbody>
         </table>
       {% else %}
-        <p style="padding: 12px">{% translate 'No codes waiting. When somebody asks for a sign-in code, it appears here. This page checks every 15 seconds.' %}</p>
+        <p style="padding: 12px">{% if copying %}{% translate 'No codes in the last few minutes. When somebody asks for a sign-in code, it appears here. This page checks every 15 seconds.' %}{% else %}{% translate 'No codes waiting. When somebody asks for a sign-in code, it appears here. This page checks every 15 seconds.' %}{% endif %}</p>
       {% endif %}
     </div>
 

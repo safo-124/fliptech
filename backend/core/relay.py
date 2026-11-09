@@ -41,9 +41,19 @@ def wipe_expired(now=None):
     )
 
 
-def queue_text(to, body):
+def queue_text(to, body, *, texted=False):
     wipe_expired()
-    return RelayedText.objects.create(to=str(to), body=body)
+    return RelayedText.objects.create(to=str(to), body=body, texted=texted)
+
+
+def copying():
+    """Whether texted codes are also kept here, for when a text goes missing."""
+    return settings.SMS_PROVIDER != "backoffice" and settings.OTP_COPY_TO_BACK_OFFICE
+
+
+def in_use():
+    """Whether codes reach the back office at all, by either route."""
+    return settings.SMS_PROVIDER == "backoffice" or copying()
 
 
 def current(now=None):

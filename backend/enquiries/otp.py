@@ -26,6 +26,7 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from core import relay
 from core.mail import send_email
 from core.sms import send_sms
 
@@ -115,15 +116,23 @@ def request_code(
         ip_address=ip_address,
     )
 
-    send_sms(
-        phone,
-        _("%(code)s is your %(brand)s Skills Hub code. It expires in %(minutes)s minutes.")
-        % {
-            "code": code,
-            "brand": settings.BRAND_NAME,
-            "minutes": settings.OTP_TTL_SECONDS // 60,
-        },
-    )
+    body = _("%(code)s is your %(brand)s Skills Hub code. It expires in %(minutes)s minutes.") % {
+        "code": code,
+        "brand": settings.BRAND_NAME,
+        "minutes": settings.OTP_TTL_SECONDS // 60,
+    }
+    # A copy for the back office, so staff can read the code out when the
+    # text does not arrive. Kept even when sending fails: that is when it is
+    # needed most. (With SMS_PROVIDER=backoffice the text itself goes there.)
+    copy = relay.copying()
+    try:
+        sent = send_sms(phone, body)
+    except Exception:
+        if copy:
+            relay.queue_text(phone, body, texted=False)
+        raise
+    if copy:
+        relay.queue_text(phone, body, texted=bool(sent))
     if email:
         _also_email(email, code)
     return verification

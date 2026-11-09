@@ -485,6 +485,10 @@ DEFAULT_FROM_EMAIL = env(
 
 OTP_CODE_LENGTH = 6
 OTP_TTL_SECONDS = 600  # 10 minutes
+# Keep a copy of every sign-in code on the back office's "Codes to send" page,
+# as well as texting it, so staff can read it out when a text does not arrive.
+# Only staff with core.view_relayedtext see it; it is wiped when it expires.
+OTP_COPY_TO_BACK_OFFICE = env.bool("OTP_COPY_TO_BACK_OFFICE", default=True)
 OTP_MAX_ATTEMPTS = 5  # wrong guesses before the code is burned
 OTP_MAX_PER_PHONE_PER_DAY = 5
 OTP_MAX_PER_IP_PER_DAY = 20

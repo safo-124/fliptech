@@ -731,4 +731,8 @@ set in `backend/.env`.
   back office's **Codes to send** page (operations lead and superusers only),
   where staff send it on by WhatsApp or text and mark it sent. A code there
   works for 10 minutes and is wiped from the database after that.
+  Once a real gateway sends texts, every code is still copied to the same page
+  (now called **Recent sign-in codes**) with whether the text went out, so
+  staff can read a code to somebody whose text never arrived. Set
+  `OTP_COPY_TO_BACK_OFFICE=false` to stop keeping the copy.
 - **No staging.** Every deploy goes straight to the machine trainees will use.
