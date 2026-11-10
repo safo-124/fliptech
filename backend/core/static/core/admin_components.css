@@ -1,0 +1,352 @@
+/*
+ * Lists, filters and forms for every model the same way, in the brand
+ * (admin_brand.css). Loaded after it. Pages with a design of their own (the
+ * provider queue, enquiries, enrolments) leave this file out: see the
+ * bo_components block in templates/admin/base_site.html.
+ */
+
+/* --------------------------------------------- lists (every model's page) */
+
+#changelist .changelist-form-container { gap: 20px; }
+
+#changelist #toolbar,
+#changelist .xfull,
+#changelist .actions,
+#changelist .results,
+#changelist .paginator {
+  background: var(--card);
+}
+
+/* The list as one card: search, actions, rows and pages inside one border. */
+#changelist .changelist-form-container {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+  background: var(--card);
+}
+#changelist .changelist-form-container > * { border: 0; border-radius: 0; box-shadow: none; }
+
+#changelist #toolbar {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+#changelist #toolbar form#changelist-search > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#changelist #toolbar #searchbar {
+  flex: 1;
+  min-width: 14rem;
+  max-width: 34rem;
+  padding-left: 38px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237b7f8c' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")
+      12px center / 16px no-repeat,
+    var(--card);
+}
+#changelist #toolbar label[for="searchbar"] { display: none; }
+#changelist #toolbar input[type="submit"] {
+  min-height: 40px;
+  padding: 0 16px;
+  background: var(--foreground);
+  color: var(--background);
+  border: 0;
+}
+#changelist #toolbar .small.quiet { color: var(--muted-foreground); font-size: 13px; }
+
+#changelist .xfull {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+}
+#changelist .xfull ul.toplinks { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+#changelist .xfull ul.toplinks li { margin: 0; }
+#changelist .xfull ul.toplinks a {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+#changelist .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+#changelist .actions label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted-foreground); }
+#changelist .actions select { min-height: 36px; min-width: 14rem; }
+#changelist .actions .button { min-height: 36px; padding: 0 14px; }
+
+#changelist .results { overflow-x: auto; }
+#result_list { width: 100%; border-collapse: separate; border-spacing: 0; }
+#result_list thead th {
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+#result_list thead th a { color: inherit !important; }
+#result_list thead th.sorted { color: var(--foreground); }
+#result_list tbody td, #result_list tbody th {
+  padding: 13px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  background: transparent;
+}
+#result_list tbody tr:last-child td, #result_list tbody tr:last-child th { border-bottom: 0; }
+#result_list tbody tr:nth-child(even),
+#result_list tbody tr:nth-child(even) td,
+#result_list tbody tr:nth-child(even) th { background: transparent; }
+#result_list tbody tr:hover td, #result_list tbody tr:hover th {
+  background: color-mix(in oklch, var(--brand-soft) 60%, transparent);
+}
+#result_list tbody tr.selected td, #result_list tbody tr.selected th { background: var(--brand-soft); }
+#result_list tbody th a, #result_list tbody th a:link {
+  color: var(--foreground) !important;
+  font-weight: 600;
+}
+#result_list tbody th a:hover { color: var(--brand) !important; }
+#result_list .action-checkbox, #result_list .action-checkbox-column { width: 1%; }
+#result_list input[type="checkbox"] { width: 16px; height: 16px; }
+
+#changelist .paginator {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+#changelist .paginator a,
+#changelist .paginator .this-page {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+#changelist .paginator a:link, #changelist .paginator a:visited { color: var(--foreground); background: transparent; }
+#changelist .paginator a:hover { background: var(--muted); }
+#changelist .paginator .this-page { background: var(--brand-fill); color: #fff; }
+#changelist .paginator a.showall { margin-left: auto; color: var(--brand); }
+
+/* The filter panel, for every model, matching the work queues' design. */
+#changelist-filter {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-xs);
+  padding: 4px 0 8px;
+  overflow: hidden;
+}
+#changelist-filter > h2 {
+  text-transform: none !important;
+  letter-spacing: -0.01em !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  padding: 14px 18px 12px !important;
+  border-bottom: 1px solid var(--border);
+  background: transparent !important;
+  color: var(--foreground) !important;
+}
+#changelist-filter h3,
+#changelist-filter details > summary {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--foreground);
+  padding: 12px 18px 6px;
+  margin: 0;
+  text-transform: none;
+}
+#changelist-filter details > summary { cursor: pointer; list-style: none; }
+#changelist-filter details > summary::-webkit-details-marker { display: none; }
+#changelist-filter details > summary::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin: 0 8px -2px 0;
+  background: var(--muted-foreground);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.15s;
+}
+#changelist-filter details[open] > summary::before { transform: rotate(90deg); }
+#changelist-filter ul { margin: 0 10px 6px; padding: 0; border: 0 !important; }
+#changelist-filter li { list-style: none; margin: 0; padding: 0; border: 0 !important; }
+#changelist-filter li a {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--muted-foreground) !important;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+#changelist-filter li a:hover { background: var(--muted); color: var(--foreground) !important; }
+#changelist-filter li.selected a {
+  background: var(--brand-soft);
+  color: var(--brand) !important;
+  font-weight: 650;
+  border: 0 !important;
+}
+#changelist-filter #changelist-filter-extra-actions,
+#changelist-filter .changelist-filter-clear { padding: 6px 18px; font-size: 13px; }
+#changelist-filter a#changelist-filter-clear,
+#changelist-filter .changelist-filter-clear a { color: var(--brand) !important; }
+
+/* ------------------------------------------------- forms (every model) */
+
+fieldset.module, .inline-group .module {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 20px;
+  background: var(--card);
+}
+fieldset.module > h2, .inline-group h2 {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+  padding: 16px 22px 12px !important;
+}
+fieldset .description { color: var(--muted-foreground); padding: 10px 22px 0; }
+.form-row { padding: 12px 22px; }
+.aligned label, .form-row label { color: var(--foreground); font-weight: 600; }
+.aligned .required label, label.required { color: var(--foreground); }
+label.required::after { content: " *"; color: var(--brand-pink); }
+
+.submit-row {
+  border-radius: 16px;
+  gap: 10px;
+  align-items: center;
+}
+.submit-row input, .submit-row a.button, .submit-row a.closelink {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+}
+.submit-row a.deletelink {
+  background: transparent !important;
+  color: var(--destructive) !important;
+  border: 1px solid color-mix(in oklch, var(--destructive) 35%, transparent) !important;
+  border-radius: 10px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+}
+.submit-row a.deletelink:hover { background: oklch(0.96 0.02 25) !important; }
+
+.errornote {
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklch, var(--destructive) 30%, transparent);
+  background: var(--message-error-bg);
+  color: var(--destructive);
+}
+.errorlist li { border-radius: 8px; }
+
+/* Inline tables (lessons, photos, programmes). */
+.inline-group .tabular table thead th {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.inline-group .add-row a { color: var(--brand); font-weight: 600; }
+
+
+/* "Add …", "History", "View on site": top right, level with the title,
+   instead of floating into the list's width. */
+#content { position: relative; }
+#content-main > .object-tools,
+#content > .object-tools {
+  position: absolute;
+  top: 26px;
+  right: 32px;
+  float: none;
+  margin: 0;
+  display: flex;
+  gap: 8px;
+}
+#content-main > .object-tools li, #content > .object-tools li { margin: 0; }
+#content > h1 { padding-right: 18rem; }
+#changelist-filter { flex: 0 0 256px; margin-left: 20px !important; }
+#changelist-filter #changelist-filter-extra-actions { padding: 10px 18px 4px; border-bottom: 0; }
+#changelist-filter #changelist-filter-extra-actions h3 { padding: 0; margin: 0; }
+@media (max-width: 767px) {
+  #content-main > .object-tools, #content > .object-tools { position: static; margin: 0 0 14px; }
+  #content > h1 { padding-right: 0; }
+  #changelist-filter { flex: none; margin-left: 0 !important; }
+}
+@media (max-width: 767px) {
+  #changelist #toolbar form#changelist-search > div { flex-wrap: nowrap; }
+  #changelist #toolbar #searchbar { min-width: 0; }
+  #changelist .actions label { flex: 1; min-width: 0; }
+  #changelist .actions select { min-width: 0; flex: 1; }
+}
+
+/* Save stays in reach on long forms. */
+.submit-row {
+  position: sticky;
+  bottom: 12px;
+  z-index: 10;
+  background: color-mix(in oklch, var(--card) 92%, transparent) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-lg);
+}
+
+/* One line per row: a list is scanned across, and the wide ones scroll
+   sideways inside their card instead of growing every row tall. */
+#result_list tbody td, #result_list tbody th { white-space: nowrap; }
+
+/* Date drill-down ("‹ 2026  4 November"), as a row of pills. */
+#changelist nav.toplinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+}
+#changelist nav.toplinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground) !important;
+  font-size: 13px;
+  font-weight: 600;
+}
+#changelist nav.toplinks a:hover { border-color: var(--brand-violet); }
+#changelist nav.toplinks a.date-back { color: var(--muted-foreground) !important; }

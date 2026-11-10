@@ -1,0 +1,18 @@
+{% load static %}
+{% comment %}
+  The left half of the sign-in screens (password and emailed code): the
+  website's indigo, the mark, and one line on what this place is for. It
+  replaces Django's header there; the form keeps the right half.
+{% endcomment %}
+<header id="header" class="bo-login-panel">
+  <a class="bo-login-brand" href="{% url 'admin:index' %}">
+    <img src="{% static 'core/brand-mark.svg' %}" alt="" width="40" height="40">
+    <span>{{ site_header|default:"Back office" }}</span>
+  </a>
+  <div class="bo-login-pitch">
+    <p class="bo-login-eyebrow">Staff only</p>
+    <p class="bo-login-headline">Every workshop checked, every enquiry answered.</p>
+    <p class="bo-login-sub">Approve providers, follow up enquiries and keep the marketplace honest, from one place.</p>
+  </div>
+  <p class="bo-login-foot">Signed-in actions are recorded against your name.</p>
+</header>

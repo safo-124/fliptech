@@ -1,0 +1,8 @@
+<li>
+  <time datetime="{{ event.at|date:'c' }}" title="{{ event.at }}">{{ event.at|timesince }} ago</time>
+  <span class="sh-kind {{ event.kind }}">{{ event.kind }}</span>
+  <span>
+    {% if event.url %}<a href="{{ event.url }}">{{ event.what }}</a>{% else %}{{ event.what }}{% endif %}
+    {% if event.who %}<span class="who">— {{ event.who }}</span>{% endif %}
+  </span>
+</li>

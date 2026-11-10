@@ -49,15 +49,17 @@ def text_enquiry(enquiry):
     """Text the seller about a question the moment it is asked."""
     import logging
 
+    from appsupport.notify import notify
     from core.sms import send_sms
 
     asked = f': "{enquiry.message[:80]}"' if enquiry.message else ""
     try:
-        send_sms(
+        notify(
             enquiry.seller.phone,
             f"{settings.BRAND_NAME}: someone asked about {enquiry.product_name}{asked}. "
             f"Reply to {enquiry.buyer_name or 'them'} on {enquiry.buyer_phone}. "
             f"Ref {enquiry.reference_code}.",
+            send=send_sms,
         )
     except Exception:
         logging.getLogger(__name__).exception("Could not text %s", enquiry.reference_code)

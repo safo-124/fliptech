@@ -11,6 +11,9 @@
   connection cannot lose the rest of the form or the whole photo batch.
 {% endcomment %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block responsive %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_provider_form.css' %}">

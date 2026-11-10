@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Building2,
+  Camera,
   Clock,
   GraduationCap,
   Heart,
@@ -19,6 +20,7 @@ import {useTranslations} from "next-intl";
 import {useCallback, useEffect, useState} from "react";
 
 import {AccountExtras} from "@/components/account/AccountExtras";
+import styles from "@/components/account/photo.module.css";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
@@ -28,11 +30,14 @@ import {
   getAccount,
   getMyOrders,
   getMyQuestions,
+  removeAccountPhoto,
   requestAccountCode,
+  setAccountPhoto,
   signOutAccount,
   updateAccount,
   verifyAccountCode,
   type AccountSession,
+  type CustomerAccount,
   type MyQuestions,
 } from "@/lib/account-api";
 import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
@@ -233,6 +238,82 @@ function SignIn({newcomer, onSignedIn}: {newcomer: boolean; onSignedIn: () => Pr
 
 type T = ReturnType<typeof useTranslations<"Account">>;
 
+/**
+ * Their picture, and the buttons to add, change or remove it. After a
+ * change the page reloads, so the header (which asks once per page) shows
+ * the new one too.
+ */
+function AccountPhoto({account, t, children}: {account: CustomerAccount; t: T; children: React.ReactNode}) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function change(action: () => Promise<unknown>) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await action();
+      window.location.reload();
+    } catch (reason) {
+      setProblem(reason instanceof Error ? reason.message : t("failed"));
+      setBusy(false);
+    }
+  }
+
+  const initial = (account.display_name || "?").trim().slice(0, 1).toUpperCase();
+  return (
+    <div className="flex w-full min-w-0 items-center gap-4 sm:w-auto sm:flex-1">
+      <span className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--color-brand-soft)] text-2xl font-extrabold text-[var(--color-brand)] ring-4 ring-white shadow-[var(--shadow-card)]">
+        {account.photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={account.photo} alt="" className="size-full object-cover" />
+        ) : (
+          initial
+        )}
+        {busy ? (
+          <span className={`${styles.busy} absolute inset-0 grid place-items-center`}>
+            <Loader2 aria-hidden="true" className="size-6 animate-spin text-white" />
+          </span>
+        ) : null}
+      </span>
+      <div className="min-w-0 flex-1">
+        {children}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label className={`${styles.pick} inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--color-border)] px-3 text-sm font-semibold hover:border-[var(--color-brand)]/40`}>
+            <Camera aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
+            {account.photo ? t("changePhoto") : t("addPhoto")}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void change(() => setAccountPhoto(file));
+              }}
+            />
+          </label>
+          {account.photo ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void change(removeAccountPhoto)}
+              className="inline-flex min-h-9 items-center rounded-full px-3 text-sm font-semibold text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]"
+            >
+              {t("removePhoto")}
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{t("photoHint")}</p>
+        {problem ? (
+          <p role="alert" className="text-xs text-[var(--color-destructive)]">
+            {problem}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function SignedIn({
   session,
   reload,
@@ -317,13 +398,13 @@ function SignedIn({
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
+        <AccountPhoto account={account} t={t}>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">{t("eyebrow")}</p>
           <h1 className="truncate text-3xl font-bold tracking-[-0.035em]">
             {account.display_name || t("hello")}
           </h1>
           <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("signedInAs", {phone: account.phone})}</p>
-        </div>
+        </AccountPhoto>
         <Button
           type="button"
           variant="outline"

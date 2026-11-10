@@ -178,6 +178,17 @@ export const api = {
   reportProblem: (reference: string, problem: string) =>
     postJson<Order>(`/api/orders/${reference}/problem/`, { problem }),
   sellerPayouts: () => getJson<SellerPayouts>("/api/seller/payouts/"),
+  /** A seller's paid orders, newest first. */
+  sellerOrders: () => getJson<{ results: Order[] }>("/api/seller/orders/"),
+  /** "delivered" (handed over) or "ready" (made to order: asks for the balance). */
+  sellerOrderStage: (reference: string, stage: "delivered" | "ready") =>
+    request<Order>("PATCH", `/api/seller/orders/${reference}/`, { body: { stage } }),
+  sellerChats: () => getJson<{ results: ChatSummary[] }>("/api/seller/chats/"),
+  sellerChat: (id: number | string) => getJson<ChatThread>(`/api/seller/chats/${id}/`),
+  sendSellerChat: (id: number | string, body: string) => postJson<ChatThread>(`/api/seller/chats/${id}/`, { body }),
+  /** "Text me when it is back", for a sold-out product. */
+  stockAlert: (product: number, phone: string) =>
+    postJson<{ detail: string }>(`/api/products/${product}/notify/`, { phone }),
   sellerProducts: () => getJson<SellerProduct[] | { results: SellerProduct[] }>("/api/seller/products/"),
   updateSellerProduct: (id: number, body: Partial<Pick<SellerProduct, "availability" | "stock">>) =>
     request<SellerProduct>("PATCH", `/api/seller/products/${id}/`, { body }),
@@ -196,3 +207,29 @@ export type BagRequest = {
   code?: string;
   pay_at_collection?: boolean;
 };
+
+/**
+ * Set the signed-in account's photo from a picture on the phone. Multipart,
+ * so not through `request` (which sends JSON). Returns the account as the
+ * server now has it, to put straight into the ["account"] query.
+ */
+export async function uploadAccountPhoto(uri: string, mimeType = "image/jpeg") {
+  const body = new FormData();
+  const ext = mimeType.split("/")[1] || "jpg";
+  body.append("photo", { uri, name: `photo.${ext}`, type: mimeType } as unknown as Blob);
+  const headers: Record<string, string> = { Accept: "application/json", "X-Fliptech-Client": "app" };
+  const signedIn = token();
+  if (signedIn) headers.Authorization = `Bearer ${signedIn}`;
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/account/photo/`, { method: "POST", headers, body });
+  } catch {
+    throw new ApiError("No connection. Check your data or Wi-Fi and try again.", 0);
+  }
+  const data: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const fields = fieldErrors(data);
+    throw new ApiError(fields.detail ?? "That photo did not upload. Try another.", response.status, fields);
+  }
+  return data;
+}

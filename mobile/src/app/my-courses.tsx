@@ -10,7 +10,7 @@ import { StackHeader } from "@/components/StackHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { MyCourse } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -70,7 +70,7 @@ function MyCourseCard({ row }: { row: MyCourse }) {
     >
       <View style={styles.poster}>
         {row.course.poster ? (
-          <Image source={{ uri: mediaUrl(row.course.poster) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={{ uri: photoUrl(row.course.poster) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : null}
       </View>
       <View style={{ flex: 1, gap: 4 }}>

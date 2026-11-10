@@ -6,6 +6,9 @@
   list-editable formsets, actions, search, filters, pagination and popup mode.
 {% endcomment %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block responsive %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_geography.css' %}">

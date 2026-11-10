@@ -3,7 +3,7 @@ import { GraduationCap } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/Text";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { TrainerShop } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -31,7 +31,7 @@ export function TrainerShops({ shops, onPick }: { shops: TrainerShop[]; onPick: 
           >
             <View style={styles.photo}>
               {shop.photo ? (
-                <Image source={mediaUrl(shop.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image source={photoUrl(shop.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
               ) : null}
               <View style={styles.badge}>
                 <GraduationCap size={11} color="#ffffff" />

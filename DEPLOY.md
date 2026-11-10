@@ -580,7 +580,69 @@ staff rights or a password are never touched. It is safe to run again.
 People already signed in on the old, switched-off logins are signed out and
 simply sign in again.
 
-## Database
+## The Android app: notifications, links, updates
+
+All of it runs on this server. There is no Firebase and no Expo cloud.
+
+**Notifications.** Every alert that used to be an SMS (orders, chat messages,
+back in stock, price drops, training alerts, quotes) is now also kept as a
+notice (`appsupport.Notice`). The app collects its notices when it opens and
+about every 15 minutes in the background, and shows them as phone
+notifications. The SMS is skipped for a number whose app checked in within
+the last two days. Money messages (a new paid order, a receipt, a balance
+paid) are always texted as well, and sign-in codes are only ever texted.
+Nothing to set up. In the back office, **Mobile app → Notices** shows what
+was sent and whether it also went by SMS.
+
+**Crash reports.** The app reports errors it could not recover from to
+`/api/app/crash/`. Read them in the back office under **Mobile app → Crash
+reports**.
+
+**Updates without the Play Store.** JavaScript and picture changes reach
+phones the next time the app opens, served by Django from
+`/var/lib/fliptech/app-updates`:
+
+```bash
+sudo mkdir -p /var/lib/fliptech/app-updates
+sudo chown fliptech:fliptech /var/lib/fliptech/app-updates
+```
+
+In `/opt/fliptech/backend/.env`:
+
+```
+APP_UPDATES_ROOT=/var/lib/fliptech/app-updates
+```
+
+Publish from your computer, in `mobile/`:
+
+```bash
+EXPO_PUBLIC_API_URL=https://your-domain.com ./scripts/publish-update.sh safo@YOUR_SERVER
+```
+
+Native changes (a new Expo package, permissions, plugins in
+`app.config.ts`) still need a new build: raise `version` in `mobile/app.json`
+first, so the update never reaches a build that cannot run it. To roll back,
+rename the newest folder under `app-updates/<version>/`.
+
+**Links open the app.** Links to your domain open the app instead of the
+browser (Android App Links). Android checks
+`https://your-domain.com/.well-known/assetlinks.json`, which lists the
+certificate the app was signed with. Get that certificate's SHA-256
+fingerprint (from `eas credentials`, or from
+`keytool -list -v -keystore your-release.keystore` if you build yourself),
+then add it to `/opt/fliptech/frontend/.env.production`:
+
+```
+ANDROID_CERT_SHA256=AB:CD:EF:...
+```
+
+Restart the website (`sudo systemctl restart fliptech-web`). Once the app is
+on the Play Store, add Google's app signing fingerprint too, separated by a
+comma. You'll find it under Play Console → Setup → App signing.
+
+The app builds its link and update addresses from `EXPO_PUBLIC_SITE_URL` and
+`EXPO_PUBLIC_API_URL`, which are set in `mobile/eas.json`.
+
 
 Already done on this server, kept for reference.
 
@@ -669,4 +731,8 @@ set in `backend/.env`.
   back office's **Codes to send** page (operations lead and superusers only),
   where staff send it on by WhatsApp or text and mark it sent. A code there
   works for 10 minutes and is wiped from the database after that.
+  Once a real gateway sends texts, every code is still copied to the same page
+  (now called **Recent sign-in codes**) with whether the text went out, so
+  staff can read a code to somebody whose text never arrived. Set
+  `OTP_COPY_TO_BACK_OFFICE=false` to stop keeping the copy.
 - **No staging.** Every deploy goes straight to the machine trainees will use.

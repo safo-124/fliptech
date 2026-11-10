@@ -272,9 +272,14 @@
 .cat-queue-card__top {
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
+/* min-width: 0 lets a long name ("Inactive with an active programme")
+   shorten with an ellipsis inside a narrow card instead of pushing the
+   count, and the page, past the edge. */
 .cat-queue-card__top strong {
+  min-width: 0;
   overflow: hidden;
   font-size: 12px;
   font-weight: 650;
@@ -283,6 +288,7 @@
 }
 
 .cat-queue-card__top b {
+  flex: none;
   min-width: 25px;
   padding: 2px 7px;
   border: 1px solid var(--border);

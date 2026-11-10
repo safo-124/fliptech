@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/Text";
 import { cedis } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { Bundle } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -43,7 +43,7 @@ export function BundleCard({ bundle, onPress }: { bundle: Bundle; onPress?: () =
         <View key={item.product.id} style={styles.line}>
           <View style={styles.thumb}>
             {item.product.photo ? (
-              <Image source={mediaUrl(item.product.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <Image source={photoUrl(item.product.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : null}
           </View>
           <Text style={{ flex: 1 }} numberOfLines={1}>

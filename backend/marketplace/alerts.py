@@ -13,6 +13,7 @@ from django.db import transaction
 from django.db.models import Count, F, Q
 from django.utils import timezone
 
+from appsupport.notify import notify
 from core.sms import send_sms
 
 from .models import Product, ShopFollow, StockAlert
@@ -26,7 +27,7 @@ def _site(path):
 
 def _text(phone, message):
     try:
-        send_sms(phone, message)
+        notify(phone, message, send=send_sms)
         return True
     except Exception:
         logger.exception("Could not text %s", phone)

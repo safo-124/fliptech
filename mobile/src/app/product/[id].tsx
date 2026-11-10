@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { GraduationCap, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store } from "lucide-react-native";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,13 +13,12 @@ import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { Heart } from "@/components/market/Heart";
 import { PickupCard } from "@/components/market/PickupCard";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { MAX_QUANTITY, useBag } from "@/lib/bag";
 import { SITE_URL } from "@/lib/config";
 import { cedis } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
-import { openOnSite } from "@/lib/open";
+import { photoUrl } from "@/lib/media";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 const AVAILABILITY = {
@@ -55,7 +54,7 @@ export default function ProductScreen() {
   const needsOption = options.some((row) => row.available);
   const price = option?.price ?? data?.price ?? null;
   const photos = (data?.photos.length ? data.photos.map((photo) => photo.image) : [data?.photo])
-    .map((url) => mediaUrl(url))
+    .map((url) => photoUrl(url, "full"))
     .filter((url): url is string => Boolean(url));
 
   function message() {
@@ -73,6 +72,21 @@ export default function ProductScreen() {
         productName: data.name,
       },
     });
+  }
+
+  /** "Get told when it is back", from the app: the signed-in phone number. */
+  async function waitForStock() {
+    if (!data) return;
+    if (!auth.signedIn || !auth.account) {
+      router.push({ pathname: "/sign-in", params: { why: "to be told when it is back" } });
+      return;
+    }
+    try {
+      const reply = await api.stockAlert(data.id, auth.account.phone);
+      Alert.alert("Done", reply.detail);
+    } catch (error) {
+      Alert.alert("That did not work", error instanceof ApiError ? error.message : "Check your connection and try again.");
+    }
   }
 
   function add() {
@@ -268,7 +282,7 @@ export default function ProductScreen() {
             <Button
               label={data.availability === "sold_out" ? "Get told when it is back" : "Ask the seller"}
               tone="outline"
-              onPress={data.availability === "sold_out" ? () => void openOnSite(`/marketplace/${data.id}`) : message}
+              onPress={data.availability === "sold_out" ? () => void waitForStock() : message}
               style={{ flex: 1 }}
             />
           )}

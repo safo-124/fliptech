@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { BadgeCheck, IdCard, ShieldCheck } from "lucide-react-native";
@@ -10,7 +11,7 @@ import { Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
 import { cedis, shortDate } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import { openOnSite } from "@/lib/open";
 import type { SellerProduct } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
@@ -144,7 +145,7 @@ export default function SellerScreen() {
           <View key={product.id} style={styles.row}>
             <View style={styles.thumb}>
               {product.photos[0]?.image ? (
-                <Image source={mediaUrl(product.photos[0].image)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image source={photoUrl(product.photos[0].image)} style={StyleSheet.absoluteFill} contentFit="cover" />
               ) : null}
             </View>
             <View style={{ flex: 1 }}>
@@ -170,7 +171,13 @@ export default function SellerScreen() {
             </Pressable>
           </View>
         ))}
-        <Button label="Full shop dashboard" tone="outline" onPress={() => void openOnSite("/sell/shop")} />
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <Button label="Orders" onPress={() => router.push("/seller/orders")} style={{ flex: 1 }} />
+          <Button label="Messages" tone="outline" onPress={() => router.push("/seller/chats")} style={{ flex: 1 }} />
+        </View>
+        {/* Adding products with photos, and sending an ID, are on the
+            website for now: both upload pictures. */}
+        <Button label="Add products on the website" tone="soft" onPress={() => void openOnSite("/sell/shop")} />
       </ScrollView>
     </View>
   );

@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import { colors } from "@/theme/tokens";
 
 /** Photos to swipe through, full width, with dots for where you are. */
@@ -21,7 +21,7 @@ export function PhotoPager({ photos, height = 300 }: { photos: string[]; height?
         {photos.map((photo, index) => (
           <Image
             key={`${photo}-${index}`}
-            source={mediaUrl(photo)}
+            source={photoUrl(photo, "full")}
             style={{ width, height }}
             contentFit="cover"
             transition={200}

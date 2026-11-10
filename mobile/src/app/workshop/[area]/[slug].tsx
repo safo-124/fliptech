@@ -24,7 +24,7 @@ import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
 import { SITE_URL } from "@/lib/config";
 import { cedis, shortDate } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { Programme, WorkshopDetail } from "@/lib/types";
 import { tradeHex } from "@/theme/trades";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
@@ -177,7 +177,7 @@ export default function WorkshopScreen() {
             <View style={styles.master}>
               <View style={styles.portrait}>
                 {w.master.portrait ? (
-                  <Image source={mediaUrl(w.master.portrait)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  <Image source={photoUrl(w.master.portrait)} style={StyleSheet.absoluteFill} contentFit="cover" />
                 ) : (
                   <Text style={styles.initial}>{w.master.name.slice(0, 1)}</Text>
                 )}
@@ -199,7 +199,7 @@ export default function WorkshopScreen() {
         <Section title="Finding the workshop">
           <View style={styles.card}>
             {w.entrance_photo ? (
-              <Image source={mediaUrl(w.entrance_photo)} style={styles.entrance} contentFit="cover" />
+              <Image source={photoUrl(w.entrance_photo, "full")} style={styles.entrance} contentFit="cover" />
             ) : null}
             {w.address ? <Text variant="body">{w.address}</Text> : null}
             {w.directions ? <Text variant="small">{w.directions}</Text> : null}

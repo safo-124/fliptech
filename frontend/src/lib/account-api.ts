@@ -16,6 +16,8 @@ export type CustomerAccount = {
   display_name: string;
   email: string | null;
   delivery_address: string;
+  /** Their own picture, or null. Only ever shown to them. */
+  photo: string | null;
   created_at: string;
 };
 
@@ -26,6 +28,17 @@ export type AccountSession =
       account: CustomerAccount;
       roles: {trainee: RoleState; trainer: RoleState; seller: RoleState};
     };
+
+/** Set the account's picture (a file from the browser) or take it off. */
+export function setAccountPhoto(file: File) {
+  const body = new FormData();
+  body.append("photo", file);
+  return sessionFetch<AccountSession>("/api/account/photo/", {method: "POST", body});
+}
+
+export function removeAccountPhoto() {
+  return sessionFetch<AccountSession>("/api/account/photo/", {method: "DELETE"});
+}
 
 export function getAccount() {
   return sessionFetch<AccountSession>("/api/account/");

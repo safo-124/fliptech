@@ -125,6 +125,7 @@ LOCAL_APPS = [
     "courses",
     "accounts",
     "search",
+    "appsupport",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -484,6 +485,10 @@ DEFAULT_FROM_EMAIL = env(
 
 OTP_CODE_LENGTH = 6
 OTP_TTL_SECONDS = 600  # 10 minutes
+# Keep a copy of every sign-in code on the back office's "Codes to send" page,
+# as well as texting it, so staff can read it out when a text does not arrive.
+# Only staff with core.view_relayedtext see it; it is wiped when it expires.
+OTP_COPY_TO_BACK_OFFICE = env.bool("OTP_COPY_TO_BACK_OFFICE", default=True)
 OTP_MAX_ATTEMPTS = 5  # wrong guesses before the code is burned
 OTP_MAX_PER_PHONE_PER_DAY = 5
 OTP_MAX_PER_IP_PER_DAY = 20
@@ -619,6 +624,10 @@ VIDEO_FFMPEG_THREADS = env.int("VIDEO_FFMPEG_THREADS", default=1)
 # same host as the API (127.0.0.1): browsers treat localhost as a different
 # site and would not send the staff session cookie.
 PUBLIC_SITE_URL = env("PUBLIC_SITE_URL", default="http://127.0.0.1:3000" if DEBUG else "")
+
+# App updates published by mobile/scripts/publish-update.sh and served by
+# appsupport/updates.py, one folder per runtime version.
+APP_UPDATES_ROOT = env("APP_UPDATES_ROOT", default=str(BASE_DIR / "app-updates"))
 
 # A support session ends on its own after this long. Short on purpose: it is
 # someone else's personal data on the screen.

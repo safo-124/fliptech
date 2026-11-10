@@ -8,6 +8,9 @@
   sorting, pagination, popup selection, and django-import-export's object tool.
 {% endcomment %}
 
+{# Its own design: the shared list and form styles stay out. #}
+{% block bo_components %}{% endblock %}
+
 {% block extrastyle %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'core/admin_provider_changelist.css' %}">

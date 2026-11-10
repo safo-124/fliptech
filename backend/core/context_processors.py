@@ -180,16 +180,27 @@ def _codes_to_send(user):
     has arrived, and a link that appears only once there is something in it is
     a link nobody can find at that moment.
     """
-    if settings.SMS_PROVIDER != "backoffice" or not user.has_perm("core.view_relayedtext"):
-        return []
-    from core.relay import waiting
+    from core import relay
 
-    count = waiting().count()
+    if not relay.in_use() or not user.has_perm("core.view_relayedtext"):
+        return []
+    if relay.copying():
+        # The codes were texted as well, so nothing is waiting on staff: a
+        # count would be noise. The link is for when somebody rings to say
+        # theirs never came.
+        return [
+            {
+                "key": "recent_codes",
+                "label": "Recent sign-in codes",
+                "count": 0,
+                "url": reverse("admin:core_relayedtext_changelist"),
+            }
+        ]
     return [
         {
             "key": "codes_to_send",
             "label": "Codes to send",
-            "count": count,
+            "count": relay.waiting().count(),
             "url": reverse("admin:core_relayedtext_changelist"),
         }
     ]

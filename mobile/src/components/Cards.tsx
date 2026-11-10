@@ -3,7 +3,7 @@ import { Clock3, GraduationCap, MapPin, Sparkles, Star } from "lucide-react-nati
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { cedis, courseLength } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import type { CourseCard as Course, ProductCard as Product, ProviderCard as Workshop } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -35,7 +35,7 @@ export function CourseCard({
       accessibilityLabel={`${course.name}, ${course.price ? cedis(course.price) : "free"}`}
     >
       <View style={styles.media}>
-        <Image source={mediaUrl(course.poster)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+        <Image source={photoUrl(course.poster)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
         {course.featured ? (
           <View style={styles.featured}>
             <Sparkles size={12} color={colors.brandDeep} />
@@ -84,7 +84,7 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
       accessibilityLabel={product.name}
     >
       <View style={styles.square}>
-        <Image source={mediaUrl(product.photo)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+        <Image source={photoUrl(product.photo)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
         {soldOut ? (
           <View style={styles.soldOut}>
             <Text style={styles.soldOutText}>Sold out</Text>
@@ -138,7 +138,7 @@ export function WorkshopRow({ workshop, onPress }: { workshop: Workshop; onPress
       accessibilityLabel={`${workshop.name}, ${workshop.area}`}
     >
       <View style={styles.thumb}>
-        <Image source={mediaUrl(workshop.primary_photo)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+        <Image source={photoUrl(workshop.primary_photo)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
       </View>
       <View style={styles.rowBody}>
         {workshop.trade ? <Text variant="eyebrow">{workshop.trade.name.toUpperCase()}</Text> : null}

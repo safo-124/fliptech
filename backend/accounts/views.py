@@ -14,6 +14,8 @@ seller added here starts unconfirmed, exactly as through their own sign-up
 pages, and staff confirm them as before.
 """
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
 from django.db import transaction
@@ -28,17 +30,22 @@ from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.identities import roles_of
+from core.images import validate_image_upload
+from core.media import public_url
 from core.network import canonical_client_ip, ratelimit_client_ip
 from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 
 from .auth import AccountDisabled, account_for_verified_phone, own_customer_account
 from .models import BagLine, CustomerAccount, DeliveryAddress, SavedProduct
+
+logger = logging.getLogger(__name__)
 
 PURPOSE = PhoneVerification.Purpose.ACCOUNT_ACCESS
 
@@ -66,10 +73,15 @@ class AccountSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("Another account already uses that address."))
         return value
 
+    photo = serializers.SerializerMethodField()
+
+    def get_photo(self, obj):
+        return public_url(obj.photo.url, self.context.get("request")) if obj.photo else None
+
     class Meta:
         model = CustomerAccount
-        fields = ["phone", "display_name", "email", "delivery_address", "created_at"]
-        read_only_fields = ["phone", "created_at"]
+        fields = ["phone", "display_name", "email", "delivery_address", "photo", "created_at"]
+        read_only_fields = ["phone", "photo", "created_at"]
 
 
 def _roles(user):
@@ -97,7 +109,7 @@ def account_payload(request):
         return {"authenticated": False, "account": None, "roles": None}
     return {
         "authenticated": True,
-        "account": AccountSerializer(account).data,
+        "account": AccountSerializer(account, context={"request": request}).data,
         "roles": _roles(request.user),
     }
 
@@ -615,3 +627,47 @@ class AddRoleView(APIView):
         # missing from before it existed.
         request.user = get_user_model().objects.get(pk=request.user.pk)
         return Response(account_payload(request), status=status.HTTP_201_CREATED)
+
+
+class AccountPhotoView(APIView):
+    """POST a picture (field "photo") to set the account's photo, DELETE to
+    take it off. Shown only to its owner: in the site header and the app."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        account = _account(request)
+        upload = request.FILES.get("photo")
+        refusal = validate_image_upload(upload)
+        if refusal is not None:
+            return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
+        account.photo = upload
+        try:
+            account.save(update_fields=["photo", "updated_at"])
+        except Exception:
+            logger.exception("Photo upload failed for account %s", account.pk)
+            return Response(
+                {"detail": _("That image could not be read. Try another.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Anything Pillow could not decode is stored as it came, metadata and
+        # all: never keep that (the same rule as a trainee's picture).
+        if not account.photo.name.lower().endswith(".jpg"):
+            account.photo.delete(save=True)
+            return Response(
+                {"detail": _("That file is not a readable image.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(account_payload(request), status=status.HTTP_201_CREATED)
+
+    @extend_schema(request=None, responses={200: None})
+    def delete(self, request):
+        account = _account(request)
+        if account.photo:
+            # The file is left for prune_media, as for every other picture.
+            account.photo = ""
+            account.save(update_fields=["photo", "updated_at"])
+        return Response(account_payload(request))

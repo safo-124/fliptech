@@ -15,7 +15,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
 import { cedis, shortDate } from "@/lib/format";
-import { mediaUrl } from "@/lib/media";
+import { photoUrl } from "@/lib/media";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /**
@@ -76,7 +76,7 @@ export default function ShopScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + space.xxl }}>
         <View style={[styles.banner, { height: insets.top + 150 }]}>
           {data?.banner ? (
-            <Image source={mediaUrl(data.banner)} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image source={photoUrl(data.banner, "full")} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : null}
         </View>
         <View style={styles.sheet}>

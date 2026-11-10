@@ -20,6 +20,7 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
+from appsupport.notify import notify
 from core.sms import send_sms
 
 from . import seller_messages
@@ -135,11 +136,14 @@ def _tell_seller(order):
     if order.plan == Order.Plan.DEPOSIT:
         how = "Start the work; mark it ready in your dashboard to ask for the balance"
     try:
-        send_sms(
+        notify(
             order.seller.phone,
             f"{settings.BRAND_NAME}: NEW PAID ORDER {order.reference}. {order.quantity} x "
             f"{order.product_name}, {paid}. {how}. Call "
             f"{order.buyer_name} on {order.buyer_phone}.",
+            sms="always",
+            link="/sell/shop?tab=orders",
+            send=send_sms,
         )
     except Exception:
         logger.exception("Could not text the seller about %s", order.reference)
@@ -148,12 +152,15 @@ def _tell_seller(order):
 def _tell_buyer(order):
     """A receipt they keep on their phone, with who to call."""
     try:
-        send_sms(
+        notify(
             order.buyer_phone,
             f"{settings.BRAND_NAME}: {_paid_words(order, buyer=True)} for "
             f"{order.quantity} x {order.product_name}. Order {order.reference}. "
             f"{order.seller.business_name} will contact you; their number is "
             f"{order.seller.phone}.",
+            sms="always",
+            link=f"/marketplace/order/{order.reference}",
+            send=send_sms,
         )
     except Exception:  # A receipt that fails to send must not undo a payment.
         logger.exception("Could not text the receipt for %s", order.reference)
@@ -188,10 +195,13 @@ def confirm_balance(reference, data):
 
 def _tell_seller_balance(order):
     try:
-        send_sms(
+        notify(
             order.seller.phone,
             f"{settings.BRAND_NAME}: {order.buyer_name} has paid the balance for order "
             f"{order.reference}. Hand it over and mark it in your dashboard.",
+            sms="always",
+            link="/sell/shop?tab=orders",
+            send=send_sms,
         )
     except Exception:
         logger.exception("Could not text the seller about %s", order.reference)

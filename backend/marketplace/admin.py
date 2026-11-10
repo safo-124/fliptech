@@ -99,6 +99,13 @@ class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
+
     fieldsets = (
         (None, {"fields": ("business_name", "is_active", "user", "phone", "phone_verified_at")}),
         (
@@ -531,6 +538,13 @@ class ProductEnquiryAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+    def has_add_permission(self, request, obj=None):
+        # Made by people on the site, never here: the fields that make one
+        # valid (who, the verified phone, the rating) are read-only above,
+        # so an "Add" form could only fail.
+        return False
+
     fieldsets = (
         (None, {"fields": ("reference_code", "state", "told")}),
         ("What was asked", {"fields": ("product", "product_name", "message")}),
@@ -616,7 +630,7 @@ class OrderAdmin(admin.ModelAdmin):
     """
 
     list_display = (
-        "reference",
+        "order_reference",
         "product_name",
         "seller",
         "quantity",
@@ -635,6 +649,17 @@ class OrderAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    @admin.display(description="Reference", ordering="reference")
+    def order_reference(self, obj):
+        # One line, in the monospace the reference is read aloud from.
+        return format_html('<span class="bo-ref">{}</span>', obj.reference)
+
+    @admin.display(description="Amount", ordering="amount_pesewas")
+    def amount(self, obj):
+        return format_html(
+            '<span class="bo-money">GH₵{}</span>', f"{obj.amount_pesewas / 100:,.2f}"
+        )
 
     @admin.action(description="Release held payment to the seller")
     def release_to_seller(self, request, queryset):

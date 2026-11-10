@@ -1,0 +1,9 @@
+/* The account photo's controls. Only the account page loads this, so the
+   search page's budget does not pay for it. */
+.pick:focus-within {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.busy {
+  background: rgb(0 0 0 / 0.4);
+}
