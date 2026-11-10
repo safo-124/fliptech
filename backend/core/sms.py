@@ -11,9 +11,14 @@ tokens and email — it does not send SMS, so the gateway integration is code yo
 write either way, and its device models add machinery this flow does not need.
 """
 
+import json
 import logging
+import re
+import urllib.error
+import urllib.request
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +58,87 @@ class BackOfficeSMSBackend(SMSBackend):
 
 
 class ArkeselSMSBackend(SMSBackend):
-    """Arkesel, Ghana. Left unimplemented until a sender ID is registered.
+    """Arkesel, Ghana: SMS API v2.
 
-    Raising rather than silently no-opping is deliberate: a misconfigured
-    production deploy should fail loudly at the first enquiry, not quietly
-    swallow every one-time code.
+    POST {SMS_API_URL}/sms/send with the key in an `api-key` header and
+    {"sender", "message", "recipients"} as JSON. The sender is the name the
+    phone shows, at most 11 characters, and Arkesel only delivers it once it
+    is approved in their dashboard (SMS > Sender ID).
+
+    A refusal or a network failure is logged and returns False rather than
+    raising: callers treat False as "not sent" (a sign-in code is then marked
+    "Not sent: pass it on" in the back office), and a bad moment at the
+    gateway should not turn somebody's sign-up into an error page. A missing
+    key is different, a deploy mistake, and fails loudly at the first text.
     """
 
+    def __init__(self):
+        self.api_key = getattr(settings, "SMS_API_KEY", "")
+        if not self.api_key:
+            raise ImproperlyConfigured(
+                "SMS_PROVIDER is arkesel but SMS_API_KEY is empty. Put the key from "
+                "Arkesel (API > Main SMS API Info) in backend/.env."
+            )
+        self.url = settings.SMS_API_URL.rstrip("/") + "/sms/send"
+        self.sender = settings.SMS_SENDER_ID
+
+    def payload(self, to, message):
+        body = {"sender": self.sender, "message": message, "recipients": [arkesel_number(to)]}
+        if getattr(settings, "SMS_SANDBOX", False):
+            # Arkesel answers as though it sent, but sends nothing and charges nothing.
+            body["sandbox"] = True
+        return body
+
     def send(self, to: str, message: str) -> bool:
-        raise NotImplementedError(
-            "Arkesel backend not implemented. Register the sender ID, then send "
-            "to https://sms.arkesel.com/api/v2/sms/send with SMS_API_KEY."
+        request = urllib.request.Request(
+            self.url,
+            data=json.dumps(self.payload(to, message)).encode(),
+            method="POST",
+            headers={
+                "api-key": self.api_key,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
         )
+        try:
+            with urllib.request.urlopen(request, timeout=settings.SMS_TIMEOUT_SECONDS) as response:
+                data = json.loads(response.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            logger.warning("Arkesel refused a text to %s: %s %s", mask(to), exc.code, _reason(exc))
+            return False
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            logger.warning("Could not reach Arkesel for a text to %s: %s", mask(to), exc)
+            return False
+        if str(data.get("status", "")).lower() != "success":
+            logger.warning(
+                "Arkesel did not send a text to %s: %s", mask(to), data.get("message") or data
+            )
+            return False
+        logger.info("Text to %s accepted by Arkesel", mask(to))
+        return True
+
+
+def _reason(error):
+    """What Arkesel said when it refused, if it said anything readable."""
+    try:
+        body = json.loads(error.read() or b"{}")
+    except ValueError:
+        return ""
+    return body.get("message") or body.get("errors") or ""
+
+
+def arkesel_number(phone):
+    """233XXXXXXXXX, the form Arkesel takes: no plus, no leading zero."""
+    digits = re.sub(r"\D", "", str(phone))
+    if digits.startswith("0") and len(digits) == 10:
+        digits = "233" + digits[1:]
+    return digits
+
+
+def mask(phone):
+    """A number for the logs: enough to find the person, not to text them."""
+    text = str(phone)
+    return text[:-4] + "****" if len(text) > 6 else "****"
 
 
 class HubtelSMSBackend(SMSBackend):

@@ -724,8 +724,17 @@ set in `backend/.env`.
   prove a release against, and there is not one.
 - **Media is on local disk** until R2 credentials are set. Storage switches
   automatically when they appear.
-- **SMS and WhatsApp are inert.** `SMS_PROVIDER=console` logs codes instead of
-  sending them, pending sender-ID registration and Meta verification. To show
+- **Texts through Arkesel.** In `backend/.env` set `SMS_PROVIDER=arkesel`,
+  `SMS_API_KEY=` (Arkesel > API > Main SMS API Info > Generate new key) and
+  `SMS_SENDER_ID=` a sender ID Arkesel has approved (SMS > Sender ID, at most
+  11 characters). Restart the API, then text yourself:
+  `cd /opt/fliptech/backend && sudo -u fliptech .venv/bin/python manage.py check_sms 0241234567`.
+  It says plainly if the key is wrong, the sender ID is not approved or the
+  balance is empty. A text Arkesel refuses never breaks a sign-up: it is
+  logged, and the code shows as "Not sent: pass it on" on the back office's
+  Recent sign-in codes page. Keep the SMS balance topped up in Arkesel.
+- **WhatsApp is inert** until Meta verification. Before Arkesel is set up,
+  `SMS_PROVIDER=console` logs codes instead of sending them. To show
   the product to people before then, set `SMS_PROVIDER=backoffice` in
   `backend/.env` and restart the API: every sign-in code then appears on the
   back office's **Codes to send** page (operations lead and superusers only),
