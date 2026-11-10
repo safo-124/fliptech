@@ -442,9 +442,16 @@ TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 # backoffice  shows each code in the back office for staff to send by hand —
 #             a stand-in for demonstrations until a gateway is registered;
 #             see core/relay.py
-# arkesel / hubtel  the real gateways, not implemented until a sender ID exists
+# arkesel     Arkesel SMS API v2 (needs SMS_API_KEY and an approved SMS_SENDER_ID)
+# hubtel      not implemented
 SMS_PROVIDER = env("SMS_PROVIDER", default="console")
 SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
+# arkesel: the key from Arkesel > API > Main SMS API Info. Secret; .env only.
+SMS_API_KEY = env("SMS_API_KEY", default="")
+SMS_API_URL = env("SMS_API_URL", default="https://sms.arkesel.com/api/v2")
+# True: Arkesel accepts each text but sends nothing and charges nothing.
+SMS_SANDBOX = env.bool("SMS_SANDBOX", default=False)
+SMS_TIMEOUT_SECONDS = 10
 
 # --------------------------------------------------------------------------
 # Email one-time codes
