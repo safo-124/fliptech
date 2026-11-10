@@ -39,11 +39,12 @@ class FakeArkesel:
                     {
                         "path": self.path,
                         "api_key": self.headers.get("api-key"),
+                        "user_agent": self.headers.get("User-Agent"),
                         "body": json.loads(self.rfile.read(length) or b"{}"),
                     }
                 )
                 status, payload = fake.reply
-                data = json.dumps(payload).encode()
+                data = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
@@ -185,3 +186,22 @@ def test_check_sms_refuses_a_sender_id_phones_cannot_show(arkesel, settings):
 
     with pytest.raises(CommandError, match="11 characters"):
         call_command("check_sms", PHONE)
+
+
+def test_texts_are_not_sent_as_python_urllib(arkesel):
+    """Arkesel's firewall answers Python's default User-Agent with a bare 403."""
+    send_sms(PHONE, "hello")
+
+    agent = arkesel.requests[0]["user_agent"]
+    assert "Python-urllib" not in agent
+    assert "SkillsHub" in agent
+
+
+def test_a_firewall_block_page_is_named_in_the_log(arkesel, caplog):
+    arkesel.reply = (
+        403,
+        b"<html><title>Attention Required!</title><h1>Sorry, you have been blocked</h1></html>",
+    )
+
+    assert send_sms(PHONE, "hello") is False
+    assert "you have been blocked" in caplog.text

@@ -98,6 +98,9 @@ class ArkeselSMSBackend(SMSBackend):
                 "api-key": self.api_key,
                 "Content-Type": "application/json",
                 "Accept": "application/json",
+                # Arkesel's API sits behind a firewall that turns away
+                # Python's default "Python-urllib/3.x" with a bare 403.
+                "User-Agent": user_agent(),
             },
         )
         try:
@@ -118,12 +121,29 @@ class ArkeselSMSBackend(SMSBackend):
         return True
 
 
+def user_agent():
+    """Who is calling, named the way a firewall expects a real client to be."""
+    site = getattr(settings, "PUBLIC_SITE_URL", "")
+    name = f"{settings.BRAND_NAME}SkillsHub/1.0"
+    return f"{name} (+{site})" if site else name
+
+
 def _reason(error):
-    """What Arkesel said when it refused, if it said anything readable."""
+    """What Arkesel said when it refused, if it said anything readable.
+
+    Its own refusals are JSON with a "message". A refusal from the firewall
+    in front of it is an HTML page instead; a short plain-text slice of that
+    still says which it was (a block page names itself), where an empty
+    reason said nothing.
+    """
+    raw = error.read() or b""
     try:
-        body = json.loads(error.read() or b"{}")
+        body = json.loads(raw or b"{}")
     except ValueError:
-        return ""
+        text = re.sub(r"<[^>]+>", " ", raw.decode("utf-8", "replace"))
+        return " ".join(text.split())[:200]
+    if not isinstance(body, dict):
+        return str(body)[:200]
     return body.get("message") or body.get("errors") or ""
 
 
