@@ -26,7 +26,10 @@ class FakeArkesel:
 
     def __init__(self):
         self.requests = []
-        self.reply = (200, {"status": "success", "data": [{"recipient": "233241112222", "id": "x"}]})
+        self.reply = (
+            200,
+            {"status": "success", "data": [{"recipient": "233241112222", "id": "x"}]},
+        )
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
