@@ -443,6 +443,7 @@ TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 #             a stand-in for demonstrations until a gateway is registered;
 #             see core/relay.py
 # arkesel     Arkesel SMS API v2 (needs SMS_API_KEY and an approved SMS_SENDER_ID)
+# twilio      Twilio Programmable Messaging (needs the TWILIO_ settings below)
 # hubtel      not implemented
 SMS_PROVIDER = env("SMS_PROVIDER", default="console")
 SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
@@ -452,6 +453,15 @@ SMS_API_URL = env("SMS_API_URL", default="https://sms.arkesel.com/api/v2")
 # True: Arkesel accepts each text but sends nothing and charges nothing.
 SMS_SANDBOX = env.bool("SMS_SANDBOX", default=False)
 SMS_TIMEOUT_SECONDS = 10
+# twilio: the Account SID and Auth Token from the Twilio console's front page
+# (the token is secret; .env only), and what each text comes from. On a trial
+# account that must be the account's Twilio number (+1...); once upgraded, a
+# sender ID registered with Twilio, or a Messaging Service SID (MG...). Blank
+# uses SMS_SENDER_ID. See core/sms.py for what reaches which Ghanaian network.
+TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
+TWILIO_FROM = env("TWILIO_FROM", default="")
+TWILIO_API_URL = env("TWILIO_API_URL", default="https://api.twilio.com")
 
 # --------------------------------------------------------------------------
 # Email one-time codes

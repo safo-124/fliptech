@@ -733,6 +733,19 @@ set in `backend/.env`.
   balance is empty. A text Arkesel refuses never breaks a sign-up: it is
   logged, and the code shows as "Not sent: pass it on" on the back office's
   Recent sign-in codes page. Keep the SMS balance topped up in Arkesel.
+- **Or texts through Twilio.** Set `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID=`
+  and `TWILIO_AUTH_TOKEN=` (both on the Twilio console's front page) and
+  `TWILIO_FROM=`, then check with `check_sms` as above. Before relying on it,
+  know three things from Twilio's Ghana guidelines. It costs about US$0.37 a
+  text to Ghana, far more than a local gateway. MTN blocks sender IDs that are
+  not registered, and registering one through Twilio takes about three weeks.
+  A text from a phone number rather than a name fails on MTN, AirtelTigo and
+  Glo. A **trial** account can only send from its Twilio number (`+1...`), only
+  to numbers verified in the console (up to five), with "Sent from a Twilio
+  trial account" in front, and Ghana has to be ticked under Messaging >
+  Settings > Geo permissions. So on a trial, an MTN phone should not expect the
+  text; a verified Telecel phone may get it. Twilio accepting a text is not the
+  text arriving: the console's message log says what each network did with it.
 - **WhatsApp is inert** until Meta verification. Before Arkesel is set up,
   `SMS_PROVIDER=console` logs codes instead of sending them. To show
   the product to people before then, set `SMS_PROVIDER=backoffice` in
