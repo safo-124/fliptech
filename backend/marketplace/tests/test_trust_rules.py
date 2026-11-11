@@ -251,6 +251,47 @@ def test_pay_on_collection(seller, buyer, texts):
 
 
 @pytest.mark.django_db(transaction=True)
+def test_held_pay_on_collection_pays_out_only_what_came_online(
+    seller, buyer, texts, settings, monkeypatch
+):
+    # GH₵40 of a GH₵200 toolbox is paid on the site and held. The GH₵160
+    # balance is cash in the seller's hand: Fliiptech never has it, so it
+    # must not be transferred from Fliiptech's own balance as well.
+    settings.MARKETPLACE_HOLD_FIRST_ORDERS = 1
+    seller.collect_deposit_percent = 20
+    seller.save()
+    kit = product(seller, "Toolbox", "200.00")
+    order = Order.objects.get(
+        reference=order_of(
+            buyer, seller, [{"product": kit.pk, "quantity": 1}], pay_at_collection=True
+        ).json()["reference"]
+    )
+    assert order.payout == Order.Payout.HELD
+    pay(order)
+
+    shop = Client()
+    shop.force_login(seller.user)
+    assert shop.get(reverse("seller-payouts")).json()["totals"]["held"] == "38.00"
+
+    transfers = []
+
+    def fake(method, path, payload=None, *, query=None):
+        if path == "/transfer":
+            transfers.append(payload)
+            return {"status": "success"}
+        return {}
+
+    monkeypatch.setattr(paystack, "_call", fake)
+    received = buyer.post(reverse("order-received", args=[order.reference]))
+    assert received.status_code == 200, received.content
+    order.refresh_from_db()
+    assert order.payout == Order.Payout.RELEASED
+    # The GH₵40 paid online, less Fliiptech's 5% of it.
+    assert [transfer["amount"] for transfer in transfers] == [3800]
+    assert shop.get(reverse("seller-payouts")).json()["totals"]["paid_out"] == "38.00"
+
+
+@pytest.mark.django_db(transaction=True)
 def test_disputes_get_the_sellers_side_then_staff_decide(seller, buyer, texts):
     kit = product(seller, "Drill")
     order = Order.objects.get(

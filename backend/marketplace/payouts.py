@@ -2,8 +2,9 @@
 
 Used when MARKETPLACE_HOLD_PAYMENTS is on when an order is made (the order
 remembers it as `payout`). The whole payment then lands in Fliiptech's
-Paystack balance, and the seller's share (the total less Fliiptech's
-commission) is transferred to them:
+Paystack balance, and the seller's share of it (what was paid on the site
+less Fliiptech's commission; never the cash a buyer pays on collection,
+which Fliiptech does not have) is transferred to them:
 
   - as soon as the buyer taps "I've got it", or
   - MARKETPLACE_RELEASE_DAYS after the seller marks it handed over, if the
@@ -78,7 +79,7 @@ def release(order):
 
     try:
         state = paystack.transfer(
-            amount_pesewas=order.seller_share_pesewas,
+            amount_pesewas=order.online_share_pesewas,
             recipient=order.seller.paystack_recipient,
             reference=order.transfer_reference,
             reason=f"Order {order.reference}: {order.product_name}"[:100],

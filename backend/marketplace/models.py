@@ -886,6 +886,19 @@ class Order(TimeStampedModel):
         return self.total_pesewas - self.commission_pesewas
 
     @property
+    def cash_pesewas(self):
+        """What the buyer pays the seller in person, on collection. It never
+        passes through Paystack, so the site neither holds nor pays it."""
+        return self.balance_pesewas if self.plan == self.Plan.COLLECT else 0
+
+    @property
+    def online_share_pesewas(self):
+        """The seller's share of what is paid on the site: what a held order
+        transfers to them, and what "Your money" counts. Their whole share
+        less the cash they collect themselves."""
+        return self.seller_share_pesewas - self.cash_pesewas
+
+    @property
     def amount(self):
         return self.amount_pesewas / 100
 

@@ -1081,7 +1081,9 @@ class SellerPayoutsView(APIView):
         totals = {"paid_out": 0, "held": 0, "refunded": 0}
         rows = []
         for order in orders:
-            yours = order.seller_share_pesewas
+            # Money through the site only: cash taken on collection is
+            # already in the seller's hand, so it is never held or paid out.
+            yours = order.online_share_pesewas
             if order.payout in (Order.Payout.SPLIT, Order.Payout.RELEASED):
                 state = "paid_out"
             elif order.payout in (Order.Payout.REFUNDED,) or order.stage == Order.Stage.REFUNDED:
