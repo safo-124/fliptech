@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { TradeIcon } from "@/components/TradeArt";
 import { formatCedis, formatDate } from "@/lib/format";
 import { keepTrainingAlert, searchEverything } from "@/lib/search-api";
+import { openSignIn } from "@/lib/sign-in";
 import { tradeClass } from "@/lib/trades";
 import styles from "./search.module.css";
 import type { ProviderCard, SearchTrade, SiteSearch } from "@/lib/types";
@@ -637,7 +638,11 @@ export function AlertButton({ trade, area }: { trade: SearchTrade; area: { slug:
       setState("saved");
     } catch (error) {
       const status = (error as { status?: number }).status;
-      setState(status === 401 || status === 403 ? "signin" : "failed");
+      if (status === 401 || status === 403) {
+        // Sign in here, then save it: no trip to another page.
+        if (await openSignIn({ interest: "learn" })) return keep();
+        setState("signin");
+      } else setState("failed");
     }
   }
 
@@ -653,12 +658,9 @@ export function AlertButton({ trade, area }: { trade: SearchTrade; area: { slug:
     return (
       <p className="mt-4 text-sm">
         {t("alertSignIn")}{" "}
-        <Link
-          href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
-          className="font-semibold text-[var(--color-brand)] underline"
-        >
+        <button type="button" onClick={() => void keep()} className="font-semibold text-[var(--color-brand)] underline">
           {t("alertSignInLink")}
-        </Link>
+        </button>
       </p>
     );
   }

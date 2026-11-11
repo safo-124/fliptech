@@ -1,127 +1,209 @@
 "use client";
 
-import {UserPlus, UserRound} from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  Heart,
+  LayoutDashboard,
+  LogOut,
+  Package,
+  Store,
+  UserPlus,
+  UserRound,
+} from "lucide-react";
 import Link from "next/link";
-import {useEffect, useState} from "react";
+import {usePathname, useRouter} from "next/navigation";
+import {useEffect, useRef, useState} from "react";
 
 import {Button} from "@/components/ui/button";
+import {signOutAccount} from "@/lib/account-api";
 import {getWhoami} from "@/lib/session-api";
+import {SESSION_CHANGED, announceSessionChange} from "@/lib/sign-in";
+import type {Whoami} from "@/lib/types";
 
 /**
  * The right-hand end of the header, which has to know who is signed in.
  *
- * Before this, the header was static and always offered "My account" and
- * "Sign up". "My account" went to the trainee area, so a signed-in trainer who
- * clicked away from their dashboard was shown a sign-up button and, if they
- * followed the only account link on the page, a trainee sign-in form. Their
- * session was never touched — it just looked exactly like being logged out,
- * with no way back.
+ * Signed out: "Sign in" and "Register". Signed in: their picture and first
+ * name, opening one menu with a link for each part of the site they use: the
+ * account and orders for everyone (every login can buy), courses for a
+ * trainee, the workshop dashboard for a trainer, the shop for a seller. One
+ * login, so nothing to "switch" between.
  *
- * Signed out is the first render, which is what the server sends and what the
- * great majority of visitors are, so nothing moves for them and the page needs
- * no JavaScript to be correct. The swap costs one small request per page load.
- *
- * The labels arrive already translated, from the header. Translating here
- * would put next-intl's message formatter on every page — about 12 KB, on a
- * search page with a 200 KB budget — for three fixed strings.
+ * The labels arrive translated, from the header (a server component).
  */
-export type AccountNavLabels = {myAccount: string; signUp: string};
+export type AccountNavLabels = {
+  myAccount: string;
+  signUp: string;
+  account: string;
+  orders: string;
+  saved: string;
+  courses: string;
+  workshop: string;
+  shop: string;
+  signOut: string;
+  menu: string;
+};
+
+type Signed = {name: string; avatar?: string | null; who: Whoami};
 
 export function AccountNav({labels}: {labels: AccountNavLabels}) {
-  const [account, setAccount] = useState<{
-    href: string;
-    name: string;
-    avatar?: string | null;
-  } | null>(null);
+  const [account, setAccount] = useState<Signed | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  const pathname = usePathname() ?? "/";
+  const router = useRouter();
+  const isOpen = open === pathname;
+  const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
-    getWhoami()
-      .then((who) => {
-        if (!active) return;
-        // One login can hold several roles now. The account page lists them
-        // all, so the header always goes there. The server picks the picture
-        // (the account's own, else the trainee's): core/whoami.py.
-        if (!who.customer && !who.trainer && !who.seller && !who.trainee) return;
-        // A name if there is one; a bare phone number is no name, and the
-        // header then says "My account".
-        const name =
-          [who.customer?.name, who.trainer?.name, who.seller?.name, who.trainee?.name].find(
-            (candidate) => candidate && !/^\+?\d[\d\s]+$/.test(candidate),
-          ) ?? labels.myAccount;
-        setAccount({href: "/account", name, avatar: who.customer?.avatar});
-      })
-      // Signed out is the safe answer: it offers a way in rather than a link
-      // to a dashboard that would bounce them.
-      .catch(() => {});
+    function load() {
+      getWhoami()
+        .then((who) => {
+          if (!active) return;
+          if (!who.customer && !who.trainer && !who.seller && !who.trainee) {
+            setAccount(null);
+            return;
+          }
+          // A name if there is one; a bare phone number is no name.
+          const name =
+            [who.customer?.name, who.trainer?.name, who.seller?.name, who.trainee?.name].find(
+              (candidate) => candidate && !/^\+?\d[\d\s]+$/.test(candidate),
+            ) ?? labels.account;
+          setAccount({name, avatar: who.customer?.avatar, who});
+        })
+        // Signed out is the safe answer: it offers a way in.
+        .catch(() => {});
+    }
+    load();
+    // Signing in from the sheet, or out from the menu, updates this at once.
+    window.addEventListener(SESSION_CHANGED, load);
     return () => {
       active = false;
+      window.removeEventListener(SESSION_CHANGED, load);
     };
-  }, [labels.myAccount]);
+  }, [labels.account]);
 
-  if (account) {
-    // Their own face, at both widths. The button is the same element on a
-    // phone as on a desktop — only its padding changes — so the picture needs
-    // no separate mobile treatment. It is inset by the same amount it adds, so
-    // the pill keeps the width it had with the icon.
-    const showPhoto = account.avatar && !photoFailed;
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpen(null);
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [isOpen]);
+
+  if (!account) {
     return (
-      <Button
-        asChild
-        variant="outline"
-        size="default"
-        className={showPhoto ? "pl-2 pr-3 sm:pr-4" : "px-3 sm:px-4"}
-      >
-        <Link href={account.href} title={account.name}>
-          {showPhoto ? (
-            // Not next/image: at 28px there is nothing for the optimiser to
-            // save, and this avoids a second origin in remotePatterns for a
-            // file that is only ever this size.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={account.avatar as string}
-              alt=""
-              className="size-7 rounded-full object-cover ring-1 ring-[var(--color-border)]"
-              // A picture that 404s would leave a broken-image glyph in the
-              // header of every page. Fall back to the icon instead.
-              onError={() => setPhotoFailed(true)}
-            />
-          ) : (
+      <>
+        <Button asChild variant="outline" size="default" className="px-3 sm:px-4">
+          <Link href="/account" aria-label={labels.myAccount}>
             <UserRound aria-hidden />
-          )}
-          <span className="max-w-[9rem] truncate">{firstName(account.name)}</span>
-        </Link>
-      </Button>
+            {/* Icon only below sm, where the logo and two labelled buttons
+                are wider than a 320px phone. The aria-label still names it. */}
+            <span className="hidden sm:inline">{labels.myAccount}</span>
+          </Link>
+        </Button>
+        <Button asChild variant="brand" size="default" className="px-3 sm:px-4">
+          <Link href="/account?new=1">
+            <UserPlus aria-hidden />
+            {labels.signUp}
+          </Link>
+        </Button>
+      </>
     );
   }
 
+  const {who} = account;
+  const items = [
+    {href: "/account", label: labels.account, icon: UserRound},
+    {href: "/account#orders", label: labels.orders, icon: Package},
+    {href: "/marketplace/saved", label: labels.saved, icon: Heart},
+    ...(who.trainee ? [{href: "/learn/mine", label: labels.courses, icon: BookOpen}] : []),
+    ...(who.trainer ? [{href: "/trainer/dashboard", label: labels.workshop, icon: LayoutDashboard}] : []),
+    ...(who.seller ? [{href: "/sell/shop", label: labels.shop, icon: Store}] : []),
+  ];
+
+  const showPhoto = account.avatar && !photoFailed;
   return (
-    <>
-      <Button asChild variant="outline" size="default" className="px-3 sm:px-4">
-        <Link href="/account" aria-label={labels.myAccount}>
+    <div ref={root} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="default"
+        aria-label={`${labels.menu}: ${account.name}`}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        onClick={() => setOpen(isOpen ? null : pathname)}
+        className={showPhoto ? "pl-2 pr-2.5 sm:pr-3" : "px-3"}
+      >
+        {showPhoto ? (
+          // Not next/image: at 28px there is nothing for the optimiser to save.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={account.avatar as string}
+            alt=""
+            className="size-7 rounded-full object-cover ring-1 ring-[var(--color-border)]"
+            onError={() => setPhotoFailed(true)}
+          />
+        ) : (
           <UserRound aria-hidden />
-          {/* Icon only below sm, where the logo and two labelled buttons
-              are wider than a 320px phone. The aria-label still names it. */}
-          <span className="hidden sm:inline">{labels.myAccount}</span>
-        </Link>
+        )}
+        <span className="max-w-[9rem] truncate max-sm:hidden">{firstName(account.name)}</span>
+        <ChevronDown
+          aria-hidden
+          className={`size-4 text-[var(--color-muted-foreground)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </Button>
-      <Button asChild variant="brand" size="default" className="px-3 sm:px-4">
-        <Link href="/account?new=1">
-          <UserPlus aria-hidden />
-          {labels.signUp}
-        </Link>
-      </Button>
-    </>
+
+      {isOpen ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-10 mt-2 w-64 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-1.5 shadow-[0_24px_60px_-20px_rgb(38_0_90/0.4)]"
+        >
+          <p className="truncate px-3 pb-2 pt-2.5 text-sm font-bold">{account.name}</p>
+          {items.map(({href, label, icon: Icon}) => (
+            <Link
+              key={href}
+              role="menuitem"
+              href={href}
+              onClick={() => setOpen(null)}
+              className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium hover:bg-[var(--color-brand-soft)]"
+            >
+              <Icon aria-hidden className="size-[1.125rem] text-[var(--color-brand)]" />
+              {label}
+            </Link>
+          ))}
+          <div className="my-1 h-px bg-[var(--color-border)]" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={async () => {
+              setOpen(null);
+              await signOutAccount().catch(() => {});
+              setAccount(null);
+              announceSessionChange();
+              router.push("/");
+              router.refresh();
+            }}
+            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium hover:bg-[var(--color-muted)]"
+          >
+            <LogOut aria-hidden className="size-[1.125rem] text-[var(--color-muted-foreground)]" />
+            {labels.signOut}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-/**
- * "Ama Mensah" becomes "Ama". The header is 4rem tall on a phone and shares
- * the row with the logo; a full name pushes the nav off the screen. A phone
- * number, which is the fallback when a trainer has not filled in their name,
- * has no spaces and survives this unchanged.
- */
+/** "Ama Mensah" becomes "Ama": the header shares its row with the logo. */
 function firstName(name: string) {
   return name.trim().split(/\s+/)[0] || name;
 }

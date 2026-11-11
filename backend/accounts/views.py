@@ -14,6 +14,7 @@ seller added here starts unconfirmed, exactly as through their own sign-up
 pages, and staff confirm them as before.
 """
 
+import contextlib
 import logging
 
 from django.conf import settings
@@ -74,13 +75,30 @@ class AccountSerializer(serializers.ModelSerializer):
         return value
 
     photo = serializers.SerializerMethodField()
+    interests = serializers.ListField(
+        child=serializers.ChoiceField(choices=CustomerAccount.INTERESTS),
+        required=False,
+        max_length=len(CustomerAccount.INTERESTS),
+    )
+
+    def validate_interests(self, value):
+        # Kept in a fixed order, once each, whatever order they were ticked in.
+        return [interest for interest in CustomerAccount.INTERESTS if interest in value]
 
     def get_photo(self, obj):
         return public_url(obj.photo.url, self.context.get("request")) if obj.photo else None
 
     class Meta:
         model = CustomerAccount
-        fields = ["phone", "display_name", "email", "delivery_address", "photo", "created_at"]
+        fields = [
+            "phone",
+            "display_name",
+            "email",
+            "delivery_address",
+            "photo",
+            "interests",
+            "created_at",
+        ]
         read_only_fields = ["phone", "photo", "created_at"]
 
 
@@ -150,6 +168,13 @@ class AccountView(APIView):
             # A new address is not proven until a code sent to it is typed.
             serializer.validated_data["email_verified_at"] = None
         serializer.save()
+        # "Learn a trade" makes them a trainee straight away, on this login,
+        # so a course started next needs no second sign-in. (Selling still
+        # goes through the seller's own steps: staff confirm sellers.)
+        if "learn" in serializer.validated_data.get("interests", []):
+            # A trainee login switched off by staff stays off.
+            with contextlib.suppress(ValueError):
+                _add_role(request, account, "trainee")
         return Response(account_payload(request))
 
 
@@ -600,33 +625,37 @@ class AddRoleView(APIView):
     @extend_schema(request=None, responses={201: None})
     def post(self, request, role):
         account = _account(request)
-        now = account.phone_verified_at or timezone.now()
         try:
-            if role == "trainee":
-                from trainees.auth import account_for_verified_phone as trainee_for
-
-                trainee_for(
-                    phone=account.phone,
-                    verified_at=now,
-                    display_name=account.display_name,
-                )
-            elif role == "trainer":
-                from providers.trainer_auth import account_for_verified_phone as trainer_for
-
-                trainer_for(phone=account.phone, verified_at=now)
-            elif role == "seller":
-                from marketplace.auth import account_for_verified_phone as seller_for
-
-                seller_for(phone=account.phone, verified_at=now, user=request.user)
-            else:
+            if not _add_role(request, account, role):
                 return Response({"detail": _("No such role.")}, status=status.HTTP_404_NOT_FOUND)
         except ValueError as exc:
             # Each role's own "disabled", "declined" or "sells elsewhere".
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
-        # A fresh copy, so the new role's reverse relation is not cached as
-        # missing from before it existed.
-        request.user = get_user_model().objects.get(pk=request.user.pk)
         return Response(account_payload(request), status=status.HTTP_201_CREATED)
+
+
+def _add_role(request, account, role):
+    """Add a trainee, trainer or seller role to this login. False for an
+    unknown role; a role's own refusal raises ValueError."""
+    now = account.phone_verified_at or timezone.now()
+    if role == "trainee":
+        from trainees.auth import account_for_verified_phone as trainee_for
+
+        trainee_for(phone=account.phone, verified_at=now, display_name=account.display_name)
+    elif role == "trainer":
+        from providers.trainer_auth import account_for_verified_phone as trainer_for
+
+        trainer_for(phone=account.phone, verified_at=now)
+    elif role == "seller":
+        from marketplace.auth import account_for_verified_phone as seller_for
+
+        seller_for(phone=account.phone, verified_at=now, user=request.user)
+    else:
+        return False
+    # A fresh copy, so the new role's reverse relation is not cached as
+    # missing from before it existed.
+    request.user = get_user_model().objects.get(pk=request.user.pk)
+    return True
 
 
 class AccountPhotoView(APIView):

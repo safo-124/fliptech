@@ -36,6 +36,12 @@ class CustomerAccount(TimeStampedModel):
     delivery_address = models.CharField(max_length=300, blank=True)
     is_active = models.BooleanField(default=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
+    # What they said brought them, ticked once after signing up: any of
+    # "learn", "buy", "sell". Only decides what the account page shows
+    # first; every part of the site stays open to everyone.
+    interests = models.JSONField(default=list, blank=True)
+
+    INTERESTS = ("learn", "buy", "sell")
 
     class Meta:
         ordering = ["-created_at"]

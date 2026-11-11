@@ -449,7 +449,15 @@
   },
   "AccountNav": {
     "myAccount": "Sign in",
-    "signUp": "Register"
+    "signUp": "Register",
+    "account": "My account",
+    "orders": "My orders",
+    "saved": "Saved and bag",
+    "courses": "My courses",
+    "workshop": "Workshop dashboard",
+    "shop": "My shop",
+    "signOut": "Sign out",
+    "menu": "Account menu"
   },
   "TrustBadges": {
     "notVisited": "Not visited by {brand}",
@@ -915,7 +923,16 @@
     "chatAbout": "About {name}",
     "searchesTitle": "Saved searches",
     "searchesNone": "On the marketplace, tap \"Text me new matches\" and we'll text you when something new matches.",
-    "searchesDelete": "Stop texting me about {label}"
+    "searchesDelete": "Stop texting me about {label}",
+    "learningTitle": "Learning",
+    "learningProgress": "{done} of {total} lessons",
+    "learningContinue": "Continue",
+    "learningEmptyTitle": "Start with a free lesson",
+    "learningEmptyLead": "Short videos filmed in real workshops.",
+    "learningAll": "All my courses",
+    "learningCertificates": "{count, plural, one {# certificate} other {# certificates}}",
+    "learningSaved": "Saved lessons",
+    "shoppingTitle": "Shopping"
   },
   "MarketTerms": {
     "title": "Marketplace terms of sale",
@@ -2664,5 +2681,40 @@
     "alertFailed": "That did not work. Try again.",
     "offline": "Search needs a connection. Check your data and try again.",
     "tips": "Tip: name a trade and a town, like “tailoring Madina”."
+  },
+  "SignIn": {
+    "sheetTitle": "Continue with your phone",
+    "sheetLead": "We'll text you a code. No password to remember.",
+    "close": "Close",
+    "phoneLabel": "Phone number",
+    "phoneInvalid": "Enter a Ghana number, like 024 123 4567.",
+    "sendCode": "Send me a code",
+    "oneAccount": "One account for everything: buying, learning and teaching a trade, and selling.",
+    "codeSentTo": "We sent a code to {phone}.",
+    "codeLabel": "Code",
+    "signIn": "Sign in",
+    "changeNumber": "Use a different number",
+    "failed": "Something went wrong. Try again.",
+    "welcomeTitle": "Welcome to Fliiptech",
+    "welcomeLead": "Two quick things and you're in.",
+    "nameLabel": "Your first name",
+    "namePlaceholder": "Ama",
+    "interestsTitle": "What brings you here?",
+    "interestsHint": "Tick any that fit. You can do everything either way.",
+    "interest": {
+      "learn": {
+        "title": "Learn a trade",
+        "hint": "Training near you and online courses"
+      },
+      "buy": {
+        "title": "Buy things",
+        "hint": "Tools, clothes and crafts from makers"
+      },
+      "sell": {
+        "title": "Sell what I make",
+        "hint": "Open a shop and get paid to mobile money"
+      }
+    },
+    "continue": "Continue"
   }
 }

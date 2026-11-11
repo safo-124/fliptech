@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowRight,
   Building2,
   Camera,
   Clock,
@@ -20,6 +19,8 @@ import {useTranslations} from "next-intl";
 import {useCallback, useEffect, useState} from "react";
 
 import {AccountExtras} from "@/components/account/AccountExtras";
+import {LearningCard} from "@/components/account/LearningCard";
+import {PhoneSignIn} from "@/components/auth/PhoneSignIn";
 import styles from "@/components/account/photo.module.css";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
@@ -31,18 +32,15 @@ import {
   getMyOrders,
   getMyQuestions,
   removeAccountPhoto,
-  requestAccountCode,
   setAccountPhoto,
   signOutAccount,
   updateAccount,
-  verifyAccountCode,
   type AccountSession,
   type CustomerAccount,
   type MyQuestions,
 } from "@/lib/account-api";
 import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
 import {formatCedis} from "@/lib/format";
-import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import type {MarketplaceOrder} from "@/lib/types";
 
 /** A path on this site, never somewhere else: `next` comes from the address. */
@@ -126,108 +124,13 @@ export function AccountPage() {
 
 function SignIn({newcomer, onSignedIn}: {newcomer: boolean; onSignedIn: () => Promise<void>}) {
   const t = useTranslations("Account");
-  const [step, setStep] = useState<"phone" | "code">("phone");
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [challenge, setChallenge] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function send(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
-      const sent = await requestAccountCode(e164);
-      setChallenge(sent.challenge_id);
-      setStep("code");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("failed"));
-    }
-    setBusy(false);
-  }
-
-  async function confirm(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
-      await verifyAccountCode({challenge_id: challenge, phone: e164, code: code.trim(), name: name.trim() || undefined});
-      await onSignedIn();
-      return;
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("failed"));
-    }
-    setBusy(false);
-  }
-
   return (
     <div className="mx-auto max-w-md">
       <h1 className="text-3xl font-bold tracking-[-0.035em]">{newcomer ? t("joinTitle") : t("signInTitle")}</h1>
       <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">{t("signInLead")}</p>
       <Card className="mt-5">
         <CardContent className="pt-5">
-          {error ? (
-            <p role="alert" className="mb-4 rounded-lg bg-[var(--color-destructive)]/10 px-3 py-2 text-sm text-[var(--color-destructive)]">
-              {error}
-            </p>
-          ) : null}
-          {/* No `name` attributes, so a tap before hydration cannot put a
-              phone number in the address bar (see AskSeller). */}
-          {step === "phone" ? (
-            <form onSubmit={send} className="space-y-4">
-              <div>
-                <Label htmlFor="account-phone">{t("phoneLabel")}</Label>
-                <Input
-                  id="account-phone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  required
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  placeholder="024 123 4567"
-                />
-              </div>
-              {newcomer ? (
-                <div>
-                  <Label htmlFor="account-name">{t("nameLabel")}</Label>
-                  <Input id="account-name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
-                </div>
-              ) : null}
-              <Button type="submit" variant="brand" className="w-full" disabled={busy}>
-                {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-                {t("sendCode")}
-                {busy ? null : <ArrowRight aria-hidden="true" />}
-              </Button>
-              <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">{t("oneAccount")}</p>
-            </form>
-          ) : (
-            <form onSubmit={confirm} className="space-y-4">
-              <p className="text-sm text-[var(--color-muted-foreground)]">{t("codeSentTo", {phone})}</p>
-              <div>
-                <Label htmlFor="account-code">{t("codeLabel")}</Label>
-                <Input
-                  id="account-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  required
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                />
-              </div>
-              <Button type="submit" variant="brand" className="w-full" disabled={busy}>
-                {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-                {t("signIn")}
-              </Button>
-              <Button type="button" variant="ghost" className="w-full" onClick={() => setStep("phone")}>
-                {t("changeNumber")}
-              </Button>
-            </form>
-          )}
+          <PhoneSignIn idPrefix="account" onDone={onSignedIn} />
         </CardContent>
       </Card>
     </div>
@@ -395,6 +298,10 @@ function SignedIn({
     },
   ];
 
+  const learns = Boolean(roles.trainee) || account.interests.includes("learn");
+  const learnFirst = learns && account.interests[0] === "learn";
+  const learning = learns ? <LearningCard /> : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -433,8 +340,14 @@ function SignedIn({
         </p>
       ) : null}
 
+      {/* Learning and shopping, in the order they said brought them:
+          "Learn a trade" first puts courses on top. Learning shows for anyone
+          who is a trainee or ticked it; shopping for everyone (every login
+          can buy). */}
+      {learnFirst ? learning : null}
+      <section aria-label={t("shoppingTitle")} className="space-y-5">
       {/* ------------------------------------------------------- orders */}
-      <Card>
+      <Card id="orders" className="scroll-mt-24">
         <CardHeader className="flex-row items-center gap-3 space-y-0">
           <Package aria-hidden="true" className="size-5 text-[var(--color-brand)]" />
           <CardTitle>{t("ordersTitle")}</CardTitle>
@@ -519,6 +432,8 @@ function SignedIn({
           {t("savedLink")}
         </Link>
       </p>
+      </section>
+      {learnFirst ? null : learning}
 
       {/* ------------------------------------------------- more you can do */}
       <Card>

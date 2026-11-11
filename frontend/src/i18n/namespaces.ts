@@ -99,8 +99,12 @@ export const TRAINER_CLIENT_NAMESPACES = [
 /** The one account everyone signs in to (/account). */
 export const ACCOUNT_CLIENT_NAMESPACES = [
   "Account",
+  "SignIn",
   "Validation",
 ] as const satisfies readonly ClientNamespace[];
+
+/** The sign-in sheet in the root layout, which any page can open. */
+export const SIGN_IN_CLIENT_NAMESPACES = ["SignIn"] as const satisfies readonly ClientNamespace[];
 
 /** /search: the live search box and its results. */
 export const SEARCH_CLIENT_NAMESPACES = ["SiteSearch"] as const satisfies readonly ClientNamespace[];

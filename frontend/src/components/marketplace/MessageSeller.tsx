@@ -1,18 +1,18 @@
 "use client";
 
 import { Loader2, MessageSquare, Send } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { startChat } from "@/lib/account-api";
+import { openSignIn } from "@/lib/sign-in";
 
 /**
  * Chat with the seller on the site, instead of handing out numbers. Opens a
- * box; sending starts (or continues) the chat and goes to it. Signed out, it
- * sends the buyer to sign in and back.
+ * box; sending starts (or continues) the chat and goes to it. Signed out, the
+ * sign-in sheet opens and the same message is sent once they are in.
  */
 export function MessageSeller({
   sellerId,
@@ -42,9 +42,12 @@ export function MessageSeller({
       router.push(`/account/chats/${thread.id}`);
     } catch (error) {
       const status = (error as { status?: number }).status;
-      if (status === 401 || status === 403) setSignIn(true);
-      else setProblem(error instanceof Error ? error.message : t("chatFailed"));
       setBusy(false);
+      if (status === 401 || status === 403) {
+        // Sign in here, then send the same message: nothing typed is lost.
+        if (await openSignIn({ interest: "buy" })) return send();
+        setSignIn(true);
+      } else setProblem(error instanceof Error ? error.message : t("chatFailed"));
     }
   }
 
@@ -73,12 +76,9 @@ export function MessageSeller({
       {signIn ? (
         <p className="text-sm">
           {t("chatSignIn")}{" "}
-          <Link
-            href={`/account?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/marketplace")}`}
-            className="font-semibold text-[var(--color-brand)] underline"
-          >
+          <button type="button" onClick={() => void send()} className="font-semibold text-[var(--color-brand)] underline">
             {t("chatSignInLink")}
-          </Link>
+          </button>
         </p>
       ) : null}
       {problem ? (

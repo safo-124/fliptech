@@ -126,6 +126,14 @@ export function SiteHeader() {
               labels={{
                 myAccount: tAccount("myAccount"),
                 signUp: tAccount("signUp"),
+                account: tAccount("account"),
+                orders: tAccount("orders"),
+                saved: tAccount("saved"),
+                courses: tAccount("courses"),
+                workshop: tAccount("workshop"),
+                shop: tAccount("shop"),
+                signOut: tAccount("signOut"),
+                menu: tAccount("menu"),
               }}
             />
             <MobileNav sections={sections} labels={labels} searchLabel={t("searchPill")} />
