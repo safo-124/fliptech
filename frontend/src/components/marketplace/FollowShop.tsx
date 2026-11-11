@@ -1,15 +1,16 @@
 "use client";
 
 import { BellPlus, Check, Loader2 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { getFollow, setFollow, type FollowState } from "@/lib/marketplace-api";
+import { openSignIn } from "@/lib/sign-in";
 
 /**
  * Follow a shop: at most one text a day when it adds something. Needs an
- * account, so signed-out visitors get a link to sign in and come back.
+ * account: signed out, the button opens the sign-in sheet and follows once
+ * they are in.
  * Labels come as props: the shop page ships no message catalogue.
  */
 export function FollowShop({
@@ -40,11 +41,25 @@ export function FollowShop({
   if (!state.signed_in) {
     return (
       <span className="inline-flex flex-wrap items-center gap-2">
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/account?next=${encodeURIComponent(`/marketplace/seller/${sellerId}`)}`}>
-            <BellPlus aria-hidden="true" />
-            {labels.signIn}
-          </Link>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={async () => {
+            // Sign in here, then follow: the reason they pressed it.
+            if (!(await openSignIn({ interest: "buy" }))) return;
+            setBusy(true);
+            try {
+              setState(await setFollow(sellerId, true));
+            } catch {
+              setState(await getFollow(sellerId).catch(() => state));
+            }
+            setBusy(false);
+          }}
+        >
+          <BellPlus aria-hidden="true" />
+          {labels.signIn}
         </Button>
         {state.followers ? <span className="text-xs text-[var(--color-muted-foreground)]">{count}</span> : null}
       </span>

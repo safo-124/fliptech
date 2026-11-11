@@ -3,6 +3,9 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import {SiteFooter} from "@/components/SiteFooter";
 import {SiteHeader} from "@/components/SiteHeader";
+import {SignInSheet} from "@/components/auth/SignInSheet";
+import {ClientMessages} from "@/i18n/ClientMessages";
+import {SIGN_IN_CLIENT_NAMESPACES} from "@/i18n/namespaces";
 import {BRAND, BRAND_COLOURS} from "@/lib/brand";
 
 import "@fontsource-variable/inter";
@@ -83,6 +86,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
+        {/* Answers openSignIn() from any page: see lib/sign-in.ts. */}
+        <ClientMessages namespaces={SIGN_IN_CLIENT_NAMESPACES}>
+          <SignInSheet />
+        </ClientMessages>
 
         {/* The offline worker, public/sw.js. Registered after load, so it never
             competes with the page for a slow connection, and a few bytes

@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # see the apt step: 26.04 stalls on amd64v3 packages
 
     services:
       # postgis/postgis rather than plain postgres: the extensions migration
@@ -48,9 +48,18 @@ jobs:
       # GeoDjango needs the native libraries; pip cannot supply them. ffmpeg
       # is for the video tests, which encode real clips.
       - name: Install GDAL, GEOS, PROJ and ffmpeg
+        # On 2026-11-11 ubuntu-latest became Ubuntu 26.04, whose apt fetches
+        # "amd64v3" builds of GDAL's dependencies, and every one of those
+        # downloads stalled (from the Azure mirror and archive.ubuntu.com
+        # alike) until the job was cancelled. So the jobs that apt-get pin
+        # ubuntu-24.04. Short timeouts with retries get past a slow mirror,
+        # and the step limit turns any stall into a quick, re-runnable
+        # failure instead of a job that waits six hours.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $APT update
+          sudo apt-get $APT install -y --no-install-recommends \
             gdal-bin libgdal-dev libgeos-dev libproj-dev binutils ffmpeg
 
       - name: Install Python dependencies
@@ -143,11 +152,9 @@ jobs:
 
   browser:
     # The Playwright suite in frontend/e2e, against a production build talking
-    # to a real API with the demo data in it. Includes Section 10's search-page
-    # budgets — under 200 KB, first paint under three seconds on 3G; see
-    # e2e/budget.spec.ts. The page passed with about 6 KB to spare when that was
-    # added, so this is what notices when the next client component takes it.
-    runs-on: ubuntu-latest
+    # to a real API with the demo data in it. (The 3G page-size budget test was
+    # retired on 2026-11-11: the site no longer designs around 3G.)
+    runs-on: ubuntu-24.04  # see the apt step: 26.04 stalls on amd64v3 packages
 
     services:
       postgres:
@@ -195,9 +202,18 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
 
       - name: Install GDAL, GEOS and PROJ
+        # On 2026-11-11 ubuntu-latest became Ubuntu 26.04, whose apt fetches
+        # "amd64v3" builds of GDAL's dependencies, and every one of those
+        # downloads stalled (from the Azure mirror and archive.ubuntu.com
+        # alike) until the job was cancelled. So the jobs that apt-get pin
+        # ubuntu-24.04. Short timeouts with retries get past a slow mirror,
+        # and the step limit turns any stall into a quick, re-runnable
+        # failure instead of a job that waits six hours.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $APT update
+          sudo apt-get $APT install -y --no-install-recommends \
             gdal-bin libgdal-dev libgeos-dev libproj-dev binutils
 
       - name: Start the API with the demo data
@@ -235,7 +251,7 @@ jobs:
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Browser tests, budgets included
+      - name: Browser tests
         working-directory: frontend
         run: pnpm test:e2e
 

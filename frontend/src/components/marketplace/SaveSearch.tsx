@@ -1,11 +1,11 @@
 "use client";
 
 import { BellRing, Check, Loader2 } from "lucide-react";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { saveSearch } from "@/lib/account-api";
+import { openSignIn } from "@/lib/sign-in";
 import type { MarketplaceParams } from "@/lib/api";
 
 /** The parameters a saved search keeps; the order and the page are left out. */
@@ -39,7 +39,11 @@ export function SaveSearch({ params, label }: { params: MarketplaceParams; label
       setState("saved");
     } catch (error) {
       const status = (error as { status?: number }).status;
-      setState(status === 401 || status === 403 ? "signin" : "failed");
+      if (status === 401 || status === 403) {
+        // Sign in here, then save it: no trip to another page.
+        if (await openSignIn({ interest: "buy" })) return save();
+        setState("signin");
+      } else setState("failed");
     }
   }
 
@@ -55,9 +59,9 @@ export function SaveSearch({ params, label }: { params: MarketplaceParams; label
     return (
       <p className="text-sm">
         {t("saveSearchSignIn")}{" "}
-        <Link href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="font-semibold text-[var(--color-brand)] underline">
+        <button type="button" onClick={() => void save()} className="font-semibold text-[var(--color-brand)] underline">
           {t("chatSignInLink")}
-        </Link>
+        </button>
       </p>
     );
   }

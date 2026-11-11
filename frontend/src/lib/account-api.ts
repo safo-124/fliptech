@@ -18,6 +18,8 @@ export type CustomerAccount = {
   delivery_address: string;
   /** Their own picture, or null. Only ever shown to them. */
   photo: string | null;
+  /** What they said brought them, ticked once after signing up. */
+  interests: ("learn" | "buy" | "sell")[];
   created_at: string;
 };
 
@@ -58,7 +60,9 @@ export function verifyAccountCode(body: {challenge_id: string; phone: string; co
   });
 }
 
-export function updateAccount(patch: Partial<Pick<CustomerAccount, "display_name" | "email" | "delivery_address">>) {
+export function updateAccount(
+  patch: Partial<Pick<CustomerAccount, "display_name" | "email" | "delivery_address" | "interests">>,
+) {
   return sessionFetch<AccountSession>("/api/account/", {method: "PATCH", body: JSON.stringify(patch)});
 }
 
