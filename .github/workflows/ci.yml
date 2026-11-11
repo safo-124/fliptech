@@ -143,10 +143,8 @@ jobs:
 
   browser:
     # The Playwright suite in frontend/e2e, against a production build talking
-    # to a real API with the demo data in it. Includes Section 10's search-page
-    # budgets — under 200 KB, first paint under three seconds on 3G; see
-    # e2e/budget.spec.ts. The page passed with about 6 KB to spare when that was
-    # added, so this is what notices when the next client component takes it.
+    # to a real API with the demo data in it. (The 3G page-size budget test was
+    # retired on 2026-11-11: the site no longer designs around 3G.)
     runs-on: ubuntu-latest
 
     services:
@@ -235,7 +233,7 @@ jobs:
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Browser tests, budgets included
+      - name: Browser tests
         working-directory: frontend
         run: pnpm test:e2e
 

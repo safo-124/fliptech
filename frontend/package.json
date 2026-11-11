@@ -14,7 +14,6 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:budget": "playwright test e2e/budget.spec.ts",
     "messages:export": "node scripts/messages-csv.mjs export",
     "messages:import": "node scripts/messages-csv.mjs import",
     "messages:status": "node scripts/messages-csv.mjs status"

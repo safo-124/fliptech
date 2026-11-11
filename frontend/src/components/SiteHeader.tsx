@@ -1,116 +1,102 @@
-import {Menu, Search} from "lucide-react";
+import {Search} from "lucide-react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 
 import {AccountNav} from "@/components/AccountNav";
 import {BrandMark} from "@/components/BrandMark";
 import {BRAND} from "@/lib/brand";
+import {MainNav} from "@/components/nav/MainNav";
+import {MobileNav} from "@/components/nav/MobileNav";
+import type {NavLabels, NavSection} from "@/components/nav/types";
 
 /**
  * The site's header: a brand stripe, the logo, the three parts of the site
- * as a floating "island" with a panel of shortcuts under each, a search
- * pill, and the account.
+ * (each opening one panel of shortcuts and a featured next step), search,
+ * and the account. Below lg a menu button opens every part in one sheet.
  *
- * The search button goes to /search, which searches the whole site as the
- * visitor types.
- *
- * Still no JavaScript of its own. The panels open on hover and on keyboard
- * focus (CSS group-hover and focus-within), and the phone menu is a
- * <details>: the search page's budget has no room for a header script, and
- * none is needed. The account buttons are the one client island, as before.
- *
- * No active-page highlight, for the same reason: knowing the current page
- * would make this a client component on every page.
+ * The menus are client components (nav/MainNav, nav/MobileNav): they keep
+ * one panel open at a time, close on Escape, a click elsewhere or a link,
+ * and mark the section you are in. This file stays a server component and
+ * hands them already-translated text.
  */
-
-/** The shortcuts the phone menu lists under its three tiles: the rest are a
-    tap away on each section's own page (the map from the training list), and
-    every link here is paid for in the search page's budget. */
-/** A variable, not a literal: the phone menu uses plain <a> on purpose (see
-    below), which the Link lint rule only checks in literals. */
-const SEARCH = "/search";
-
-const PHONE_EXTRAS = ["/marketplace/saved", "/sell", "/trainer/join?new=1"];
-
-type Shortcut = {href: string; label: string; hint: string};
-type Section = {
-  key: string;
-  href: string;
-  label: string;
-  /** The section's colours (globals.css .tint-*). */
-  tint: string;
-  /** Its icon's id in public/nav-icons.svg. */
-  icon: string;
-  shortcuts: Shortcut[];
-};
-
-/**
- * An icon from one shared SVG file. Drawn inline, each icon would be sent
- * twice on every page (in the HTML and again in the RSC payload); as a file
- * it is fetched once and cached, and the search page's budget does not count
- * it, as it does not count images.
- */
-function NavIcon({id}: {id: string}) {
-  return (
-    <svg aria-hidden className={`nav-ico nav-ico-${id}`}>
-      <use href={`/nav-icons.svg#${id}`} />
-    </svg>
-  );
-}
-
 export function SiteHeader() {
   const t = useTranslations("SiteHeader");
   const tAccount = useTranslations("AccountNav");
 
-  const sections: Section[] = [
+  const sections: NavSection[] = [
     {
       key: "training",
-      tint: "tint-training",
-      icon: "cap",
+      icon: "training",
       href: "/training",
       label: t("findTraining"),
-
+      allLabel: t("allTraining"),
       shortcuts: [
-        {href: "/training", label: t("searchWorkshops"), hint: t("searchWorkshopsHint")},
-        {href: "/map", label: t("map"), hint: t("mapHint")},
-        {href: "/trainer/join?new=1", label: t("becomeProvider"), hint: t("becomeProviderHint")},
+        {href: "/training", label: t("searchWorkshops"), hint: t("searchWorkshopsHint"), icon: "search"},
+        {href: "/map", label: t("map"), hint: t("mapHint"), icon: "map"},
+        {
+          href: "/trainer/join?new=1",
+          label: t("becomeProvider"),
+          hint: t("becomeProviderHint"),
+          icon: "provider",
+        },
       ],
+      feature: {
+        title: t("trainingFeatureTitle"),
+        body: t("trainingFeatureBody"),
+        cta: t("trainingFeatureCta"),
+        href: "/training",
+      },
     },
     {
       key: "learn",
-      tint: "tint-learn",
-      icon: "play",
+      icon: "learn",
       href: "/learn",
       label: t("learn"),
-
+      allLabel: t("allLearn"),
       shortcuts: [
-        {href: "/learn", label: t("allCourses"), hint: t("allCoursesHint")},
-        {href: "/learn/mine", label: t("myCourses"), hint: t("myCoursesHint")},
+        {href: "/learn", label: t("allCourses"), hint: t("allCoursesHint"), icon: "courses"},
+        {href: "/learn/mine", label: t("myCourses"), hint: t("myCoursesHint"), icon: "myCourses"},
+        {href: "/learn/saved", label: t("savedLessons"), hint: t("savedLessonsHint"), icon: "saved"},
       ],
+      feature: {
+        title: t("learnFeatureTitle"),
+        body: t("learnFeatureBody"),
+        cta: t("learnFeatureCta"),
+        href: "/learn",
+      },
     },
     {
       key: "market",
-      tint: "tint-market",
-      icon: "bag",
+      icon: "market",
       href: "/marketplace",
       label: t("marketplace"),
-
+      allLabel: t("allMarket"),
       shortcuts: [
-        {href: "/marketplace?sold_by=trainers", label: t("fromTrainers"), hint: t("fromTrainersHint")},
-        {href: "/marketplace?condition=used", label: t("secondHand"), hint: t("secondHandHint")},
-        {href: "/marketplace/saved", label: t("savedBag"), hint: t("savedBagHint")},
-        {href: "/sell", label: t("sell"), hint: t("sellHint")},
+        {href: "/marketplace?sold_by=trainers", label: t("fromTrainers"), hint: t("fromTrainersHint"), icon: "trainers"},
+        {href: "/marketplace?condition=used", label: t("secondHand"), hint: t("secondHandHint"), icon: "used"},
+        {href: "/marketplace/saved", label: t("savedBag"), hint: t("savedBagHint"), icon: "saved"},
+        {href: "/sell", label: t("sell"), hint: t("sellHint"), icon: "sell"},
       ],
+      feature: {
+        title: t("marketFeatureTitle"),
+        body: t("marketFeatureBody"),
+        cta: t("marketFeatureCta"),
+        href: "/sell",
+      },
     },
   ];
+
+  const labels: NavLabels = {
+    mainNavigation: t("mainNavigation"),
+    menu: t("menu"),
+    close: t("closeMenu"),
+    search: t("search"),
+  };
 
   return (
     <header className="sticky top-0 z-[1000]">
       {/* The brand stripe: the logo's colours, end to end. */}
-      <div
-        aria-hidden
-        className="nav-stripe"
-      />
+      <div aria-hidden className="nav-stripe" />
       <div className="nav-bar">
         <div className="app-shell flex h-16 items-center justify-between gap-3 lg:h-[4.5rem]">
           <Link href="/" className="group inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl">
@@ -121,56 +107,16 @@ export function SiteHeader() {
                 buttons and the menu are wider than the screen. Still named. */}
             <span className="sr-only min-[360px]:hidden">{BRAND}</span>
             <span className="leading-none max-[359px]:hidden">
-              <span className="nav-word">
-                {BRAND.toLowerCase()}
-              </span>
-              <span className="nav-sub">
-                {t("productName")}
-              </span>
+              <span className="nav-word">{BRAND.toLowerCase()}</span>
+              <span className="nav-sub">{t("productName")}</span>
             </span>
           </Link>
 
-          {/* The island: the three parts, each with its panel. From lg; at
-              tablet width the menu carries them, since the panels and the
-              account buttons do not fit side by side at 768px. */}
-          <nav aria-label={t("mainNavigation")} className="hidden lg:block">
-            <ul className="nav-island">
-              {sections.map((section) => (
-                <li key={section.key} className="nav-item relative">
-                  <Link href={section.href} className="nav-link">
-                    <NavIcon id={section.icon} />
-                    {section.label}
-                    <NavIcon id="down" />
-                  </Link>
-                  {/* The panel. pt-3 bridges the gap, so the pointer can
-                      travel from the button into it without it closing. */}
-                  <div className="nav-panel">
-                    <div className="nav-card">
-                      <div aria-hidden className={`h-1.5 ${section.tint}`} />
-                      <ul className="p-2">
-                        {section.shortcuts.map((shortcut) => (
-                          <li key={shortcut.href}>
-                            <Link href={shortcut.href} className="nav-shortcut">
-                              <b>{shortcut.label}</b>
-                              <small>{shortcut.hint}</small>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <MainNav sections={sections} labels={labels} />
 
           <div className="flex items-center gap-1.5">
-            {/* One link: an icon from sm, a search pill from xl. */}
-            <Link
-              href="/search"
-              aria-label={t("search")}
-              className="nav-search"
-            >
+            {/* An icon from sm, a search pill from xl. */}
+            <Link href="/search" aria-label={t("search")} className="nav-search">
               <Search aria-hidden className="size-5 text-[var(--color-brand)] xl:size-4" />
               <span aria-hidden className="hidden xl:inline">
                 {t("searchPill")}
@@ -182,57 +128,7 @@ export function SiteHeader() {
                 signUp: tAccount("signUp"),
               }}
             />
-            {/* Every part of the site below lg. <details> rather than a
-                script: it opens and closes with no JavaScript. Plain <a>,
-                not <Link>: a full page load is what closes it, since the
-                header stays mounted across client-side navigation. */}
-            <details className="lg:hidden">
-              <summary
-                aria-label={t("menu")}
-                className="nav-menu-btn"
-              >
-                <Menu aria-hidden className="size-5" />
-              </summary>
-              <nav
-                aria-label={t("mainNavigation")}
-                className="nav-sheet"
-              >
-                <div className="app-shell space-y-4 py-4">
-                  {/* Phones have no search button in the bar: it starts here. */}
-                  <a href={SEARCH} className="nav-extra gap-2">
-                    <NavIcon id="search" />
-                    {t("searchPill")}
-                  </a>
-                  <div className="grid grid-cols-3 gap-2">
-                    {sections.map((section) => (
-                      <a
-                        key={section.key}
-                        href={section.href}
-                        className={`nav-tile ${section.tint}`}
-                      >
-                        <NavIcon id={section.icon} />
-                        {section.label}
-                      </a>
-                    ))}
-                  </div>
-                  <ul className="grid grid-cols-2 gap-1">
-                    {sections
-                      .flatMap((section) => section.shortcuts)
-                      .filter((shortcut) => PHONE_EXTRAS.includes(shortcut.href))
-                      .map((shortcut) => (
-                        <li key={shortcut.href}>
-                          <a
-                            href={shortcut.href}
-                            className="nav-extra"
-                          >
-                            {shortcut.label}
-                          </a>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              </nav>
-            </details>
+            <MobileNav sections={sections} labels={labels} searchLabel={t("searchPill")} />
           </div>
         </div>
       </div>

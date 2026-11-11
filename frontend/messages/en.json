@@ -408,7 +408,22 @@
     "savedBagHint": "Favourites and checkout",
     "sell": "Sell here",
     "sellHint": "Open a shop",
-    "searchPill": "Search training, courses, tools"
+    "searchPill": "Search training, courses, tools",
+    "closeMenu": "Close menu",
+    "allTraining": "All training",
+    "allLearn": "All online learning",
+    "allMarket": "The whole marketplace",
+    "savedLessons": "Saved lessons",
+    "savedLessonsHint": "Watch later, even offline",
+    "trainingFeatureTitle": "Learn a trade near you",
+    "trainingFeatureBody": "Workshops our field team has visited in person, with fees, intakes and directions.",
+    "trainingFeatureCta": "Find a workshop",
+    "learnFeatureTitle": "Start with a free lesson",
+    "learnFeatureBody": "Short video lessons filmed in real workshops, by the people who run them.",
+    "learnFeatureCta": "Browse courses",
+    "marketFeatureTitle": "Sell what you make",
+    "marketFeatureBody": "Open a shop in minutes. Buyers pay safely and you are paid to mobile money.",
+    "marketFeatureCta": "Open a shop"
   },
   "SiteFooter": {
     "tagline": "A clearer way to choose practical training.",
