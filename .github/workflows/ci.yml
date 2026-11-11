@@ -48,12 +48,16 @@ jobs:
       # GeoDjango needs the native libraries; pip cannot supply them. ffmpeg
       # is for the video tests, which encode real clips.
       - name: Install GDAL, GEOS, PROJ and ffmpeg
-        # The runner's Ubuntu mirror has hung for an hour at a time
-        # (2026-11-11). Short network timeouts with retries turn a stalled
-        # mirror into a retry, and the step limit into a quick, re-runnable
-        # failure instead of a job that waits six hours.
+        # A stalled mirror hung this step for an hour at a time on 2026-11-11.
+        # Short network timeouts with retries get past a slow server, and the
+        # step limit turns a stall into a quick, re-runnable failure instead
+        # of a job that waits six hours.
         timeout-minutes: 10
         run: |
+          # The runner reads its mirror from this list (azure.archive.ubuntu.com
+          # first). That mirror stopped serving some packages on 2026-11-11, so
+          # use Ubuntu's own archive.
+          echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
           APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
           sudo apt-get $APT update
           sudo apt-get $APT install -y --no-install-recommends \
@@ -199,12 +203,16 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
 
       - name: Install GDAL, GEOS and PROJ
-        # The runner's Ubuntu mirror has hung for an hour at a time
-        # (2026-11-11). Short network timeouts with retries turn a stalled
-        # mirror into a retry, and the step limit into a quick, re-runnable
-        # failure instead of a job that waits six hours.
+        # A stalled mirror hung this step for an hour at a time on 2026-11-11.
+        # Short network timeouts with retries get past a slow server, and the
+        # step limit turns a stall into a quick, re-runnable failure instead
+        # of a job that waits six hours.
         timeout-minutes: 10
         run: |
+          # The runner reads its mirror from this list (azure.archive.ubuntu.com
+          # first). That mirror stopped serving some packages on 2026-11-11, so
+          # use Ubuntu's own archive.
+          echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
           APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
           sudo apt-get $APT update
           sudo apt-get $APT install -y --no-install-recommends \
