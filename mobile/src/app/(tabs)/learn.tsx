@@ -47,7 +47,11 @@ export default function LearnScreen() {
             ))}
           </>
         ) : (
-          <EmptyState title="No courses found" body="Try another word, or see every course." />
+          q.trim() ? (
+            <EmptyState title="No courses found" body="Try another word, or see every course." />
+          ) : (
+            <EmptyState title="No courses yet" body="Workshops are filming their first lessons." />
+          )
         )}
       </View>
     </Screen>

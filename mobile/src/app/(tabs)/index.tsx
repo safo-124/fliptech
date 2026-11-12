@@ -18,6 +18,9 @@ export default function HomeScreen() {
   const workshops = useQuery({ queryKey: ["providers", "home"], queryFn: () => api.providers() });
   const products = useQuery({ queryKey: ["products", "home"], queryFn: () => api.products() });
   const refreshing = courses.isRefetching || workshops.isRefetching || products.isRefetching;
+  // Until the first course is online, the main button leads to training
+  // rather than to an empty Learn tab.
+  const noCourses = courses.isSuccess && courses.data.results.length === 0;
 
   return (
     <Screen
@@ -33,8 +36,8 @@ export default function HomeScreen() {
         eyebrow="FLIIPTECH SKILLS HUB"
         title={"Learn a trade.\nGet ahead."}
         body="Lessons filmed in real Ghanaian workshops, training near you, and tools from the people who use them."
-        action="Explore courses"
-        onAction={() => router.navigate("/learn")}
+        action={noCourses ? "Find training near you" : "Explore courses"}
+        onAction={() => router.navigate(noCourses ? "/explore" : "/learn")}
         onMap={() => router.push("/map")}
       />
 

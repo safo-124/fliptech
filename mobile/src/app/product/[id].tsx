@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { GraduationCap, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store } from "lucide-react-native";
+import { GraduationCap, Info, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
@@ -18,7 +18,6 @@ import { useAuth } from "@/lib/auth";
 import { MAX_QUANTITY, useBag } from "@/lib/bag";
 import { SITE_URL } from "@/lib/config";
 import { cedis } from "@/lib/format";
-import { photoUrl } from "@/lib/media";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 const AVAILABILITY = {
@@ -53,9 +52,11 @@ export default function ProductScreen() {
   const option = options.find((row) => row.id === optionId) ?? null;
   const needsOption = options.some((row) => row.available);
   const price = option?.price ?? data?.price ?? null;
-  const photos = (data?.photos.length ? data.photos.map((photo) => photo.image) : [data?.photo])
-    .map((url) => photoUrl(url, "full"))
-    .filter((url): url is string => Boolean(url));
+  // The addresses as the API gives them: PhotoPager sends each through the
+  // resizer itself, and a resizer address sent through it again is refused.
+  const photos = (data?.photos.length ? data.photos.map((photo) => photo.image) : [data?.photo]).filter(
+    (url): url is string => Boolean(url),
+  );
 
   function message() {
     if (!data) return;
@@ -240,13 +241,26 @@ export default function ProductScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.protect}>
-                <ShieldCheck size={20} color={colors.visit} />
-                <Text variant="small" style={{ flex: 1 }}>
-                  Pay through Fliiptech with MoMo or card. If it does not arrive, or is not as described, tell us and
-                  we sort it out.
-                </Text>
-              </View>
+              {/* Buyer protection only where it applies: paying on the site.
+                  Asking the seller means paying them directly, as the
+                  website says on the same product. */}
+              {data.buy_online ? (
+                <View style={styles.protect}>
+                  <ShieldCheck size={20} color={colors.visit} />
+                  <Text variant="small" style={{ flex: 1 }}>
+                    Pay through Fliiptech with MoMo or card. If it does not arrive, or is not as described, tell us
+                    and we sort it out.
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.protect, styles.direct]}>
+                  <Info size={20} color={colors.warn} />
+                  <Text variant="small" style={{ flex: 1 }}>
+                    You pay the maker directly. Fliiptech does not handle the money and cannot refund it, so agree
+                    the price and the handover with them before you pay.
+                  </Text>
+                </View>
+              )}
             </>
           )}
         </View>
@@ -366,6 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.visitBg,
   },
+  direct: { backgroundColor: colors.warnBg },
   cta: {
     position: "absolute",
     left: 0,

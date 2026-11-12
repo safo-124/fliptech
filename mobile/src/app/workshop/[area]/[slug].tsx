@@ -10,6 +10,7 @@ import {
   MapPin,
   Navigation,
   PlayCircle,
+  Shield,
   ShieldCheck,
 } from "lucide-react-native";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -100,15 +101,34 @@ export default function WorkshopScreen() {
             </Text>
           </View>
 
+          {/* Both badges, always, as on the website: "not visited" and "not
+              registered" are real answers and are shown, or a visit and a
+              registration would mean nothing. Never merged into one. */}
           <View style={styles.badges}>
-            {w.site_visit && w.site_visit.outcome !== "failed" ? (
+            {!w.site_visit ? (
+              <Badge icon={<Shield size={14} color={colors.mutedForeground} />} tone="muted">
+                Not visited by Fliiptech
+              </Badge>
+            ) : w.site_visit.outcome === "failed" ? (
+              <Badge icon={<Shield size={14} color={colors.mutedForeground} />} tone="muted">
+                Fliiptech visit {shortDate(w.site_visit.visited_on)}: not passed
+              </Badge>
+            ) : (
               <Badge icon={<BadgeCheck size={14} color={colors.visit} />} tone="visit">
                 Visited by Fliiptech {shortDate(w.site_visit.visited_on)}
               </Badge>
-            ) : null}
-            {w.government_status?.registration_status === "registered" ? (
-              <Badge icon={<Landmark size={14} color={colors.brand} />}>{w.government_status.label}</Badge>
-            ) : null}
+            )}
+            <Badge
+              icon={
+                <Landmark
+                  size={14}
+                  color={w.government_status.registration_status === "registered" ? colors.brand : colors.mutedForeground}
+                />
+              }
+              tone={w.government_status.registration_status === "registered" ? undefined : "muted"}
+            >
+              CTVET: {GOVERNMENT[w.government_status.registration_status] ?? w.government_status.label}
+            </Badge>
           </View>
 
           <View style={styles.facts}>
@@ -239,12 +259,19 @@ function openDirections(w: WorkshopDetail) {
 }
 
 function ProgrammeCard({ programme, onEnquire }: { programme: Programme; onEnquire: () => void }) {
-  const includes = [
-    programme.fee_includes_tools && "Tools",
-    programme.fee_includes_materials && "Materials",
-    programme.fee_includes_ppe && "Safety gear",
-    programme.fee_includes_certificate && "Certificate",
-  ].filter((item): item is string => Boolean(item));
+  // What the fee covers and what it does not, as the website's receipt
+  // does: two fees are only comparable when both say. A certificate nobody
+  // awards is not an extra cost, so it is left out of the extras.
+  const items: [string, boolean][] = [
+    ["Tools", programme.fee_includes_tools],
+    ["Materials", programme.fee_includes_materials],
+    ["Safety gear", programme.fee_includes_ppe],
+    ["Certificate", programme.fee_includes_certificate],
+  ];
+  const includes = items.filter(([, covered]) => covered).map(([item]) => item);
+  const extras = items
+    .filter(([item, covered]) => !covered && (item !== "Certificate" || Boolean(programme.certificate_awarded)))
+    .map(([item]) => item.toLowerCase());
   const open = programme.intakes.filter((intake) => intake.is_open);
   return (
     <View style={styles.card}>
@@ -271,6 +298,7 @@ function ProgrammeCard({ programme, onEnquire }: { programme: Programme; onEnqui
           ))}
         </View>
       ) : null}
+      {extras.length ? <Text variant="small">Not in the fee: {extras.join(", ")}.</Text> : null}
       {programme.extra_costs ? (
         <Text variant="small">
           Expect about {cedis(programme.extra_costs)} more{programme.extra_costs_note ? `: ${programme.extra_costs_note}` : ""}.
@@ -316,14 +344,36 @@ function Fact({ label, value, highlight }: { label: string; value: string; highl
   );
 }
 
-function Badge({ icon, children, tone }: { icon: React.ReactNode; children: React.ReactNode; tone?: "visit" }) {
+/** CTVET status as the website words it, by the code the API sends. */
+const GOVERNMENT: Record<string, string> = {
+  registered: "Registered",
+  not_registered: "Not registered",
+  not_claimed: "Not claimed",
+  claimed_not_verified: "Claimed, not independently verified",
+};
+
+function Badge({
+  icon,
+  children,
+  tone,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  tone?: "visit" | "muted";
+}) {
+  const toneStyle = tone ? TONES[tone] : null;
   return (
-    <View style={[styles.badge, tone === "visit" ? { backgroundColor: colors.visitBg } : null]}>
+    <View style={[styles.badge, toneStyle ? { backgroundColor: toneStyle.bg } : null]}>
       {icon}
-      <Text style={[styles.badgeText, tone === "visit" ? { color: colors.visit } : null]}>{children}</Text>
+      <Text style={[styles.badgeText, toneStyle ? { color: toneStyle.fg } : null]}>{children}</Text>
     </View>
   );
 }
+
+const TONES = {
+  visit: { bg: colors.visitBg, fg: colors.visit },
+  muted: { bg: colors.muted, fg: colors.mutedForeground },
+} as const;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
