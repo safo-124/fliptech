@@ -564,7 +564,17 @@
     "interactiveMap": "Interactive map · {count, plural, one {# provider} other {# providers}}",
     "showAll": "Show all providers",
     "keyboardHelp": "Use arrow keys to pan, + and − to zoom, and Tab then Enter to open a marker. Press Escape to close details.",
-    "tilesFailed": "The base map tiles are not loading. Provider markers may still be available; check your connection or use the list view."
+    "tilesFailed": "The base map tiles are not loading. Provider markers may still be available; check your connection or use the list view.",
+    "listView": "List",
+    "nearMe": "Show where I am",
+    "nearMeFailed": "We could not find where you are. Allow location in your browser, or move the map yourself.",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "panelEyebrow": "Explore by location",
+    "panelTitle": "{count, plural, one {# workshop on the map} other {# workshops on the map}}",
+    "panelLead": "Tap a workshop to find it on the map, or the arrow to see fees and intake dates.",
+    "panelMissing": "{count, plural, one {# more workshop has no map location yet. It is in the list.} other {# more workshops have no map location yet. They are in the list.}}",
+    "openWorkshop": "Open {name}"
   },
   "MapLoader": {
     "loading": "Loading map",

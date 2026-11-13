@@ -48,34 +48,46 @@ function escapeAttribute(value: string) {
  * next/image uses, so a pin costs a few kilobytes of WebP rather than the
  * stored original — Section 10's page-weight budget applies to the map too.
  */
-function photoIcon(src: string, fit: "cover" | "contain") {
+function photoIcon(src: string, fit: "cover" | "contain", active = false) {
+  // The chosen workshop's pin is bigger and ringed in the brand colour, so
+  // the eye finds it among the others the moment it is picked.
+  const size = active ? 58 : PHOTO_PIN;
+  const ring = active ? "var(--color-brand-strong)" : "#fff";
   const { srcSet, src: fallback } = getImageProps({
     src,
     alt: "",
-    width: PHOTO_PIN,
-    height: PHOTO_PIN,
+    width: size,
+    height: size,
   }).props;
-  const inner = PHOTO_PIN - 6;
+  const inner = size - 6;
   const background = fit === "contain" ? "#fff" : "var(--color-muted)";
   const padding = fit === "contain" ? "padding:4px;" : "";
   return L.divIcon({
     html:
-      `<div aria-hidden="true" style="position:relative;width:${PHOTO_PIN}px;height:${PHOTO_PIN + 8}px">` +
-      `<div style="width:${PHOTO_PIN}px;height:${PHOTO_PIN}px;border-radius:12px;border:3px solid #fff;background:${background};box-shadow:0 5px 14px rgba(20,24,31,.35);overflow:hidden">` +
+      `<div aria-hidden="true" style="position:relative;width:${size}px;height:${size + 8}px">` +
+      `<div style="width:${size}px;height:${size}px;border-radius:${active ? 16 : 12}px;border:3px solid ${ring};background:${background};box-shadow:0 ${active ? "10px 24px rgba(59,7,100,.45)" : "5px 14px rgba(20,24,31,.35)"};overflow:hidden">` +
       `<img src="${escapeAttribute(fallback)}"${
         srcSet ? ` srcset="${escapeAttribute(srcSet)}"` : ""
       } alt="" width="${inner}" height="${inner}" loading="lazy" decoding="async" ` +
       `style="display:block;width:100%;height:100%;object-fit:${fit};${padding}box-sizing:border-box">` +
       `</div>` +
       // The tail, so the pin points at the workshop rather than covering it.
-      `<div style="position:absolute;left:50%;bottom:1px;width:12px;height:12px;margin-left:-6px;background:#fff;transform:rotate(45deg);box-shadow:3px 3px 6px rgba(20,24,31,.18)"></div>` +
+      `<div style="position:absolute;left:50%;bottom:1px;width:12px;height:12px;margin-left:-6px;background:${ring};transform:rotate(45deg);box-shadow:3px 3px 6px rgba(20,24,31,.18)"></div>` +
       `</div>`,
     className: "",
-    iconSize: [PHOTO_PIN, PHOTO_PIN + 8],
-    iconAnchor: [PHOTO_PIN / 2, PHOTO_PIN + 6],
-    popupAnchor: [0, -(PHOTO_PIN + 2)],
+    iconSize: [size, size + 8],
+    iconAnchor: [size / 2, size + 6],
+    popupAnchor: [0, -(size + 2)],
   });
 }
+
+/** The plain dot, picked: larger, with a soft brand halo. */
+const activeDotIcon = L.divIcon({
+  html: `<div aria-hidden="true" style="width:56px;height:56px;display:grid;place-items:center;border-radius:50%;background:color-mix(in oklch, var(--color-brand) 22%, transparent)"><div style="width:28px;height:28px;border-radius:50%;background:var(--color-brand-strong);border:4px solid #fff;box-shadow:0 6px 16px rgba(59,7,100,.45)"></div></div>`,
+  className: "",
+  iconSize: [56, 56],
+  iconAnchor: [28, 28],
+});
 
 /**
  * One icon per picture, reused across renders. Handing react-leaflet a new
@@ -84,14 +96,14 @@ function photoIcon(src: string, fit: "cover" | "contain") {
  */
 const pinCache = new Map<string, L.DivIcon>();
 
-export function pinIcon(provider: Pick<ProviderCard, "primary_photo" | "logo">) {
+export function pinIcon(provider: Pick<ProviderCard, "primary_photo" | "logo">, active = false) {
   const picture = provider.primary_photo ?? provider.logo;
-  if (!picture) return dotIcon;
+  if (!picture) return active ? activeDotIcon : dotIcon;
   const fit = provider.primary_photo ? "cover" : "contain";
-  const key = `${fit}:${picture}`;
+  const key = `${active ? "active" : "pin"}:${fit}:${picture}`;
   let icon = pinCache.get(key);
   if (!icon) {
-    icon = photoIcon(picture, fit);
+    icon = photoIcon(picture, fit, active);
     pinCache.set(key, icon);
   }
   return icon;
