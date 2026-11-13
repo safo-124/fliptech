@@ -44,6 +44,7 @@ function enquiry(overrides: Partial<TraineeEnquiry> = {}): TraineeEnquiry {
     intake_start: null,
     message: "",
     status: "sent",
+    conversation_id: null,
     whatsapp_url: "https://wa.me/233",
     created_at: "2026-03-01T10:00:00Z",
     ...overrides,

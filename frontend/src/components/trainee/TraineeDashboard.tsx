@@ -692,12 +692,21 @@ export function TraineeDashboard() {
                       <CalendarDays aria-hidden="true" className="size-4" />
                       {t("sentOn", {date: formatDate(enquiry.created_at)})}
                     </p>
-                    <Button asChild variant="brand" className="w-full">
-                      <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
-                        <MessageCircle aria-hidden="true" />
-                        {t("continueWhatsApp")}
-                      </a>
-                    </Button>
+                    {enquiry.conversation_id ? (
+                      <Button asChild variant="brand" className="w-full">
+                        <Link href={`/account/chats/${enquiry.conversation_id}`}>
+                          <MessageCircle aria-hidden="true" />
+                          {t("openChat")}
+                        </Link>
+                      </Button>
+                    ) : enquiry.whatsapp_url ? (
+                      <Button asChild variant="brand" className="w-full">
+                        <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle aria-hidden="true" />
+                          {t("continueWhatsApp")}
+                        </a>
+                      </Button>
+                    ) : null}
                   </CardContent>
                 </Card>
               </li>

@@ -134,24 +134,77 @@ export function deleteSavedSearch(id: number) {
   return sessionFetch<void>(`/api/account/searches/${id}/`, {method: "DELETE"});
 }
 
-/** Chat with the seller. See backend marketplace/chat.py. */
+/**
+ * Chats between a person and a shop or a training workshop. See backend
+ * marketplace/chat.py. "buyer" is the person's side whichever it is (a buyer
+ * or a trainee); "seller" is the shop's or the workshop's.
+ */
 export type ChatMessage = {
   id: number;
   sender: "buyer" | "seller";
+  /** "enquiry" carries a course card; "phone" is the sender sharing their own number. */
+  kind: "text" | "enquiry" | "phone";
   body: string;
   product: {id: number; name: string; price: string | null; photo: string | null} | null;
+  course: {reference: string; title: string; fee: string | null; starts: string | null} | null;
   created_at: string;
 };
 
 export type ChatSummary = {
   id: number;
+  kind: "shop" | "workshop";
   with: {name: string; id: number | null};
+  /** The shop or workshop in the chat, and its page on the site. */
+  business: {kind: "shop" | "workshop"; id: number; name: string; path: string};
   last: ChatMessage | null;
   unread: number;
   last_message_at: string;
 };
 
 export type ChatThread = ChatSummary & {messages: ChatMessage[]};
+
+export type ChatReportReason = "scam" | "money" | "abuse" | "other";
+
+/** Share my number: the signed-in person's own phone, into the chat. */
+export function shareMyNumber(id: number) {
+  return sessionFetch<ChatThread>(`/api/account/chats/${id}/share-number/`, {method: "POST"});
+}
+
+export function reportChat(id: number, reason: ChatReportReason, details: string) {
+  return sessionFetch<{detail: string}>(`/api/account/chats/${id}/report/`, {
+    method: "POST",
+    body: JSON.stringify({reason, details}),
+  });
+}
+
+/** The business inbox: every chat for the shop and the workshop this login holds. */
+export function getInbox() {
+  return sessionFetch<{results: ChatSummary[]}>("/api/inbox/");
+}
+
+export function getInboxChat(id: number) {
+  return sessionFetch<ChatThread>(`/api/inbox/${id}/`);
+}
+
+export function sendInboxChat(id: number, body: string) {
+  return sessionFetch<ChatThread>(`/api/inbox/${id}/`, {method: "POST", body: JSON.stringify({body})});
+}
+
+export function shareInboxNumber(id: number) {
+  return sessionFetch<ChatThread>(`/api/inbox/${id}/share-number/`, {method: "POST"});
+}
+
+export function reportInboxChat(id: number, reason: ChatReportReason, details: string) {
+  return sessionFetch<{detail: string}>(`/api/inbox/${id}/report/`, {
+    method: "POST",
+    body: JSON.stringify({reason, details}),
+  });
+}
+
+/** A seller opening the chat with a paid order's buyer, to write first. */
+export function openOrderChat(reference: string) {
+  return sessionFetch<ChatThread>("/api/inbox/", {method: "POST", body: JSON.stringify({order: reference})});
+}
 
 export function getChats() {
   return sessionFetch<{results: ChatSummary[]}>("/api/account/chats/");

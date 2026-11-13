@@ -577,7 +577,10 @@ export type TraineeEnquiry = {
   intake_start: string | null;
   message: string;
   status: TraineeEnquiryStatus;
-  whatsapp_url: string;
+  /** The chat with the workshop, at /account/chats/<id>. */
+  conversation_id: number | null;
+  /** Only for an enquiry from before the chat. */
+  whatsapp_url: string | null;
   created_at: string;
 };
 
@@ -608,7 +611,10 @@ export type TrainerArea = {
 export type EnquiryConfirmation = {
   reference_code: string;
   provider_name: string;
-  whatsapp_url: string;
+  /** The chat with the workshop the enquiry opened, at /account/chats/<id>. */
+  conversation_id: number | null;
+  /** Only when there is no chat (a switched-off account). */
+  whatsapp_url: string | null;
   expect_reply_within_hours: number;
   created_at: string;
 };
@@ -645,13 +651,15 @@ export type TrainerEnquiry = {
   reference_code: string;
   programme: string | null;
   trainee_name: string;
-  trainee_phone: string;
+  /** Null for an enquiry in the chat: their number is theirs to share. */
+  trainee_phone: string | null;
   message: string;
   created_at: string;
   replied: boolean;
-  /** Click-to-chat with the trainee, quoting the reference. Free — only a
-   *  business-initiated template costs anything. */
-  whatsapp_url: string;
+  /** WhatsApp to the trainee, only for an enquiry from before the chat. */
+  whatsapp_url: string | null;
+  /** The chat the enquiry opened, at /inbox/<id>. */
+  conversation_id: number | null;
 };
 
 /**
@@ -798,6 +806,8 @@ export type MarketplaceOrder = {
   pickup?: PickupPoint | null;
   seller_name: string;
   /** Only once paid. */
+  /** For "Message the seller": the chat is with the shop. */
+  seller_id: number;
   seller_phone: string | null;
   paid_at: string | null;
   delivered_at: string | null;

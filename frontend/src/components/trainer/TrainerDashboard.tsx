@@ -27,6 +27,7 @@ import {Fragment, useEffect, useState} from "react";
 import {DashboardBottomBar, DashboardSidebar} from "@/components/dashboard/DashboardNav";
 import {TrainerAccount} from "@/components/trainer/TrainerAccount";
 import {TrainerAccountNotice} from "@/components/trainer/TrainerAccountNotice";
+import {InboxList} from "@/components/account/Inbox";
 import {TrainerEnquiries} from "@/components/trainer/TrainerEnquiries";
 import type {TrainerTab} from "@/components/trainer/TrainerNav";
 import {TRAINER_TAB_KEYS, useTrainerTabs} from "@/components/trainer/TrainerNav";
@@ -620,11 +621,16 @@ export function TrainerDashboard() {
       </section>
 
       {tab === "enquiries" ? (
-        <TrainerEnquiries
-          enquiries={enquiries}
-          loading={enquiriesLoading}
-          onToggleReplied={markReplied}
-        />
+        <div className="space-y-5">
+          {/* The conversations first: that is where trainees wait for an
+              answer. The enquiry list below is the record of who asked. */}
+          <InboxList />
+          <TrainerEnquiries
+            enquiries={enquiries}
+            loading={enquiriesLoading}
+            onToggleReplied={markReplied}
+          />
+        </div>
       ) : null}
 
       {tab === "videos" ? (

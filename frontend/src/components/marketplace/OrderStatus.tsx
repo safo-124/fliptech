@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { MessageSeller } from "@/components/marketplace/MessageSeller";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCedis } from "@/lib/format";
@@ -178,6 +179,13 @@ export function OrderStatus({ reference }: { reference: string }) {
                 </a>
               </Button>
             ) : null}
+            {/* Beside the call, for what a call is bad at: an address, a
+                photo of the colour, a time that suits. */}
+            <MessageSeller
+              sellerId={order.seller_id}
+              sellerName={order.seller_name}
+              productId={order.product ?? undefined}
+            />
             {order.plan === "deposit" && order.balance_status !== "none" ? (
               <div className="rounded-lg bg-[var(--color-brand-soft)] p-3 text-sm text-[var(--color-brand-strong)]">
                 <p>

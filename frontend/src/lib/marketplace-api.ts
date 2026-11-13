@@ -29,7 +29,8 @@ export function verifyBuyerCode(phone: string, code: string) {
   });
 }
 
-export type AskResult = {reference_code: string; detail: string};
+/** `conversation_id`: the chat with the shop the question went into. */
+export type AskResult = {reference_code: string; conversation_id: number | null; detail: string};
 
 export function askAboutProduct(
   productId: number,

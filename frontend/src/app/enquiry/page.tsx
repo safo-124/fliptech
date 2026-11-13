@@ -4,9 +4,9 @@
  * Screens 4a and 4b: the enquiry form, then the confirmation.
  *
  * The confirmation carries a reference the trainee can quote on the phone, a
- * realistic expectation of when a reply will come, and the handover to
- * WhatsApp. Building a chat product to compete with the one already on every
- * phone in Ghana would be the most expensive mistake available in this project.
+ * realistic expectation of when a reply will come, and the chat the enquiry
+ * opened with the workshop (marketplace/chat.py on the server), where the
+ * reply arrives and the trainee's number stays theirs until they share it.
  */
 
 import {
@@ -134,12 +134,26 @@ function EnquiryFlow() {
               </p>
             </div>
 
-            <Button asChild variant="brand" size="lg" className="mt-5 w-full">
-              <a href={sent.whatsapp_url}>
-                <MessageCircle aria-hidden="true" />
-                {t("continueWhatsApp")}
-              </a>
-            </Button>
+            {sent.conversation_id ? (
+              <>
+                <Button asChild variant="brand" size="lg" className="mt-5 w-full">
+                  <Link href={`/account/chats/${sent.conversation_id}`}>
+                    <MessageCircle aria-hidden="true" />
+                    {t("openChat")}
+                  </Link>
+                </Button>
+                <p className="mt-2 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                  {t("chatNote", { provider: sent.provider_name })}
+                </p>
+              </>
+            ) : sent.whatsapp_url ? (
+              <Button asChild variant="brand" size="lg" className="mt-5 w-full">
+                <a href={sent.whatsapp_url}>
+                  <MessageCircle aria-hidden="true" />
+                  {t("continueWhatsApp")}
+                </a>
+              </Button>
+            ) : null}
 
             <Separator className="my-7" />
 

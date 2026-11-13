@@ -48,6 +48,7 @@ export const SELLER_CLIENT_NAMESPACES = [
   "SellerPages",
   "SellerDashboard",
   "SellerGrowth",
+  "Chat",
   "DashboardNav",
   "Validation",
   "Format",
@@ -88,6 +89,7 @@ export const TRAINER_CLIENT_NAMESPACES = [
   "TrainerAccount",
   "TrainerAccountNotice",
   "TrainerNav",
+  "Chat",
   "LocationPicker",
   "DashboardNav",
   "DashboardFigures",
@@ -97,8 +99,12 @@ export const TRAINER_CLIENT_NAMESPACES = [
 ] as const satisfies readonly ClientNamespace[];
 
 /** The one account everyone signs in to (/account). */
+/** The words of a chat (components/account/ChatThread.tsx) and the business inbox. */
+export const INBOX_CLIENT_NAMESPACES = ["Chat"] as const satisfies readonly ClientNamespace[];
+
 export const ACCOUNT_CLIENT_NAMESPACES = [
   "Account",
+  "Chat",
   "SignIn",
   "Validation",
 ] as const satisfies readonly ClientNamespace[];

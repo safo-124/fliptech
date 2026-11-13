@@ -67,7 +67,7 @@
     "metaDescription": "Bags, furniture, soap and more, made by the training workshops listed on {brand} Skills Hub. Ask the maker directly.",
     "eyebrow": "Create · Sell",
     "title": "Buy what the workshops make.",
-    "intro": "Everything here is made by somebody on this site. Ask them about it and they will reply on WhatsApp.",
+    "intro": "Everything here is made by somebody on this site. Ask them about it and they reply in your messages here.",
     "searchLabel": "What are you looking for?",
     "searchPlaceholder": "Bags, soap, furniture…",
     "tradeLabel": "Kind of work",
@@ -105,7 +105,7 @@
     "askAction": "Send my question",
     "askFailed": "That could not be sent. Try again in a moment.",
     "phoneLabel": "Your phone number",
-    "phoneHelp": "So the maker can reply on WhatsApp. No account needed.",
+    "phoneHelp": "So we can check the number is yours. The maker replies in your messages here, and your number stays hidden. No password needed.",
     "nameLabel": "Your name (optional)",
     "messageLabel": "Your question (optional)",
     "messagePlaceholder": "Is it still available? Do you have it in another colour?",
@@ -372,7 +372,9 @@
     "sellerReplied": "The seller's reply",
     "staffDecide": "Fliiptech staff will look at both sides and decide: release the money to the seller or refund you.",
     "tellWhenBack": "Tell me when it's back",
-    "receiptPaidOnline": "Paid online"
+    "receiptPaidOnline": "Paid online",
+    "askedInChat": "Your question is in your messages. {seller} replies there, and you get a text when they do.",
+    "openChat": "Open the chat"
   },
   "Layout": {
     "titleDefault": "{brand} Skills Hub — find practical skills training in Ghana",
@@ -801,7 +803,7 @@
     "stepTwoAnnounce": "Step 2 of 2: verify your number",
     "detailsLegend": "Your enquiry details",
     "phoneLabel": "Your phone number",
-    "phoneHelp": "We send one code to check the number is yours. The provider replies on WhatsApp.",
+    "phoneHelp": "We send one code to check the number is yours. The workshop replies in your messages here, and your number stays hidden.",
     "nameLabel": "Your name",
     "optional": "(optional)",
     "namePlaceholder": "How the provider should address you",
@@ -841,7 +843,9 @@
     "formLead": "Ask the workshop about availability, fees or anything else you need to know. We’ll confirm your phone number before sending.",
     "numberSharedOnly": "Your number is shared only so the selected provider can reply to this enquiry.",
     "loading": "Loading enquiry form",
-    "loadingEllipsis": "Loading enquiry form…"
+    "loadingEllipsis": "Loading enquiry form…",
+    "openChat": "Open the chat",
+    "chatNote": "{provider} replies in your messages here, and you get a text when they do. Your number stays hidden unless you share it."
   },
   "Account": {
     "addPhoto": "Add a photo",
@@ -913,14 +917,10 @@
     "saveDetails": "Save",
     "detailsSaved": "Saved.",
     "chatsTitle": "Messages",
-    "chatsNone": "Message a seller from any product and the chat shows here.",
+    "chatsNone": "Ask a workshop about a course, or message a seller from any product, and the chat shows here.",
     "chatsAll": "All messages",
     "chatsYou": "You",
     "chatBack": "Messages",
-    "chatPlaceholder": "Write a message",
-    "chatSend": "Send",
-    "chatFailed": "That did not send. Try again.",
-    "chatAbout": "About {name}",
     "searchesTitle": "Saved searches",
     "searchesNone": "On the marketplace, tap \"Text me new matches\" and we'll text you when something new matches.",
     "searchesDelete": "Stop texting me about {label}",
@@ -933,6 +933,47 @@
     "learningCertificates": "{count, plural, one {# certificate} other {# certificates}}",
     "learningSaved": "Saved lessons",
     "shoppingTitle": "Shopping"
+  },
+  "Chat": {
+    "placeholder": "Write a message",
+    "send": "Send",
+    "failed": "That did not send. Try again.",
+    "about": "About {name}",
+    "kindWorkshop": "Workshop",
+    "kindShop": "Shop",
+    "viewPage": "See their page",
+    "enquiry": "Enquiry: {title}",
+    "enquiryStarts": "Starts {date}",
+    "enquiryReference": "Reference {reference}",
+    "phoneShared": "Shared their number",
+    "phoneYours": "You shared your number",
+    "call": "Call {phone}",
+    "shareNumber": "Share my number",
+    "shareConfirm": "Share your phone number with {name}? They will be able to call you.",
+    "privacy": "Your number is hidden. Share it only if you want them to call you.",
+    "report": "Report",
+    "reportTitle": "Report this chat",
+    "reportLead": "Fliiptech staff will read this chat. The other person is not told who reported it.",
+    "reportReason": "What went wrong?",
+    "reportScam": "It looks like a scam",
+    "reportMoney": "They asked for money that was not agreed",
+    "reportAbuse": "Rude, abusive or unwanted",
+    "reportOther": "Something else",
+    "reportDetails": "Anything else staff should know (optional)",
+    "reportSend": "Send report",
+    "reportCancel": "Cancel",
+    "reportSent": "Thank you. Fliiptech staff will look at this chat.",
+    "you": "You",
+    "allMessages": "All messages",
+    "openChat": "Open the chat",
+    "inboxTitle": "Messages",
+    "inboxLead": "People asking about your courses and products. Your number stays hidden unless you share it.",
+    "inboxNone": "No messages yet. When someone asks about one of your courses or products, the chat shows here.",
+    "inboxNotBusiness": "These messages are for shops and workshops. Your own chats are on your account page.",
+    "inboxGoAccount": "Go to my account",
+    "inboxFailed": "Messages could not load. Check your connection and try again.",
+    "messageBuyer": "Message buyer",
+    "messageSeller": "Message the seller"
   },
   "MarketTerms": {
     "title": "Marketplace terms of sale",
@@ -1227,7 +1268,8 @@
     "closeBody": "Your sign-in and saved list are deleted. Enquiries you sent stay with the workshops you sent them to.",
     "closeConfirm": "Yes, close my account",
     "closeKeep": "Keep it",
-    "closeAccount": "Close account"
+    "closeAccount": "Close account",
+    "openChat": "Open the chat"
   },
   "TraineeOverview": {
     "profileComplete": "Profile {percent}% complete",
@@ -1321,8 +1363,8 @@
       "short": "Home"
     },
     "enquiries": {
-      "label": "Enquiries",
-      "short": "Enquiries"
+      "label": "Messages and enquiries",
+      "short": "Messages"
     },
     "listing": {
       "label": "Your listing",
@@ -1435,7 +1477,7 @@
     },
     "loading": "Loading your enquiries…",
     "emptyTitle": "No enquiries yet",
-    "emptyBody": "When someone asks about your courses through Skills Hub, they appear here with their message and a reference, and you can reply on WhatsApp.",
+    "emptyBody": "When someone asks about your courses through Skills Hub, they appear here with their message and a reference, and you reply in the chat.",
     "searchLabel": "Search your enquiries",
     "searchPlaceholder": "Search by name, number, course or reference",
     "filterLabel": "Filter enquiries",
@@ -1449,7 +1491,9 @@
     "replyWhatsApp": "Reply on WhatsApp",
     "markNotReplied": "Not replied yet",
     "markReplied": "Mark as replied",
-    "saveFailed": "Could not save that. Check your connection and try again."
+    "saveFailed": "Could not save that. Check your connection and try again.",
+    "replyInChat": "Reply in the chat",
+    "numberHidden": "Their number stays hidden unless they share it in the chat."
   },
   "TrainerAccount": {
     "approval": {
@@ -1834,7 +1878,7 @@
     "signInHeading": "Your phone number",
     "signInLead": "New or returning, it is the same step.",
     "phoneLabel": "Phone number",
-    "phoneHelp": "This is how buyers reach you, so use the number you answer on WhatsApp.",
+    "phoneHelp": "We text you on this number about new messages and orders. Buyers see it only after they have paid, so they can call you.",
     "sendCode": "Send me a code",
     "codeHeading": "Enter the code",
     "codeSentTo": "We sent a one-time code to {phone}.",
@@ -1990,9 +2034,6 @@
     "tabChatsShort": "Chats",
     "tabBundles": "Bundles",
     "tabBundlesShort": "Bundles",
-    "chatsLead": "Buyers' messages. Your number is not shown to them; they get a text when you reply.",
-    "chatsNone": "No messages yet. Buyers can message you from any of your products.",
-    "chatsBack": "All chats",
     "bundlesLead": "Sell your online course and the tools for it together, for less. The buyer pays once and the course opens on their phone.",
     "bundlesNone": "No bundles yet.",
     "bundleNew": "New bundle",
@@ -2054,7 +2095,8 @@
     "payoutsPaidOut": "Paid out",
     "payoutsHeld": "Held",
     "payoutsRefunded": "Refunded",
-    "payoutsHeldWhy": "Held money is paid when the buyer confirms, or a few days after you hand it over with no problem."
+    "payoutsHeldWhy": "Held money is paid when the buyer confirms, or a few days after you hand it over with no problem.",
+    "replyInChat": "Reply in the chat"
   },
   "SellerGrowth": {
     "loading": "Loading…",

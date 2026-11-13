@@ -15,7 +15,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   if (!/^\d+$/.test(id)) notFound();
   return (
     <div className="app-shell max-w-3xl py-6">
-      <ClientMessages namespaces={["Account"]}>
+      <ClientMessages namespaces={["Account", "Chat"]}>
         <BuyerChat id={Number(id)} />
       </ClientMessages>
     </div>

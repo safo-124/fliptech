@@ -1,6 +1,7 @@
 "use client";
 
-import {Check, Clock3, Loader2, MessageCircle, Phone, RotateCcw, Search, Send} from "lucide-react";
+import {Check, Clock3, Loader2, LockKeyhole, MessageCircle, Phone, RotateCcw, Search, Send} from "lucide-react";
+import Link from "next/link";
 import {useTranslations} from "next-intl";
 import {useState} from "react";
 
@@ -28,9 +29,10 @@ const FILTERS: ReadonlyArray<Filter> = ["waiting", "all", "replied"];
  * That is most of the product loop missing from the one screen the workshop
  * owner actually opens.
  *
- * Replying is a wa.me link rather than anything in-app. It is free, it lands
- * in the app both sides already use, and it carries the reference so the
- * conversation can be tied back to this row later.
+ * Replying happens in the site's own chat (/inbox/<id>): the trainee's number
+ * stays theirs unless they share it, and an answer there marks the enquiry
+ * replied, so the response rate is measured rather than guessed. Enquiries
+ * from before the chat keep their wa.me link.
  */
 export function TrainerEnquiries({
   enquiries,
@@ -200,20 +202,41 @@ export function TrainerEnquiries({
                     </p>
                   )}
                   <p className="flex items-center gap-2 text-[var(--color-muted-foreground)]">
-                    <Phone aria-hidden="true" className="size-4" />
-                    {enquiry.trainee_phone}
+                    {enquiry.trainee_phone ? (
+                      <>
+                        <Phone aria-hidden="true" className="size-4" />
+                        {enquiry.trainee_phone}
+                      </>
+                    ) : (
+                      <>
+                        <LockKeyhole aria-hidden="true" className="size-4" />
+                        {t("numberHidden")}
+                      </>
+                    )}
                   </p>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button asChild variant="brand" className="flex-1">
-                      <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
-                        <MessageCircle aria-hidden="true" />
-                        {t("replyWhatsApp")}
-                      </a>
-                    </Button>
-                    {/* Separate from the link on purpose. Opening WhatsApp is
-                        not evidence of having answered, and a button that
+                    {enquiry.conversation_id ? (
+                      // Replying in the chat marks the enquiry replied by
+                      // itself, at the time of the first answer.
+                      <Button asChild variant="brand" className="flex-1">
+                        <Link href={`/inbox/${enquiry.conversation_id}`}>
+                          <MessageCircle aria-hidden="true" />
+                          {t("replyInChat")}
+                        </Link>
+                      </Button>
+                    ) : enquiry.whatsapp_url ? (
+                      <Button asChild variant="brand" className="flex-1">
+                        <a href={enquiry.whatsapp_url} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle aria-hidden="true" />
+                          {t("replyWhatsApp")}
+                        </a>
+                      </Button>
+                    ) : null}
+                    {/* Separate from the reply on purpose. Opening WhatsApp
+                        is not evidence of having answered, and a button that
                         marked it for you would quietly make the figure a
-                        count of clicks. */}
+                        count of clicks. (An answer in the chat is evidence,
+                        and marks it by itself.) */}
                     <Button
                       type="button"
                       variant="outline"

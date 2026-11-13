@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, Check, Loader2, MessageCircle } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -39,6 +40,7 @@ export function AskSeller({
   const [message, setMessage] = useState("");
   const [code, setCode] = useState("");
   const [reference, setReference] = useState("");
+  const [chat, setChat] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export function AskSeller({
       message: message.trim() || undefined,
     });
     setReference(result.reference_code);
+    setChat(result.conversation_id);
     setStep("done");
   }
 
@@ -108,11 +111,26 @@ export function AskSeller({
           <CardTitle>{t("askedTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Says a person passes it on, because one does. "We have told
-              them" would be a promise about a queue the buyer cannot see. */}
-          <p className="text-sm leading-relaxed text-[var(--color-muted-foreground)]">
-            {t("askedBody", { seller: sellerName })}
-          </p>
+          {chat ? (
+            <>
+              <p className="text-sm leading-relaxed text-[var(--color-muted-foreground)]">
+                {t("askedInChat", { seller: sellerName })}
+              </p>
+              <Button asChild variant="brand" className="mt-3 w-full">
+                <Link href={`/account/chats/${chat}`}>
+                  <MessageCircle aria-hidden="true" />
+                  {t("openChat")}
+                </Link>
+              </Button>
+            </>
+          ) : (
+            /* No chat (the account cannot have one): a person passes it on,
+               so say so. "We have told them" would be a promise about a
+               queue the buyer cannot see. */
+            <p className="text-sm leading-relaxed text-[var(--color-muted-foreground)]">
+              {t("askedBody", { seller: sellerName })}
+            </p>
+          )}
           <p className="mt-3 text-sm">
             {t("yourReference")}{" "}
             <strong className="font-mono tracking-wide">{reference}</strong>

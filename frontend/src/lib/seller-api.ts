@@ -75,12 +75,16 @@ export type SellerEnquiry = {
   reference_code: string;
   product: number | null;
   product_name: string;
-  buyer_phone: string;
+  /** Null when they asked in the chat: their number is theirs to share. */
+  buyer_phone: string | null;
   buyer_name: string;
   message: string;
-  /** Whether anyone has actually passed it on yet. */
+  /** Whether it reached the seller yet (a question in the chat always has). */
   told: boolean;
-  reply_url: string;
+  /** WhatsApp, for a question from before the chat; null for one in it. */
+  reply_url: string | null;
+  /** The chat the question is in, at /inbox/<id>. */
+  conversation_id: number | null;
   replied_at: string | null;
   created_at: string;
 };
@@ -419,21 +423,6 @@ export type Earnings = {
 
 export function getEarnings(month: string) {
   return sessionFetch<Earnings>(`/api/seller/earnings/?month=${encodeURIComponent(month)}`);
-}
-
-export function getSellerChats() {
-  return sessionFetch<{results: import("./account-api").ChatSummary[]}>("/api/seller/chats/");
-}
-
-export function getSellerChat(id: number) {
-  return sessionFetch<import("./account-api").ChatThread>(`/api/seller/chats/${id}/`);
-}
-
-export function sendSellerChat(id: number, body: string) {
-  return sessionFetch<import("./account-api").ChatThread>(`/api/seller/chats/${id}/`, {
-    method: "POST",
-    body: JSON.stringify({body}),
-  });
 }
 
 export function getOwnBundles() {

@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, Loader2, Phone, ShoppingBag, Wallet } from "lucide-react";
+import { CheckCircle2, Loader2, MessageCircle, Phone, ShoppingBag, Wallet } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 
@@ -9,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { openOrderChat } from "@/lib/account-api";
 import { formatCedis } from "@/lib/format";
 import { API_URL } from "@/lib/trainer-fetch";
 import {
@@ -28,6 +30,44 @@ import {
   type SellerPayout,
 } from "@/lib/seller-api";
 import type { MarketplaceOrder, PayoutBank } from "@/lib/types";
+
+/**
+ * Opens the chat with a paid order's buyer, so the seller can write first.
+ * Beside Call, not instead of it: a buyer who checked out without an account
+ * has no chat, and the server says to call them.
+ */
+function MessageBuyer({ reference }: { reference: string }) {
+  const t = useTranslations("Chat");
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function open() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const thread = await openOrderChat(reference);
+      router.push(`/inbox/${thread.id}`);
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : t("failed"));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void open()}>
+        {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <MessageCircle aria-hidden="true" />}
+        {t("messageBuyer")}
+      </Button>
+      {problem ? (
+        <p role="alert" className="basis-full text-xs text-[var(--color-warn)]">
+          {problem}
+        </p>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * The seller's "Orders" tab: where buyers' money goes, and what they paid for.
@@ -334,6 +374,7 @@ export function SellerOrdersTab() {
                         {order.buyer_phone}
                       </a>
                     </Button>
+                    <MessageBuyer reference={order.reference} />
                     {order.plan === "deposit" && order.balance_status === "waiting" ? (
                       <Button
                         type="button"

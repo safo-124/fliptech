@@ -30,7 +30,7 @@ import {useTranslations} from "next-intl";
 import {DashboardBottomBar, DashboardSidebar, type DashboardTab} from "@/components/dashboard/DashboardNav";
 import {SellerGrowthTab} from "@/components/seller/SellerGrowth";
 import {SellerBundlesTab} from "@/components/seller/SellerBundles";
-import {SellerChatsTab} from "@/components/seller/SellerChats";
+import {InboxList} from "@/components/account/Inbox";
 import {SellerIdCard} from "@/components/seller/SellerIdCard";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
@@ -242,7 +242,7 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
           ) : null}
           {tab === "grow" ? <SellerGrowthTab /> : null}
           {tab === "orders" ? <SellerOrdersTab /> : null}
-          {tab === "chats" ? <SellerChatsTab /> : null}
+          {tab === "chats" ? <InboxList /> : null}
           {tab === "bundles" ? <SellerBundlesTab products={products} /> : null}
           {tab === "quotes" ? <SellerQuotesTab /> : null}
           {tab === "enquiries" ? <EnquiriesTab enquiries={enquiries} run={run} /> : null}
@@ -983,22 +983,33 @@ function EnquiriesTab({
             ) : null}
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              {/* Opening the reply counts as replying, for the "replies
-                  within a day" badge; nothing comes back from WhatsApp to
-                  say the message was sent. */}
-              <Button asChild variant="brand" size="sm">
-                <a
-                  href={enquiry.reply_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => {
-                    if (!enquiry.replied_at) void markEnquiryReplied(enquiry.id).catch(() => {});
-                  }}
-                >
-                  <MessageCircle aria-hidden="true" />
-                  {t("replyOnWhatsApp")}
-                </a>
-              </Button>
+              {enquiry.conversation_id ? (
+                // Asked in the chat: the answer goes there, and sending it
+                // marks the question replied by itself.
+                <Button asChild variant="brand" size="sm">
+                  <Link href={`/inbox/${enquiry.conversation_id}`}>
+                    <MessageCircle aria-hidden="true" />
+                    {t("replyInChat")}
+                  </Link>
+                </Button>
+              ) : enquiry.reply_url ? (
+                /* An older question, from before the chat. Opening the reply
+                   counts as replying, for the "replies within a day" badge;
+                   nothing comes back from WhatsApp to say it was sent. */
+                <Button asChild variant="brand" size="sm">
+                  <a
+                    href={enquiry.reply_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (!enquiry.replied_at) void markEnquiryReplied(enquiry.id).catch(() => {});
+                    }}
+                  >
+                    <MessageCircle aria-hidden="true" />
+                    {t("replyOnWhatsApp")}
+                  </a>
+                </Button>
+              ) : null}
               {enquiry.replied_at ? (
                 <span className="inline-flex items-center gap-1 text-xs text-[var(--color-visit)]">
                   <CheckCircle2 aria-hidden="true" className="size-3.5" />
