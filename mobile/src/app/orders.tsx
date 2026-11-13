@@ -4,6 +4,7 @@ import { CircleCheckBig, Package, Phone } from "lucide-react-native";
 import { FlatList, Linking, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { NotificationsBanner } from "@/components/NotificationAsk";
 import { StackHeader } from "@/components/StackHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
@@ -29,6 +30,7 @@ export default function OrdersScreen() {
   return (
     <View style={styles.screen}>
       <StackHeader eyebrow="MARKETPLACE" title="My orders" />
+      <NotificationsBanner />
       {paid ? (
         <View style={styles.paid}>
           <CircleCheckBig size={22} color={colors.visit} />

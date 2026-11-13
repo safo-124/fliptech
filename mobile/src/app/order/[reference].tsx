@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
-import { CheckCircle2, Circle, Phone, Receipt, ShieldCheck, TriangleAlert } from "lucide-react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { CheckCircle2, Circle, MessageCircle, Phone, Receipt, ShieldCheck, TriangleAlert } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Linking, ScrollView, Share, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -188,6 +188,24 @@ export default function OrderScreen() {
           ) : null}
           <FormError message={failure instanceof ApiError ? failure.message : failure ? "That did not work." : null} />
 
+          {data.seller_id ? (
+            // Beside the call, for what a call is bad at: an address, a photo
+            // of the colour, a time that suits.
+            <Button
+              label="Message the seller"
+              icon={<MessageCircle size={16} color="#ffffff" />}
+              onPress={() =>
+                router.push({
+                  pathname: "/chats/new",
+                  params: {
+                    seller: String(data.seller_id),
+                    name: data.seller_name,
+                    ...(data.items[0]?.product ? { product: String(data.items[0].product) } : {}),
+                  },
+                })
+              }
+            />
+          ) : null}
           <View style={{ flexDirection: "row", gap: space.md }}>
             {data.seller_phone ? (
               <Button

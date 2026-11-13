@@ -111,18 +111,48 @@ if (native) {
   });
 }
 
-/** Once signed in: the channel, the permission (Android 13+), and the
-    background check. Asking twice is harmless. */
+function makeChannel() {
+  return Notifications.setNotificationChannelAsync(CHANNEL, {
+    name: "Orders, messages and alerts",
+    importance: AndroidImportance.HIGH,
+    lightColor: "#581cb1",
+  });
+}
+
+/** Whether notifications are on, and whether the phone still lets the app ask. */
+export async function notificationPermission(): Promise<{ granted: boolean; canAskAgain: boolean }> {
+  if (!native) return { granted: true, canAskAgain: false };
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    return { granted: current.granted, canAskAgain: current.canAskAgain };
+  } catch {
+    return { granted: false, canAskAgain: false };
+  }
+}
+
+/**
+ * The phone's own "Allow notifications?" prompt. Called from the app's ask
+ * (components/NotificationAsk.tsx) after the person said yes to it, never
+ * on its own: a cold system prompt at sign-in is the one most people refuse.
+ * The channel comes first, as Android 13 shows no prompt without one.
+ */
+export async function askNotificationPermission(): Promise<boolean> {
+  if (!native) return true;
+  try {
+    await makeChannel();
+    const answer = await Notifications.requestPermissionsAsync();
+    return answer.granted;
+  } catch {
+    return false;
+  }
+}
+
+/** Once signed in: the channel and the background check. Asking for the
+    permission is NotificationAsk's job. Calling twice is harmless. */
 export async function startNotices() {
   if (!native) return;
   try {
-    await Notifications.setNotificationChannelAsync(CHANNEL, {
-      name: "Orders, messages and alerts",
-      importance: AndroidImportance.HIGH,
-      lightColor: "#581cb1",
-    });
-    const current = await Notifications.getPermissionsAsync();
-    if (!current.granted && current.canAskAgain) await Notifications.requestPermissionsAsync();
+    await makeChannel();
     const status = await BackgroundTask.getStatusAsync();
     if (status === BackgroundTask.BackgroundTaskStatus.Available) {
       const registered = await TaskManager.isTaskRegisteredAsync(TASK);

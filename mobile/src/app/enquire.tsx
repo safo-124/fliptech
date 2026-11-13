@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSh
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button, Field, FormError } from "@/components/Form";
+import { requestNotificationAsk } from "@/components/NotificationAsk";
 import { Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api, ApiError } from "@/lib/api";
@@ -18,7 +19,8 @@ import { colors, fonts, radius, space } from "@/theme/tokens";
 /**
  * Ask a workshop about a course. Sent from the signed-in phone, so no code
  * to type: the backend trusts the number the account proved. The workshop
- * gets it as an enquiry and replies by phone or WhatsApp.
+ * gets it in a chat (marketplace/chat.py on the server) and replies there,
+ * and the person's number stays theirs until they share it.
  */
 export default function EnquireScreen() {
   const params = useLocalSearchParams<{ area: string; slug: string; programme?: string }>();
@@ -43,6 +45,9 @@ export default function EnquireScreen() {
         trainee_name: name.trim(),
         message: message.trim(),
       }),
+    // They are waiting for a workshop's answer now: the moment to offer
+    // notifications, once.
+    onSuccess: () => requestNotificationAsk(),
   });
 
   const programmes = workshop.data?.programmes ?? [];
@@ -214,14 +219,24 @@ function Sent({ confirmation, bottom }: { confirmation: EnquiryConfirmation; bot
         Enquiry sent
       </Text>
       <Text style={styles.sentBody}>
-        {confirmation.provider_name} will reply within about {confirmation.expect_reply_within_hours ?? 48} hours.
+        {confirmation.conversation_id
+          ? `${confirmation.provider_name} replies here in your messages, usually within ${confirmation.expect_reply_within_hours ?? 48} hours. Your number stays hidden unless you share it.`
+          : `${confirmation.provider_name} will reply within about ${confirmation.expect_reply_within_hours ?? 48} hours.`}
       </Text>
       <View style={styles.reference}>
         <Text variant="small">Your reference</Text>
         <Text style={styles.referenceCode}>{confirmation.reference_code}</Text>
       </View>
       <View style={{ alignSelf: "stretch", gap: space.md }}>
-        {confirmation.whatsapp_url ? (
+        {confirmation.conversation_id ? (
+          <Button
+            label="Open the chat"
+            icon={<MessageCircle size={18} color="#ffffff" />}
+            onPress={() =>
+              router.replace({ pathname: "/chats/[id]", params: { id: String(confirmation.conversation_id) } })
+            }
+          />
+        ) : confirmation.whatsapp_url ? (
           <Button
             label="Message them on WhatsApp"
             icon={<MessageCircle size={18} color="#ffffff" />}

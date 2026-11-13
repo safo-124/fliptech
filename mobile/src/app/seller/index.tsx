@@ -173,7 +173,7 @@ export default function SellerScreen() {
         ))}
         <View style={{ flexDirection: "row", gap: space.sm }}>
           <Button label="Orders" onPress={() => router.push("/seller/orders")} style={{ flex: 1 }} />
-          <Button label="Messages" tone="outline" onPress={() => router.push("/seller/chats")} style={{ flex: 1 }} />
+          <Button label="Messages" tone="outline" onPress={() => router.push("/inbox")} style={{ flex: 1 }} />
         </View>
         {/* Adding products with photos, and sending an ID, are on the
             website for now: both upload pictures. */}

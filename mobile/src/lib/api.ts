@@ -4,6 +4,7 @@ import type {
   SiteSearch,
   BasketPrice,
   Bundle,
+  ChatReportReason,
   ChatSummary,
   ChatThread,
   FollowState,
@@ -167,6 +168,20 @@ export const api = {
   startChat: (seller: number, body: string, product?: number) =>
     postJson<ChatThread>("/api/account/chats/", { seller, body, ...(product ? { product } : {}) }),
   sendChat: (id: number | string, body: string) => postJson<ChatThread>(`/api/account/chats/${id}/`, { body }),
+  /** Share my number: the signed-in person's own phone, into the chat. */
+  shareMyNumber: (id: number | string) => postJson<ChatThread>(`/api/account/chats/${id}/share-number/`),
+  reportChat: (id: number | string, reason: ChatReportReason, details: string) =>
+    postJson<{ detail: string }>(`/api/account/chats/${id}/report/`, { reason, details }),
+
+  /** The business inbox: every chat for the shop and the workshop this login holds. */
+  inbox: () => getJson<{ results: ChatSummary[] }>("/api/inbox/"),
+  inboxChat: (id: number | string) => getJson<ChatThread>(`/api/inbox/${id}/`),
+  sendInboxChat: (id: number | string, body: string) => postJson<ChatThread>(`/api/inbox/${id}/`, { body }),
+  shareInboxNumber: (id: number | string) => postJson<ChatThread>(`/api/inbox/${id}/share-number/`),
+  reportInboxChat: (id: number | string, reason: ChatReportReason, details: string) =>
+    postJson<{ detail: string }>(`/api/inbox/${id}/report/`, { reason, details }),
+  /** A seller opening the chat with a paid order's buyer, to write first. */
+  openOrderChat: (reference: string) => postJson<ChatThread>("/api/inbox/", { order: reference }),
 
   savedSearches: () => getJson<{ results: SavedSearch[] }>("/api/account/searches/"),
   saveSearch: (params: Record<string, string>, label: string) =>
@@ -183,9 +198,6 @@ export const api = {
   /** "delivered" (handed over) or "ready" (made to order: asks for the balance). */
   sellerOrderStage: (reference: string, stage: "delivered" | "ready") =>
     request<Order>("PATCH", `/api/seller/orders/${reference}/`, { body: { stage } }),
-  sellerChats: () => getJson<{ results: ChatSummary[] }>("/api/seller/chats/"),
-  sellerChat: (id: number | string) => getJson<ChatThread>(`/api/seller/chats/${id}/`),
-  sendSellerChat: (id: number | string, body: string) => postJson<ChatThread>(`/api/seller/chats/${id}/`, { body }),
   /** "Text me when it is back", for a sold-out product. */
   stockAlert: (product: number, phone: string) =>
     postJson<{ detail: string }>(`/api/products/${product}/notify/`, { phone }),

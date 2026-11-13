@@ -14,6 +14,7 @@ const KNOWN_FIRST = new Set([
   "certificates",
   "dashboard",
   "enquiry",
+  "inbox",
   "join",
   "language",
   "learn",
@@ -44,13 +45,16 @@ export function appPath(sitePath: string): string {
   const [first, second, third] = parts;
 
   if (!parts.length) return "/";
+  // The business inbox: a shop's and a workshop's chats. The texts and
+  // notices about a new message link here.
+  if (first === "inbox") return second && /^\d+$/.test(second) ? `/inbox/${second}` : "/inbox";
   if (first === "account" && second === "chats" && third) return `/chats/${third}`;
   if (first === "account" && second === "chats") return "/chats";
   if (first === "account" && second === "orders") return "/orders";
   if (first === "sell") {
     const tab = query.get("tab");
     if (tab === "orders") return "/seller/orders";
-    if (tab === "chats") return "/seller/chats";
+    if (tab === "chats") return "/inbox";
     return "/seller";
   }
   if (first === "marketplace") {

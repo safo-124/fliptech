@@ -123,6 +123,9 @@ export type WorkshopDetail = ProviderCard & {
 export type EnquiryConfirmation = {
   reference_code: string;
   provider_name: string;
+  /** The chat with the workshop the enquiry opened (/chats/<id>). */
+  conversation_id?: number | null;
+  /** Only when there is no chat (a switched-off account). */
   whatsapp_url: string | null;
   expect_reply_within_hours: number | null;
 };
@@ -256,6 +259,8 @@ export type Order = {
   protected: boolean;
   seller_name: string;
   seller_phone: string | null;
+  /** For "Message the seller". */
+  seller_id?: number;
   created_at?: string;
   paid_at?: string | null;
   problem?: string;
@@ -302,17 +307,30 @@ export type ShopDetail = {
 
 export type FollowState = { following: boolean; followers: number; signed_in: boolean };
 
+/**
+ * Chats between a person and a shop or a training workshop (backend
+ * marketplace/chat.py). "buyer" is the person's side, a buyer or a trainee;
+ * "seller" is the shop's or the workshop's.
+ */
 export type ChatMessage = {
   id: number;
   sender: "buyer" | "seller";
+  /** "enquiry" carries a course card; "phone" is the sender sharing their own number. */
+  kind?: "text" | "enquiry" | "phone";
   body: string;
   product: { id: number; name: string; price: string | null; photo: string | null } | null;
+  course?: { reference: string; title: string; fee: string | null; starts: string | null } | null;
   created_at: string;
 };
 
+export type ChatReportReason = "scam" | "money" | "abuse" | "other";
+
 export type ChatSummary = {
   id: number;
+  kind?: "shop" | "workshop";
   with: { name: string; id: number | null };
+  /** The shop or workshop in the chat, and its page on the site. */
+  business?: { kind: "shop" | "workshop"; id: number; name: string; path: string };
   last: ChatMessage | null;
   unread: number;
   last_message_at: string;

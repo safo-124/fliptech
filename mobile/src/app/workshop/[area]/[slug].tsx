@@ -243,7 +243,7 @@ export default function WorkshopScreen() {
       {/* ---------------------------------------------------- enquire */}
       <View style={[styles.cta, { paddingBottom: insets.bottom + space.md }]}>
         <View style={{ flex: 1 }}>
-          <Text variant="small">Free to ask. They reply by phone or WhatsApp.</Text>
+          <Text variant="small">Free to ask. They reply here, and your number stays hidden.</Text>
         </View>
         <Button label="Enquire" onPress={() => enquire()} disabled={!w.programmes.length} style={{ minWidth: 140 }} />
       </View>

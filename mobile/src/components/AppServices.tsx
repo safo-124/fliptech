@@ -14,6 +14,7 @@ import { appPath } from "@/lib/links";
 import { checkNotices, markRead, startNotices, stopNotices } from "@/lib/notices";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
+import { NotificationAsk, requestNotificationAsk } from "./NotificationAsk";
 import { Text } from "./Text";
 
 installCrashHandler();
@@ -66,7 +67,12 @@ export function AppServices() {
         .catch(() => undefined);
     check();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") check();
+      if (state === "active") {
+        check();
+        // Back in the app after signing in: a fair moment for the one-time
+        // ask, if a message or an enquiry has not brought it up already.
+        requestNotificationAsk();
+      }
     });
     return () => subscription.remove();
   }, [auth.signedIn, client]);
@@ -86,6 +92,7 @@ export function AppServices() {
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { top: insets.top + 4 }]}>
+      <NotificationAsk />
       {offline ? (
         <View style={styles.note} accessibilityLiveRegion="polite">
           <CloudOff size={16} color="#fff" />

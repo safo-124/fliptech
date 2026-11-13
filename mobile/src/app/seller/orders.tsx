@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { CircleCheckBig, Hammer, MessageCircle, Package, Phone } from "lucide-react-native";
 import { Alert, FlatList, Linking, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +11,20 @@ import { ApiError, api } from "@/lib/api";
 import { cedis, shortDate } from "@/lib/format";
 import type { Order } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
+
+/**
+ * Opens the chat with a paid order's buyer, so the seller can write first.
+ * Beside Call, not instead of it: a buyer who checked out without an account
+ * has no chat, and the server says to call them.
+ */
+async function message(reference: string) {
+  try {
+    const thread = await api.openOrderChat(reference);
+    router.push({ pathname: "/inbox/[id]", params: { id: String(thread.id) } });
+  } catch (error) {
+    Alert.alert("No chat for this order", error instanceof ApiError ? error.message : "Try again, or call them.");
+  }
+}
 
 const STAGES: Record<string, { label: string; color: string; bg: string }> = {
   new: { label: "Paid · hand it over", color: colors.warn, bg: colors.warnBg },
@@ -117,13 +132,9 @@ function SellerOrder({ order }: { order: Order }) {
           <Phone size={16} color={colors.brand} />
           <Text style={styles.actionText}>Call</Text>
         </Pressable>
-        <Pressable
-          onPress={() => void Linking.openURL(`https://wa.me/${phone.replace("+", "")}`)}
-          style={styles.action}
-          accessibilityRole="button"
-        >
+        <Pressable onPress={() => void message(order.reference)} style={styles.action} accessibilityRole="button">
           <MessageCircle size={16} color={colors.brand} />
-          <Text style={styles.actionText}>WhatsApp</Text>
+          <Text style={styles.actionText}>Message</Text>
         </Pressable>
         {order.stage === "new" && waitingToFinish ? (
           <Pressable onPress={() => confirm("ready")} disabled={move.isPending} style={[styles.action, styles.primary]} accessibilityRole="button">

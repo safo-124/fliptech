@@ -3,11 +3,12 @@ import Constants from "expo-constants";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { router, type Href } from "expo-router";
-import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
+import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Inbox, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/Form";
+import { NotificationsBanner } from "@/components/NotificationAsk";
 import { Screen } from "@/components/Screen";
 import { Text } from "@/components/Text";
 import { ApiError, request, uploadAccountPhoto } from "@/lib/api";
@@ -17,7 +18,16 @@ import { showPhone } from "@/lib/phone";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /** A row opens an app screen (`to`) or, until the app has one, the website (`site`). */
-type Row = { icon: LucideIcon; label: string; to?: Href; site?: string; signedIn?: boolean; sellerOnly?: boolean };
+/** `sellerOnly`: shown only to (true) or only to anyone but (false) a seller. `businessOnly`: to a seller or a trainer. */
+type Row = {
+  icon: LucideIcon;
+  label: string;
+  to?: Href;
+  site?: string;
+  signedIn?: boolean;
+  sellerOnly?: boolean;
+  businessOnly?: boolean;
+};
 
 const GROUPS: { title: string; rows: Row[] }[] = [
   {
@@ -36,6 +46,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     rows: [
       { icon: UserRound, label: "Teach a course or list your workshop", site: "/join" },
       { icon: Store, label: "Sell on the marketplace", site: "/sell", sellerOnly: false },
+      { icon: Inbox, label: "Business messages", to: "/inbox", signedIn: true, businessOnly: true },
       { icon: Wallet, label: "My shop: sales and stock", to: "/seller", signedIn: true, sellerOnly: true },
     ],
   },
@@ -128,6 +139,7 @@ export default function MeScreen() {
           Me
         </Text>
       </View>
+      {auth.signedIn ? <NotificationsBanner battery /> : null}
 
       {auth.signedIn && auth.account ? (
         <View style={styles.card}>
@@ -186,7 +198,13 @@ export default function MeScreen() {
           <View style={styles.list}>
             {group.rows
               .filter((row) =>
-                row.sellerOnly === undefined ? true : row.sellerOnly ? Boolean(auth.roles?.seller) : !auth.roles?.seller,
+                row.businessOnly
+                  ? Boolean(auth.roles?.seller || auth.roles?.trainer)
+                  : row.sellerOnly === undefined
+                    ? true
+                    : row.sellerOnly
+                      ? Boolean(auth.roles?.seller)
+                      : !auth.roles?.seller,
               )
               .map((row, index) => (
               <Pressable

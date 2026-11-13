@@ -4,7 +4,9 @@ describe("appPath", () => {
   it("opens the app's own screen for the site's pages", () => {
     expect(appPath("/account/chats/12")).toBe("/chats/12");
     expect(appPath("/sell/shop?tab=orders")).toBe("/seller/orders");
-    expect(appPath("/sell/shop?tab=chats")).toBe("/seller/chats");
+    expect(appPath("/sell/shop?tab=chats")).toBe("/inbox");
+    expect(appPath("/inbox/31")).toBe("/inbox/31");
+    expect(appPath("/inbox")).toBe("/inbox");
     expect(appPath("/marketplace/order/M-ABC")).toBe("/order/M-ABC");
     expect(appPath("/marketplace/42")).toBe("/product/42");
     expect(appPath("/marketplace/seller/7")).toBe("/shop/7");

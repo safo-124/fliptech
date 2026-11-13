@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { ChatView } from "@/components/ChatView";
+import { requestNotificationAsk } from "@/components/NotificationAsk";
 import { api, ApiError } from "@/lib/api";
 
 /** The first message to a shop, maybe about one product. Then the chat. */
@@ -16,6 +17,7 @@ export default function NewChatScreen() {
   const start = useMutation({
     mutationFn: (body: string) => api.startChat(Number(seller), body, product ? Number(product) : undefined),
     onSuccess: (thread) => {
+      requestNotificationAsk();
       client.setQueryData(["chat", String(thread.id)], thread);
       void client.invalidateQueries({ queryKey: ["chats"] });
       router.replace({ pathname: "/chats/[id]", params: { id: String(thread.id) } });

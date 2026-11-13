@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { NotificationsBanner } from "@/components/NotificationAsk";
 import { StackHeader } from "@/components/StackHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
@@ -18,6 +19,7 @@ export default function ChatsScreen() {
   return (
     <View style={styles.screen}>
       <StackHeader eyebrow="MARKETPLACE" title="Messages" />
+      <NotificationsBanner />
       {chats.isPending ? (
         <View style={{ padding: space.lg, gap: space.md }}>
           <Skeleton style={{ height: 64 }} />
