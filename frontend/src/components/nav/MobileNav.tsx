@@ -37,11 +37,17 @@ export function MobileNav({
     if (!open) return;
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpenOn(null);
     document.addEventListener("keydown", onKey);
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // The page stops scrolling on <html>, not <body>. The site sets
+    // overflow-x: clip on <html>, so hiding <body>'s overflow made <body> a
+    // scroll box of its own: the sticky header then stuck to <body>, which
+    // was not scrolled, and jumped (with this sheet) to the top of the page,
+    // out of sight of someone who had scrolled down.
+    const root = document.documentElement;
+    const overflowY = root.style.overflowY;
+    root.style.overflowY = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = overflow;
+      root.style.overflowY = overflowY;
     };
   }, [open]);
 

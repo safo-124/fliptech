@@ -159,8 +159,22 @@ body {
     height: 0.25rem;
     background: linear-gradient(90deg, var(--color-brand), var(--color-brand-pink), var(--color-peach));
   }
+  /* The frosted glass is on a layer behind the bar, not on the bar itself:
+     backdrop-filter makes an element the box its position: fixed children
+     are placed in, and the mobile menu's sheet and dimmed backdrop are fixed
+     children. On the bar, they were placed against the bar (the backdrop came
+     out 0px tall) instead of against the screen. isolation keeps the layer
+     behind the bar's contents without that side effect. */
   .nav-bar {
+    position: relative;
+    isolation: isolate;
     border-bottom: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+  }
+  .nav-bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
     background: color-mix(in oklab, var(--color-card) 85%, transparent);
     backdrop-filter: blur(24px) saturate(1.5);
   }
