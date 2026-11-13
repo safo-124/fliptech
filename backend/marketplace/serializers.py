@@ -480,14 +480,33 @@ class OwnEnquirySerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.BooleanField())
     def get_told(self, obj):
+        if self.get_conversation_id(obj):
+            # A question in the chat reached the seller when it was asked.
+            return True
         notice = next(iter(obj.alerts.all()), None)
         return bool(notice and notice.sent_at)
 
-    @extend_schema_field(serializers.URLField())
+    conversation_id = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_reply_url(self, obj):
         from .seller_messages import seller_to_buyer
 
         return seller_to_buyer(obj)
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_conversation_id(self, obj):
+        """The chat with this buyer, from the view's {phone: chat id}."""
+        return self.context.get("chats", {}).get(str(obj.buyer_phone))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data["conversation_id"]:
+            # They asked in the chat: the reply goes there, and their number
+            # is theirs to share.
+            data["buyer_phone"] = None
+            data["reply_url"] = None
+        return data
 
     class Meta:
         model = ProductEnquiry
@@ -501,6 +520,7 @@ class OwnEnquirySerializer(serializers.ModelSerializer):
             "message",
             "told",
             "reply_url",
+            "conversation_id",
             "replied_at",
             "created_at",
         ]
@@ -598,6 +618,8 @@ class OrderSerializer(serializers.ModelSerializer):
     commission = serializers.SerializerMethodField()
     buyer_phone = serializers.CharField(read_only=True)
     seller_name = serializers.CharField(source="seller.business_name", read_only=True)
+    # For "Message the seller" on the buyer's order page.
+    seller_id = serializers.IntegerField(read_only=True)
     seller_phone = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.CharField())
@@ -665,6 +687,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "problem_reply",
             "problem_replied_at",
             "seller_name",
+            "seller_id",
             "seller_phone",
             "pickup",
             "paid_at",

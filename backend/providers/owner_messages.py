@@ -12,8 +12,11 @@ replaces the Send button and nothing else.
   which uses the helpers below for the number and the links.
 """
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from core.site_links import public_site_url
@@ -21,7 +24,7 @@ from enquiries.models import Enquiry
 from enquiries.whatsapp import chat_url, provider_to_trainee
 
 from .dashboard import make_dashboard_token
-from .models import OwnerNotice, Provider
+from .models import OwnerNotice, Provider, ProviderMembership
 
 
 def owner_phone(provider):
@@ -82,13 +85,23 @@ def queue_enquiry_alert(enquiry):
     return notice
 
 
-def enquiry_alerts_waiting():
-    """Unsent alerts a workshop can still act on, oldest first.
+# How long an enquiry may go unanswered in the chat before staff chase it.
+FOLLOW_UP_AFTER = timedelta(hours=24)
 
-    Oldest first because this is the queue where an hour matters: a trainee
-    who asked three workshops tends to go with whoever answers first. Not for
-    an enquiry since marked as spam, nor for a listing suspended since.
+
+def enquiry_alerts_waiting(now=None):
+    """Unsent alerts for enquiries a workshop has not answered, oldest first.
+
+    The workshop is told in the chat the moment an enquiry arrives
+    (marketplace/chat.py). Staff step in only when that has not worked: a
+    day has gone by with no reply, or, at once, the workshop has nobody with
+    a trainer account to reply with. Oldest first because this is the queue
+    where an hour matters: a trainee who asked three workshops tends to go
+    with whoever answers first. Not for an enquiry answered or marked as spam
+    since, nor for a listing suspended since.
     """
+    now = now or timezone.now()
+    claimed = ProviderMembership.objects.filter(provider=OuterRef("provider"))
     return (
         OwnerNotice.objects.filter(
             kind=OwnerNotice.Kind.NEW_ENQUIRY,
@@ -96,9 +109,16 @@ def enquiry_alerts_waiting():
             provider__status=Provider.Status.PUBLISHED,
             enquiry__state=Enquiry.State.SENT,
         )
+        .exclude(enquiry__outcome__replied=True)
+        .annotate(claimed=Exists(claimed))
+        .filter(Q(created_at__lte=now - FOLLOW_UP_AFTER) | Q(claimed=False))
         .select_related("provider", "provider__area", "enquiry", "enquiry__programme")
         .order_by("created_at", "pk")
     )
+
+
+def _has_chat(enquiry):
+    return enquiry.messages.exists()
 
 
 def enquiry_message(enquiry):
@@ -108,6 +128,17 @@ def enquiry_message(enquiry):
         f"{greeting(provider)}this is {settings.BRAND_NAME} Skills Hub. Someone has enquired "
         f"about {course} at {provider.name}. Their reference is {enquiry.reference_code}."
     )
+    if _has_chat(enquiry):
+        # The trainee's message waits in the chat, and their number is theirs
+        # to share: the owner is sent to sign in and answer it there.
+        reply = site_link("inbox")
+        text += "\n\nThey are waiting for your answer in your messages on the site."
+        if reply:
+            text += (
+                f"\n\nSign in with your phone number to read and reply:\n{reply}"
+                f"\n\nOr open the {settings.BRAND_NAME} app and go to Me, then Business messages."
+            )
+        return text + dashboard_lines(provider)
     details = []
     if enquiry.trainee_name:
         details.append(f"Name: {enquiry.trainee_name}")

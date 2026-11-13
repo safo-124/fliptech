@@ -53,6 +53,7 @@ from .auth import (
     start_selling,
 )
 from .models import (
+    Conversation,
     PaymentStatus,
     Product,
     ProductEnquiry,
@@ -1062,6 +1063,9 @@ class ProductEnquiryCreateView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
+        from .chat import account_for_chat, open_product_chat
+
+        message = serializer.validated_data.get("message", "")
         with transaction.atomic():
             enquiry = ProductEnquiry.objects.create(
                 seller=product.seller,
@@ -1071,25 +1075,37 @@ class ProductEnquiryCreateView(APIView):
                 product_name=product.name,
                 buyer_phone=phone,
                 buyer_name=serializer.validated_data.get("name", ""),
-                message=serializer.validated_data.get("message", ""),
+                message=message,
                 phone_verified_at=timezone.now(),
             )
-            # In the same transaction as the enquiry: an enquiry nobody is
-            # told about is the failure this whole queue exists to prevent.
+            # The question goes into the chat with the shop, which tells the
+            # seller at once (in the app, or by text) and keeps both numbers
+            # private. The row above is what the marketplace counts.
+            account = account_for_chat(request, phone, enquiry.phone_verified_at)
+            conversation = None
+            if account is not None:
+                if serializer.validated_data.get("name") and not account.display_name:
+                    account.display_name = serializer.validated_data["name"][:120]
+                    account.save(update_fields=["display_name", "updated_at"])
+                conversation = open_product_chat(
+                    product, account, message.strip() or _("Is this still available?")
+                )
+            else:
+                # A switched-off account cannot chat: the old way, a text
+                # with the buyer's number, so the seller still hears of it.
+                transaction.on_commit(lambda: seller_messages.text_enquiry(enquiry))
+            # Staff see it straight away without a chat, or after a day with
+            # no reply in one (seller_messages.alerts_waiting).
             seller_messages.queue_enquiry_alert(enquiry)
-            # And a text straight away, so the seller does not wait on the
-            # staff outbox; the WhatsApp message follows as a reminder.
-            transaction.on_commit(lambda: seller_messages.text_enquiry(enquiry))
 
         return Response(
             {
                 "reference_code": enquiry.reference_code,
-                # Said plainly because it is true and the wait is real: a
-                # person sends this on, so "we have told them" would be a
-                # promise about a queue the buyer cannot see.
-                "detail": _(
-                    "Your question has been sent. The seller will be told and "
-                    "will reply on WhatsApp."
+                "conversation_id": conversation.pk if conversation else None,
+                "detail": (
+                    _("Your question is in your messages. The seller will reply there.")
+                    if conversation
+                    else _("Your question has been sent. The seller will be told.")
                 ),
             },
             status=status.HTTP_201_CREATED,
@@ -1115,7 +1131,19 @@ class OwnEnquiriesView(APIView):
             .prefetch_related("alerts")
             .order_by("-created_at")[:100]
         )
-        return Response({"results": OwnEnquirySerializer(enquiries, many=True).data})
+        chats = {
+            str(phone): pk
+            for phone, pk in Conversation.objects.filter(seller=account).values_list(
+                "buyer__phone", "pk"
+            )
+        }
+        return Response(
+            {
+                "results": OwnEnquirySerializer(
+                    enquiries, many=True, context={"request": request, "chats": chats}
+                ).data
+            }
+        )
 
 
 @method_decorator(csrf_protect, name="dispatch")

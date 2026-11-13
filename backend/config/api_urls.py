@@ -580,8 +580,24 @@ urlpatterns = [
     path("account/bag/", AccountBagView.as_view(), name="account-bag"),
     path("account/addresses/", AccountAddressesView.as_view(), name="account-addresses"),
     path("account/addresses/<int:pk>/", AccountAddressView.as_view(), name="account-address"),
+    # Chats between a person and a shop or a workshop; see marketplace/chat.py.
     path("account/chats/", chat.BuyerChatsView.as_view(), name="account-chats"),
     path("account/chats/<int:pk>/", chat.BuyerChatView.as_view(), name="account-chat"),
+    path(
+        "account/chats/<int:pk>/share-number/",
+        chat.BuyerChatShareView.as_view(),
+        name="account-chat-share",
+    ),
+    path(
+        "account/chats/<int:pk>/report/",
+        chat.BuyerChatReportView.as_view(),
+        name="account-chat-report",
+    ),
+    path("inbox/", chat.InboxView.as_view(), name="inbox"),
+    path("inbox/<int:pk>/", chat.InboxChatView.as_view(), name="inbox-chat"),
+    path("inbox/<int:pk>/share-number/", chat.InboxShareView.as_view(), name="inbox-share"),
+    path("inbox/<int:pk>/report/", chat.InboxReportView.as_view(), name="inbox-report"),
+    # Shop chats at their old addresses, for app builds made before the inbox.
     path("seller/chats/", chat.SellerChatsView.as_view(), name="seller-chats"),
     path("seller/chats/<int:pk>/", chat.SellerChatView.as_view(), name="seller-chat"),
     path("account/searches/", AccountSavedSearchesView.as_view(), name="account-searches"),

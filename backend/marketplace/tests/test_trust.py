@@ -89,6 +89,8 @@ def texts(monkeypatch):
     monkeypatch.setattr(payments, "send_sms", record)
     monkeypatch.setattr(quotes, "send_sms", record)
     monkeypatch.setattr("core.sms.send_sms", record)
+    # The chat keeps its own reference, taken when it was first imported.
+    monkeypatch.setattr("marketplace.chat.send_sms", record)
     return box
 
 
@@ -173,7 +175,9 @@ def test_a_question_texts_the_seller_straight_away(
         )
 
     to_seller = [m for to, m in texts if to == str(world["ama"].phone)]
-    assert len(to_seller) == 1 and "Blue?" in to_seller[0] and BUYER in to_seller[0]
+    # What they asked, and where to answer; the buyer's number stays theirs.
+    assert len(to_seller) == 1 and "Blue?" in to_seller[0] and "Bag" in to_seller[0]
+    assert BUYER not in to_seller[0] and "/inbox/" in to_seller[0]
 
 
 # --------------------------------------------------------------------------
@@ -636,4 +640,6 @@ def test_seller_messages_still_queue_the_whatsapp_reminder(client, world, texts)
         reverse("product-enquiry-create", args=[bag.pk]), {"phone": BUYER}, content_type=JSON
     )
 
-    assert seller_messages.alerts_waiting().count() == 1
+    # Queued now, shown to staff once a day has passed with no reply.
+    later = timezone.now() + timedelta(hours=25)
+    assert seller_messages.alerts_waiting(later).count() == 1

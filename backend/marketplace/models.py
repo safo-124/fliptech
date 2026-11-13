@@ -1225,12 +1225,30 @@ class SavedSearch(models.Model):
 
 
 class Conversation(models.Model):
-    """A chat between one signed-in buyer and one shop, kept on the site
+    """A chat between one signed-in person and one business, kept on the site
     so neither has to hand out a phone number. One thread per pair; each
-    message may say which product it is about."""
+    message may say which product or which enquiry it is about.
+
+    The business is a shop (`seller`) or a training workshop (`provider`),
+    never both. A workshop chat usually starts with an enquiry
+    (enquiries/views.py) and is answered by whoever holds a trainer account
+    on the workshop. `buyer` is the person on the other side whichever it
+    is: someone buying from a shop, or a trainee asking about a course.
+    """
 
     seller = models.ForeignKey(
-        SellerAccount, on_delete=models.CASCADE, related_name="conversations"
+        SellerAccount,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="conversations",
+    )
+    provider = models.ForeignKey(
+        "providers.Provider",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="conversations",
     )
     buyer = models.ForeignKey(
         "accounts.CustomerAccount", on_delete=models.CASCADE, related_name="conversations"
@@ -1247,25 +1265,65 @@ class Conversation(models.Model):
     class Meta:
         ordering = ["-last_message_at"]
         constraints = [
-            models.UniqueConstraint(fields=["seller", "buyer"], name="one_chat_per_buyer_and_shop"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(seller__isnull=False, provider__isnull=True)
+                    | models.Q(seller__isnull=True, provider__isnull=False)
+                ),
+                name="chat_with_a_shop_or_a_workshop",
+            ),
+            models.UniqueConstraint(
+                fields=["seller", "buyer"],
+                condition=models.Q(seller__isnull=False),
+                name="one_chat_per_buyer_and_shop",
+            ),
+            models.UniqueConstraint(
+                fields=["provider", "buyer"],
+                condition=models.Q(provider__isnull=False),
+                name="one_chat_per_person_and_workshop",
+            ),
+        ]
+        permissions = [
+            ("read_chats", "Can read people's chats, to look into a report"),
         ]
 
     def __str__(self):
-        return f"{self.buyer} and {self.seller}"
+        return f"{self.buyer} and {self.business_name}"
+
+    @property
+    def business_name(self):
+        return self.seller.business_name if self.seller_id else self.provider.name
 
 
 class Message(models.Model):
     class Sender(models.TextChoices):
-        BUYER = "buyer", "Buyer"
-        SELLER = "seller", "Seller"
+        BUYER = "buyer", "The person"
+        SELLER = "seller", "The shop or workshop"
+
+    class Kind(models.TextChoices):
+        TEXT = "text", "Message"
+        ENQUIRY = "enquiry", "Enquiry about a course"
+        # The sender's own number, shared on purpose: numbers are hidden
+        # until somebody chooses to give theirs.
+        PHONE = "phone", "Shared their phone number"
 
     conversation = models.ForeignKey(
         Conversation, on_delete=models.CASCADE, related_name="messages"
     )
     sender = models.CharField(max_length=10, choices=Sender.choices)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.TEXT)
     body = models.TextField(max_length=1000)
     product = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # The enquiry this message carries, shown as a course card. Its reply
+    # marks the enquiry replied (chat._post).
+    enquiry = models.ForeignKey(
+        "enquiries.Enquiry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="messages",
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -1274,6 +1332,37 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.sender}: {self.body[:40]}"
+
+
+class ChatReport(TimeStampedModel):
+    """Somebody telling staff a chat went wrong: a scam, a request for money
+    up front, abuse. Staff read the chat to decide (only with the read_chats
+    permission); the other side is never told who reported it."""
+
+    class Reason(models.TextChoices):
+        SCAM = "scam", "Looks like a scam"
+        MONEY = "money", "Asked for money that was not agreed"
+        ABUSE = "abuse", "Rude, abusive or unwanted"
+        OTHER = "other", "Something else"
+
+    class State(models.TextChoices):
+        OPEN = "open", "Waiting for staff"
+        CLOSED = "closed", "Dealt with"
+
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="reports")
+    by = models.CharField(max_length=10, choices=Message.Sender.choices)
+    reason = models.CharField(max_length=10, choices=Reason.choices)
+    details = models.TextField(blank=True, max_length=1000)
+    state = models.CharField(
+        max_length=10, choices=State.choices, default=State.OPEN, db_index=True
+    )
+    staff_note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_reason_display()}: chat {self.conversation_id}"
 
 
 class Bundle(TimeStampedModel):

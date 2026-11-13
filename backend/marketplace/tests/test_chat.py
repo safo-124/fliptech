@@ -80,7 +80,7 @@ def test_a_buyer_and_a_shop_chat_without_sharing_numbers(shop, buyer, texts):
     # The shop is texted once, with a link, not the buyer's number.
     assert len(texts) == 1
     assert texts[0][0] == "+233201110800"
-    assert "Kofi sent you a message" in texts[0][1]
+    assert "Kofi asked about Tailoring kit" in texts[0][1]
     assert "201112222" not in texts[0][1]
 
     # A second message soon after is not another text.

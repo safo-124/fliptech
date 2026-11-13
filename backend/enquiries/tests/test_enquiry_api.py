@@ -110,7 +110,7 @@ def test_daily_cap_per_number_stops_sms_pumping(client, programme, settings, mon
 
 
 @pytest.mark.django_db
-def test_a_verified_number_can_enquire_and_gets_a_whatsapp_handover(client, programme, monkeypatch):
+def test_a_verified_number_can_enquire_and_gets_a_chat(client, programme, monkeypatch):
     from enquiries import otp
 
     monkeypatch.setattr(otp, "_generate_code", lambda: "123456")
@@ -125,8 +125,9 @@ def test_a_verified_number_can_enquire_and_gets_a_whatsapp_handover(client, prog
 
     assert response.status_code == 201
     assert body["reference_code"].startswith("SH-")
-    assert body["whatsapp_url"].startswith("https://wa.me/233240000000")
-    assert body["reference_code"] in body["whatsapp_url"]
+    # The question is in a chat with the workshop; nobody is sent to WhatsApp.
+    assert body["conversation_id"]
+    assert body["whatsapp_url"] is None
     assert Enquiry.objects.get().state == Enquiry.State.SENT
 
 

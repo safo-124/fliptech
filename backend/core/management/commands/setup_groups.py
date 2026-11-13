@@ -65,6 +65,8 @@ OPERATIONS_LEAD_EXTRA = [
     ("providers", "complaint", ["view", "change"]),
     # Approving a teaching video puts it on a public listing, like publishing.
     ("providers", "providervideo", ["change"]),
+    # Reported chats; reading the messages themselves is read_chats, below.
+    ("marketplace", "chatreport", ["view", "change"]),
     ("providers", "providerevidence", ["delete"]),
     ("geography", "area", ["add", "change"]),
     ("geography", "region", ["add", "change"]),
@@ -77,6 +79,8 @@ OPERATIONS_LEAD_EXTRA = [
 OPERATIONS_LEAD_CUSTOM = [
     ("providers", "publish_provider"),
     ("trainees", "support_access"),
+    # People's private messages, shown only beside a report about them.
+    ("marketplace", "read_chats"),
 ]
 
 

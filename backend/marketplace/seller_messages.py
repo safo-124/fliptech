@@ -10,13 +10,28 @@ Two messages go to sellers: "someone asked about your product", and
 "someone paid for your product".
 """
 
+from datetime import timedelta
+
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
+from core.site_links import public_site_url
 from enquiries.whatsapp import chat_url
 
-from .models import PaymentStatus, ProductEnquiry, SellerNotice
+from .models import Conversation, PaymentStatus, ProductEnquiry, SellerNotice
+
+# A question asked in a chat reaches the seller at once (in the app, or by
+# text). Staff step in only when it is still unanswered after this long.
+FOLLOW_UP_AFTER = timedelta(hours=24)
+
+
+def in_chat(enquiry):
+    """Whether this question went into a chat with the shop, which keeps the
+    buyer's number private, rather than the old way."""
+    return Conversation.objects.filter(
+        seller_id=enquiry.seller_id, buyer__phone=enquiry.buyer_phone
+    ).exists()
 
 
 def queue_enquiry_alert(enquiry):
@@ -65,22 +80,37 @@ def text_enquiry(enquiry):
         logging.getLogger(__name__).exception("Could not text %s", enquiry.reference_code)
 
 
-def alerts_waiting():
+def alerts_waiting(now=None):
     """Unsent alerts a seller can still act on, oldest first.
 
     Oldest first because this is a queue where an hour matters: somebody
     asking about a bag will ask the next maker if nobody answers.
 
-    Not for an enquiry since marked as spam, and not for a seller who is no
-    longer selling — asking an officer to message somebody whose shop is
-    switched off wastes the officer's time and confuses the seller.
+    Not for an enquiry since marked as spam or answered, and not for a seller
+    who is no longer selling — asking an officer to message somebody whose
+    shop is switched off wastes the officer's time and confuses the seller.
+
+    A question asked in a chat has already reached the seller, so it waits
+    here only once it is FOLLOW_UP_AFTER old with no reply.
     """
     from .models import SellerAccount
 
+    now = now or timezone.now()
+    question = Q(
+        kind=SellerNotice.Kind.NEW_ENQUIRY,
+        enquiry__state=ProductEnquiry.State.SENT,
+        enquiry__replied_at__isnull=True,
+    ) & (Q(in_chat=False) | Q(enquiry__created_at__lte=now - FOLLOW_UP_AFTER))
     return (
-        SellerNotice.objects.filter(
-            Q(kind=SellerNotice.Kind.NEW_ENQUIRY, enquiry__state=ProductEnquiry.State.SENT)
-            | Q(kind=SellerNotice.Kind.NEW_ORDER, order__status=PaymentStatus.PAID),
+        SellerNotice.objects.annotate(
+            in_chat=Exists(
+                Conversation.objects.filter(
+                    seller=OuterRef("seller"), buyer__phone=OuterRef("enquiry__buyer_phone")
+                )
+            )
+        )
+        .filter(
+            question | Q(kind=SellerNotice.Kind.NEW_ORDER, order__status=PaymentStatus.PAID),
             sent_at__isnull=True,
             seller__is_active=True,
             seller__approval_status=SellerAccount.Approval.CONFIRMED,
@@ -114,6 +144,19 @@ def alert_text(enquiry):
     does not happen.
     """
     asked = f'"{enquiry.message}"' if enquiry.message else "no message"
+    if in_chat(enquiry):
+        # The buyer's number stays private: they asked in a chat, and the
+        # reply belongs there too.
+        inbox = (
+            f" Read and reply here: {public_site_url('inbox')}." if settings.PUBLIC_SITE_URL else ""
+        )
+        return (
+            f"Hello, someone asked about {enquiry.product_name} on "
+            f"{settings.BRAND_NAME} Skills Hub and is still waiting for your reply. "
+            f"Reference {enquiry.reference_code}. "
+            f"They said: {asked}.{inbox} "
+            f"Or open the {settings.BRAND_NAME} app and go to Me, then Business messages."
+        )
     return (
         f"Hello, someone asked about {enquiry.product_name} on "
         f"{settings.BRAND_NAME} Skills Hub. "

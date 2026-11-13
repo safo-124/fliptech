@@ -157,8 +157,20 @@ class EnquiryCreateView(APIView):
                 trainee=TraineeAccount.objects.filter(phone=phone, is_active=True).first(),
                 **serializer.validated_data,
             )
-            # Sent by an officer from Messages to send, until there are
-            # WhatsApp Cloud API credentials to send it from the server.
+            # A staff follow-up, sent only if the workshop has not answered
+            # in the chat within a day (providers/owner_messages.py).
             queue_enquiry_alert(enquiry)
+            # The conversation itself: the enquiry is its first message and
+            # the workshop is told at once. Numbers stay hidden until shared.
+            from marketplace.chat import account_for_chat, open_enquiry_chat
+
+            account = account_for_chat(request, phone, enquiry.phone_verified_at)
+            if account is not None:
+                # The name they typed, so the workshop's inbox shows a person
+                # rather than "A trainee". Never over one they already chose.
+                if enquiry.trainee_name and not account.display_name:
+                    account.display_name = enquiry.trainee_name[:120]
+                    account.save(update_fields=["display_name", "updated_at"])
+                open_enquiry_chat(enquiry, account)
 
         return Response(EnquiryConfirmationSerializer(enquiry).data, status=status.HTTP_201_CREATED)

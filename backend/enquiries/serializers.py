@@ -61,9 +61,16 @@ class EnquiryCreateSerializer(serializers.ModelSerializer):
 
 
 class EnquiryConfirmationSerializer(serializers.ModelSerializer):
-    """Screen 4: a reference the trainee can quote, and the handover link."""
+    """Screen 4: a reference the trainee can quote, and the chat it opened.
+
+    The conversation now happens in the site's own chat (marketplace/chat.py),
+    so the trainee's number stays theirs until they share it. `whatsapp_url`
+    is kept, always empty for an enquiry with a chat, so app builds made
+    before chat show "Done" rather than a link to a number.
+    """
 
     provider_name = serializers.CharField(source="provider.name", read_only=True)
+    conversation_id = serializers.SerializerMethodField()
     whatsapp_url = serializers.SerializerMethodField()
     expect_reply_within_hours = serializers.SerializerMethodField()
 
@@ -72,19 +79,26 @@ class EnquiryConfirmationSerializer(serializers.ModelSerializer):
         fields = [
             "reference_code",
             "provider_name",
+            "conversation_id",
             "whatsapp_url",
             "expect_reply_within_hours",
             "created_at",
         ]
 
-    @extend_schema_field(serializers.URLField())
-    def get_whatsapp_url(self, obj):
-        """A click-to-chat deep link, which is free.
+    def _conversation_id(self, obj):
+        # .all(), not .first(): a list prefetches `messages`, and this then
+        # costs no query per row. An enquiry has one message, its own.
+        messages = list(obj.messages.all())
+        return min(messages, key=lambda m: m.pk).conversation_id if messages else None
 
-        Only the provider-alert side needs the paid Cloud API, because a
-        business-initiated template message is billed per send.
-        """
-        return whatsapp.trainee_to_provider(obj)
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_conversation_id(self, obj):
+        return self._conversation_id(obj)
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_whatsapp_url(self, obj):
+        """Only for an enquiry without a chat (made before chat existed)."""
+        return None if self._conversation_id(obj) else whatsapp.trainee_to_provider(obj)
 
     @extend_schema_field(serializers.IntegerField())
     def get_expect_reply_within_hours(self, obj):

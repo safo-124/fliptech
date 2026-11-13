@@ -7,6 +7,8 @@ as slow when they had never been told. So the alert is created in the same
 transaction as the enquiry, and these tests check it is there.
 """
 
+from datetime import timedelta
+
 import pytest
 from django.contrib.gis.geos import Point
 from django.urls import reverse
@@ -165,21 +167,55 @@ def test_an_alert_is_queued_with_the_enquiry(client, product, sent):
     assert notice.enquiry == ProductEnquiry.objects.get()
     assert notice.seller == product.seller
     assert notice.sent_at is None
-    assert list(seller_messages.alerts_waiting()) == [notice]
+    # The question went into a chat, which told the seller already: staff
+    # step in only after a day with no reply.
+    assert not seller_messages.alerts_waiting().exists()
+    later = timezone.now() + timedelta(hours=25)
+    assert list(seller_messages.alerts_waiting(later)) == [notice]
 
 
 @pytest.mark.django_db
-def test_the_alert_carries_the_buyers_number(client, product, sent):
-    """The seller is the one who has to reply. Making them come back to a
-    dashboard to find the number is how a reply does not happen."""
+def test_a_reply_in_the_chat_takes_it_off_the_staff_queue(client, product, sent):
+    verify(client)
+    ask(client, product)
+
+    ProductEnquiry.objects.update(replied_at=timezone.now())
+
+    later = timezone.now() + timedelta(hours=25)
+    assert not seller_messages.alerts_waiting(later).exists()
+
+
+@pytest.mark.django_db
+def test_the_staff_follow_up_on_a_chat_question_hides_the_number(client, product, sent):
+    """They asked in a chat, so the seller replies there; the buyer's number
+    is theirs to share."""
     verify(client)
     ask(client, product, name="Kofi", message="Still available?")
 
     text = seller_messages.alert_text(ProductEnquiry.objects.get())
 
-    assert BUYER in text
+    assert "201112222" not in text
     assert "Handmade Ankara Bag" in text
     assert "Still available?" in text
+    assert "Business messages" in text
+
+
+@pytest.mark.django_db
+def test_a_question_without_a_chat_carries_the_buyers_number(product):
+    """The old way, kept for a buyer who cannot chat: the seller is the one
+    who has to reply, so the alert says where to."""
+    enquiry = ProductEnquiry.objects.create(
+        seller=product.seller,
+        product=product,
+        product_name=product.name,
+        buyer_phone=BUYER,
+        message="Still available?",
+        phone_verified_at=timezone.now(),
+    )
+    notice = seller_messages.queue_enquiry_alert(enquiry)
+
+    assert BUYER in seller_messages.alert_text(enquiry)
+    assert list(seller_messages.alerts_waiting()) == [notice]
 
 
 @pytest.mark.django_db
@@ -246,6 +282,8 @@ def test_deleting_a_product_keeps_the_enquiry(client, product, sent):
 def test_the_messages_page_lists_what_is_waiting(client, product, sent, django_user_model):
     verify(client)
     ask(client, product)
+    # A day unanswered, so it is staff's to follow up.
+    ProductEnquiry.objects.update(created_at=timezone.now() - timedelta(hours=25))
     client.logout()
     client.force_login(django_user_model.objects.create_superuser("boss2", password="pw-12345678"))
 
@@ -259,6 +297,7 @@ def test_the_messages_page_lists_what_is_waiting(client, product, sent, django_u
 def test_sending_from_the_back_office_opens_whatsapp(client, product, sent, django_user_model):
     verify(client)
     ask(client, product)
+    ProductEnquiry.objects.update(created_at=timezone.now() - timedelta(hours=25))
     notice = SellerNotice.objects.get()
     client.logout()
     client.force_login(django_user_model.objects.create_superuser("boss3", password="pw-12345678"))

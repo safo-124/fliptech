@@ -29,6 +29,7 @@ from django.views.decorators.http import require_POST
 
 from .admin_outbox import SellerMessagesMixin
 from .models import (
+    ChatReport,
     DiscountCode,
     Order,
     OrderItem,
@@ -775,6 +776,56 @@ class ProductReportAdmin(admin.ModelAdmin):
     @admin.action(description="Close (dealt with)")
     def close_reports(self, request, queryset):
         queryset.update(state=ProductReport.State.CLOSED)
+
+
+READ_CHATS_PERM = "marketplace.read_chats"
+
+
+@admin.register(ChatReport)
+class ChatReportAdmin(admin.ModelAdmin):
+    """Chats somebody reported: a scam, money asked for up front, abuse.
+
+    The messages themselves are private, so they are shown only to staff
+    with the read_chats permission (the operations lead), and only here,
+    beside the report that gives a reason to read them. Neither side is told
+    who reported the chat.
+    """
+
+    list_display = ("conversation", "reason", "by", "state", "created_at")
+    list_filter = ("state", "reason")
+    readonly_fields = ["conversation", "by", "reason", "details", "created_at"]
+    actions = ["close_reports"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = list(super().get_readonly_fields(request, obj))
+        # The messages only for staff allowed to read chats; for anyone else
+        # the field is simply not on the page.
+        if request.user.has_perm(READ_CHATS_PERM):
+            fields.append("the_chat")
+        return fields
+
+    def get_fields(self, request, obj=None):
+        return [*self.get_readonly_fields(request, obj), "state", "staff_note"]
+
+    @admin.display(description="The chat")
+    def the_chat(self, obj):
+        rows = [
+            format_html(
+                "<p><strong>{}</strong> · {}<br>{}</p>",
+                message.get_sender_display(),
+                timezone.localtime(message.created_at).strftime("%d %b %Y %H:%M"),
+                message.body,
+            )
+            for message in obj.conversation.messages.order_by("created_at")[:200]
+        ]
+        return mark_safe("".join(rows)) if rows else "No messages."
+
+    @admin.action(description="Close (dealt with)")
+    def close_reports(self, request, queryset):
+        queryset.update(state=ChatReport.State.CLOSED)
 
 
 @admin.register(QuoteRequest)

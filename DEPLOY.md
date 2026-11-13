@@ -580,6 +580,40 @@ staff rights or a password are never touched. It is safe to run again.
 People already signed in on the old, switched-off logins are signed out and
 simply sign in again.
 
+## Messages instead of WhatsApp
+
+Buyers, sellers, trainees and trainers talk in the site's own chat, on the
+website and in the app (`backend/marketplace/chat.py`). Nothing to configure:
+`./deploy.sh` runs the migration and `setup_groups`.
+
+- **An enquiry opens a chat.** The trainee's question lands in the workshop's
+  inbox (`/inbox` on the site, **Me → Business messages** in the app), and
+  the workshop is told at once: an app notification, or a text with the link.
+  A question about a product does the same for the shop. The person's
+  number is hidden; either side can tap **Share my number**, which shares
+  only their own.
+- **Replies are timed by themselves.** An answer in the chat marks the
+  enquiry replied (the trainer's list and the response rate use it), and a
+  shop's question gets its `replied_at`.
+- **Staff follow up after a day.** The back office messages pages (Providers
+  → messages, Sellers → messages) now show an enquiry only when it is 24
+  hours old with no reply. The WhatsApp text staff send no longer carries
+  the person's number; it tells the owner to sign in and reply.
+- **Workshops staff added themselves.** A workshop with no trainer account
+  linked cannot reply in the chat, so its enquiries go to the staff queue
+  straight away, as before. To let the owner answer: Back office → Providers
+  → open the listing → **Trainer memberships** → add the owner's trainer
+  account (they sign up at `/trainer/join` with their phone first).
+- **Paid orders.** Sellers see **Message buyer** beside the phone number; a
+  buyer who checked out without an account has no chat, and the seller is
+  told to call. Buyers see **Message the seller** on the order page.
+- **Reported chats.** Back office → Marketplace → Chat reports. Only the
+  operations lead group (and superusers) can read the messages in a
+  reported chat; other staff see the report alone.
+- **Older app builds** keep working: their enquiry screen just shows "Done",
+  and the old shop chat addresses still answer. Send the new screens to
+  phones with `mobile/scripts/publish-update.sh` (no new build needed).
+
 ## The Android app: notifications, links, updates
 
 All of it runs on this server. There is no Firebase and no Expo cloud.
@@ -593,6 +627,15 @@ the last two days. Money messages (a new paid order, a receipt, a balance
 paid) are always texted as well, and sign-in codes are only ever texted.
 Nothing to set up. In the back office, **Mobile app → Notices** shows what
 was sent and whether it also went by SMS.
+
+The app does not ask for notification permission at sign-in. It asks once,
+in its own words, right after the person's first message or enquiry (or the
+next time they open it), then shows the phone's prompt. While notifications
+are off, Messages, Business messages, My orders and Me show a "Notifications
+are off" banner with a way to turn them on. On Android, once they are on, a
+one-time card explains how to set the app's battery use to Unrestricted, as
+some phones stop background apps. Test these on a real phone: the web
+preview skips them.
 
 **Crash reports.** The app reports errors it could not recover from to
 `/api/app/crash/`. Read them in the back office under **Mobile app → Crash

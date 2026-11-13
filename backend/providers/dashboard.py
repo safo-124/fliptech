@@ -18,7 +18,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core import signing
-from django.db.models import Avg, Count, F, Sum
+from django.db.models import Avg, Count, F, OuterRef, Subquery, Sum
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -129,13 +129,23 @@ def dashboard_payload(provider, *, period_days=30):
 
 
 def enquiry_payload(provider, *, limit=100):
-    """The enquiries themselves, so the numbers above can be acted on."""
+    """The enquiries themselves, so the numbers above can be acted on.
+
+    An enquiry made since chat opened a conversation (marketplace/chat.py):
+    it is answered there, and the trainee's number is not shown, because
+    they have not shared it. One from before chat keeps its number and its
+    WhatsApp link, which the workshop was given at the time anyway.
+    """
+    from marketplace.models import Message
+
+    first_chat = Message.objects.filter(enquiry=OuterRef("pk")).order_by("pk")
     enquiries = (
         Enquiry.objects.filter(provider=provider)
         # provider as well as programme: the reply link names the workshop, and
         # without this that is one extra query per enquiry on a page that shows
         # a hundred of them.
         .select_related("programme", "provider")
+        .annotate(chat_id=Subquery(first_chat.values("conversation_id")[:1]))
         .order_by("-created_at")[:limit]
     )
     return [
@@ -143,14 +153,14 @@ def enquiry_payload(provider, *, limit=100):
             "reference_code": enquiry.reference_code,
             "programme": enquiry.programme.title if enquiry.programme else None,
             "trainee_name": enquiry.trainee_name,
-            "trainee_phone": str(enquiry.trainee_phone),
+            "trainee_phone": None if enquiry.chat_id else str(enquiry.trainee_phone),
             "message": enquiry.message,
             "created_at": enquiry.created_at,
             "replied": getattr(enquiry, "outcome", None) is not None and enquiry.outcome.replied,
-            # Counting enquiries and then giving the owner no way to answer one
-            # is most of a feature. This is the same free click-to-chat link
-            # the trainee gets, pointed the other way.
-            "whatsapp_url": whatsapp.provider_to_trainee(enquiry),
+            "conversation_id": enquiry.chat_id,
+            # Only for an enquiry from before chat: the free click-to-chat
+            # link the trainee got, pointed the other way.
+            "whatsapp_url": None if enquiry.chat_id else whatsapp.provider_to_trainee(enquiry),
         }
         for enquiry in enquiries
     ]

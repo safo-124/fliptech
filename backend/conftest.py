@@ -24,6 +24,17 @@ def _clear_cache():
 
 
 @pytest.fixture(autouse=True)
+def _texts_stay_local(settings):
+    """Every text goes to the log, whatever .env.local chooses.
+
+    A developer testing a gateway keeps its key in .env.local, which pytest
+    reads; without this each code a test asks for would go out over the
+    internet (slow, offline-fragile, and charged unless the sandbox is on).
+    Tests of a gateway set SMS_PROVIDER themselves, after this has run."""
+    settings.SMS_PROVIDER = "console"
+
+
+@pytest.fixture(autouse=True)
 def _marketplace_trust_off(settings):
     """The marketplace's trust rules (ID check before payments, holding new
     sellers' and large orders, the new-seller cap) are on in production.

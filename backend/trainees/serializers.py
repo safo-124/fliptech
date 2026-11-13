@@ -125,6 +125,7 @@ class TraineeEnquirySerializer(serializers.ModelSerializer):
     programme_title = serializers.CharField(source="programme.title", default="", read_only=True)
     intake_start = serializers.DateField(source="intake.start_date", default=None, read_only=True)
     status = serializers.SerializerMethodField()
+    conversation_id = serializers.SerializerMethodField()
     whatsapp_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -136,6 +137,7 @@ class TraineeEnquirySerializer(serializers.ModelSerializer):
             "intake_start",
             "message",
             "status",
+            "conversation_id",
             "whatsapp_url",
             "created_at",
         ]
@@ -155,7 +157,12 @@ class TraineeEnquirySerializer(serializers.ModelSerializer):
                 return "replied"
         return "sent"
 
-    @extend_schema_field(serializers.URLField())
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_conversation_id(self, obj):
+        """The chat the enquiry opened with the workshop, if it did."""
+        return EnquiryConfirmationSerializer().get_conversation_id(obj)
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_whatsapp_url(self, obj):
         return EnquiryConfirmationSerializer().get_whatsapp_url(obj)
 
@@ -165,6 +172,7 @@ class TraineeEnquirySerializer(serializers.ModelSerializer):
             Enquiry.objects.filter(trainee=account)
             .exclude(state=Enquiry.State.SPAM)
             .select_related("provider__area", "programme", "intake", "outcome")
+            .prefetch_related("messages")
             .order_by("-created_at")
         )
 
