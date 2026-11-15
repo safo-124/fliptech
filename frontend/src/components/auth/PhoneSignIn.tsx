@@ -118,6 +118,11 @@ export function PhoneSignIn({
 
   async function welcome(event: React.FormEvent) {
     event.preventDefault();
+    // At least one choice: the button waits for it, and so does Enter.
+    if (chosen.length === 0) {
+      setError(t("pickOne"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -210,7 +215,7 @@ export function PhoneSignIn({
             })}
           </div>
         </fieldset>
-        <Button type="submit" variant="brand" className="w-full" disabled={busy}>
+        <Button type="submit" variant="brand" className="w-full" disabled={busy || chosen.length === 0}>
           {busy ? <Loader2 aria-hidden className="animate-spin" /> : null}
           {t("continue")}
           {busy ? null : <ArrowRight aria-hidden />}

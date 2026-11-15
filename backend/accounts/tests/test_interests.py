@@ -43,6 +43,19 @@ def test_choices_are_kept_once_each_in_a_fixed_order(client):
 
 
 @pytest.mark.django_db
+def test_at_least_one_choice_is_needed(client):
+    """The welcome screen does not let someone carry on with nothing ticked,
+    and neither does the API behind it."""
+    sign_in(client)
+
+    response = tick(client, [])
+
+    assert response.status_code == 400
+    assert "at least one" in str(response.json()["interests"])
+    assert CustomerAccount.objects.get().interests == []
+
+
+@pytest.mark.django_db
 def test_teach_a_trade_is_a_choice_but_not_a_trainer_login(client):
     """Ticking it only says what brought them. A trainer login is still
     asked for from the account page, because staff confirm trainers."""

@@ -2752,7 +2752,8 @@
     "nameLabel": "Your first name",
     "namePlaceholder": "Ama",
     "interestsTitle": "What brings you here?",
-    "interestsHint": "Tick any that fit. You can do everything either way.",
+    "interestsHint": "Tick at least one. You can still do everything else.",
+    "pickOne": "Tick at least one of the choices to continue.",
     "interest": {
       "learn": {
         "title": "Learn a trade",

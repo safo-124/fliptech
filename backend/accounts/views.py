@@ -75,10 +75,14 @@ class AccountSerializer(serializers.ModelSerializer):
         return value
 
     photo = serializers.SerializerMethodField()
+    # Optional on the request, but when sent (by the welcome screen after
+    # signing up) at least one has to be ticked.
     interests = serializers.ListField(
         child=serializers.ChoiceField(choices=CustomerAccount.INTERESTS),
         required=False,
+        allow_empty=False,
         max_length=len(CustomerAccount.INTERESTS),
+        error_messages={"empty": _("Tick at least one of the choices to continue.")},
     )
 
     def validate_interests(self, value):
