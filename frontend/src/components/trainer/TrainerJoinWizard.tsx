@@ -56,8 +56,11 @@ import {Skeleton} from "@/components/ui/skeleton";
 import {Textarea} from "@/components/ui/textarea";
 import {validationMessage} from "@/i18n/validation";
 import {BRAND} from "@/lib/brand";
-import {TEACHING_LANGUAGES} from "@/lib/teaching-languages";
+import {isTeachingLanguage, TEACHING_LANGUAGES} from "@/lib/teaching-languages";
 import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from "@/lib/drafts";
+import {insideGhana} from "@/lib/ghana-bounds";
+import {formatCedis, formatDate} from "@/lib/format";
+import {ProviderLocationMap} from "@/components/ProviderLocationMap";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {getWhoami} from "@/lib/session-api";
 import {
@@ -591,6 +594,130 @@ function PhotoChecklist({
         </li>
       </ul>
       <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t("photosOneByOne")}</p>
+    </div>
+  );
+}
+
+/**
+ * An example of extra costs in this trade's own terms. "Hair and extensions"
+ * on a welding course reads as a mistake, so each trade gets its own, and an
+ * unknown trade a neutral one.
+ */
+const EXTRAS_BY_TRADE = {
+  welding: "extrasWelding",
+  tailoring: "extrasTailoring",
+  plumbing: "extrasPlumbing",
+  "auto-mechanics": "extrasAuto",
+  hairdressing: "extrasHair",
+  "electrical-installation": "extrasElectrical",
+} as const;
+
+function extrasExample(slug: string | undefined, t: ReturnType<typeof useTranslations<"TrainerJoinWizard">>) {
+  const key = slug ? EXTRAS_BY_TRADE[slug as keyof typeof EXTRAS_BY_TRADE] : undefined;
+  return t(key ?? "extrasGeneric");
+}
+
+const PAYMENT_COUNTS = ["2", "3", "4", "6"] as const;
+const DEPOSITS = ["0", "25", "50"] as const;
+
+/** "3 payments, 50% before starting. Weekly." back into its parts. */
+function readPlan(note: string) {
+  const match = /^(\d+) payments(?:, (\d+)% before starting)?\.?\s*(.*)$/.exec(note.trim());
+  if (match) return {payments: match[1], deposit: match[2] ?? "0", note: match[3]};
+  // Written before the choices existed: kept, as the note.
+  return {payments: "", deposit: "0", note: note.trim()};
+}
+
+function writePlan({payments, deposit, note}: {payments: string; deposit: string; note: string}) {
+  if (!payments) return note.trim();
+  const head = `${payments} payments${deposit !== "0" ? `, ${deposit}% before starting` : ""}.`;
+  return note.trim() ? `${head} ${note.trim()}` : head;
+}
+
+/**
+ * How instalments work, as choices rather than free text: a listing once
+ * said only "30". Stored as one plain sentence ("3 payments, 50% before
+ * starting. Weekly.") in the course's instalment note, so nothing about the
+ * database changes.
+ */
+function InstalmentPlan({
+  value,
+  onChange,
+  invalid,
+}: {
+  value: string;
+  onChange: (note: string) => void;
+  invalid: boolean;
+}) {
+  const t = useTranslations("TrainerJoinWizard");
+  const plan = readPlan(value ?? "");
+  const update = (patch: Partial<typeof plan>) => onChange(writePlan({...plan, ...patch}));
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="instalment-payments">
+            {t("instalmentPayments")}
+            <RequiredCue />
+          </Label>
+          <NativeSelect
+            id="instalment-payments"
+            value={plan.payments}
+            onChange={(event) => update({payments: event.target.value})}
+            aria-invalid={invalid || undefined}
+            aria-describedby={invalid ? "instalment-note-error" : undefined}
+          >
+            <option value="">{t("instalmentPaymentsChoose")}</option>
+            {PAYMENT_COUNTS.map((count) => (
+              <option key={count} value={count}>
+                {t("instalmentPaymentsCount", {count: Number(count)})}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="instalment-deposit">{t("instalmentDeposit")}</Label>
+          <NativeSelect
+            id="instalment-deposit"
+            value={plan.deposit}
+            onChange={(event) => update({deposit: event.target.value})}
+          >
+            {DEPOSITS.map((deposit) => (
+              <option key={deposit} value={deposit}>
+                {deposit === "0" ? t("instalmentDepositNone") : t("instalmentDepositPercent", {percent: Number(deposit)})}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="instalment_note">{t("instalmentNoteOptional")}</Label>
+        <Input
+          id="instalment_note"
+          value={plan.note}
+          onChange={(event) => update({note: event.target.value})}
+          placeholder={t("instalmentNotePlaceholder")}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** "1,200" as typed, as a number. */
+function plainNumber(value: string) {
+  return Number(value.replace(/[\s,]|gh₵|ghs|ghc|₵/gi, "")) || 0;
+}
+
+/** GH₵1,200, as the listing will show it. */
+function money(value: string) {
+  return formatCedis(String(plainNumber(value)));
+}
+
+function ReviewRow({label, children}: {label: string; children: React.ReactNode}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-[var(--color-muted-foreground)]">{label}</dt>
+      <dd className="mt-1 break-words font-medium">{children}</dd>
     </div>
   );
 }
@@ -1219,6 +1346,28 @@ export function TrainerJoinWizard() {
     setValue("longitude", lng.toFixed(6), {shouldValidate: true, shouldDirty: true});
   }
 
+  // The pin starts in the middle of the area they choose, and follows a new
+  // choice of area when it has not been placed nearby (or is outside Ghana).
+  // A pin they placed close to the new area stays where they put it.
+  const watchedAreaId = watch("area_id");
+  useEffect(() => {
+    const area = areas.find((item) => String(item.id) === watchedAreaId);
+    if (!area || area.centroid_lat === null || area.centroid_lng === null) return;
+    const lat = Number(getValues("latitude"));
+    const lng = Number(getValues("longitude"));
+    const placed = getValues("latitude") !== "" && getValues("longitude") !== "";
+    const near =
+      placed &&
+      insideGhana(lat, lng) &&
+      Math.hypot(lat - area.centroid_lat, (lng - area.centroid_lng) * Math.cos((lat * Math.PI) / 180)) *
+        111 <=
+        25;
+    if (near) return;
+    setValue("latitude", area.centroid_lat.toFixed(6), {shouldDirty: true});
+    setValue("longitude", area.centroid_lng.toFixed(6), {shouldDirty: true});
+    setPinConfirmed(false);
+  }, [watchedAreaId, areas, getValues, setValue]);
+
   function useCurrentLocation() {
     setLocationMessage(null);
     if (!("geolocation" in navigator)) {
@@ -1230,6 +1379,14 @@ export function TrainerJoinWizard() {
     setLocationMessage(t("locationFinding"));
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        // A phone abroad, or one whose location comes from a VPN, reports
+        // somewhere outside Ghana. That is how a listing got a pin in
+        // Finland: say so and leave the pin where it was.
+        if (!insideGhana(position.coords.latitude, position.coords.longitude)) {
+          setLocationState("error");
+          setLocationMessage(t("locationOutsideGhana"));
+          return;
+        }
         setCoordinates({lat: position.coords.latitude, lng: position.coords.longitude});
         setLocationState("success");
         // GPS indoors is routinely out by the width of a street, so this is
@@ -1565,7 +1722,7 @@ export function TrainerJoinWizard() {
     selectedArea && selectedArea.centroid_lat !== null && selectedArea.centroid_lng !== null
       ? {lat: selectedArea.centroid_lat, lng: selectedArea.centroid_lng}
       : null;
-  const selectedTrade = trades.find((trade) => String(trade.id) === values.trade_id);
+  const selectedTrade = trades.find((trade) => String(trade.id) === watch("trade_id"));
   const instalmentsAllowed = watch("instalments_allowed");
   const feeIncludesCertificate = watch("fee_includes_certificate");
   const intakeStartDate = watch("intake_start_date");
@@ -1861,9 +2018,15 @@ export function TrainerJoinWizard() {
                   <Input
                     id="lead_trainer_name"
                     {...register("lead_trainer_name")}
-                    placeholder={t("masterNamePlaceholder")}
+                    // The owner already named above teaches unless told
+                    // otherwise: their name stands in, and the listing uses it.
+                    placeholder={watch("owner_name").trim() || t("masterNamePlaceholder")}
                     aria-invalid={Boolean(errors.lead_trainer_name)}
+                    aria-describedby="master-name-hint"
                   />
+                  <p id="master-name-hint" className="text-xs text-[var(--color-muted-foreground)]">
+                    {t("masterNameHint")}
+                  </p>
                   <FieldError id="master-name-error" message={errors.lead_trainer_name?.message} />
                 </div>
                 <div className="space-y-2">
@@ -1897,9 +2060,17 @@ export function TrainerJoinWizard() {
                     {TEACHING_LANGUAGES.map((code) => (
                       <label
                         key={code}
+                        htmlFor={`teaching-language-${code}`}
                         className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm"
                       >
-                        <input type="checkbox" value={code} {...register("teaching_languages")} />
+                        {/* id and htmlFor as well as wrapping: the name read
+                            out is the language, never its code. */}
+                        <input
+                          id={`teaching-language-${code}`}
+                          type="checkbox"
+                          value={code}
+                          {...register("teaching_languages")}
+                        />
                         {tLanguage(code)}
                       </label>
                     ))}
@@ -2078,11 +2249,13 @@ export function TrainerJoinWizard() {
                 type="button"
                 variant="brand"
                 disabled={busy}
-                onClick={() => {
-                  if (!pinConfirmed && getValues("latitude") && getValues("longitude")) {
-                    setError(t("confirmPinFirst"));
-                    return;
-                  }
+                onClick={async () => {
+                  // Every problem on the step at once: the fields first, then
+                  // the pin, never one per press.
+                  const valid = await trigger(WORKSHOP_FIELDS, {shouldFocus: true});
+                  const pinPending = !pinConfirmed && getValues("latitude") && getValues("longitude");
+                  if (pinPending) setError(t("confirmPinFirst"));
+                  if (!valid || pinPending) return;
                   void saveThenContinue(WORKSHOP_FIELDS, "photos");
                 }}
                 className="w-full"
@@ -2287,7 +2460,14 @@ export function TrainerJoinWizard() {
                 onClick={() => setStep("course")}
                 className="w-full sm:flex-1"
               >
-                {t("continueToCourse")}
+                {/* Photos upload one at a time, so on a weak connection they
+                    can follow later; the button says so while any is missing.
+                    Sending for review still waits for them. */}
+                {photos.some((photo) => photo.kind === "workshop") &&
+                photos.some((photo) => photo.kind === "work") &&
+                hasIdDocument
+                  ? t("continueToCourseDone")
+                  : t("continueToCourse")}
                 <ArrowRight aria-hidden="true" />
               </Button>
             </CardFooter>
@@ -2392,8 +2572,9 @@ export function TrainerJoinWizard() {
               </div>
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4">
-                <Label className="flex min-h-11 cursor-pointer items-center gap-3 leading-5">
+                <Label htmlFor="instalments_allowed" className="flex min-h-11 cursor-pointer items-center gap-3 leading-5">
                   <input
+                    id="instalments_allowed"
                     type="checkbox"
                     {...register("instalments_allowed")}
                     className="size-5 shrink-0 accent-[var(--color-brand)]"
@@ -2401,18 +2582,13 @@ export function TrainerJoinWizard() {
                   {t("instalmentsLabel")}
                 </Label>
                 {instalmentsAllowed ? (
-                  <div className="mt-3 space-y-2 border-t border-[var(--color-border)] pt-4">
-                    <Label htmlFor="instalment_note">
-                      {t("instalmentNoteLabel")}
-                      <RequiredCue />
-                    </Label>
-                    <Input
-                      id="instalment_note"
-                      {...register("instalment_note")}
-                      required
-                      placeholder={t("instalmentNotePlaceholder")}
-                      aria-invalid={Boolean(errors.instalment_note)}
-                      aria-describedby={describedBy(errors.instalment_note && "instalment-note-error")}
+                  <div className="mt-3 border-t border-[var(--color-border)] pt-4">
+                    <InstalmentPlan
+                      value={watch("instalment_note")}
+                      onChange={(note) =>
+                        setValue("instalment_note", note, {shouldDirty: true, shouldValidate: Boolean(errors.instalment_note)})
+                      }
+                      invalid={Boolean(errors.instalment_note)}
                     />
                     <FieldError id="instalment-note-error" message={errors.instalment_note?.message} />
                   </div>
@@ -2487,9 +2663,10 @@ export function TrainerJoinWizard() {
                   ).map((field) => (
                     <label
                       key={field}
+                      htmlFor={field}
                       className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3"
                     >
-                      <input type="checkbox" {...register(field)} />
+                      <input id={field} type="checkbox" {...register(field)} />
                       <span className="text-sm">{t(`feeCovers.${field}`)}</span>
                     </label>
                   ))}
@@ -2542,7 +2719,7 @@ export function TrainerJoinWizard() {
                     <Input
                       id="extra_costs_note"
                       {...register("extra_costs_note")}
-                      placeholder={t("extraCostsNotePlaceholder")}
+                      placeholder={extrasExample(selectedTrade?.slug, t)}
                       aria-invalid={Boolean(errors.extra_costs_note)}
                     />
                   </div>
@@ -2678,11 +2855,42 @@ export function TrainerJoinWizard() {
                 <div className="min-w-0">
                   <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewLocation")}</dt>
                   <dd className="mt-1 break-words font-medium">
-                    {values.address}
-                    {selectedArea ? `, ${selectedArea.name}` : ""}
+                    {/* "Madina, Madina" when the address is just the area. */}
+                    {[values.address.trim(), selectedArea?.name]
+                      .filter(
+                        (part, index, parts): part is string =>
+                          Boolean(part) &&
+                          (index === 0 || !parts[0]?.toLowerCase().includes(String(part).toLowerCase())),
+                      )
+                      .join(", ")}
                   </dd>
                 </div>
+                <ReviewRow label={t("reviewMaster")}>
+                  {values.lead_trainer_name.trim() || values.owner_name.trim()}
+                </ReviewRow>
+                <ReviewRow label={t("reviewLanguages")}>
+                  {values.teaching_languages.length
+                    ? values.teaching_languages
+                        .filter(isTeachingLanguage)
+                        .map((code) => tLanguage(code))
+                        .join(", ")
+                    : t("reviewNotGiven")}
+                </ReviewRow>
               </dl>
+              {/* The pin trainees will be sent to, as they will see it. */}
+              {insideGhana(Number(values.latitude), Number(values.longitude)) ? (
+                <div className="mt-5 overflow-hidden rounded-xl border border-[var(--color-border)]">
+                  <ProviderLocationMap
+                    place={{
+                      lat: Number(values.latitude),
+                      lng: Number(values.longitude),
+                      primary_photo: null,
+                      logo: null,
+                    }}
+                    label={t("reviewPin")}
+                  />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -2712,7 +2920,7 @@ export function TrainerJoinWizard() {
                 </div>
                 <div className="min-w-0">
                   <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewFee")}</dt>
-                  <dd className="mt-1 break-words font-medium">GH₵{values.fee}</dd>
+                  <dd className="mt-1 break-words font-medium">{money(values.fee)}</dd>
                 </div>
                 <div className="min-w-0">
                   <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewDuration")}</dt>
@@ -2725,9 +2933,39 @@ export function TrainerJoinWizard() {
                 <div className="min-w-0 sm:col-span-2">
                   <dt className="text-xs text-[var(--color-muted-foreground)]">{t("reviewNextIntake")}</dt>
                   <dd className="mt-1 break-words font-medium">
-                    {values.intake_start_date || t("dateNotKnown")}
+                    {values.intake_start_date ? formatDate(values.intake_start_date) : t("dateNotKnown")}
                   </dd>
                 </div>
+                <ReviewRow label={t("reviewPayment")}>
+                  {values.instalments_allowed ? values.instalment_note || t("reviewInstalments") : t("reviewFullPayment")}
+                </ReviewRow>
+                <ReviewRow label={t("reviewIncluded")}>
+                  {(["fee_includes_tools", "fee_includes_materials", "fee_includes_ppe", "fee_includes_certificate"] as const)
+                    .filter((field) => values[field])
+                    .map((field) => t(`feeCovers.${field}`))
+                    .join(", ") || t("reviewNothingIncluded")}
+                </ReviewRow>
+                <ReviewRow label={t("reviewExtras")}>
+                  {values.extra_costs
+                    ? `${money(values.extra_costs)}${values.extra_costs_note ? `: ${values.extra_costs_note}` : ""}`
+                    : t("reviewNotGiven")}
+                </ReviewRow>
+                {values.extra_costs ? (
+                  <ReviewRow label={t("reviewTotal")}>
+                    {money(String(plainNumber(values.fee) + plainNumber(values.extra_costs)))}
+                  </ReviewRow>
+                ) : null}
+                <ReviewRow label={t("reviewSchedule")}>
+                  {[
+                    values.weekly_schedule.trim(),
+                    values.hours_per_week ? t("reviewHours", {count: plainNumber(values.hours_per_week)}) : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || t("reviewNotGiven")}
+                </ReviewRow>
+                <ReviewRow label={t("reviewCapacity")}>
+                  {values.capacity ? t("reviewPlaces", {count: plainNumber(values.capacity)}) : t("reviewNotGiven")}
+                </ReviewRow>
               </dl>
             </CardContent>
           </Card>
@@ -2743,8 +2981,8 @@ export function TrainerJoinWizard() {
             <legend className="px-1.5 text-sm font-semibold">{t("beforeYouSend")}</legend>
 
             {(["declared_accurate", "site_visit_consent", "data_consent"] as const).map((field) => (
-              <label key={field} className="flex cursor-pointer items-start gap-3 text-sm leading-6">
-                <input type="checkbox" className="mt-1.5 shrink-0" {...register(field)} />
+              <label key={field} htmlFor={field} className="flex cursor-pointer items-start gap-3 text-sm leading-6">
+                <input id={field} type="checkbox" className="mt-1.5 shrink-0" {...register(field)} />
                 <span>{t(`declarations.${field}`, {brand: BRAND})}</span>
               </label>
             ))}

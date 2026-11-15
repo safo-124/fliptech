@@ -227,3 +227,23 @@ describe("intake dates", () => {
     expect(trainerDraftSchemaFor(iso(-40)).safeParse(dated(iso(30))).success).toBe(true);
   });
 });
+
+describe("numbers as people type them", () => {
+  it("accepts thousands separators and a cedi sign in money", () => {
+    const course = trainerDraftSchemaFor(null).safeParse({
+      ...EMPTY_TRAINER_DRAFT,
+      fee: "1,200",
+      extra_costs: "GH₵ 300",
+    });
+    const issues = course.success ? [] : course.error.issues.map((issue) => issue.path[0]);
+    expect(issues).not.toContain("fee");
+    expect(issues).not.toContain("extra_costs");
+  });
+
+  it("says a negative count cannot be negative", () => {
+    const result = trainerDraftSchemaFor(null).safeParse({...EMPTY_TRAINER_DRAFT, trainee_count: "-5"});
+    const issue = result.success ? null : result.error.issues.find((item) => item.path[0] === "trainee_count");
+    expect(issue?.message).toBe("notNegative");
+  });
+});
+

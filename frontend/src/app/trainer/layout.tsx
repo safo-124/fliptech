@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function TrainerLayout({children}: {children: React.ReactNode}) {
   return (
-    <div className="relative isolate mx-auto min-h-[60dvh] max-w-[84rem] overflow-hidden px-3 py-5 sm:py-7 lg:px-6 lg:py-10">
+    <div className="relative isolate mx-auto min-h-[60dvh] max-w-[84rem] overflow-clip px-3 py-5 sm:py-7 lg:px-6 lg:py-10">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-28 -top-32 -z-10 size-72 rounded-full bg-[var(--color-brand-soft)]/70 blur-3xl"
