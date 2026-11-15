@@ -11,10 +11,16 @@ import type {TrainerProfile} from "./types";
 const requiredText = (required: ValidationKey, maximum: number) =>
   z.string().trim().min(1, v(required)).max(maximum, v("tooLong"));
 
+/** "1,200", "1 200" and "GH₵1200" all mean 1200: people type money the way they write it. */
+const withoutSeparators = (value: string) => value.replace(/[\s,]|gh₵|ghs|ghc|₵/gi, "");
+
 const optionalWholeNumber = z
   .string()
   .trim()
-  .refine((value) => value === "" || /^\d+$/.test(value), v("wholeNumber"));
+  .transform(withoutSeparators)
+  // Said plainly: "-5 apprentices" is not a mistake about whole numbers.
+  .refine((value) => !/^-/.test(value), v("notNegative"))
+  .refine((value) => value === "" || /^-|^\d+$/.test(value), v("wholeNumber"));
 
 const coordinate = (
   messages: {required: ValidationKey; invalid: ValidationKey; range: ValidationKey},
@@ -82,7 +88,9 @@ const trainerDraftShape = z.object({
   fee: z
     .string()
     .trim()
-    .regex(/^\d+(?:\.\d{1,2})?$/, v("feeInvalid")),
+    .transform(withoutSeparators)
+    .refine((value) => !/^-/.test(value), v("notNegative"))
+    .refine((value) => /^-|^\d+(?:\.\d{1,2})?$/.test(value), v("feeInvalid")),
   duration_weeks: z
     .string()
     .trim()
@@ -103,7 +111,9 @@ const trainerDraftShape = z.object({
   extra_costs: z
     .string()
     .trim()
-    .regex(/^(?:\d+(?:\.\d{1,2})?)?$/, v("amountInvalid")),
+    .transform(withoutSeparators)
+    .refine((value) => !/^-/.test(value), v("notNegative"))
+    .refine((value) => /^-|^(?:\d+(?:\.\d{1,2})?)?$/.test(value), v("amountInvalid")),
   extra_costs_note: z.string().trim().max(200, v("tooLong")),
   intake_start_date: z.string(),
   places_offered: optionalWholeNumber,
@@ -292,7 +302,8 @@ export function trainerDraftForStorage(
 }
 
 function optionalNumber(value: string): number | null {
-  return value === "" ? null : Number(value);
+  const plain = withoutSeparators(value.trim());
+  return plain === "" ? null : Number(plain);
 }
 
 /**
