@@ -41,7 +41,13 @@ def trainee(db):
 
 @pytest.mark.django_db
 def test_nobody_signed_in(client):
-    assert whoami(client) == {"trainer": None, "trainee": None, "customer": None, "seller": None}
+    assert whoami(client) == {
+        "user_id": None,
+        "trainer": None,
+        "trainee": None,
+        "customer": None,
+        "seller": None,
+    }
 
 
 @pytest.mark.django_db
@@ -123,9 +129,17 @@ def test_staff_are_in_neither_public_area(client, django_user_model):
     Answering "trainee" for someone in a support session would put another
     person's name in the header of whoever is helping them.
     """
-    client.force_login(django_user_model.objects.create_superuser("boss", password="pw"))
+    boss = django_user_model.objects.create_superuser("boss", password="pw")
+    client.force_login(boss)
 
-    assert whoami(client) == {"trainer": None, "trainee": None, "customer": None, "seller": None}
+    # Their id only, so a draft typed before they signed in is not theirs.
+    assert whoami(client) == {
+        "user_id": boss.pk,
+        "trainer": None,
+        "trainee": None,
+        "customer": None,
+        "seller": None,
+    }
 
 
 # --------------------------------------------------------------------------

@@ -6,6 +6,7 @@
  * token.
  */
 
+import {clearAllDrafts} from "./drafts";
 import {trainerFetch as sessionFetch} from "./trainer-api";
 import type {MarketplaceOrder, PayoutBank} from "./types";
 
@@ -113,6 +114,7 @@ export function startSelling() {
 }
 
 export function signOutSeller() {
+  clearAllDrafts();
   return sessionFetch<SellerSession>("/api/seller/logout/", {method: "POST"});
 }
 

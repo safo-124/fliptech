@@ -179,9 +179,9 @@ class ProviderBySlugView(RetrieveAPIView):
         # "find the gate", and the master's portrait.
         single_photos = Prefetch(
             "photos",
-            queryset=ProviderPhoto.objects.filter(
-                kind__in=[ProviderPhoto.Kind.ENTRANCE, ProviderPhoto.Kind.PORTRAIT]
-            ).order_by("-created_at"),
+            queryset=ProviderPhoto.objects.approved()
+            .filter(kind__in=[ProviderPhoto.Kind.ENTRANCE, ProviderPhoto.Kind.PORTRAIT])
+            .order_by("-created_at"),
             to_attr="single_photos",
         )
         return get_object_or_404(

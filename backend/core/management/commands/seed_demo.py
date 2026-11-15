@@ -82,6 +82,7 @@ class Command(BaseCommand):
             photo = ProviderPhoto(
                 provider=provider, kind=kind, display_order=order, caption=caption
             )
+            photo.approve()  # Staff-run: chosen by staff, so already approved.
             photo.image.save(f"{provider.slug}-{kind}.jpg", ContentFile(content), save=True)
         return True
 
@@ -114,6 +115,7 @@ class Command(BaseCommand):
                     index=n,
                 )
                 photo = ProviderPhoto(provider=provider, kind=kind, display_order=n)
+                photo.approve()
                 photo.image.save(
                     f"{provider.slug}-{kind}-{n}.jpg",
                     ContentFile(content),

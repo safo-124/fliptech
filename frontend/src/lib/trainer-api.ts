@@ -1,3 +1,4 @@
+import {clearAllDrafts} from "./drafts";
 import {API_URL, TrainerApiError, trainerFetch} from "./trainer-fetch";
 import type {
   Paginated,
@@ -227,6 +228,7 @@ export async function submitTrainerProfile() {
 }
 
 export function logoutTrainer() {
+  clearAllDrafts();
   return trainerFetch<TrainerSession>("/api/trainer/logout/", {
     method: "POST",
     body: JSON.stringify({}),

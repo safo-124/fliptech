@@ -6,6 +6,7 @@
  * code.
  */
 
+import {clearAllDrafts} from "./drafts";
 import {trainerFetch as sessionFetch} from "./trainer-fetch";
 import type {MarketplaceOrder} from "./types";
 
@@ -69,6 +70,8 @@ export function updateAccount(
 }
 
 export function signOutAccount() {
+  // Drafts go whether or not the request succeeds: the person is leaving.
+  clearAllDrafts();
   return sessionFetch<AccountSession>("/api/account/logout/", {method: "POST"});
 }
 

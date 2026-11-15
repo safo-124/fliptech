@@ -7,6 +7,9 @@
  * mid-submit, so the draft is mirrored into sessionStorage on every change and
  * restored on mount. Losing a typed message on a flaky connection is the exact
  * moment a trainee gives up.
+ *
+ * The draft belongs to whoever typed it (lib/drafts.ts): it is restored only
+ * for the same person, never for the next one to use the tab.
  */
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,10 +34,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { v, validationMessage } from "@/i18n/validation";
 import { postJson } from "@/lib/api";
+import { ENQUIRY_DRAFT, readDraft, removeDraft, writeDraft } from "@/lib/drafts";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
+import { currentDraftOwner } from "@/lib/session-api";
 import type { EnquiryConfirmation } from "@/lib/types";
-
-const DRAFT_KEY = "skillshub.enquiry.draft";
 
 const schema = z.object({
   phone: ghanaPhoneSchema,
@@ -67,17 +70,23 @@ export function EnquiryForm({
   });
   const { register, handleSubmit, getValues, reset, formState } = form;
 
-  // Restore anything typed before a reload or a dropped connection.
+  // Restore anything this same person typed before a reload or a dropped
+  // connection. Who that is comes from the server, so a draft left by the
+  // previous person in this tab is dropped rather than shown.
+  const owner = useRef<string | null>(null);
   useEffect(() => {
-    const saved = sessionStorage.getItem(DRAFT_KEY);
-    if (saved) {
-      try {
-        reset(JSON.parse(saved));
-      } catch {
-        sessionStorage.removeItem(DRAFT_KEY);
-      }
-    }
-  }, [reset]);
+    let active = true;
+    currentDraftOwner().then((who) => {
+      if (!active) return;
+      owner.current = who;
+      const saved = readDraft<FormValues>(ENQUIRY_DRAFT, who);
+      // Only fill a form the visitor has not started typing in meanwhile.
+      if (saved && !getValues("phone") && !getValues("message")) reset(saved);
+    });
+    return () => {
+      active = false;
+    };
+  }, [getValues, reset]);
 
   useEffect(() => {
     if (step === "code") codeInputRef.current?.focus();
@@ -87,7 +96,7 @@ export function EnquiryForm({
   // watch(), whose returned function cannot be memoized safely and so forces a
   // re-subscribe on every render.
   function saveDraft() {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(getValues()));
+    if (owner.current) writeDraft(ENQUIRY_DRAFT, owner.current, getValues());
   }
 
   async function requestCode(values: FormValues) {
@@ -133,7 +142,7 @@ export function EnquiryForm({
       trainee_name: values.trainee_name ?? "",
       message: values.message ?? "",
     });
-    sessionStorage.removeItem(DRAFT_KEY);
+    removeDraft(ENQUIRY_DRAFT);
     onSent(confirmation);
   }
 

@@ -42,7 +42,9 @@ def listed_provider(db, settings, tmp_path):
         contact_phone="+233241234567",
         status=Provider.Status.PUBLISHED,
     )
-    ProviderPhoto.objects.create(provider=provider, kind=ProviderPhoto.Kind.WORKSHOP, image=jpeg())
+    photo = ProviderPhoto(provider=provider, kind=ProviderPhoto.Kind.WORKSHOP, image=jpeg())
+    photo.approve()  # Public pages show approved photos only.
+    photo.save()
     provider.logo = jpeg("logo.jpg")
     provider.save(update_fields=["logo"])
     return provider

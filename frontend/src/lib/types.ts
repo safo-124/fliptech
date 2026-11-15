@@ -669,6 +669,8 @@ export type TrainerEnquiry = {
  * into the back office, which is neither of these.
  */
 export type Whoami = {
+  /** Who is signed in, or null. Used to keep form drafts to their owner. */
+  user_id?: number | null;
   /** Everyone signed in has a customer account. */
   customer: {name: string; avatar?: string | null} | null;
   seller: {name: string} | null;

@@ -55,7 +55,10 @@ class ProviderPhotoSerializer(serializers.ModelSerializer):
             before = obj.before
         except ProviderPhoto.DoesNotExist:
             return None
-        return public_url(before.image.url, self.context.get("request")) if before.image else None
+        # Staff approve each photo on its own, the 'before' included.
+        if not before.image or not before.is_approved:
+            return None
+        return public_url(before.image.url, self.context.get("request"))
 
 
 class VerificationBadgeSerializer(serializers.ModelSerializer):
@@ -435,7 +438,7 @@ class ProviderDetailSerializer(ProviderListSerializer):
         """The newest photo of a one-per-workshop kind. ProviderBySlugView prefetches them."""
         photos = getattr(obj, "single_photos", None)
         if photos is None:
-            photos = obj.photos.filter(kind=kind).order_by("-created_at")
+            photos = obj.photos.approved().filter(kind=kind).order_by("-created_at")
         photo = next((photo for photo in photos if photo.kind == kind), None)
         return public_url(photo.image.url, self.context.get("request")) if photo else None
 

@@ -239,6 +239,20 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
     # submission_blockers.
     programme = TrainerProgrammeInputSerializer(required=False, allow_null=True, default=None)
 
+    def validate(self, attrs):
+        # The pin must be in Ghana and near the area the listing names. A
+        # listing went live headed "Accra Central" with its pin in Finland.
+        from django.contrib.gis.geos import Point
+
+        from geography.bounds import location_problem
+
+        problem = location_problem(
+            Point(attrs["longitude"], attrs["latitude"], srid=4326), attrs.get("area")
+        )
+        if problem:
+            raise serializers.ValidationError({"latitude": problem, "longitude": problem})
+        return attrs
+
 
 # --- Upload schemas -------------------------------------------------------
 #
