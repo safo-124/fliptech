@@ -513,7 +513,12 @@ class ProgrammeAdmin(CatalogWorkspaceMixin, SimpleHistoryAdmin):
         (
             "Cost",
             {
-                "fields": ("fee", "instalments_allowed", "instalment_note"),
+                "fields": (
+                    "fee",
+                    "instalments_allowed",
+                    ("instalment_count", "instalment_deposit_percent"),
+                    "instalment_note",
+                ),
                 "description": "Show the full fee and explain any instalment arrangement.",
             },
         ),

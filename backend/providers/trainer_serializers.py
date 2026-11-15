@@ -85,6 +85,13 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     title = serializers.CharField(max_length=200)
     fee = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
     instalments_allowed = serializers.BooleanField(required=False, default=False)
+    # Asked as two choices rather than typed. See Programme.instalment_count.
+    instalment_count = serializers.IntegerField(
+        min_value=2, max_value=12, required=False, allow_null=True, default=None
+    )
+    instalment_deposit_percent = serializers.IntegerField(
+        min_value=0, max_value=90, required=False, allow_null=True, default=None
+    )
     instalment_note = serializers.CharField(
         max_length=200,
         required=False,
@@ -134,7 +141,18 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     def validate(self, attrs):
         if not attrs.get("instalments_allowed"):
             attrs["instalment_note"] = ""
-        elif re.fullmatch(r"[\d\s.,%]+", attrs.get("instalment_note") or ""):
+            attrs["instalment_count"] = None
+            attrs["instalment_deposit_percent"] = None
+            return attrs
+        if attrs.get("instalment_count") is None:
+            raise serializers.ValidationError(
+                {"instalment_count": _("Choose how many payments a trainee can make.")}
+            )
+        # No deposit is stored as empty, so a listing never says "0% first".
+        if not attrs.get("instalment_deposit_percent"):
+            attrs["instalment_deposit_percent"] = None
+        note = (attrs.get("instalment_note") or "").strip()
+        if note and re.fullmatch(r"[\d\s.,%]+", note):
             # "30" alone: days, cedis, per cent? A trainee cannot tell.
             raise serializers.ValidationError(
                 {

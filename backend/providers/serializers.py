@@ -126,6 +126,8 @@ class ProgrammeSerializer(serializers.ModelSerializer):
             "trade_colour",
             "fee",
             "instalments_allowed",
+            "instalment_count",
+            "instalment_deposit_percent",
             "instalment_note",
             # The receipt on the listing: what the fee covers, and roughly what
             # the rest costs.
@@ -463,7 +465,9 @@ class ProviderDetailSerializer(ProviderListSerializer):
             max(0, timezone.localdate().year - obj.in_trade_since) if obj.in_trade_since else None
         )
         return {
-            "name": obj.lead_trainer_name,
+            # The owner when no other master is named: the form asks for the
+            # master only if someone other than the owner teaches.
+            "name": obj.lead_trainer_name or obj.owner_name,
             "portrait": portrait,
             "years_in_trade": years,
             "apprentices_trained": obj.apprentices_trained,

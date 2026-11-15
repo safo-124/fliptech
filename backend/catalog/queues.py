@@ -72,7 +72,9 @@ def missing_capacity(queryset: QuerySet) -> QuerySet:
 
 
 def instalment_details_missing(queryset: QuerySet) -> QuerySet:
-    return queryset.filter(instalments_allowed=True, instalment_note="").distinct()
+    return queryset.filter(
+        instalments_allowed=True, instalment_count__isnull=True, instalment_note=""
+    ).distinct()
 
 
 def inactive_with_open_intake(queryset: QuerySet) -> QuerySet:
@@ -147,7 +149,7 @@ def programme_counts(queryset: QuerySet) -> dict[str, int]:
         missing_capacity=Count("pk", filter=Q(capacity__isnull=True), distinct=True),
         instalment_details_missing=Count(
             "pk",
-            filter=Q(instalments_allowed=True, instalment_note=""),
+            filter=Q(instalments_allowed=True, instalment_count__isnull=True, instalment_note=""),
             distinct=True,
         ),
         inactive_with_open_intake=Count(
