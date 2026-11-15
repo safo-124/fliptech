@@ -1,4 +1,6 @@
+import {addRole} from "./account-api";
 import {clearAllDrafts} from "./drafts";
+import {getWhoami} from "./session-api";
 import {API_URL, TrainerApiError, trainerFetch} from "./trainer-fetch";
 import type {
   Paginated,
@@ -21,6 +23,30 @@ const MAX_REFERENCE_PAGES = 100;
 
 export function getTrainerSession() {
   return trainerFetch<TrainerSession>("/api/trainer/session/me/");
+}
+
+/**
+ * The trainer session for someone who has come to join as a trainer.
+ *
+ * One login covers the whole site, but the trainer area only counts someone
+ * once their login is a trainer too. A visitor already signed in (as a buyer
+ * or learner) who opens "Register as a trainer" is made a trainer on the
+ * same login, the way the account page's "List my workshop" does, instead of
+ * being asked for their phone again. Anyone not signed in gets the plain
+ * signed-out answer and the phone step.
+ */
+export async function getTrainerSessionForJoining(): Promise<TrainerSession> {
+  const session = await getTrainerSession();
+  if (session.authenticated) return session;
+  const who = await getWhoami().catch(() => null);
+  if (!who?.customer) return session;
+  try {
+    await addRole("trainer");
+  } catch {
+    // A trainer login staff switched off stays off: the phone step explains.
+    return session;
+  }
+  return getTrainerSession();
 }
 
 export function requestTrainerCode(phone: string) {

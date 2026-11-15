@@ -62,7 +62,7 @@ import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {getWhoami} from "@/lib/session-api";
 import {
   getTrainerReferenceData,
-  getTrainerSession,
+  getTrainerSessionForJoining,
   requestTrainerCode,
   requestTrainerEmailCode,
   deleteTrainerPhoto,
@@ -892,7 +892,9 @@ export function TrainerJoinWizard() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      getTrainerSession(),
+      // Already signed in on the main site: straight to the profile, no
+      // second phone code. See getTrainerSessionForJoining.
+      getTrainerSessionForJoining(),
       getTrainerReferenceData(),
       getWhoami().catch(() => null),
     ])
