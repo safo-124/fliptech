@@ -308,8 +308,8 @@ function NeededBadge() {
 
 /**
  * A tile that adds a photo. It is a label around a hidden file input, so the
- * whole tile opens the camera (on a phone) or the file picker, and the input
- * stays reachable by keyboard.
+ * whole tile opens the phone's own choice of camera or gallery (the file
+ * picker on a computer), and the input stays reachable by keyboard.
  */
 function AddTile({
   id,
@@ -317,7 +317,6 @@ function AddTile({
   sub,
   icon: Icon = Camera,
   onFile,
-  camera = true,
   className = "aspect-4/3",
 }: {
   id: string;
@@ -325,7 +324,6 @@ function AddTile({
   sub?: string;
   icon?: typeof Camera;
   onFile: (file: File) => void;
-  camera?: boolean;
   className?: string;
 }) {
   return (
@@ -340,8 +338,8 @@ function AddTile({
         id={id}
         type="file"
         accept="image/*"
-        // capture hints the camera on a phone, which is where these are taken.
-        capture={camera ? "environment" : undefined}
+        // No capture attribute: on Android, Chrome reads it as camera only
+        // and hides the gallery. Without it the phone offers both.
         className="sr-only"
         onChange={(event) => {
           const file = event.target.files?.[0];
@@ -515,7 +513,6 @@ function SlotCard({
   onFile,
   onRemove,
   contain = false,
-  camera = true,
 }: {
   id: string;
   icon: typeof Camera;
@@ -527,7 +524,6 @@ function SlotCard({
   onFile: (file: File) => void;
   onRemove: () => void;
   contain?: boolean;
-  camera?: boolean;
 }) {
   if (busy) return <UploadingTile className="min-h-28" />;
   if (imageUrl) {
@@ -539,7 +535,7 @@ function SlotCard({
     );
   }
   return (
-    <AddTile id={id} label={title} sub={sub} icon={icon} onFile={onFile} camera={camera} className="min-h-28" />
+    <AddTile id={id} label={title} sub={sub} icon={icon} onFile={onFile} className="min-h-28" />
   );
 }
 
@@ -2147,7 +2143,6 @@ export function TrainerJoinWizard() {
                             id="id-input"
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             disabled={uploading}
                             className="sr-only"
                             onChange={(event) => {
@@ -2184,7 +2179,6 @@ export function TrainerJoinWizard() {
                       onFile={(file) => void setLogo(file)}
                       onRemove={() => void removeLogo()}
                       contain
-                      camera={false}
                     />
                   </li>
                   <li>
