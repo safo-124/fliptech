@@ -128,6 +128,46 @@ def test_publishing_skips_a_draft_that_was_never_submitted(
     assert provider.status == Provider.Status.DRAFT
 
 
+@pytest.mark.django_db
+def test_submitting_a_draft_puts_it_in_the_approval_queue(
+    client, django_user_model, groups, provider
+):
+    provider.status = Provider.Status.DRAFT
+    provider.save()
+    client.force_login(staff_user(django_user_model, "officer", groups["officer"]))
+
+    response = client.post(
+        reverse("admin:providers_provider_changelist"),
+        {"action": "submit_for_approval", "_selected_action": [provider.pk]},
+        follow=True,
+    )
+
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+    assert "1 provider(s) submitted for approval." in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_submitting_one_already_waiting_says_to_publish_instead(
+    client, django_user_model, groups, provider
+):
+    """It used to say "0 provider(s) submitted", which read as a broken button."""
+    client.force_login(staff_user(django_user_model, "lead", groups["lead"]))
+
+    response = client.post(
+        reverse("admin:providers_provider_changelist"),
+        {"action": "submit_for_approval", "_selected_action": [provider.pk]},
+        follow=True,
+    )
+
+    page = response.content.decode()
+    assert "Already submitted and waiting for approval" in page
+    assert "Publish selected listings" in page
+    assert "0 provider(s) submitted" not in page
+    provider.refresh_from_db()
+    assert provider.status == Provider.Status.PENDING_APPROVAL
+
+
 # --------------------------------------------------------------------------
 # EXIF
 # --------------------------------------------------------------------------

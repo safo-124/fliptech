@@ -502,14 +502,49 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
 
     @admin.action(description="Submit selected for approval")
     def submit_for_approval(self, request, queryset):
+        """Drafts (and listings sent back for changes) go to the approval queue.
+
+        Anything else is skipped, and the message says why and what to do
+        instead: a bare "0 submitted" read as the button not working, when the
+        listings were simply waiting for the next step already."""
         updated = 0
+        waiting, live, other = [], [], []
         for provider in queryset:
             try:
                 submit_provider(provider, actor=request.user)
             except ProviderTransitionError:
+                if provider.status == Provider.Status.PENDING_APPROVAL:
+                    waiting.append(provider.name)
+                elif provider.status == Provider.Status.PUBLISHED:
+                    live.append(provider.name)
+                else:
+                    other.append(provider.name)
                 continue
             updated += 1
-        self.message_user(request, f"{updated} provider(s) submitted for approval.")
+        if updated:
+            self.message_user(request, f"{updated} provider(s) submitted for approval.")
+        if waiting:
+            self.message_user(
+                request,
+                "Already submitted and waiting for approval: "
+                + ", ".join(waiting)
+                + '. To approve, choose "Publish selected listings" instead.',
+                level=messages.WARNING,
+            )
+        if live:
+            self.message_user(
+                request,
+                "Already published, so there is nothing to submit: " + ", ".join(live) + ".",
+                level=messages.WARNING,
+            )
+        if other:
+            self.message_user(
+                request,
+                "Not submitted, because only a draft or a listing returned for changes can be: "
+                + ", ".join(other)
+                + ".",
+                level=messages.WARNING,
+            )
 
     @admin.action(description="Publish selected listings")
     def publish_listings(self, request, queryset):
