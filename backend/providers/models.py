@@ -91,9 +91,12 @@ class ProviderQuerySet(models.QuerySet):
         # 'before' rides on the work photo it belongs to, and the entrance
         # photo is the profile's own (ProviderBySlugView), so neither turns up
         # as a card's picture or loose in a gallery.
-        gallery = ProviderPhoto.objects.filter(
-            kind__in=[ProviderPhoto.Kind.WORKSHOP, ProviderPhoto.Kind.WORK]
-        ).select_related("before")
+        # Approved photos only: see ProviderPhoto.approved_at.
+        gallery = (
+            ProviderPhoto.objects.approved()
+            .filter(kind__in=[ProviderPhoto.Kind.WORKSHOP, ProviderPhoto.Kind.WORK])
+            .select_related("before")
+        )
 
         return self.select_related("area", "area__region", "government_status").prefetch_related(
             Prefetch("photos", queryset=gallery),
@@ -271,6 +274,15 @@ class Provider(TimeStampedModel):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        """The pin is in Ghana and near the listing's area. See geography/bounds.py."""
+        super().clean()
+        from geography.bounds import location_problem
+
+        problem = location_problem(self.location, self.area if self.area_id else None)
+        if problem:
+            raise ValidationError({"location": problem})
+
     def save(self, *args, **kwargs):
         # Same contract as ProviderPhoto: `_committed` is False only for a
         # freshly assigned upload, so an ordinary edit does not re-encode the
@@ -427,8 +439,21 @@ class ProviderMembership(TimeStampedModel):
         return f"{self.trainer} owns {self.provider}"
 
 
+class ProviderPhotoQuerySet(models.QuerySet):
+    def approved(self):
+        """Photos staff have looked at and allowed on public pages."""
+        return self.filter(approved_at__isnull=False)
+
+
 class ProviderPhoto(TimeStampedModel):
-    """A public photograph, served from the public bucket."""
+    """A public photograph, served from the public bucket.
+
+    Shown on public pages only once staff have approved it (approved_at). A
+    listing once carried a job-scam flyer as its photo, and it reached the
+    home page. Photos staff upload themselves are approved as they upload.
+    """
+
+    objects = ProviderPhotoQuerySet.as_manager()
 
     class Kind(models.TextChoices):
         """What the photograph shows.
@@ -482,11 +507,35 @@ class ProviderPhoto(TimeStampedModel):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
 
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When staff allowed this photo on public pages. Empty: not shown yet.",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
     class Meta:
         ordering = ["display_order", "created_at"]
 
     def __str__(self):
         return f"Photo of {self.provider.name}"
+
+    @property
+    def is_approved(self):
+        return self.approved_at is not None
+
+    def approve(self, user=None):
+        from django.utils import timezone
+
+        self.approved_at = timezone.now()
+        self.approved_by = user
 
     def clean(self):
         """A 'before' belongs to one photo of this workshop's finished work; nothing else pairs."""

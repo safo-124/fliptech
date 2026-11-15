@@ -314,7 +314,13 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
         "declared_accurate_at",
         "site_visit_consent_at",
     )
-    actions = ["submit_for_approval", "publish_listings", "return_for_changes"]
+    actions = [
+        "submit_for_approval",
+        "publish_listings",
+        "return_for_changes",
+        "approve_listing_photos",
+        "hide_listing_photos",
+    ]
     change_form_template = "admin/providers/provider/change_form.html"
 
     def get_queryset(self, request):
@@ -545,6 +551,23 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
                 + ".",
                 level=messages.WARNING,
             )
+
+    @admin.action(description="Approve every photo on the selected listings")
+    def approve_listing_photos(self, request, queryset):
+        """After looking at a listing's photos (the review panel or Photos list)."""
+        from django.utils import timezone
+
+        count = ProviderPhoto.objects.filter(
+            provider__in=queryset, approved_at__isnull=True
+        ).update(approved_at=timezone.now(), approved_by=request.user)
+        self.message_user(request, f"{count} photo(s) approved and now shown on the site.")
+
+    @admin.action(description="Hide every photo on the selected listings")
+    def hide_listing_photos(self, request, queryset):
+        count = ProviderPhoto.objects.filter(
+            provider__in=queryset, approved_at__isnull=False
+        ).update(approved_at=None, approved_by=None)
+        self.message_user(request, f"{count} photo(s) hidden. They stay on the record.")
 
     @admin.action(description="Publish selected listings")
     def publish_listings(self, request, queryset):
@@ -865,17 +888,115 @@ class OwnerNoticeAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+class PhotoApprovalFilter(admin.SimpleListFilter):
+    title = "approval"
+    parameter_name = "approval"
+
+    def lookups(self, request, model_admin):
+        return (("waiting", "Waiting for approval"), ("approved", "Shown on the site"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "waiting":
+            return queryset.filter(approved_at__isnull=True)
+        if self.value() == "approved":
+            return queryset.filter(approved_at__isnull=False)
+        return queryset
+
+
 @admin.register(ProviderPhoto)
 class ProviderPhotoAdmin(admin.ModelAdmin):
-    """Where staff pair a 'before' with the finished work: set the kind to
-    "The same work, before" and choose the work photo it goes with."""
+    """Every workshop photo, to approve, hide or delete one at a time.
 
-    list_display = ("provider", "kind", "caption", "display_order", "exif_stripped", "created_at")
-    list_filter = ("kind", "exif_stripped")
+    A photo is on public pages only once approved. "Waiting for approval"
+    lists the ones to look at; tick them and choose an action. To remove one
+    photo for good, open it and press Delete, or tick it and choose "Delete
+    selected". Also where staff pair a 'before' with the finished work: set
+    the kind to "The same work, before" and choose the work photo it goes with.
+    """
+
+    list_display = (
+        "thumbnail",
+        "provider",
+        "kind",
+        "approval",
+        "caption",
+        "uploaded_by",
+        "created_at",
+    )
+    list_display_links = ("thumbnail", "provider")
+    list_filter = (PhotoApprovalFilter, "kind", "exif_stripped")
     search_fields = ("provider__name",)
     autocomplete_fields = ("provider",)
     raw_id_fields = ("shows_before_of",)
-    readonly_fields = ("exif_stripped",)
+    readonly_fields = ("preview", "exif_stripped", "approved_at", "approved_by", "uploaded_by")
+    actions = ("approve_photos", "hide_photos")
+    list_select_related = ("provider", "uploaded_by")
+
+    @admin.display(description="Photo")
+    def thumbnail(self, obj):
+        if not obj.image:
+            return "—"
+        return format_html(
+            '<img src="{}" alt="" style="width:72px;height:54px;object-fit:cover;border-radius:6px">',
+            obj.image.url,
+        )
+
+    @admin.display(description="Photo")
+    def preview(self, obj):
+        if not obj or not obj.image:
+            return "—"
+        return format_html(
+            '<img src="{}" alt="" style="max-width:420px;max-height:320px;border-radius:8px">',
+            obj.image.url,
+        )
+
+    @admin.display(description="On the site", boolean=False, ordering="approved_at")
+    def approval(self, obj):
+        if obj.is_approved:
+            return format_html('<span style="color:#15803d;font-weight:600">Approved</span>')
+        return format_html('<span style="color:#b45309;font-weight:600">Waiting</span>')
+
+    @admin.action(description="Approve: show these photos on the site")
+    def approve_photos(self, request, queryset):
+        from django.utils import timezone
+
+        count = queryset.filter(approved_at__isnull=True).update(
+            approved_at=timezone.now(), approved_by=request.user
+        )
+        self.message_user(request, f"{count} photo(s) approved and now shown on the site.")
+
+    @admin.action(description="Hide: take these photos off the site (keeps them)")
+    def hide_photos(self, request, queryset):
+        count = queryset.filter(approved_at__isnull=False).update(
+            approved_at=None, approved_by=None
+        )
+        self.message_user(
+            request, f"{count} photo(s) hidden from the site. Delete them to remove for good."
+        )
+
+    def get_fields(self, request, obj=None):
+        fields = [
+            "preview",
+            "provider",
+            "kind",
+            "shows_before_of",
+            "image",
+            "caption",
+            "display_order",
+            "exif_stripped",
+            "uploaded_by",
+            "approved_at",
+            "approved_by",
+        ]
+        return fields if obj else [f for f in fields if f not in ("preview",)]
+
+    def save_model(self, request, obj, form, change):
+        # A photo staff add here is one they chose, so it is approved.
+        if not change and obj.approved_at is None:
+            obj.approve(request.user)
+        if obj.uploaded_by_id is None:
+            obj.uploaded_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 class ProviderVideoForm(forms.ModelForm):

@@ -1,5 +1,7 @@
 """Input validation for passwordless trainer profile onboarding."""
 
+import re
+
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema_field
@@ -132,6 +134,16 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     def validate(self, attrs):
         if not attrs.get("instalments_allowed"):
             attrs["instalment_note"] = ""
+        elif re.fullmatch(r"[\d\s.,%]+", attrs.get("instalment_note") or ""):
+            # "30" alone: days, cedis, per cent? A trainee cannot tell.
+            raise serializers.ValidationError(
+                {
+                    "instalment_note": _(
+                        'Say what the number means, for example "3 payments over 3 months" '
+                        'or "pay within 30 days".'
+                    )
+                }
+            )
         return attrs
 
 
@@ -238,6 +250,20 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
     # the course step comes after them. Submission still needs a course: see
     # submission_blockers.
     programme = TrainerProgrammeInputSerializer(required=False, allow_null=True, default=None)
+
+    def validate(self, attrs):
+        # The pin must be in Ghana and near the area the listing names. A
+        # listing went live headed "Accra Central" with its pin in Finland.
+        from django.contrib.gis.geos import Point
+
+        from geography.bounds import location_problem
+
+        problem = location_problem(
+            Point(attrs["longitude"], attrs["latitude"], srid=4326), attrs.get("area")
+        )
+        if problem:
+            raise serializers.ValidationError({"latitude": problem, "longitude": problem})
+        return attrs
 
 
 # --- Upload schemas -------------------------------------------------------

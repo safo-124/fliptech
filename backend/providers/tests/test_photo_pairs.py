@@ -4,6 +4,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from catalog.models import Trade
 from geography.models import Area, Region
@@ -92,6 +93,8 @@ def test_the_listing_shows_pairs_the_way_in_and_directions_but_never_the_landmar
     upload(owner, "entrance")
     provider = Provider.objects.get()
     Provider.objects.filter(pk=provider.pk).update(status=Provider.Status.PUBLISHED)
+    # Staff approve what the trainer sent; until then none of it is public.
+    ProviderPhoto.objects.update(approved_at=timezone.now())
 
     listing = client.get(
         reverse("provider-by-slug", args=[provider.area.slug, provider.slug])

@@ -29,6 +29,7 @@ import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
 import { formatFee } from "@/lib/format";
+import { insideGhana } from "@/lib/ghana-bounds";
 import { softTilesClass, TILE_ATTRIBUTION, TILE_URL } from "@/lib/map-tiles";
 import type { MapProvider } from "@/lib/map-provider";
 
@@ -188,15 +189,13 @@ export function MapAccessibility({
   return null;
 }
 
+/**
+ * A pin the maps can use: inside Ghana. One outside it is a data mistake (a
+ * listing's pin once sat in Finland), and fitting the map to it opened every
+ * map on Europe and Africa. See lib/ghana-bounds.ts.
+ */
 export function hasValidCoordinates(provider: MapProvider) {
-  return (
-    Number.isFinite(provider.lat) &&
-    Number.isFinite(provider.lng) &&
-    provider.lat >= -90 &&
-    provider.lat <= 90 &&
-    provider.lng >= -180 &&
-    provider.lng <= 180
-  );
+  return insideGhana(provider.lat, provider.lng);
 }
 
 export default function MapView({

@@ -51,14 +51,37 @@ import { toMapProviders } from "@/lib/map-provider";
 import { BRAND } from "@/lib/brand";
 import { titleCase } from "@/lib/format";
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
   const t = await getTranslations("SearchPage");
   // Deliberately not region-aware. A title that changed as regions launched
   // would churn the one string search engines have indexed longest, and the
   // product is national whichever regions happen to be live this month.
   // Filtered and paged views point at the plain list: each workshop and
   // each trade has its own page (and canonical) for search engines.
-  return { title: t("metaTitle"), alternates: { canonical: "/training" } };
+  //
+  // A trade filter still names the trade in the tab and the description,
+  // set here on the server so the page never opens with a blank title.
+  const raw = (await searchParams).trade;
+  const slug = Array.isArray(raw) ? raw[0] : raw;
+  const trade = slug
+    ? (await getTrades().catch(() => null))?.results.find((item) => item.slug === slug)
+    : undefined;
+  if (trade) {
+    return {
+      title: t("metaTitleTrade", { trade: trade.name }),
+      description: t("metaDescriptionTrade", { trade: trade.name.toLowerCase() }),
+      alternates: { canonical: "/training" },
+    };
+  }
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    alternates: { canonical: "/training" },
+  };
 }
 
 function withoutPage(params: SearchParams): SearchParams {

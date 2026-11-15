@@ -471,8 +471,8 @@ export function TrainerDashboard() {
     setBusy(true);
     setError(null);
     try {
+      // logoutTrainer clears every form draft in this tab (lib/drafts.ts).
       const next = await logoutTrainer();
-      sessionStorage.removeItem("skillshub.trainer.public-profile-draft");
       setSession(next);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("signOutFailed"));

@@ -3,6 +3,7 @@
 import {
   Building2,
   Camera,
+  Check,
   Clock,
   GraduationCap,
   Heart,
@@ -20,7 +21,9 @@ import {useCallback, useEffect, useState} from "react";
 
 import {AccountExtras} from "@/components/account/AccountExtras";
 import {LearningCard} from "@/components/account/LearningCard";
-import {PhoneSignIn} from "@/components/auth/PhoneSignIn";
+import {PhoneSignIn, WelcomeStep} from "@/components/auth/PhoneSignIn";
+import {announceSessionChange} from "@/lib/sign-in";
+import {TrainerApiError} from "@/lib/trainer-fetch";
 import styles from "@/components/account/photo.module.css";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
@@ -122,6 +125,29 @@ export function AccountPage() {
     );
   }
 
+  // Signed in but the welcome step never finished: no name and nothing
+  // chosen. Show it again rather than the dashboard, whatever interrupted it
+  // (a reload, a slow connection, the page remounting). It goes only when
+  // they press Continue.
+  if (!session.account.display_name && session.account.interests.length === 0) {
+    return (
+      <div className="mx-auto max-w-md">
+        <Card className="mt-2">
+          <CardContent className="pt-5">
+            <WelcomeStep
+              idPrefix="account-welcome"
+              onSaved={async () => {
+                announceSessionChange();
+                await load();
+                if (next) router.replace(next);
+              }}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return <SignedIn session={session} reload={load} onSignedOut={() => setSession({authenticated: false, account: null, roles: null})} t={t} />;
 }
 
@@ -140,7 +166,9 @@ function SignIn({
   return (
     <div className="mx-auto max-w-md">
       <h1 className="text-3xl font-bold tracking-[-0.035em]">{newcomer ? t("joinTitle") : t("signInTitle")}</h1>
-      <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">{t("signInLead")}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
+        {newcomer ? t("joinLead") : t("signInLead")}
+      </p>
       <Card className="mt-5">
         <CardContent className="pt-5">
           <PhoneSignIn
@@ -257,6 +285,11 @@ function SignedIn({
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // The details form answers next to itself, not at the top of the page
+  // where a phone has scrolled it out of sight.
+  const [detailsState, setDetailsState] = useState<
+    {saved: true} | {problem: string; field?: "email" | "display_name" | "delivery_address"} | null
+  >(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
@@ -506,20 +539,43 @@ function SignedIn({
         </CardHeader>
         <CardContent>
           <form
-            onSubmit={(event) => {
+            noValidate
+            onSubmit={async (event) => {
               event.preventDefault();
-              void act(
-                "details",
-                async () => {
-                  await updateAccount({
-                    display_name: details.display_name.trim(),
-                    email: details.email.trim() || null,
-                    delivery_address: details.delivery_address.trim(),
-                  });
-                  await reload();
-                },
-                t("detailsSaved"),
-              );
+              setDetailsState(null);
+              const email = details.email.trim();
+              // name@place.tld: the browser's own check lets "name@place" through.
+              if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+                setDetailsState({problem: t("emailInvalid"), field: "email"});
+                document.getElementById("details-email")?.focus();
+                return;
+              }
+              setBusy("details");
+              try {
+                await updateAccount({
+                  display_name: details.display_name.trim(),
+                  email: email || null,
+                  delivery_address: details.delivery_address.trim(),
+                });
+                await reload();
+                setDetailsState({saved: true});
+              } catch (reason) {
+                const fields = reason instanceof TrainerApiError ? reason.fields : {};
+                const field = (["email", "display_name", "delivery_address"] as const).find(
+                  (name) => fields[name],
+                );
+                setDetailsState({
+                  problem:
+                    (field && fields[field]) ||
+                    (reason instanceof TrainerApiError && reason.status === 0
+                      ? t("detailsOffline")
+                      : reason instanceof Error
+                        ? reason.message
+                        : t("failed")),
+                  field,
+                });
+              }
+              setBusy(null);
             }}
             className="space-y-4"
           >
@@ -538,10 +594,23 @@ function SignedIn({
                 <Input
                   id="details-email"
                   type="email"
+                  inputMode="email"
                   autoComplete="email"
                   value={details.email}
-                  onChange={(event) => setDetails({...details, email: event.target.value})}
+                  aria-invalid={detailsState && "field" in detailsState && detailsState.field === "email" ? true : undefined}
+                  aria-describedby={
+                    detailsState && "field" in detailsState && detailsState.field === "email" ? "details-email-error" : undefined
+                  }
+                  onChange={(event) => {
+                    setDetails({...details, email: event.target.value});
+                    setDetailsState(null);
+                  }}
                 />
+                {detailsState && "field" in detailsState && detailsState.field === "email" ? (
+                  <p id="details-email-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {detailsState.problem}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div>
@@ -554,10 +623,25 @@ function SignedIn({
                 placeholder={t("addressPlaceholder")}
               />
             </div>
-            <Button type="submit" variant="brand" disabled={busy !== null}>
-              {busy === "details" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-              {t("saveDetails")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" variant="brand" disabled={busy !== null}>
+                {busy === "details" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+                {busy === "details" ? t("savingDetails") : t("saveDetails")}
+              </Button>
+              <span role="status" aria-live="polite" className="text-sm">
+                {detailsState && "saved" in detailsState ? (
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--color-visit)]">
+                    <Check aria-hidden="true" className="size-4" />
+                    {t("detailsSaved")}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+            {detailsState && "problem" in detailsState && detailsState.field !== "email" ? (
+              <p role="alert" className="rounded-lg bg-[var(--color-destructive)]/10 px-3 py-2 text-sm text-[var(--color-destructive)]">
+                {detailsState.problem}
+              </p>
+            ) : null}
           </form>
         </CardContent>
       </Card>

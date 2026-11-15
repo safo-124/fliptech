@@ -574,6 +574,10 @@ function Nothing({
 }) {
   const t = useTranslations("SiteSearch");
   const { trade, area } = results.understood;
+  // The suggestions under "or one of these": trades that have workshops,
+  // shown whenever nothing else (nearby workshops) is offered. The sentence
+  // only promises them when they are there.
+  const suggest = nothing && popular.length > 0 && !(results.nearby.length && trade);
   return (
     <section className="rounded-3xl border border-dashed border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-7">
       <h2 className="text-xl font-extrabold tracking-tight text-[var(--color-brand-deep)]">
@@ -584,7 +588,7 @@ function Nothing({
             : t("noWorkshop", { trade: trade!.name.toLowerCase() })}
       </h2>
       <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-        {nothing ? t("nothingBody") : t("noWorkshopBody")}
+        {nothing ? (suggest ? t("nothingBody") : t("nothingBodyPlain")) : t("noWorkshopBody")}
       </p>
       {trade ? <AlertButton trade={trade} area={area} /> : null}
       {results.nearby.length && trade ? (
@@ -603,7 +607,7 @@ function Nothing({
           </ul>
         </div>
       ) : null}
-      {nothing && !trade && popular.length ? <TradeRow trades={popular} /> : null}
+      {suggest ? <TradeRow trades={popular} /> : null}
       {results.trades_here.length && area ? (
         <div className="mt-6">
           <h3 className="text-sm font-bold">{t("tradesHere", { area: area.name })}</h3>

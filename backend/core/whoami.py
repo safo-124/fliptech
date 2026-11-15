@@ -50,7 +50,7 @@ def _avatar(customer, request):
 def whoami_payload(request):
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
-        return {"trainer": None, "trainee": None, "customer": None, "seller": None}
+        return {"user_id": None, "trainer": None, "trainee": None, "customer": None, "seller": None}
 
     from accounts.auth import own_customer_account
     from marketplace.auth import own_seller_account
@@ -61,6 +61,10 @@ def whoami_payload(request):
     trainer = _trainer_account(user)
     trainee = own_trainee_account(request)
     return {
+        # Which person this is, so the browser can tell when a different one
+        # has signed in on the same tab and drop the last one's form drafts
+        # (frontend/src/lib/drafts.ts). The id only; it says nothing else.
+        "user_id": user.pk,
         # Everyone signed in has one; the header links to it when they hold
         # nothing more particular.
         "customer": (

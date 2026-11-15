@@ -87,6 +87,7 @@ class Command(BaseCommand):
             photo = ProviderPhoto(
                 provider=provider, kind=kind, display_order=order, caption=caption
             )
+            photo.approve()  # Staff-run: chosen by staff, so already approved.
             photo.image.save(f"{provider.slug}-{kind}-stock.jpg", ContentFile(content), save=True)
             self.stdout.write(f"  {kind:<10} {caption}")
             added += 1

@@ -82,6 +82,8 @@ def upload_photo(request, provider_id):
         kind = ProviderPhoto.Kind.WORKSHOP
 
     photo = ProviderPhoto(provider=provider, kind=kind, uploaded_by=request.user)
+    # Staff chose this photo themselves, so it needs no second look.
+    photo.approve(request.user)
     photo.image = upload
     try:
         photo.save()

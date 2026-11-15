@@ -11,10 +11,37 @@ function json(route: Route, body: unknown, status = 200) {
  * end without a phone code. It keeps every profile save so the test can see
  * what the wizard actually sent at each step.
  */
-async function mockTrainerApi(page: Page) {
+async function mockTrainerApi(
+  page: Page,
+  {signedInAs}: {signedInAs?: {userId: number; name: string}} = {},
+) {
   let authenticated = false;
+  // Signed in on the main site already, as a buyer or learner: a login with
+  // no trainer role until /api/account/roles/trainer/ adds one.
+  let signedIn = Boolean(signedInAs);
   let profile: Record<string, unknown> | null = null;
   const saves: Record<string, unknown>[] = [];
+  const calls: string[] = [];
+
+  await page.route("**/api/session/whoami/**", (route) =>
+    json(
+      route,
+      signedIn || authenticated
+        ? {
+            user_id: signedInAs?.userId ?? 5,
+            customer: {name: signedInAs?.name ?? "+233241234567", avatar: null},
+            trainer: authenticated ? {name: "Trainer"} : null,
+            trainee: null,
+            seller: null,
+          }
+        : {user_id: null, customer: null, trainer: null, trainee: null, seller: null},
+    ),
+  );
+  await page.route("**/api/account/roles/trainer/**", (route) => {
+    calls.push("add-trainer-role");
+    authenticated = true;
+    return json(route, {authenticated: true, account: {}, roles: {trainer: "pending"}});
+  });
 
   await page.route("**/api/areas/**", (route) =>
     json(route, {
@@ -46,6 +73,7 @@ async function mockTrainerApi(page: Page) {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method();
+    if (path.endsWith("/auth/request-code/")) calls.push("request-code");
     if (path.endsWith("/session/me/")) {
       return json(
         route,
@@ -59,6 +87,7 @@ async function mockTrainerApi(page: Page) {
     }
     if (path.endsWith("/auth/verify-code/")) {
       authenticated = true;
+      signedIn = true;
       return json(route, {authenticated: true, phone: "+233241234567", profile: null});
     }
     if (path.endsWith("/profile/submit/")) {
@@ -140,7 +169,7 @@ async function mockTrainerApi(page: Page) {
     return json(route, {detail: `Unexpected mocked trainer request: ${method} ${path}`}, 500);
   });
 
-  return {saves};
+  return {saves, calls};
 }
 
 async function expectNoPageOverflow(page: Page) {
@@ -182,6 +211,10 @@ test.describe("trainer self-registration on a phone", () => {
     await page.getByLabel("Nearest landmark").fill("Opposite the community market");
     await page.getByLabel("Latitude").fill("5.6037");
     await page.getByLabel("Longitude").fill("-0.1870");
+    // The pin has to be confirmed before moving on.
+    await page.getByRole("button", {name: "Continue to photos"}).click();
+    await expect(page.getByText(/tick the box to say the pin is on your workshop/i)).toBeVisible();
+    await page.getByLabel(/the pin is on my workshop/i).check();
     await page.getByRole("button", {name: "Continue to photos"}).click();
 
     // The workshop is saved on the way to the photos, before there is a
@@ -195,9 +228,13 @@ test.describe("trainer self-registration on a phone", () => {
     await page.getByLabel("Full fee (GH₵)").fill("1200");
     await page.getByLabel("Duration in weeks").fill("12");
 
-    const storedDraft = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("skillshub.trainer.public-profile-draft") ?? "{}"),
+    const stored = await page.evaluate(() =>
+      JSON.parse(sessionStorage.getItem("skillshub.draft.trainer-profile") ?? "{}"),
     );
+    // Kept with the person who typed it, so nobody else is shown it.
+    expect(stored.owner).toBe("user-5");
+    const storedDraft = stored.value;
+    expect(storedDraft).toMatchObject({full_name: "Ama Mensah"});
     expect(storedDraft).not.toHaveProperty("phone");
     expect(storedDraft).not.toHaveProperty("code");
     expect(storedDraft).not.toHaveProperty("challenge_id");
@@ -220,5 +257,54 @@ test.describe("trainer self-registration on a phone", () => {
       programme: {trade_id: 3, title: "Beginner arc welding", intake: null},
     });
     await expectNoPageOverflow(page);
+  });
+});
+
+test.describe("trainer sign-up and the rest of the site share one login", () => {
+  test.use({viewport: {width: 375, height: 812}});
+
+  test("a signed-in visitor goes straight to the profile, with their name filled in", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const api = await mockTrainerApi(page, {signedInAs: {userId: 9, name: "Kwabena Owusu"}});
+
+    await page.goto(`${publicSite}/trainer/join`);
+
+    await expect(page.getByRole("heading", {name: "About you"})).toBeVisible();
+    await expect(page.getByLabel("Mobile number")).toHaveCount(0);
+    await expect(page.getByLabel("Your full name")).toHaveValue("Kwabena Owusu");
+    expect(api.calls).toContain("add-trainer-role");
+    expect(api.calls).not.toContain("request-code");
+  });
+
+  test("never shows the last person's draft to the next one", async ({page}) => {
+    test.setTimeout(60_000);
+    await mockTrainerApi(page, {signedInAs: {userId: 9, name: "Kwabena Owusu"}});
+    // Samuel used this tab before, and left a draft behind.
+    await page.goto(`${publicSite}/offline`);
+    await page.evaluate(() => {
+      sessionStorage.setItem("skillshub.draft-owner", "user-4");
+      sessionStorage.setItem(
+        "skillshub.draft.trainer-profile",
+        JSON.stringify({owner: "user-4", value: {full_name: "Samuel Osei Bonsu"}}),
+      );
+      // And the old, ownerless key from before drafts had owners.
+      sessionStorage.setItem(
+        "skillshub.trainer.public-profile-draft",
+        JSON.stringify({full_name: "Samuel Osei Bonsu"}),
+      );
+    });
+
+    await page.goto(`${publicSite}/trainer/join`);
+
+    await expect(page.getByRole("heading", {name: "About you"})).toBeVisible();
+    await expect(page.getByLabel("Your full name")).toHaveValue("Kwabena Owusu");
+    const left = await page.evaluate(() => ({
+      owned: sessionStorage.getItem("skillshub.draft.trainer-profile"),
+      legacy: sessionStorage.getItem("skillshub.trainer.public-profile-draft"),
+    }));
+    expect(left.legacy).toBeNull();
+    expect(left.owned ?? "").not.toContain("Samuel");
   });
 });

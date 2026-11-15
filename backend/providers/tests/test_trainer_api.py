@@ -729,7 +729,9 @@ def test_direct_admin_change_post_cannot_mass_assign_published_status(
             "slug": provider.slug,
             "area": provider.area_id,
             "address": "Updated by field officer",
-            "location": "POINT (-0.187 5.6037)",
+            # With its SRID: the map widget otherwise reads bare WKT in
+            # web-mercator metres, a point in the sea off Ghana.
+            "location": "SRID=4326;POINT (-0.187 5.6037)",
             "owner_name": "Owner",
             "owner_phone": "",
             "contact_phone": str(provider.contact_phone),

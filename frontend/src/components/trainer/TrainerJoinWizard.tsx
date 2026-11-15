@@ -57,10 +57,12 @@ import {Textarea} from "@/components/ui/textarea";
 import {validationMessage} from "@/i18n/validation";
 import {BRAND} from "@/lib/brand";
 import {TEACHING_LANGUAGES} from "@/lib/teaching-languages";
+import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from "@/lib/drafts";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
+import {getWhoami} from "@/lib/session-api";
 import {
   getTrainerReferenceData,
-  getTrainerSession,
+  getTrainerSessionForJoining,
   requestTrainerCode,
   requestTrainerEmailCode,
   deleteTrainerPhoto,
@@ -92,7 +94,11 @@ import type {
   TrainerSession,
 } from "@/lib/types";
 
-const DRAFT_KEY = "skillshub.trainer.public-profile-draft";
+/** A saved name that is really a phone number is no name to pre-fill. */
+function realName(name: string | null | undefined) {
+  const trimmed = name?.trim() ?? "";
+  return trimmed && !/^\+?\d[\d\s]+$/.test(trimmed) ? trimmed : "";
+}
 
 // Long enough that a slow SMS has a chance to land before the button tempts
 // another one, short enough not to feel like a punishment.
@@ -835,7 +841,13 @@ export function TrainerJoinWizard() {
   const [error, setError] = useState<string | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [locationState, setLocationState] = useState<LocationState>("idle");
+  // The trainer says the pin is really on their workshop. Asked again
+  // whenever the pin moves; a saved listing's pin counts as confirmed.
+  const [pinConfirmed, setPinConfirmed] = useState(false);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  // Whose draft this form may read and write: the signed-in user. A draft
+  // typed by anyone else in this tab is never loaded. See lib/drafts.ts.
+  const draftOwner = useRef<string | null>(null);
   const previousStepRef = useRef<Step>("phone");
 
   // Rebuilt when the loaded profile changes, so the intake rule knows which
@@ -863,10 +875,30 @@ export function TrainerJoinWizard() {
     formState: {errors},
   } = form;
 
+  /**
+   * Start the profile from this person's own draft if they left one, or from
+   * a clean form with the name their account already carries.
+   */
+  function restoreDraft(owner: string, accountName: string | null | undefined) {
+    draftOwner.current = owner;
+    const saved = readDraft<Partial<TrainerDraftForm>>(TRAINER_PROFILE_DRAFT, owner);
+    reset({...EMPTY_TRAINER_DRAFT, ...(saved ?? {})});
+    if (!getValues("full_name")) {
+      const name = realName(accountName);
+      if (name) setValue("full_name", name);
+    }
+  }
+
   useEffect(() => {
     let active = true;
-    Promise.all([getTrainerSession(), getTrainerReferenceData()])
-      .then(([nextSession, reference]) => {
+    Promise.all([
+      // Already signed in on the main site: straight to the profile, no
+      // second phone code. See getTrainerSessionForJoining.
+      getTrainerSessionForJoining(),
+      getTrainerReferenceData(),
+      getWhoami().catch(() => null),
+    ])
+      .then(([nextSession, reference, who]) => {
         if (!active) return;
         setSession(nextSession);
         setAreas(reference.areas);
@@ -877,16 +909,11 @@ export function TrainerJoinWizard() {
           if (nextSession.profile) {
             setProfile(nextSession.profile);
             reset(draftFromTrainerProfile(nextSession.profile));
+        setPinConfirmed(true);
+            setPinConfirmed(true);
             setStep(nextSession.profile.editable ? "you" : "submitted");
           } else {
-            const saved = sessionStorage.getItem(DRAFT_KEY);
-            if (saved) {
-              try {
-                reset({...EMPTY_TRAINER_DRAFT, ...JSON.parse(saved)});
-              } catch {
-                sessionStorage.removeItem(DRAFT_KEY);
-              }
-            }
+            restoreDraft(ownerOf(who), who?.customer?.name);
             if (!getValues("contact_phone")) setValue("contact_phone", nextSession.phone);
             setStep("you");
           }
@@ -902,6 +929,8 @@ export function TrainerJoinWizard() {
     return () => {
       active = false;
     };
+    // restoreDraft only calls reset and setValue, both stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getValues, reset, setValue, t]);
 
   useEffect(() => {
@@ -912,7 +941,9 @@ export function TrainerJoinWizard() {
     const subscription = watch((values) => {
       // Only public profile fields are persisted. Auth phone, OTP and
       // challenge values never enter this object.
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(trainerDraftForStorage(values)));
+      if (draftOwner.current) {
+        writeDraft(TRAINER_PROFILE_DRAFT, draftOwner.current, trainerDraftForStorage(values));
+      }
     });
     return () => subscription.unsubscribe();
   }, [session, watch]);
@@ -1050,14 +1081,10 @@ export function TrainerJoinWizard() {
         reset(draftFromTrainerProfile(nextSession.profile));
         setStep(nextSession.profile.editable ? "you" : "submitted");
       } else {
-        const saved = sessionStorage.getItem(DRAFT_KEY);
-        if (saved) {
-          try {
-            reset({...EMPTY_TRAINER_DRAFT, ...JSON.parse(saved)});
-          } catch {
-            sessionStorage.removeItem(DRAFT_KEY);
-          }
-        }
+        // Signing in here may be a different person from whoever used this
+        // tab last: ask who it is now, so only their own draft is read.
+        const who = await getWhoami().catch(() => null);
+        restoreDraft(ownerOf(who), who?.customer?.name);
         if (!getValues("contact_phone")) setValue("contact_phone", phone);
         setStep("you");
       }
@@ -1187,6 +1214,7 @@ export function TrainerJoinWizard() {
 
   /** Single writer for the pin: the map, the GPS button and the inputs agree. */
   function setCoordinates({lat, lng}: {lat: number; lng: number}) {
+    setPinConfirmed(false);
     setValue("latitude", lat.toFixed(6), {shouldValidate: true, shouldDirty: true});
     setValue("longitude", lng.toFixed(6), {shouldValidate: true, shouldDirty: true});
   }
@@ -1243,7 +1271,7 @@ export function TrainerJoinWizard() {
     try {
       await saveTrainerProfile(trainerProfilePayload(values));
       const submitted = await submitTrainerProfile();
-      sessionStorage.removeItem(DRAFT_KEY);
+      removeDraft(TRAINER_PROFILE_DRAFT);
       setProfile(submitted);
       setSession({authenticated: true, phone, profile: submitted});
       setStep("submitted");
@@ -1951,6 +1979,17 @@ export function TrainerJoinWizard() {
                   <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
                     {watch("latitude") && watch("longitude") ? t("dragPin") : t("tapMap")}
                   </p>
+                  {watch("latitude") && watch("longitude") ? (
+                    <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-brand)]/20 bg-[var(--color-brand-soft)]/55 p-3 text-sm leading-6">
+                      <input
+                        type="checkbox"
+                        className="mt-1.5 shrink-0"
+                        checked={pinConfirmed}
+                        onChange={(event) => setPinConfirmed(event.target.checked)}
+                      />
+                      <span>{t("confirmPin")}</span>
+                    </label>
+                  ) : null}
                 </div>
                 <Button
                   type="button"
@@ -2039,7 +2078,13 @@ export function TrainerJoinWizard() {
                 type="button"
                 variant="brand"
                 disabled={busy}
-                onClick={() => saveThenContinue(WORKSHOP_FIELDS, "photos")}
+                onClick={() => {
+                  if (!pinConfirmed && getValues("latitude") && getValues("longitude")) {
+                    setError(t("confirmPinFirst"));
+                    return;
+                  }
+                  void saveThenContinue(WORKSHOP_FIELDS, "photos");
+                }}
                 className="w-full"
               >
                 {busy ? t("saving") : t("continueToPhotos")}

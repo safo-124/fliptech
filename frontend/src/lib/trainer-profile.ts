@@ -54,15 +54,17 @@ const trainerDraftShape = z.object({
   in_trade_since: optionalWholeNumber,
   apprentices_trained: optionalWholeNumber,
   teaching_languages: z.array(z.string()),
+  // Ghana only, the same box as backend geography/bounds.py: a listing once
+  // went live with its pin in Finland.
   latitude: coordinate(
     {required: "latitudeRequired", invalid: "latitudeInvalid", range: "latitudeRange"},
-    -90,
-    90,
+    4.5,
+    11.25,
   ),
   longitude: coordinate(
     {required: "longitudeRequired", invalid: "longitudeInvalid", range: "longitudeRange"},
-    -180,
-    180,
+    -3.35,
+    1.3,
   ),
   year_established: optionalWholeNumber,
   premises_tenure: z.string(),
@@ -128,6 +130,9 @@ function courseIssues(values: CourseRuleValues) {
   }
   if (values.instalments_allowed && !values.instalment_note) {
     issues.push({path: "instalment_note", message: v("instalmentNoteRequired")});
+  } else if (values.instalments_allowed && /^[\d\s.,%]+$/.test(values.instalment_note)) {
+    // "30" on its own: 30 what? Days, cedis, per cent? Trainees cannot tell.
+    issues.push({path: "instalment_note", message: v("instalmentNoteUnits")});
   }
   return issues;
 }

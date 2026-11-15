@@ -107,6 +107,17 @@ export default async function Home({
     getFeaturedShops().catch(() => null),
   ]);
   const featuredShops = shops?.results ?? [];
+  // The same rule as /training's area choice: only places with a workshop,
+  // so every choice in "Where are you looking?" leads to results.
+  const placesWithWorkshops = areas
+    .filter((area) => area.provider_count > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const popularTrades = trades
+    .map((trade, order) => ({trade, order}))
+    .filter(({trade}) => trade.provider_count > 0)
+    .sort((a, b) => b.trade.provider_count - a.trade.provider_count || a.order - b.order)
+    .slice(0, 6)
+    .map(({trade}) => trade);
 
   const featuredCourses = courses?.results.slice(0, FEATURED) ?? [];
   const featuredProducts = products?.results.slice(0, FEATURED) ?? [];
@@ -182,7 +193,7 @@ export default async function Home({
                     className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
                   >
                     <option value="">{t("anywhere")}</option>
-                    {areas.map((area) => (
+                    {placesWithWorkshops.map((area) => (
                       <option key={area.slug} value={area.slug}>
                         {area.name}
                       </option>
@@ -197,7 +208,7 @@ export default async function Home({
               </div>
             </form>
 
-            {trades.length ? (
+            {popularTrades.length ? (
               <div className="mt-4">
                 <span className="text-xs font-semibold text-[var(--color-muted-foreground)]">
                   {t("popular")}
@@ -205,10 +216,10 @@ export default async function Home({
                 {/* One row that scrolls sideways, edge to edge on a phone,
                     fading out at the end so it reads as "there is more". */}
                 <div className={styles.chipRow}>
-                {/* The first six by the display order staff set, so which
-                    trades lead the hero is an editorial choice in the back
-                    office rather than something hardcoded here. */}
-                {trades.slice(0, 6).map((trade) => (
+                {/* Trades with a workshop to show, most workshops first, so
+                    the first tap never lands on "no providers match". Ties
+                    keep the display order staff set in the back office. */}
+                {popularTrades.map((trade) => (
                   <Link
                     key={trade.slug}
                     href={`/training?trade=${trade.slug}`}
@@ -228,7 +239,15 @@ export default async function Home({
         {/* Real counts, in place of the star ratings the design shows and
             the site has no way to back. A count of nothing is left out
             rather than shown as a zero that reads as "nobody". */}
-        {stats ? <TrustStrip stats={stats} t={t} /> : null}
+        {stats ? (
+          <TrustStrip
+            // The workshop count is the one /training shows, from the same
+            // search, so the two pages never disagree. The site-stats count
+            // is a separately cached request and could lag behind it.
+            stats={workshops ? { ...stats, workshops: workshops.count } : stats}
+            t={t}
+          />
+        ) : null}
       </section>
 
       {/* -------------------------------------------------------- pillars */}

@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { MAP_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { buildQuery, searchAllProviders, type SearchParams } from "@/lib/api";
+import { insideGhana } from "@/lib/ghana-bounds";
 import { toExploreProviders } from "@/lib/map-provider";
 import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
@@ -28,15 +29,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("metaTitle"), description: t("metaDescription"), alternates: { canonical: "/map" } };
 }
 
+/** In Ghana. A pin anywhere else is a data mistake, left off the map. */
 function hasMappableCoordinates(provider: ProviderCardData) {
-  return (
-    Number.isFinite(provider.lat) &&
-    Number.isFinite(provider.lng) &&
-    provider.lat >= -90 &&
-    provider.lat <= 90 &&
-    provider.lng >= -180 &&
-    provider.lng <= 180
-  );
+  return insideGhana(provider.lat, provider.lng);
 }
 
 function withoutPage(params: SearchParams): SearchParams {

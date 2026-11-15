@@ -64,6 +64,7 @@ def test_the_listing_shows_the_master_with_years_worked_out_from_the_year(owner,
         {"image": jpeg_upload("akosua.jpg"), "kind": "portrait"},
         **authenticated_csrf(owner),
     )
+    ProviderPhoto.objects.update(approved_at=timezone.now())  # Staff approve it.
 
     master = listing(client)["master"]
 
