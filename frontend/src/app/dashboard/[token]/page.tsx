@@ -122,7 +122,7 @@ export default async function DashboardPage({
 
   if (!data) {
     return (
-      <div className="relative isolate mx-auto min-h-[60dvh] max-w-2xl overflow-hidden px-3 py-8 sm:py-12 lg:px-6">
+      <div className="relative isolate mx-auto min-h-[60dvh] max-w-2xl overflow-clip px-3 py-8 sm:py-12 lg:px-6">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -right-24 -top-24 -z-10 size-64 rounded-full bg-[var(--color-brand-soft)] blur-3xl"
