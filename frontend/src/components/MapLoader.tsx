@@ -17,7 +17,7 @@ import { List, MapPinned, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { MapProvider } from "@/lib/map-provider";
+import type { ExploreProvider, MapProvider } from "@/lib/map-provider";
 
 /**
  * Placeholder sizing.
@@ -58,6 +58,11 @@ function MapLoadingState() {
 }
 
 const MapView = dynamic(() => import("./MapView"), {
+  ssr: false,
+  loading: MapLoadingState,
+});
+
+const ExploreMap = dynamic(() => import("./map/ExploreMap"), {
   ssr: false,
   loading: MapLoadingState,
 });
@@ -158,6 +163,23 @@ export function MapLoader({
   return (
     <MapErrorBoundary listHref={listHref} fill={fill}>
       <MapView providers={providers} fillParent={fill} immersive={immersive} />
+    </MapErrorBoundary>
+  );
+}
+
+/** The full-screen map page. See map/ExploreMap. The parent sets the height. */
+export function ExploreMapLoader({
+  providers,
+  listHref,
+  missingCount = 0,
+}: {
+  providers: ExploreProvider[];
+  listHref: string;
+  missingCount?: number;
+}) {
+  return (
+    <MapErrorBoundary listHref={listHref} fill>
+      <ExploreMap providers={providers} listHref={listHref} missingCount={missingCount} />
     </MapErrorBoundary>
   );
 }

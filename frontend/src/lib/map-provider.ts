@@ -53,3 +53,19 @@ export function toMapProviders(providers: readonly ProviderCard[]): MapProvider[
     logo: provider.logo,
   }));
 }
+
+/**
+ * The full-screen map page also lists the workshops beside the map, so its
+ * cards need the trade and the course length as well. The search page's side
+ * map keeps the narrower MapProvider.
+ */
+export type ExploreProvider = MapProvider &
+  Pick<ProviderCard, "trade" | "shortest_duration_weeks">;
+
+export function toExploreProviders(providers: readonly ProviderCard[]): ExploreProvider[] {
+  return toMapProviders(providers).map((provider, index) => ({
+    ...provider,
+    trade: providers[index].trade,
+    shortest_duration_weeks: providers[index].shortest_duration_weeks,
+  }));
+}

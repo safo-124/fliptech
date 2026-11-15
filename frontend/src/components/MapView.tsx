@@ -40,9 +40,9 @@ type ClusterPoint = {
   geometry: { type: "Point"; coordinates: [number, number] };
 };
 
-type Viewport = { bounds: [number, number, number, number]; zoom: number };
+export type Viewport = { bounds: [number, number, number, number]; zoom: number };
 
-function viewportOf(map: L.Map): Viewport {
+export function viewportOf(map: L.Map): Viewport {
   const b = map.getBounds();
   return {
     bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
@@ -143,7 +143,7 @@ function Clusters({ providers }: { providers: MapProvider[] }) {
   );
 }
 
-function fitProviderBounds(map: L.Map, bounds: L.LatLngBounds) {
+export function fitProviderBounds(map: L.Map, bounds: L.LatLngBounds) {
   map.fitBounds(bounds, {
     animate: false,
     maxZoom: 14,
@@ -161,7 +161,7 @@ function FitProviderBounds({ bounds }: { bounds: L.LatLngBounds }) {
   return null;
 }
 
-function MapAccessibility({
+export function MapAccessibility({
   labelId,
   instructionsId,
 }: {
@@ -188,7 +188,7 @@ function MapAccessibility({
   return null;
 }
 
-function hasValidCoordinates(provider: MapProvider) {
+export function hasValidCoordinates(provider: MapProvider) {
   return (
     Number.isFinite(provider.lat) &&
     Number.isFinite(provider.lng) &&

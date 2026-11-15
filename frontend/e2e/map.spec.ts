@@ -19,9 +19,20 @@ test.describe("public provider map", () => {
     await expect(page.locator("[data-provider-map]")).toBeVisible();
     await expect(page.getByRole("heading", {name: /provider locations?$/i})).toBeVisible();
     await expect(page.getByRole("region", {name: /interactive map/i})).toBeVisible();
-    await expect(page.getByText(/use arrow keys to pan/i)).toBeVisible();
+    await expect(page.getByText(/use arrow keys to pan/i)).toBeAttached();
     await expect(page.getByRole("button", {name: /show all providers/i})).toBeVisible();
     await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible();
+
+    // The map is the whole width of the screen, with the workshops floating on it.
+    const map = await page.locator("[data-provider-map]").boundingBox();
+    expect(map?.width).toBeGreaterThanOrEqual((page.viewportSize()?.width ?? 0) - 20);
+    const cards = page.getByRole("list", {name: /workshops? on the map/i}).getByRole("listitem");
+    await expect(cards.first()).toBeVisible();
+
+    // Picking a card picks its workshop.
+    const pick = cards.first().getByRole("button");
+    await pick.click();
+    await expect(pick).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("main main")).toHaveCount(0);
     await expectNoPageOverflow(page);
   });
@@ -41,12 +52,14 @@ test.describe("public provider map", () => {
 test.describe("public provider map on a phone", () => {
   test.use({viewport: {width: 375, height: 812}});
 
-  test("keeps the map usable while hiding the desktop comparison rail", async ({page}) => {
+  test("fills the screen, with the workshops as a row of cards", async ({page}) => {
     test.setTimeout(60_000);
     await page.goto(`${publicSite}/map`);
 
     await expect(page.locator("[data-provider-map]")).toBeVisible();
-    await expect(page.locator("ul.hidden.lg\\:block")).toBeHidden();
+    await expect(
+      page.getByRole("list", {name: /workshops? on the map/i}).getByRole("listitem").first(),
+    ).toBeVisible();
     const reset = page.getByRole("button", {name: /show all providers/i});
     await expect(reset).toBeVisible();
     expect((await reset.boundingBox())?.height).toBeGreaterThanOrEqual(44);

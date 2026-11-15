@@ -333,6 +333,30 @@ body {
     filter: saturate(0.35) brightness(1.04) contrast(0.95);
   }
 
+  /* The full-screen map: a little warmer and lighter than the side map, a
+     soft lilac where tiles have not arrived yet, and Leaflet's credit line
+     dressed to match the floating controls. */
+  html:has(.explore-map) {
+    overflow-x: clip;
+  }
+
+  .explore-map .leaflet-container {
+    background: oklch(0.965 0.012 300);
+  }
+
+  .explore-map .map-soft-tiles .leaflet-tile-pane {
+    filter: saturate(0.5) brightness(1.06) contrast(0.9) hue-rotate(-6deg);
+  }
+
+  .explore-map .leaflet-control-attribution {
+    margin: 0 0.5rem 0.4rem 0 !important;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.75) !important;
+    padding: 0.1rem 0.6rem;
+    font-size: 10px;
+    backdrop-filter: blur(6px);
+  }
+
   /* Each trade's accent, named after what the trade works with, so a column
      of results can be scanned by trade before a word is read. The names are
      catalog.models.Trade.Colour; the back office's swatches use the same
