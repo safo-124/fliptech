@@ -50,6 +50,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("metaTitle"),
     description: t("metaDescription", { brand: BRAND }),
+    // Filtered views point at the plain marketplace; products have their own pages.
+    alternates: { canonical: "/marketplace" },
   };
 }
 

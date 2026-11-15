@@ -56,7 +56,9 @@ export async function generateMetadata(): Promise<Metadata> {
   // Deliberately not region-aware. A title that changed as regions launched
   // would churn the one string search engines have indexed longest, and the
   // product is national whichever regions happen to be live this month.
-  return { title: t("metaTitle") };
+  // Filtered and paged views point at the plain list: each workshop and
+  // each trade has its own page (and canonical) for search engines.
+  return { title: t("metaTitle"), alternates: { canonical: "/training" } };
 }
 
 function withoutPage(params: SearchParams): SearchParams {

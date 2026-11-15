@@ -17,7 +17,7 @@ export type SignInRequest = {
   reason?: string;
   role?: "trainee";
   /** Ticked in advance on "What brings you here?" for someone new. */
-  interest?: "learn" | "buy" | "sell";
+  interest?: "learn" | "teach" | "buy" | "sell";
 };
 
 type Pending = SignInRequest & {resolve: (signedIn: boolean) => void};

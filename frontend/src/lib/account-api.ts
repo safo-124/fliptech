@@ -19,7 +19,7 @@ export type CustomerAccount = {
   /** Their own picture, or null. Only ever shown to them. */
   photo: string | null;
   /** What they said brought them, ticked once after signing up. */
-  interests: ("learn" | "buy" | "sell")[];
+  interests: ("learn" | "teach" | "buy" | "sell")[];
   created_at: string;
 };
 

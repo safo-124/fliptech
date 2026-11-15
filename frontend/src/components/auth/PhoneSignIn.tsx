@@ -1,6 +1,6 @@
 "use client";
 
-import {ArrowRight, Check, GraduationCap, Loader2, ShoppingBag, Store} from "lucide-react";
+import {ArrowRight, Building2, Check, GraduationCap, Loader2, ShoppingBag, Store} from "lucide-react";
 import {useTranslations} from "next-intl";
 import {useState} from "react";
 import {ZodError} from "zod";
@@ -19,10 +19,11 @@ import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {announceSessionChange} from "@/lib/sign-in";
 
-export type Interest = "learn" | "buy" | "sell";
+export type Interest = "learn" | "teach" | "buy" | "sell";
 
 const INTERESTS: {key: Interest; icon: typeof GraduationCap}[] = [
   {key: "learn", icon: GraduationCap},
+  {key: "teach", icon: Building2},
   {key: "buy", icon: ShoppingBag},
   {key: "sell", icon: Store},
 ];

@@ -25,7 +25,7 @@ import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("MapPage");
-  return { title: t("metaTitle"), description: t("metaDescription") };
+  return { title: t("metaTitle"), description: t("metaDescription"), alternates: { canonical: "/map" } };
 }
 
 function hasMappableCoordinates(provider: ProviderCardData) {

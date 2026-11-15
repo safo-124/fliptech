@@ -65,6 +65,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { absolute: t("metaTitle", { brand: BRAND }) },
     description: t("metaDescription"),
+    // The one address search engines should list. The same page also
+    // answers on www. and the server's old nip.io name (kept for app builds).
+    alternates: { canonical: "/" },
   };
 }
 

@@ -29,7 +29,11 @@ export const revalidate = 300;
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Learn");
-  return { title: t("metaTitle"), description: t("metaDescription", { brand: BRAND }) };
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription", { brand: BRAND }),
+    alternates: { canonical: "/learn" },
+  };
 }
 
 const SORTS = ["", "newest", "popular", "rating", "free"] as const;

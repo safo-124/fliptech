@@ -2758,6 +2758,10 @@
         "title": "Learn a trade",
         "hint": "Training near you and online courses"
       },
+      "teach": {
+        "title": "Teach a trade",
+        "hint": "List your workshop, find trainees and sell courses"
+      },
       "buy": {
         "title": "Buy things",
         "hint": "Tools, clothes and crafts from makers"

@@ -277,6 +277,9 @@ function SignedIn({
     });
   }
 
+  const ticked = (role: "trainee" | "trainer" | "seller") =>
+    account.interests.includes(({trainee: "learn", trainer: "teach", seller: "sell"} as const)[role]);
+
   const roleCards = [
     {
       role: "trainee" as const,
@@ -296,7 +299,10 @@ function SignedIn({
       state: roles.seller,
       href: "/sell/shop",
     },
-  ];
+    // What they ticked when they joined comes first: "Teach a trade" puts
+    // setting up a workshop ahead of the other two. The sort keeps the
+    // usual order otherwise.
+  ].sort((a, b) => Number(ticked(b.role)) - Number(ticked(a.role)));
 
   const learns = Boolean(roles.trainee) || account.interests.includes("learn");
   const learnFirst = learns && account.interests[0] === "learn";
