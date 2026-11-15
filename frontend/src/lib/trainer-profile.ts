@@ -11,16 +11,72 @@ import type {TrainerProfile} from "./types";
 const requiredText = (required: ValidationKey, maximum: number) =>
   z.string().trim().min(1, v(required)).max(maximum, v("tooLong"));
 
+<<<<<<< HEAD
+/** "-5" is a number, just not one that can be a count: say so, not "whole number". */
+function numberIssue(value: string): ValidationKey | null {
+  if (/^\d+$/.test(value)) return null;
+  return /^-\s*\d/.test(value) ? v("notNegative") : v("wholeNumber");
+}
+=======
 /** "1,200", "1 200" and "GH₵1200" all mean 1200: people type money the way they write it. */
 const withoutSeparators = (value: string) => value.replace(/[\s,]|gh₵|ghs|ghc|₵/gi, "");
+>>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
 
 const optionalWholeNumber = z
   .string()
   .trim()
+<<<<<<< HEAD
+  .superRefine((value, context) => {
+    const issue = value === "" ? null : numberIssue(value);
+    if (issue) context.addIssue({code: "custom", message: issue});
+  });
+
+/** A whole number no larger than `maximum`, or nothing. */
+const optionalWholeNumberUpTo = (maximum: number, tooMany: ValidationKey) =>
+  optionalWholeNumber.refine((value) => value === "" || Number(value) <= maximum, v(tooMany));
+
+/** A year from `earliest` to this one, or nothing. The API refuses the rest. */
+const optionalPastYear = (earliest: number) =>
+  optionalWholeNumber.refine(
+    (value) =>
+      value === "" ||
+      !/^\d+$/.test(value) ||
+      (Number(value) >= earliest && Number(value) <= new Date().getFullYear()),
+    v("yearInvalid"),
+  );
+
+/**
+ * A cedi amount as typed, made plain: "1,200", "1 200" and "GH₵1200" are all
+ * 1200. Trainers write fees the way they see them written.
+ */
+export function plainCedis(value: string): string {
+  return value
+    .trim()
+    .replace(/^(?:gh\s*[₵¢c]|ghs|[₵¢])\s*/i, "")
+    .replace(/[\s,]/g, "");
+}
+
+const CEDIS = /^\d+(?:\.\d{1,2})?$/;
+
+/** A cedi amount: required, or (`optional`) allowed to be empty. */
+const cediAmount = (invalid: ValidationKey, optional: boolean) =>
+  z
+    .string()
+    .trim()
+    .superRefine((value, context) => {
+      const plain = plainCedis(value);
+      if (plain === "" ? optional : CEDIS.test(plain)) return;
+      context.addIssue({
+        code: "custom",
+        message: /^-/.test(plain) ? v("notNegative") : v(invalid),
+      });
+    });
+=======
   .transform(withoutSeparators)
   // Said plainly: "-5 apprentices" is not a mistake about whole numbers.
   .refine((value) => !/^-/.test(value), v("notNegative"))
   .refine((value) => value === "" || /^-|^\d+$/.test(value), v("wholeNumber"));
+>>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
 
 const coordinate = (
   messages: {required: ValidationKey; invalid: ValidationKey; range: ValidationKey},
@@ -57,7 +113,7 @@ const trainerDraftShape = z.object({
   directions: z.string().trim().max(300, v("tooLong")),
   // The master who teaches. All optional; see Provider.lead_trainer_name.
   lead_trainer_name: z.string().trim().max(120, v("tooLong")),
-  in_trade_since: optionalWholeNumber,
+  in_trade_since: optionalPastYear(1940),
   apprentices_trained: optionalWholeNumber,
   teaching_languages: z.array(z.string()),
   // Ghana only, the same box as backend geography/bounds.py: a listing once
@@ -72,7 +128,7 @@ const trainerDraftShape = z.object({
     -3.35,
     1.3,
   ),
-  year_established: optionalWholeNumber,
+  year_established: optionalPastYear(1900),
   premises_tenure: z.string(),
   trainer_count: optionalWholeNumber,
   trainee_count: optionalWholeNumber,
@@ -85,20 +141,35 @@ const trainerDraftShape = z.object({
   // --- the course ---
   trade_id: z.string().min(1, v("tradeRequired")),
   programme_title: requiredText("courseTitleRequired", 200),
+<<<<<<< HEAD
+  fee: cediAmount("feeInvalid", false),
+=======
   fee: z
     .string()
     .trim()
     .transform(withoutSeparators)
     .refine((value) => !/^-/.test(value), v("notNegative"))
     .refine((value) => /^-|^\d+(?:\.\d{1,2})?$/.test(value), v("feeInvalid")),
+>>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
   duration_weeks: z
     .string()
     .trim()
-    .regex(/^\d+$/, v("weeksInvalid"))
-    .refine((value) => Number(value) >= 1, v("weeksMinimum")),
+    .superRefine((value, context) => {
+      const issue = numberIssue(value);
+      if (issue) {
+        context.addIssue({code: "custom", message: issue === "notNegative" ? issue : v("weeksInvalid")});
+      } else if (Number(value) < 1) {
+        context.addIssue({code: "custom", message: v("weeksMinimum")});
+      }
+    }),
   instalments_allowed: z.boolean(),
+  // How many payments (2 to 12) and the deposit as a per cent, from two
+  // choices. "" until chosen. See Programme.instalment_count in the backend.
+  instalment_count: z.string(),
+  instalment_deposit_percent: z.string(),
+  // Only what the two choices cannot say, and optional.
   instalment_note: z.string().trim().max(200, v("tooLong")),
-  hours_per_week: optionalWholeNumber,
+  hours_per_week: optionalWholeNumberUpTo(168, "hoursTooMany"),
   weekly_schedule: z.string().trim().max(200, v("tooLong")),
   capacity: optionalWholeNumber,
   fee_includes_tools: z.boolean(),
@@ -108,12 +179,16 @@ const trainerDraftShape = z.object({
   certificate_awarded: z.string().trim().max(200, v("tooLong")),
   // What a trainee spends on top of the fee. Optional: "extra" with no figure
   // is still honest, a guessed figure is not.
+<<<<<<< HEAD
+  extra_costs: cediAmount("amountInvalid", true),
+=======
   extra_costs: z
     .string()
     .trim()
     .transform(withoutSeparators)
     .refine((value) => !/^-/.test(value), v("notNegative"))
     .refine((value) => /^-|^(?:\d+(?:\.\d{1,2})?)?$/.test(value), v("amountInvalid")),
+>>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
   extra_costs_note: z.string().trim().max(200, v("tooLong")),
   intake_start_date: z.string(),
   places_offered: optionalWholeNumber,
@@ -126,6 +201,7 @@ type CourseRuleValues = Pick<
   | "fee_includes_certificate"
   | "certificate_awarded"
   | "instalments_allowed"
+  | "instalment_count"
   | "instalment_note"
 >;
 
@@ -138,9 +214,10 @@ function courseIssues(values: CourseRuleValues) {
   if (values.fee_includes_certificate && !values.certificate_awarded) {
     issues.push({path: "certificate_awarded", message: v("certificateRequired")});
   }
-  if (values.instalments_allowed && !values.instalment_note) {
-    issues.push({path: "instalment_note", message: v("instalmentNoteRequired")});
-  } else if (values.instalments_allowed && /^[\d\s.,%]+$/.test(values.instalment_note)) {
+  if (values.instalments_allowed && !values.instalment_count) {
+    issues.push({path: "instalment_count", message: v("instalmentCountRequired")});
+  }
+  if (values.instalments_allowed && /^[\d\s.,%]+$/.test(values.instalment_note)) {
     // "30" on its own: 30 what? Days, cedis, per cent? Trainees cannot tell.
     issues.push({path: "instalment_note", message: v("instalmentNoteUnits")});
   }
@@ -166,6 +243,8 @@ const courseSchema = trainerDraftShape
     fee: true,
     duration_weeks: true,
     instalments_allowed: true,
+    instalment_count: true,
+    instalment_deposit_percent: true,
     instalment_note: true,
     hours_per_week: true,
     weekly_schedule: true,
@@ -250,6 +329,8 @@ export const EMPTY_TRAINER_DRAFT: TrainerDraftForm = {
   fee: "",
   duration_weeks: "",
   instalments_allowed: false,
+  instalment_count: "",
+  instalment_deposit_percent: "",
   instalment_note: "",
   hours_per_week: "",
   weekly_schedule: "",
@@ -355,9 +436,13 @@ function programmePayload(values: z.infer<typeof courseSchema>) {
   return {
     trade_id: Number(values.trade_id),
     title: values.programme_title,
-    fee: values.fee,
+    fee: plainCedis(values.fee),
     instalments_allowed: values.instalments_allowed,
-    instalment_note: values.instalment_note,
+    instalment_count: values.instalments_allowed ? optionalNumber(values.instalment_count) : null,
+    instalment_deposit_percent: values.instalments_allowed
+      ? optionalNumber(values.instalment_deposit_percent)
+      : null,
+    instalment_note: values.instalments_allowed ? values.instalment_note : "",
     duration_weeks: Number(values.duration_weeks),
     hours_per_week: optionalNumber(values.hours_per_week),
     weekly_schedule: values.weekly_schedule,
@@ -367,7 +452,7 @@ function programmePayload(values: z.infer<typeof courseSchema>) {
     fee_includes_ppe: values.fee_includes_ppe,
     fee_includes_certificate: values.fee_includes_certificate,
     certificate_awarded: values.certificate_awarded,
-    extra_costs: values.extra_costs || null,
+    extra_costs: plainCedis(values.extra_costs) || null,
     extra_costs_note: values.extra_costs_note,
     // places_remaining is not sent. It is the counter that moves as trainees
     // enrol; the API seeds it from the offer when the intake is created and
@@ -442,6 +527,16 @@ export function draftFromTrainerProfile(profile: TrainerProfile): TrainerDraftFo
     fee: String(programme.fee),
     duration_weeks: String(programme.duration_weeks),
     instalments_allowed: programme.instalments_allowed,
+    // ?? because a profile saved before these existed has neither.
+    instalment_count:
+      programme.instalment_count === null || programme.instalment_count === undefined
+        ? ""
+        : String(programme.instalment_count),
+    instalment_deposit_percent:
+      programme.instalment_deposit_percent === null ||
+      programme.instalment_deposit_percent === undefined
+        ? ""
+        : String(programme.instalment_deposit_percent),
     instalment_note: programme.instalment_note,
     hours_per_week: programme.hours_per_week === null ? "" : String(programme.hours_per_week),
     weekly_schedule: programme.weekly_schedule,

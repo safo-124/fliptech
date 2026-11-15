@@ -9,7 +9,7 @@ cheap to query together.
 from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -112,6 +112,21 @@ class Programme(TimeStampedModel):
     # (Section 03), so this is required rather than nullable.
     fee = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     instalments_allowed = models.BooleanField(default=False)
+    # The arrangement as numbers a trainee can plan with. A free-text
+    # arrangement went live as "30", which says nothing; the note is now only
+    # for what the two numbers cannot say.
+    instalment_count = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(2), MaxValueValidator(12)],
+        help_text="How many payments in all, the deposit included.",
+    )
+    instalment_deposit_percent = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MaxValueValidator(90)],
+        help_text="Per cent of the fee paid before starting. Empty for no deposit.",
+    )
     instalment_note = models.CharField(max_length=200, blank=True)
 
     duration_weeks = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])

@@ -80,6 +80,14 @@ def test_the_listing_shows_the_master_with_years_worked_out_from_the_year(owner,
 
 
 @pytest.mark.django_db
+def test_with_no_master_named_the_owner_is_the_one_who_teaches(owner, catalogue, client):
+    """The form asks for a master only when someone other than the owner teaches."""
+    save(owner, catalogue, in_trade_since=timezone.localdate().year - 5)
+
+    assert listing(client)["master"]["name"] == "Emmanuel Safo"
+
+
+@pytest.mark.django_db
 def test_a_listing_without_a_master_says_nothing_about_one(owner, catalogue, client):
     save(owner, catalogue)
 

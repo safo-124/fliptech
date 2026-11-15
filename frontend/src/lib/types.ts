@@ -68,6 +68,10 @@ export type Programme = {
   trade_colour: string;
   fee: string;
   instalments_allowed: boolean;
+  /** How many payments, deposit included; null on listings from before it was asked. */
+  instalment_count?: number | null;
+  /** Per cent paid before starting; null for no deposit. */
+  instalment_deposit_percent?: number | null;
   instalment_note: string;
   /** What the fee covers, shown as a receipt on the listing. */
   fee_includes_tools: boolean;
@@ -362,6 +366,8 @@ export type TrainerProgramme = {
   title: string;
   fee: string | number;
   instalments_allowed: boolean;
+  instalment_count?: number | null;
+  instalment_deposit_percent?: number | null;
   instalment_note: string;
   duration_weeks: number;
   hours_per_week: number | null;

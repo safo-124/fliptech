@@ -247,7 +247,9 @@ class Command(BaseCommand):
                 defaults={
                     "fee": fee,
                     "instalments_allowed": random.choice([True, False]),
-                    "instalment_note": "Three instalments over the course",
+                    "instalment_count": 3,
+                    "instalment_deposit_percent": 30,
+                    "instalment_note": "The rest monthly",
                     "duration_weeks": random.choice([8, 12, 16, 24, 36]),
                     "hours_per_week": random.choice([15, 20, 25]),
                     "weekly_schedule": random.choice(
