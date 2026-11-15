@@ -109,3 +109,17 @@ def test_staff_can_hide_a_photo_again(owner, catalogue, admin_client):  # noqa: 
     photo.refresh_from_db()
     assert photo.approved_at is None
     assert public_card(provider)["primary_photo"] is None
+
+
+@pytest.mark.django_db
+def test_the_review_list_names_the_ticks_still_to_give_on_their_own(owner, catalogue):  # noqa: F811
+    response = save(owner, catalogue, site_visit_consent=False, data_consent=False)
+    assert response.status_code == 200, response.content
+
+    body = owner.get(reverse("trainer-profile")).json()
+
+    # The full list still has them, for anything that only reads that.
+    assert any("site visit" in item for item in body["blockers"])
+    # The review step's two lists: the ticks apart, so each goes when ticked.
+    assert body["declarations_needed"] == ["site_visit_consent", "data_consent"]
+    assert not any("site visit" in item for item in body["blockers_without_declarations"])

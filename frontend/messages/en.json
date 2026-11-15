@@ -1435,12 +1435,24 @@
   },
   "TrainerDashboard": {
     "statusMessages": {
+      "both_pending": "{brand} staff are making two checks before your workshop goes public:",
       "draft": "Your profile is saved as a draft and is not public.",
       "pending_approval": "Skills Hub is reviewing your profile. It is not public until staff approve it.",
       "published": "Your workshop profile is live for trainees to find.",
       "changes_requested": "Staff asked for changes. Update the draft and submit it again when it is ready.",
       "suspended": "This listing is not public. Read the review note below.",
       "other": "Your listing status is shown below."
+    },
+    "checks": {
+      "signup": {
+        "title": "Your sign-up:",
+        "body": "that you are who you say, from the ID you added. Waiting."
+      },
+      "listing": {
+        "title": "Your listing:",
+        "body": "that the workshop, course and fees are right. Waiting."
+      },
+      "timing": "Both are usually done together, within a few working days. Check back here to see when your listing is live."
     },
     "loading": "Loading trainer dashboard…",
     "lastDays": "Your last {days} days",
@@ -1559,6 +1571,13 @@
     "noteFrom": "Note from {brand}"
   },
   "TrainerJoinWizard": {
+    "sentBackTitle": "Sent back from {step} to fix this:",
+    "sentBackGeneric": "Something on this step needs fixing before you can send.",
+    "declarationNeeded": {
+      "declared_accurate": "Confirm that the fees and dates you entered are correct.",
+      "site_visit_consent": "Agree to a Fliiptech site visit.",
+      "data_consent": "Accept how we handle your personal information."
+    },
     "steps": {
       "you": "You",
       "workshop": "Workshop",
@@ -1707,6 +1726,7 @@
     "checkOptional": "Optional: {count} of {total}",
     "photosOneByOne": "Each photo uploads on its own, so a dropped connection only costs you that one.",
     "neededBadge": "Add before you submit",
+    "doneBadge": "Done",
     "takeOrChoose": "Take or choose a photo",
     "photosCount": "{count} of {max} added",
     "uploadingShort": "Uploading…",

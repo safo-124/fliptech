@@ -13,7 +13,10 @@ function json(route: Route, body: unknown, status = 200) {
  */
 async function mockTrainerApi(
   page: Page,
-  {signedInAs}: {signedInAs?: {userId: number; name: string}} = {},
+  {
+    signedInAs,
+    refusePinOnSubmit = false,
+  }: {signedInAs?: {userId: number; name: string}; refusePinOnSubmit?: boolean} = {},
 ) {
   let authenticated = false;
   // Signed in on the main site already, as a buyer or learner: a login with
@@ -106,6 +109,12 @@ async function mockTrainerApi(
     }
     if (path.endsWith("/profile/") && method === "PUT") {
       const sent = route.request().postDataJSON() as Record<string, unknown>;
+      // The final save, with the ticks: the server refuses the pin, as it
+      // does one too far from the chosen area.
+      if (refusePinOnSubmit && sent.declared_accurate) {
+        const problem = "That pin is more than 25 km from Accra.";
+        return json(route, {latitude: [problem], longitude: [problem]}, 400);
+      }
       saves.push(sent);
       const programme = sent.programme as Record<string, unknown> | null;
       profile = {
@@ -308,3 +317,41 @@ test.describe("trainer sign-up and the rest of the site share one login", () => 
     expect(left.owned ?? "").not.toContain("Samuel");
   });
 });
+
+test.describe("sent back from review", () => {
+  test.use({viewport: {width: 375, height: 812}});
+
+  test("says at the top of the step why the trainer is back there", async ({page}) => {
+    test.setTimeout(60_000);
+    await mockTrainerApi(page, {signedInAs: {userId: 9, name: "Kwabena Owusu"}, refusePinOnSubmit: true});
+    await page.goto(`${publicSite}/trainer/join`);
+
+    await page.getByLabel("Your role here").selectOption("owner");
+    await page.getByLabel("ID type").selectOption("ghana_card");
+    await page.getByLabel("ID number").fill("GHA-000111222-3");
+    await page.getByRole("button", {name: "Continue to workshop"}).click();
+    await page.getByLabel("Workshop or training centre name").fill("Accra Welding Works");
+    await page.getByLabel("Owner or lead trainer name").fill("Kwabena Owusu");
+    await page.getByLabel("Area").selectOption("7");
+    await page.getByLabel("Workshop address").fill("4 Community Road");
+    await page.getByLabel("Nearest landmark").fill("Opposite the market");
+    await page.getByLabel(/the pin is on my workshop/i).check();
+    await page.getByRole("button", {name: "Continue to photos"}).click();
+    await page.getByRole("button", {name: "Continue to course"}).click();
+    await page.getByLabel("Trade").selectOption("3");
+    await page.getByLabel("Course title").fill("Beginner arc welding");
+    await page.getByLabel("Full fee (GH₵)").fill("1,200");
+    await page.getByLabel("Duration in weeks").fill("12");
+    await page.getByRole("button", {name: "Review profile"}).click();
+    await page.locator("#declared_accurate").check();
+    await page.locator("#site_visit_consent").check();
+    await page.locator("#data_consent").check();
+    await page.getByRole("button", {name: "Submit for review"}).click();
+
+    const banner = page.getByRole("alert").filter({hasText: "Sent back from Review"});
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText("25 km");
+    await expect(page.getByLabel("Workshop address")).toBeVisible();
+  });
+});
+

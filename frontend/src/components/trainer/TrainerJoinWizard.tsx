@@ -77,6 +77,7 @@ import {
   uploadTrainerLogo,
   uploadTrainerPhoto,
   TrainerApiError,
+  type TrainerDeclaration,
   verifyTrainerCode,
   verifyTrainerEmailCode,
 } from "@/lib/trainer-api";
@@ -305,9 +306,17 @@ function BeforePair({
   );
 }
 
-/** "Needed", beside what a listing cannot go without. */
-function NeededBadge() {
+/** Beside what a listing cannot go without: "Add before you submit", then "Done" once it is there. */
+function NeededBadge({done = false}: {done?: boolean}) {
   const t = useTranslations("TrainerJoinWizard");
+  if (done) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-visit-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-visit)]">
+        <Check aria-hidden="true" className="size-3" />
+        {t("doneBadge")}
+      </span>
+    );
+  }
   return (
     <span className="rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-brand-strong)]">
       {t("neededBadge")}
@@ -471,7 +480,7 @@ function PhotoGroup({
       <legend className="text-sm font-semibold">
         <span className="flex flex-wrap items-center gap-2">
           {title}
-          <NeededBadge />
+          <NeededBadge done={mine.length > 0} />
         </span>
       </legend>
       <p className="-mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{hint}</p>
@@ -945,7 +954,11 @@ export function TrainerJoinWizard() {
   const [photos, setPhotos] = useState<TrainerPhoto[]>([]);
   const [hasIdDocument, setHasIdDocument] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  // What the server still needs, other than the three ticks, and which ticks
+  // it has not had yet. The review list is these plus any tick not given in
+  // the form right now, so ticking a box takes its line away at once.
   const [blockers, setBlockers] = useState<string[]>([]);
+  const [declarationsNeeded, setDeclarationsNeeded] = useState<TrainerDeclaration[]>([]);
   // Upload failures are kept apart from `error`, which drives the whole-form
   // banner. A photo that was too large should not read like the profile failed
   // to save.
@@ -971,6 +984,10 @@ export function TrainerJoinWizard() {
   // The trainer says the pin is really on their workshop. Asked again
   // whenever the pin moves; a saved listing's pin counts as confirmed.
   const [pinConfirmed, setPinConfirmed] = useState(false);
+  // Why the trainer was taken back to an earlier step, shown at the top of
+  // that step: being dropped onto step 2 from Review with no word of why
+  // reads as the form losing its place.
+  const [sentBack, setSentBack] = useState<{to: Step; from: Step; reason: string} | null>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   // Whose draft this form may read and write: the signed-in user. A draft
   // typed by anyone else in this tab is never loaded. See lib/drafts.ts.
@@ -1240,6 +1257,7 @@ export function TrainerJoinWizard() {
    */
   async function saveThenContinue(fields: FieldPath<TrainerDraftForm>[], next: Step) {
     setError(null);
+    setSentBack(null);
     const valid = await trigger(fields, {shouldFocus: true});
     if (!valid) return;
     setBusy(true);
@@ -1253,8 +1271,9 @@ export function TrainerJoinWizard() {
         // Ask the server what it would still refuse on, so the checklist on
         // the review step is the API's own answer rather than a second
         // implementation of the same rules drifting beside it.
-        const {blockers: outstanding} = await getTrainerProfileBlockers();
-        setBlockers(outstanding);
+        const outstanding = await getTrainerProfileBlockers();
+        setBlockers(outstanding.others);
+        setDeclarationsNeeded(outstanding.declarationsNeeded);
       }
       setStep(next);
     } catch (reason) {
@@ -1416,10 +1435,35 @@ export function TrainerJoinWizard() {
     const first = refused.find((field) => stepFor(field) === step) ?? refused[0];
     if (first) {
       const target = stepFor(first);
-      if (target && target !== step) setStep(target);
+      if (target && target !== step) {
+        const apiName = Object.keys(API_FIELD_NAMES).find((name) => API_FIELD_NAMES[name] === first);
+        setSentBack({to: target, from: step, reason: (apiName && reason.fields[apiName]) || reason.message});
+        setStep(target);
+      }
       requestAnimationFrame(() => setFocus(first));
     }
     setError(reason.fields.detail ?? (!first ? reason.message : null));
+  }
+
+  // The browser's own checks failed on submit, for a field on an earlier
+  // step: go there, say why, and put the cursor on it.
+  function onInvalidSubmit(found: typeof errors) {
+    const order = FIELD_STEPS.flatMap(([fields]) => fields);
+    const first = order.find((field) => found[field as keyof typeof found]);
+    if (!first) return;
+    const target = stepFor(first);
+    const message = found[first as keyof typeof found]?.message;
+    if (target && target !== step) {
+      setSentBack({
+        to: target,
+        from: step,
+        reason:
+          (typeof message === "string" ? validationMessage(tValidation, message) : undefined) ??
+          t("sentBackGeneric"),
+      });
+      setStep(target);
+    }
+    requestAnimationFrame(() => setFocus(first));
   }
 
   const saveAndSubmit = handleSubmit(async (values) => {
@@ -1439,15 +1483,16 @@ export function TrainerJoinWizard() {
       // something wrong, so re-read the checklist instead of leaving the
       // trainer with a banner and no next action.
       try {
-        const {blockers: outstanding} = await getTrainerProfileBlockers();
-        setBlockers(outstanding);
+        const outstanding = await getTrainerProfileBlockers();
+        setBlockers(outstanding.others);
+        setDeclarationsNeeded(outstanding.declarationsNeeded);
       } catch {
         // The submit error already on screen is the more useful one.
       }
     } finally {
       setBusy(false);
     }
-  });
+  }, onInvalidSubmit);
 
   if (loading) return <LoadingCard />;
 
@@ -1726,10 +1771,32 @@ export function TrainerJoinWizard() {
   const instalmentsAllowed = watch("instalments_allowed");
   const feeIncludesCertificate = watch("fee_includes_certificate");
   const intakeStartDate = watch("intake_start_date");
+  const ticked = {
+    declared_accurate: watch("declared_accurate"),
+    site_visit_consent: watch("site_visit_consent"),
+    data_consent: watch("data_consent"),
+  };
+  // Hidden once nothing is missing.
+  const stillNeeded = [
+    ...blockers,
+    ...declarationsNeeded.filter((field) => !ticked[field]).map((field) => t(`declarationNeeded.${field}`)),
+  ];
 
   return (
     <form onSubmit={saveAndSubmit} noValidate aria-busy={busy}>
       <Progress step={step} />
+
+      {sentBack && sentBack.to === step ? (
+        <Alert role="alert" className="mb-5 border-[var(--color-warn)]/25 bg-[var(--color-warn-bg)] text-[var(--color-warn)]">
+          <AlertCircle aria-hidden="true" />
+          <AlertDescription>
+            <b className="block">{t("sentBackTitle", {
+              step: t(`steps.${sentBack.from as "you" | "workshop" | "photos" | "course" | "review"}`),
+            })}</b>
+            {sentBack.reason}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {step === "you" ? (
         <section aria-labelledby="you-heading">
@@ -2335,7 +2402,7 @@ export function TrainerJoinWizard() {
                   <div className="min-w-0 flex-1">
                     <h3 id="id-photo-title" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                       {t("idPhotoLegend")}
-                      <NeededBadge />
+                      <NeededBadge done={hasIdDocument} />
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{t("idPrivate")}</p>
                     {hasIdDocument ? (
@@ -2998,7 +3065,7 @@ export function TrainerJoinWizard() {
           {/* What the server will refuse on, shown before the button rather
               than after it. The list comes from the same submission_blockers
               the API runs, so the two cannot disagree. */}
-          {blockers.length ? (
+          {stillNeeded.length ? (
             <div
               role="status"
               className="rounded-2xl border border-[var(--color-warn)]/25 bg-[var(--color-warn-bg)] p-4"
@@ -3008,7 +3075,7 @@ export function TrainerJoinWizard() {
                 {t("stillNeeded")}
               </p>
               <ul className="mt-2 space-y-1.5 text-sm leading-6">
-                {blockers.map((item) => (
+                {stillNeeded.map((item) => (
                   <li key={item} className="flex items-start gap-2">
                     <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--color-warn)]" />
                     <span>{item}</span>

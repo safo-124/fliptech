@@ -151,11 +151,22 @@ export async function saveTrainerProfile(body: unknown) {
 }
 
 /** Everything still missing before the listing can go for review. */
+export type TrainerDeclaration = "declared_accurate" | "site_visit_consent" | "data_consent";
+
 export async function getTrainerProfileBlockers() {
-  const response = await trainerFetch<{profile: TrainerProfile | null; blockers: string[] | null}>(
-    "/api/trainer/profile/",
-  );
-  return {profile: response.profile, blockers: response.blockers ?? []};
+  const response = await trainerFetch<{
+    profile: TrainerProfile | null;
+    blockers: string[] | null;
+    blockers_without_declarations?: string[] | null;
+    declarations_needed?: TrainerDeclaration[] | null;
+  }>("/api/trainer/profile/");
+  return {
+    profile: response.profile,
+    blockers: response.blockers ?? [],
+    // Older servers send only the full list; the ticks are then in it.
+    others: response.blockers_without_declarations ?? response.blockers ?? [],
+    declarationsNeeded: response.declarations_needed ?? [],
+  };
 }
 
 /**
