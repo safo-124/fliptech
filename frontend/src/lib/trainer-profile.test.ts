@@ -62,6 +62,8 @@ describe("trainer profile form", () => {
         title: "Beginner arc welding",
         fee: "1200.00",
         instalments_allowed: false,
+        instalment_count: null,
+        instalment_deposit_percent: null,
         instalment_note: "",
         duration_weeks: 12,
         hours_per_week: null,
@@ -79,15 +81,19 @@ describe("trainer profile form", () => {
     });
   });
 
-  it("requires the first course and an instalment explanation", () => {
+  it("requires the first course and, with instalments, how many payments", () => {
     expect(trainerDraftSchema.safeParse({...complete, programme_title: ""}).success).toBe(false);
     const result = trainerDraftSchema.safeParse({...complete, instalments_allowed: true});
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues).toContainEqual(
-        expect.objectContaining({path: ["instalment_note"]}),
+        expect.objectContaining({path: ["instalment_count"]}),
       );
     }
+    // The choice made, the note is optional.
+    expect(
+      trainerDraftSchema.safeParse({...complete, instalments_allowed: true, instalment_count: "3"}).success,
+    ).toBe(true);
   });
 
   it("never stores sign-in or verification secrets in the browser draft", () => {

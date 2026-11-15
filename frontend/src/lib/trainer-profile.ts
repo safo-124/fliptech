@@ -11,21 +11,15 @@ import type {TrainerProfile} from "./types";
 const requiredText = (required: ValidationKey, maximum: number) =>
   z.string().trim().min(1, v(required)).max(maximum, v("tooLong"));
 
-<<<<<<< HEAD
 /** "-5" is a number, just not one that can be a count: say so, not "whole number". */
 function numberIssue(value: string): ValidationKey | null {
   if (/^\d+$/.test(value)) return null;
   return /^-\s*\d/.test(value) ? v("notNegative") : v("wholeNumber");
 }
-=======
-/** "1,200", "1 200" and "GH₵1200" all mean 1200: people type money the way they write it. */
-const withoutSeparators = (value: string) => value.replace(/[\s,]|gh₵|ghs|ghc|₵/gi, "");
->>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
 
 const optionalWholeNumber = z
   .string()
   .trim()
-<<<<<<< HEAD
   .superRefine((value, context) => {
     const issue = value === "" ? null : numberIssue(value);
     if (issue) context.addIssue({code: "custom", message: issue});
@@ -71,12 +65,6 @@ const cediAmount = (invalid: ValidationKey, optional: boolean) =>
         message: /^-/.test(plain) ? v("notNegative") : v(invalid),
       });
     });
-=======
-  .transform(withoutSeparators)
-  // Said plainly: "-5 apprentices" is not a mistake about whole numbers.
-  .refine((value) => !/^-/.test(value), v("notNegative"))
-  .refine((value) => value === "" || /^-|^\d+$/.test(value), v("wholeNumber"));
->>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
 
 const coordinate = (
   messages: {required: ValidationKey; invalid: ValidationKey; range: ValidationKey},
@@ -141,16 +129,7 @@ const trainerDraftShape = z.object({
   // --- the course ---
   trade_id: z.string().min(1, v("tradeRequired")),
   programme_title: requiredText("courseTitleRequired", 200),
-<<<<<<< HEAD
   fee: cediAmount("feeInvalid", false),
-=======
-  fee: z
-    .string()
-    .trim()
-    .transform(withoutSeparators)
-    .refine((value) => !/^-/.test(value), v("notNegative"))
-    .refine((value) => /^-|^\d+(?:\.\d{1,2})?$/.test(value), v("feeInvalid")),
->>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
   duration_weeks: z
     .string()
     .trim()
@@ -179,16 +158,7 @@ const trainerDraftShape = z.object({
   certificate_awarded: z.string().trim().max(200, v("tooLong")),
   // What a trainee spends on top of the fee. Optional: "extra" with no figure
   // is still honest, a guessed figure is not.
-<<<<<<< HEAD
   extra_costs: cediAmount("amountInvalid", true),
-=======
-  extra_costs: z
-    .string()
-    .trim()
-    .transform(withoutSeparators)
-    .refine((value) => !/^-/.test(value), v("notNegative"))
-    .refine((value) => /^-|^(?:\d+(?:\.\d{1,2})?)?$/.test(value), v("amountInvalid")),
->>>>>>> dc3ba5af3311cc0bf54dfbe6aaac3ba56a35d99b
   extra_costs_note: z.string().trim().max(200, v("tooLong")),
   intake_start_date: z.string(),
   places_offered: optionalWholeNumber,
@@ -383,7 +353,8 @@ export function trainerDraftForStorage(
 }
 
 function optionalNumber(value: string): number | null {
-  const plain = withoutSeparators(value.trim());
+  // "1,000" as typed by a trainer, sent as 1000.
+  const plain = plainCedis(value);
   return plain === "" ? null : Number(plain);
 }
 

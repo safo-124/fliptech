@@ -782,6 +782,9 @@
     "tooLong": "That is too long.",
     "wholeNumber": "Enter a whole number",
     "notNegative": "Can't be negative",
+    "instalmentCountRequired": "Choose how many payments",
+    "hoursTooMany": "There are only 168 hours in a week",
+    "yearInvalid": "Enter a year that has already happened",
     "fullNameRequired": "Your name is required",
     "roleRequired": "Choose your role at the workshop",
     "idTypeRequired": "Choose an ID type",
@@ -804,7 +807,7 @@
     "weeksMinimum": "Duration must be at least one week",
     "startDateBeforePlaces": "Add a start date before the number of places",
     "certificateRequired": "Name the certificate the fee covers",
-    "instalmentNoteRequired": "Choose the number of payments",
+    "instalmentNoteRequired": "Explain the instalment arrangement",
     "instalmentNoteUnits": "Say what the number means, for example \"3 payments over 3 months\" or \"pay within 30 days\"",
     "startDateInFuture": "Choose a start date in the future",
     "amountInvalid": "Enter an amount as a number, for example 300, or leave it empty"
