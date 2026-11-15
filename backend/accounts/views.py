@@ -240,6 +240,8 @@ class CodeRequestView(APIView):
             {
                 "challenge_id": str(challenge.challenge_id),
                 "expires_in_seconds": settings.OTP_TTL_SECONDS,
+                # So the code screen can say "the 6-digit code".
+                "code_length": settings.OTP_CODE_LENGTH,
             }
         )
 

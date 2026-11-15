@@ -166,7 +166,9 @@ function SignIn({
   return (
     <div className="mx-auto max-w-md">
       <h1 className="text-3xl font-bold tracking-[-0.035em]">{newcomer ? t("joinTitle") : t("signInTitle")}</h1>
-      <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">{t("signInLead")}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
+        {newcomer ? t("joinLead") : t("signInLead")}
+      </p>
       <Card className="mt-5">
         <CardContent className="pt-5">
           <PhoneSignIn

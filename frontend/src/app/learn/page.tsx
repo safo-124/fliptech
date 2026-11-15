@@ -66,6 +66,7 @@ export default async function LearnPage({
     getTranslations("Learn"),
   ]);
   const results = courses?.results ?? [];
+  const catalogueEmpty = courses !== null && courses.count === 0 && !filtered && !query.sort;
   const spotlight = featured?.results.slice(0, 3) ?? [];
   const spotlightIds = new Set(spotlight.map((course) => course.id));
   const rest = spotlight.length ? results.filter((course) => !spotlightIds.has(course.id)) : results;
@@ -99,6 +100,12 @@ export default async function LearnPage({
             {t("intro", { brand: BRAND })}
           </p>
 
+          {/* Search, sort and filters only once there is something to sort:
+              on an empty catalogue they are nine controls over nothing. A
+              filtered search that found nothing keeps them, so the filter
+              can be undone. */}
+          {catalogueEmpty ? null : (
+            <>
           <form action="/learn" method="get" role="search" className="mt-6 flex max-w-2xl flex-col gap-2 sm:flex-row">
             {query.trade ? <input type="hidden" name="trade" value={query.trade} /> : null}
             <label htmlFor="learn-q" className="sr-only">
@@ -173,6 +180,8 @@ export default async function LearnPage({
               label={t("paidOnly")}
             />
           </div>
+            </>
+          )}
 
           <div className="mt-6 flex flex-wrap gap-2 text-sm">
             <Link

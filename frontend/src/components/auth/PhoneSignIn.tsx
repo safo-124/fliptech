@@ -69,6 +69,21 @@ export function PhoneSignIn({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exists, setExists] = useState(false);
+  // The code screen: how long the code lasts, how many digits it has, and
+  // when another may be sent.
+  const [codeLength, setCodeLength] = useState(6);
+  const [expiresIn, setExpiresIn] = useState(0);
+  const [resendIn, setResendIn] = useState(0);
+  const [resent, setResent] = useState(false);
+
+  useEffect(() => {
+    if (step !== "code") return;
+    const timer = window.setInterval(() => {
+      setExpiresIn((seconds) => Math.max(0, seconds - 1));
+      setResendIn((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [step]);
 
   function problem(reason: unknown) {
     if (reason instanceof ZodError) return t("phoneInvalid");
@@ -97,6 +112,9 @@ export function PhoneSignIn({
     try {
       const sent = await requestAccountCode(toGhanaE164(ghanaPhoneSchema.parse(phone)), intent);
       setChallenge(sent.challenge_id);
+      setCodeLength(sent.code_length ?? 6);
+      setExpiresIn(sent.expires_in_seconds ?? 600);
+      setResendIn(RESEND_SECONDS);
       setStep("code");
     } catch (reason) {
       // Registering a number that already has an account: no code was sent.
@@ -202,22 +220,44 @@ export function PhoneSignIn({
   ) : (
     <form onSubmit={confirm} className="space-y-4">
       {alert}
-      <p className="text-sm text-[var(--color-muted-foreground)]">{t("codeSentTo", {phone})}</p>
+      <p className="text-sm text-[var(--color-muted-foreground)]">
+        {resent ? t("codeResentTo", {phone}) : t("codeSentTo", {phone})}{" "}
+        {t("codeRules", {digits: codeLength, minutes: Math.max(1, Math.round((expiresIn || 600) / 60))})}
+      </p>
       <div>
-        <Label htmlFor={`${idPrefix}-code`}>{t("codeLabel")}</Label>
+        <Label htmlFor={`${idPrefix}-code`}>{t("codeLabelDigits", {digits: codeLength})}</Label>
         <Input
           id={`${idPrefix}-code`}
           inputMode="numeric"
           autoComplete="one-time-code"
+          pattern="[0-9]*"
+          maxLength={codeLength}
           required
           autoFocus
           value={code}
-          onChange={(event) => setCode(event.target.value)}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, codeLength))}
+          aria-describedby={`${idPrefix}-code-timer`}
         />
+        <p id={`${idPrefix}-code-timer`} className="mt-1.5 text-xs text-[var(--color-muted-foreground)]" aria-live="polite">
+          {expiresIn > 0 ? t("codeExpiresIn", {time: clock(expiresIn)}) : t("codeExpired")}
+        </p>
       </div>
-      <Button type="submit" variant="brand" className="w-full" disabled={busy}>
+      <Button type="submit" variant="brand" className="w-full" disabled={busy || code.length < codeLength}>
         {busy ? <Loader2 aria-hidden className="animate-spin" /> : null}
-        {t("signIn")}
+        {register ? t("createAccount") : t("signIn")}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        disabled={busy || resendIn > 0}
+        onClick={async () => {
+          setCode("");
+          await sendCode(register ? "register" : undefined);
+          setResent(true);
+        }}
+      >
+        {resendIn > 0 ? t("resendIn", {time: clock(resendIn)}) : t("resend")}
       </Button>
       <Button type="button" variant="ghost" className="w-full" onClick={() => setStep("phone")}>
         {t("changeNumber")}
@@ -227,6 +267,14 @@ export function PhoneSignIn({
 }
 
 const WELCOME_DRAFT = "welcome";
+
+/** Long enough for a slow text to land before tempting a second one. */
+const RESEND_SECONDS = 45;
+
+/** 125 seconds as "2:05". */
+function clock(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 /**
  * The newcomer's one extra screen: their first name and what brought them.

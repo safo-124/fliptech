@@ -395,7 +395,10 @@ function Programmes({ provider }: { provider: ProviderDetail }) {
                         label={t("instalmentDetails")}
                         value={
                           programme.instalments_allowed
-                            ? programme.instalment_note || t("allowed")
+                            ? // A bare number ("30") says nothing a trainee can use.
+                              programme.instalment_note && !/^[\d\s.,%]+$/.test(programme.instalment_note)
+                              ? programme.instalment_note
+                              : t("allowedAsk")
                             : t("fullPayment")
                         }
                       />
@@ -468,7 +471,10 @@ function MasterStrip({ provider }: { provider: ProviderDetail }) {
   const master = provider.master;
   if (!master) return null;
 
-  const name = master.name || t("theMaster");
+  // The master's own name, else the owner or lead trainer the listing names.
+  // A card with a picture and no name says nothing, so it is left out.
+  const name = master.name || provider.owner_name?.trim();
+  if (!name) return null;
   const facts = [
     master.years_in_trade !== null ? t("yearsInTrade", { count: master.years_in_trade }) : null,
     master.apprentices_trained !== null

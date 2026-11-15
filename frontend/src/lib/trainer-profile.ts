@@ -130,6 +130,9 @@ function courseIssues(values: CourseRuleValues) {
   }
   if (values.instalments_allowed && !values.instalment_note) {
     issues.push({path: "instalment_note", message: v("instalmentNoteRequired")});
+  } else if (values.instalments_allowed && /^[\d\s.,%]+$/.test(values.instalment_note)) {
+    // "30" on its own: 30 what? Days, cedis, per cent? Trainees cannot tell.
+    issues.push({path: "instalment_note", message: v("instalmentNoteUnits")});
   }
   return issues;
 }
