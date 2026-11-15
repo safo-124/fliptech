@@ -53,6 +53,20 @@ PURPOSE = PhoneVerification.Purpose.ACCOUNT_ACCESS
 
 class CodeRequestSerializer(serializers.Serializer):
     phone = PhoneNumberField()
+    # "register" from the website's Create your account page: a number that
+    # already has an account is told so and sent to sign in, with no code.
+    # Everything else (sign in, the app) leaves it out and works as before.
+    intent = serializers.ChoiceField(
+        choices=["sign_in", "register"], required=False, default="sign_in"
+    )
+
+
+def number_has_account(phone):
+    """Whether this phone already belongs to someone: a customer account, or a
+    trainee, trainer or seller login it would sign in to."""
+    from core.identities import person_user
+
+    return CustomerAccount.objects.filter(phone=phone).exists() or person_user(phone) is not None
 
 
 class CodeVerifySerializer(serializers.Serializer):
@@ -201,6 +215,18 @@ class CodeRequestView(APIView):
             return Response(
                 {"detail": _("Too many requests. Wait a minute and try again.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        # Counted by the limit above, so it cannot be used to check numbers
+        # in bulk; no code is sent, so it costs no text either.
+        if serializer.validated_data["intent"] == "register" and number_has_account(
+            serializer.validated_data["phone"]
+        ):
+            return Response(
+                {
+                    "detail": _("This number already has an account. Sign in instead."),
+                    "code": "account_exists",
+                },
+                status=status.HTTP_409_CONFLICT,
             )
         try:
             challenge = request_code(

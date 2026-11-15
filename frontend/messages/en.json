@@ -2758,6 +2758,8 @@
     "phoneLabel": "Phone number",
     "phoneInvalid": "Enter a Ghana number, like 024 123 4567.",
     "sendCode": "Send me a code",
+    "numberExists": "This number already has an account. Sign in with it instead.",
+    "signInInstead": "Sign in with this number",
     "oneAccount": "One account for everything: buying, learning and teaching a trade, and selling.",
     "codeSentTo": "We sent a code to {phone}.",
     "codeLabel": "Code",

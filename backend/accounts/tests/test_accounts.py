@@ -108,6 +108,47 @@ def test_the_same_phone_is_the_same_login_whichever_door(client):
     assert get_user_model().objects.count() == 1
 
 
+def register(client, phone=PHONE):
+    """The Create your account page asking for a code."""
+    return client.post(
+        reverse("account-request-code"),
+        {"phone": phone, "intent": "register"},
+        content_type=JSON,
+    )
+
+
+@pytest.mark.django_db
+def test_registering_a_number_that_has_an_account_is_refused_without_a_code(client):
+    from enquiries.models import PhoneVerification
+
+    sign_in(client)
+    codes_before = PhoneVerification.objects.count()
+
+    response = register(Client())
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "account_exists"
+    assert "already has an account" in response.json()["detail"]
+    assert PhoneVerification.objects.count() == codes_before
+
+
+@pytest.mark.django_db
+def test_a_new_number_registers_as_before(client):
+    response = register(client)
+
+    assert response.status_code == 200
+    assert response.json()["challenge_id"]
+
+
+@pytest.mark.django_db
+def test_a_number_with_an_account_still_signs_in(client):
+    sign_in(client)
+
+    response = Client().post(reverse("account-request-code"), {"phone": PHONE}, content_type=JSON)
+
+    assert response.status_code == 200
+
+
 @pytest.mark.django_db
 def test_a_trainee_signing_in_gets_a_customer_account_on_their_login(client):
     trainee_sign_in(client)

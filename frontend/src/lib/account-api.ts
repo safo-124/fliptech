@@ -46,10 +46,12 @@ export function getAccount() {
   return sessionFetch<AccountSession>("/api/account/");
 }
 
-export function requestAccountCode(phone: string) {
+/** `intent: "register"` (the Create your account page) is refused with a 409,
+ *  `code: "account_exists"`, for a number that already has an account. */
+export function requestAccountCode(phone: string, intent?: "register") {
   return sessionFetch<{challenge_id: string; expires_in_seconds: number}>("/api/account/request-code/", {
     method: "POST",
-    body: JSON.stringify({phone}),
+    body: JSON.stringify(intent ? {phone, intent} : {phone}),
   });
 }
 

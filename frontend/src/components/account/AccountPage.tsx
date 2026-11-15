@@ -113,6 +113,11 @@ export function AccountPage() {
           await load();
           if (next) router.replace(next);
         }}
+        // The number already has an account: the page becomes Sign in (the
+        // code is sent from there), keeping where they were going.
+        onAlreadyRegistered={() =>
+          router.replace(next ? `/account?next=${encodeURIComponent(next)}` : "/account")
+        }
       />
     );
   }
@@ -122,7 +127,15 @@ export function AccountPage() {
 
 // ---------------------------------------------------------------------------
 
-function SignIn({newcomer, onSignedIn}: {newcomer: boolean; onSignedIn: () => Promise<void>}) {
+function SignIn({
+  newcomer,
+  onSignedIn,
+  onAlreadyRegistered,
+}: {
+  newcomer: boolean;
+  onSignedIn: () => Promise<void>;
+  onAlreadyRegistered: () => void;
+}) {
   const t = useTranslations("Account");
   return (
     <div className="mx-auto max-w-md">
@@ -130,7 +143,12 @@ function SignIn({newcomer, onSignedIn}: {newcomer: boolean; onSignedIn: () => Pr
       <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">{t("signInLead")}</p>
       <Card className="mt-5">
         <CardContent className="pt-5">
-          <PhoneSignIn idPrefix="account" onDone={onSignedIn} />
+          <PhoneSignIn
+            idPrefix="account"
+            register={newcomer}
+            onAlreadyRegistered={onAlreadyRegistered}
+            onDone={onSignedIn}
+          />
         </CardContent>
       </Card>
     </div>

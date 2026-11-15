@@ -16,6 +16,7 @@ import {
   type AccountSession,
 } from "@/lib/account-api";
 import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
+import {TrainerApiError} from "@/lib/trainer-fetch";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {announceSessionChange} from "@/lib/sign-in";
 
@@ -40,11 +41,18 @@ export function PhoneSignIn({
   role,
   interest,
   idPrefix = "sign-in",
+  register = false,
+  onAlreadyRegistered,
   onDone,
 }: {
   role?: "trainee";
   interest?: Interest;
   idPrefix?: string;
+  /** The Create your account page: a number that already has an account is
+   *  told so, with a way to sign in, instead of being sent a code. */
+  register?: boolean;
+  /** Called when that happens and they choose to sign in instead. */
+  onAlreadyRegistered?: () => void;
   onDone: (session: AccountSession, joined: boolean) => void | Promise<void>;
 }) {
   const t = useTranslations("SignIn");
@@ -58,6 +66,7 @@ export function PhoneSignIn({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exists, setExists] = useState(false);
 
   function problem(reason: unknown) {
     if (reason instanceof ZodError) return t("phoneInvalid");
@@ -79,18 +88,35 @@ export function PhoneSignIn({
     await onDone(current, joined);
   }
 
-  async function send(event: React.FormEvent) {
-    event.preventDefault();
+  async function sendCode(intent?: "register") {
     setBusy(true);
     setError(null);
+    setExists(false);
     try {
-      const sent = await requestAccountCode(toGhanaE164(ghanaPhoneSchema.parse(phone)));
+      const sent = await requestAccountCode(toGhanaE164(ghanaPhoneSchema.parse(phone)), intent);
       setChallenge(sent.challenge_id);
       setStep("code");
     } catch (reason) {
-      setError(problem(reason));
+      // Registering a number that already has an account: no code was sent.
+      // Say so, and offer to sign in with it instead.
+      const body = reason instanceof TrainerApiError ? (reason.body as {code?: string} | null) : null;
+      if (reason instanceof TrainerApiError && reason.status === 409 && body?.code === "account_exists") {
+        setExists(true);
+      } else {
+        setError(problem(reason));
+      }
     }
     setBusy(false);
+  }
+
+  function send(event: React.FormEvent) {
+    event.preventDefault();
+    void sendCode(register ? "register" : undefined);
+  }
+
+  function signInInstead() {
+    onAlreadyRegistered?.();
+    void sendCode();
   }
 
   async function confirm(event: React.FormEvent) {
@@ -229,6 +255,15 @@ export function PhoneSignIn({
   return step === "phone" ? (
     <form onSubmit={send} className="space-y-4">
       {alert}
+      {exists ? (
+        <div role="alert" className="space-y-2 rounded-lg bg-[var(--color-warn-bg)] px-3 py-3 text-sm text-[var(--color-warn)]">
+          <p className="font-semibold">{t("numberExists")}</p>
+          <Button type="button" variant="brand" size="sm" disabled={busy} onClick={signInInstead}>
+            {t("signInInstead")}
+            <ArrowRight aria-hidden />
+          </Button>
+        </div>
+      ) : null}
       <div>
         <Label htmlFor={`${idPrefix}-phone`}>{t("phoneLabel")}</Label>
         <Input
