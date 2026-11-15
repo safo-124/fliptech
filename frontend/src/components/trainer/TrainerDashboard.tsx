@@ -525,6 +525,11 @@ export function TrainerDashboard() {
     ? tStatus(profile.status as "draft")
     : profile.status_label;
   const StatusIcon = appearance.Icon;
+  // Two separate checks by staff: the sign-up (is this person who they say,
+  // from their ID) and the listing (are the workshop details right). Shown as
+  // one status while both are waiting.
+  const accountPending = session.account_status === "pending";
+  const bothPending = accountPending && profile.status === "pending_approval";
   // What the badge counts. Answering is the job; how many have arrived is not
   // the number an owner needs on a tab.
   const waitingForReply = enquiries.filter((enquiry) => !enquiry.replied).length;
@@ -533,7 +538,9 @@ export function TrainerDashboard() {
     /* pb-20 on a phone clears the fixed bottom bar; the sidebar replaces it
        from lg up, where the padding is no longer wanted. */
     <div className="pb-20 lg:pb-0" data-trainer-dashboard>
-      <TrainerAccountNotice session={session} />
+      {/* While both checks are waiting, the status card below says so in
+          one place; the separate banner would be a second "waiting". */}
+      {bothPending ? null : <TrainerAccountNotice session={session} />}
 
       <div className="gap-7 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
         <DashboardSidebar
@@ -584,8 +591,24 @@ export function TrainerDashboard() {
                     {profile.name}
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-muted-foreground)]">
-                    {t(`statusMessages.${statusMessageKey(profile.status)}`)}
+                    {bothPending
+                      ? t("statusMessages.both_pending", {brand: BRAND})
+                      : t(`statusMessages.${statusMessageKey(profile.status)}`)}
                   </p>
+                  {bothPending ? (
+                    <ul className="mt-3 space-y-2 text-sm">
+                      {(["signup", "listing"] as const).map((check) => (
+                        <li key={check} className="flex items-start gap-2">
+                          <Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-warn)]" />
+                          <span>
+                            <b className="font-semibold">{t(`checks.${check}.title`)}</b>{" "}
+                            <span className="text-[var(--color-muted-foreground)]">{t(`checks.${check}.body`)}</span>
+                          </span>
+                        </li>
+                      ))}
+                      <li className="text-xs text-[var(--color-muted-foreground)]">{t("checks.timing")}</li>
+                    </ul>
+                  ) : null}
                 </div>
               </div>
               {profile.editable ? (

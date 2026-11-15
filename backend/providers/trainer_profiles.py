@@ -387,8 +387,25 @@ def save_owned_profile(*, account, actor, validated_data):
 MIN_PHOTOS_TO_SUBMIT = 2
 
 
-def submission_blockers(provider, account):
-    """Everything still missing before this listing can go for review."""
+def missing_declarations(provider, account):
+    """The three ticks still to give, by field name, for the review step's live list."""
+    missing = []
+    if provider.declared_accurate_at is None:
+        missing.append("declared_accurate")
+    if provider.site_visit_consent_at is None:
+        missing.append("site_visit_consent")
+    if account.data_consent_at is None:
+        missing.append("data_consent")
+    return missing
+
+
+def submission_blockers(provider, account, *, declarations=True):
+    """Everything still missing before this listing can go for review.
+
+    declarations=False leaves out the three ticks: the review step lists
+    those itself from missing_declarations, so each line goes the moment its
+    box is ticked rather than only after a save.
+    """
     from .models import ProviderEvidence
 
     blockers = []
@@ -422,6 +439,8 @@ def submission_blockers(provider, account):
     if not provider.landmark.strip():
         blockers.append(_("Add the nearest landmark, so we can find the workshop."))
 
+    if not declarations:
+        return blockers
     if provider.declared_accurate_at is None:
         blockers.append(_("Confirm that the fees and dates you entered are correct."))
     if provider.site_visit_consent_at is None:

@@ -33,6 +33,7 @@ from .trainer_profiles import (
     confirm_listing_is_current,
     current_intake_start_date,
     get_owned_profile,
+    missing_declarations,
     save_owned_profile,
     serialize_profile,
     submission_blockers,
@@ -221,6 +222,15 @@ class TrainerProfileView(APIView):
                 # wizard shows a live checklist rather than discovering what is
                 # missing only when a submit is refused.
                 "blockers": submission_blockers(provider, account) if provider else None,
+                # The same list without the three ticks, and which ticks are
+                # still to give: the review step shows these two so a line
+                # goes away the moment its box is ticked.
+                "blockers_without_declarations": (
+                    submission_blockers(provider, account, declarations=False) if provider else None
+                ),
+                "declarations_needed": (
+                    missing_declarations(provider, account) if provider else None
+                ),
             }
         )
 

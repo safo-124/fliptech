@@ -681,6 +681,8 @@ def test_a_second_trainer_session_never_sees_the_first_owners_profile(
     assert csrf_client.get(reverse("trainer-profile")).json() == {
         "profile": None,
         "blockers": None,
+        "blockers_without_declarations": None,
+        "declarations_needed": None,
     }
 
 
