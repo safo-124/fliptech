@@ -7,10 +7,14 @@ import {
   ArrowRight,
   BookOpen,
   Building2,
+  Camera,
   Check,
   CheckCircle2,
+  CircleDashed,
   Clock3,
+  DoorOpen,
   Eye,
+  Hammer,
   Loader2,
   LocateFixed,
   LockKeyhole,
@@ -20,6 +24,10 @@ import {
   ShieldCheck,
   Mail,
   Smartphone,
+  Sparkles,
+  UserRound,
+  Wrench,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import {useSearchParams} from "next/navigation";
@@ -288,16 +296,149 @@ function BeforePair({
   );
 }
 
+/** "Needed", beside what a listing cannot go without. */
+function NeededBadge() {
+  const t = useTranslations("TrainerJoinWizard");
+  return (
+    <span className="rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-brand-strong)]">
+      {t("neededBadge")}
+    </span>
+  );
+}
+
+/**
+ * A tile that adds a photo. It is a label around a hidden file input, so the
+ * whole tile opens the camera (on a phone) or the file picker, and the input
+ * stays reachable by keyboard.
+ */
+function AddTile({
+  id,
+  label,
+  sub,
+  icon: Icon = Camera,
+  onFile,
+  camera = true,
+  className = "aspect-4/3",
+}: {
+  id: string;
+  label: string;
+  sub?: string;
+  icon?: typeof Camera;
+  onFile: (file: File) => void;
+  camera?: boolean;
+  className?: string;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={`flex w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--color-border-strong)] bg-[var(--color-card)] p-3 text-center text-sm font-semibold text-[var(--color-brand-strong)] transition-colors hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-soft)] focus-within:border-[var(--color-brand)] focus-within:ring-3 focus-within:ring-[var(--color-brand)]/20 ${className}`}
+    >
+      <Icon aria-hidden="true" className="size-6" />
+      <span>{label}</span>
+      {sub ? <span className="text-xs font-normal text-[var(--color-muted-foreground)]">{sub}</span> : null}
+      <input
+        id={id}
+        type="file"
+        accept="image/*"
+        // capture hints the camera on a phone, which is where these are taken.
+        capture={camera ? "environment" : undefined}
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          // Cleared straight away so the same file can be picked again after
+          // a failed upload: choosing it a second time fires no change event.
+          event.target.value = "";
+          if (file) onFile(file);
+        }}
+      />
+    </label>
+  );
+}
+
+/** A photo that has landed, with a button to take it off again. */
+function PhotoTile({
+  src,
+  alt,
+  onRemove,
+  contain = false,
+}: {
+  src: string;
+  alt: string;
+  onRemove: () => void;
+  contain?: boolean;
+}) {
+  const t = useTranslations("TrainerJoinWizard");
+  return (
+    <div className="relative">
+      {/* A plain img, not next/image: these are just-uploaded files on an
+          origin the optimiser is not configured for, and the trainer only
+          needs a thumbnail to confirm the right photo landed. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className={`aspect-4/3 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] ${
+          contain ? "object-contain p-2" : "object-cover"
+        }`}
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t("removePhoto")}
+        className="absolute right-1.5 top-1.5 grid size-9 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm hover:border-[var(--color-destructive)] hover:text-[var(--color-destructive)]"
+      >
+        <X aria-hidden="true" className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Where the photo being sent will appear. The step's status line says it aloud. */
+function UploadingTile({className = "aspect-4/3"}: {className?: string}) {
+  const t = useTranslations("TrainerJoinWizard");
+  return (
+    <div
+      aria-hidden="true"
+      className={`flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] text-xs text-[var(--color-muted-foreground)] ${className}`}
+    >
+      <Loader2 className="size-5 animate-spin" />
+      {t("uploadingShort")}
+    </div>
+  );
+}
+
+/** A faint suggestion of what to photograph next. The hint above says it in words. */
+function IdeaTile({text, icon: Icon}: {text: string; icon: typeof Camera}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--color-border)] p-3 text-center text-xs text-[var(--color-muted-foreground)]"
+    >
+      <Icon className="size-5" />
+      {text}
+    </div>
+  );
+}
+
+/**
+ * One labelled group of photographs, as tiles: what has landed, the one on
+ * its way, a tile to add the next and, while there are few, an idea.
+ *
+ * The workshop and the work are asked for separately because they answer
+ * different questions, and a single "add photos" box gets two pictures of a
+ * signboard.
+ */
 function PhotoGroup({
   kind,
   title,
   hint,
   photos,
   uploading,
+  busyHere,
   onAdd,
   onAddBefore,
   onRemove,
-  optional = false,
+  idea,
   max = MAX_PHOTOS_PER_KIND,
 }: {
   kind: ProviderPhotoKind;
@@ -305,87 +446,171 @@ function PhotoGroup({
   hint: string;
   photos: TrainerPhoto[];
   uploading: boolean;
+  /** This group's photo is the one being sent. */
+  busyHere: boolean;
   onAdd: (file: File, kind: ProviderPhotoKind) => void;
   /** For finished work: each photo can be paired with the same piece before. */
   onAddBefore?: (file: File, workId: number) => void;
   onRemove: (photoId: number) => void;
-  optional?: boolean;
+  idea?: {text: string; icon: typeof Camera};
   max?: number;
 }) {
   const t = useTranslations("TrainerJoinWizard");
   const mine = photos.filter((photo) => photo.kind === kind);
-  const inputId = `photo-input-${kind}`;
+  const room = mine.length < max;
 
   return (
     <fieldset disabled={uploading} className="space-y-3">
       <legend className="text-sm font-semibold">
-        {title}
-        {optional ? <> <OptionalCue /></> : <RequiredCue />}
+        <span className="flex flex-wrap items-center gap-2">
+          {title}
+          <NeededBadge />
+        </span>
       </legend>
-      <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">{hint}</p>
-
-      {mine.length ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {mine.map((photo) => (
-            <li key={photo.id} className="relative">
-              {/* A plain img, not next/image: these are just-uploaded files on
-                  an origin the optimiser is not configured for, and the trainer
-                  only needs a thumbnail to confirm the right photo landed. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo.url}
-                alt={photo.caption || title}
-                className="aspect-4/3 w-full rounded-xl border border-[var(--color-border)] object-cover"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onRemove(photo.id)}
-                className="absolute right-1.5 top-1.5 h-8 min-h-0 bg-[var(--color-card)] px-2 text-xs"
-              >
-                {t("remove")}
-              </Button>
-              {onAddBefore ? (
-                <BeforePair
-                  work={photo}
-                  photos={photos}
-                  onAddBefore={onAddBefore}
-                  onRemove={onRemove}
-                />
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {mine.length < max ? (
-        <div className="space-y-2">
-          <Label htmlFor={inputId} className="sr-only">
-            {t("addPhotoLabel", {title})}
-          </Label>
-          <Input
-            id={inputId}
-            type="file"
-            accept="image/*"
-            // capture hints the camera on a phone, which is where these are
-            // actually taken.
-            capture="environment"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              // Cleared straight away so the same file can be picked again
-              // after a failed upload — without this, choosing it a second
-              // time fires no change event at all.
-              event.target.value = "";
-              if (file) onAdd(file, kind);
-            }}
-          />
-          <p className="text-xs text-[var(--color-muted-foreground)]">
-            {t("photosAdded", {count: mine.length, max})}
-          </p>
-        </div>
-      ) : null}
+      <p className="-mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{hint}</p>
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {mine.map((photo) => (
+          <li key={photo.id}>
+            <PhotoTile src={photo.url} alt={photo.caption || title} onRemove={() => onRemove(photo.id)} />
+            {onAddBefore ? (
+              <BeforePair work={photo} photos={photos} onAddBefore={onAddBefore} onRemove={onRemove} />
+            ) : null}
+          </li>
+        ))}
+        {busyHere ? (
+          <li>
+            <UploadingTile />
+          </li>
+        ) : null}
+        {room ? (
+          <li>
+            <AddTile
+              id={`photo-input-${kind}`}
+              label={t("takeOrChoose")}
+              sub={t("photosCount", {count: mine.length, max})}
+              onFile={(file) => onAdd(file, kind)}
+            />
+          </li>
+        ) : null}
+        {room && idea && mine.length < 3 ? (
+          <li className="hidden sm:block">
+            <IdeaTile text={idea.text} icon={idea.icon} />
+          </li>
+        ) : null}
+      </ul>
     </fieldset>
+  );
+}
+
+/** One optional photo (the logo, the way in, the master): a card to add it,
+ *  or the photo with a way to take it off. */
+function SlotCard({
+  id,
+  icon,
+  title,
+  sub,
+  imageUrl,
+  imageAlt,
+  busy,
+  onFile,
+  onRemove,
+  contain = false,
+  camera = true,
+}: {
+  id: string;
+  icon: typeof Camera;
+  title: string;
+  sub: string;
+  imageUrl: string | null;
+  imageAlt: string;
+  busy: boolean;
+  onFile: (file: File) => void;
+  onRemove: () => void;
+  contain?: boolean;
+  camera?: boolean;
+}) {
+  if (busy) return <UploadingTile className="min-h-28" />;
+  if (imageUrl) {
+    return (
+      <div className="space-y-1.5">
+        <PhotoTile src={imageUrl} alt={imageAlt} contain={contain} onRemove={onRemove} />
+        <p className="text-xs font-semibold">{title}</p>
+      </div>
+    );
+  }
+  return (
+    <AddTile id={id} label={title} sub={sub} icon={icon} onFile={onFile} camera={camera} className="min-h-28" />
+  );
+}
+
+/** What the step needs, ticked off as it arrives: the three a listing cannot
+ *  go without, and how many of the optional three are in. */
+function PhotoChecklist({
+  photos,
+  hasId,
+  hasLogo,
+}: {
+  photos: TrainerPhoto[];
+  hasId: boolean;
+  hasLogo: boolean;
+}) {
+  const t = useTranslations("TrainerJoinWizard");
+  const has = (kind: ProviderPhotoKind) => photos.some((photo) => photo.kind === kind);
+  const needed = [
+    {key: "workshop", done: has("workshop"), label: t("checkWorkshop")},
+    {key: "work", done: has("work"), label: t("checkWork")},
+    {key: "id", done: hasId, label: t("checkId")},
+  ];
+  const optionalDone = [hasLogo, has("entrance"), has("portrait")].filter(Boolean).length;
+  return (
+    <div>
+      <ul aria-label={t("checklistLabel")} className="flex flex-wrap gap-2">
+        {needed.map((item) => (
+          <li
+            key={item.key}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+              item.done
+                ? "border-[var(--color-visit)]/40 bg-[var(--color-visit-bg)] text-[var(--color-visit)]"
+                : "border-[var(--color-border)] text-[var(--color-foreground)]"
+            }`}
+          >
+            {item.done ? (
+              <CheckCircle2 aria-hidden="true" className="size-3.5" />
+            ) : (
+              <CircleDashed aria-hidden="true" className="size-3.5" />
+            )}
+            {item.label}
+            <span className="sr-only">{item.done ? t("checkDone") : t("checkToDo")}</span>
+          </li>
+        ))}
+        <li className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-muted-foreground)]">
+          <Sparkles aria-hidden="true" className="size-3.5" />
+          {t("checkOptional", {count: optionalDone, total: 3})}
+        </li>
+      </ul>
+      <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">{t("photosOneByOne")}</p>
+    </div>
+  );
+}
+
+/** Above the buttons: what is still missing, by name, or that nothing is. */
+function StillNeeded({photos, hasId}: {photos: TrainerPhoto[]; hasId: boolean}) {
+  const t = useTranslations("TrainerJoinWizard");
+  const missing = [
+    photos.some((photo) => photo.kind === "workshop") ? null : t("missingWorkshop"),
+    photos.some((photo) => photo.kind === "work") ? null : t("missingWork"),
+    hasId ? null : t("missingId"),
+  ].filter((item): item is string => item !== null);
+  return missing.length ? (
+    <p className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
+      <CircleDashed aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      {t("stillNeeded", {items: missing.join(", ")})}
+    </p>
+  ) : (
+    <p className="flex items-start gap-2 text-sm font-semibold text-[var(--color-visit)]">
+      <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      {t("allNeededDone")}
+    </p>
   );
 }
 
@@ -597,6 +822,8 @@ export function TrainerJoinWizard() {
   // to save.
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Which slot the photo being sent belongs to, so its tile shows it.
+  const [uploadingKind, setUploadingKind] = useState<string | null>(null);
   const [session, setSession] = useState<TrainerSession | null>(null);
   const [profile, setProfile] = useState<TrainerProfile | null>(null);
   const [areas, setAreas] = useState<TrainerArea[]>([]);
@@ -891,6 +1118,7 @@ export function TrainerJoinWizard() {
   async function addPhoto(file: File, kind: ProviderPhotoKind, beforeOf?: number) {
     setUploadError(null);
     setUploading(true);
+    setUploadingKind(beforeOf ? "work" : kind);
     try {
       const photo = await uploadTrainerPhoto(file, kind, "", beforeOf);
       // A new photo of the way in, or of the master, replaces the last, on
@@ -904,6 +1132,7 @@ export function TrainerJoinWizard() {
       setUploadError(reason instanceof Error ? reason.message : t("photoUploadFailed"));
     } finally {
       setUploading(false);
+      setUploadingKind(null);
     }
   }
 
@@ -923,6 +1152,7 @@ export function TrainerJoinWizard() {
   async function setLogo(file: File) {
     setUploadError(null);
     setUploading(true);
+    setUploadingKind("logo");
     try {
       const result = await uploadTrainerLogo(file);
       setLogoUrl(result.url);
@@ -930,6 +1160,7 @@ export function TrainerJoinWizard() {
       setUploadError(reason instanceof Error ? reason.message : t("logoUploadFailed"));
     } finally {
       setUploading(false);
+      setUploadingKind(null);
     }
   }
 
@@ -946,6 +1177,7 @@ export function TrainerJoinWizard() {
   async function addIdDocument(file: File) {
     setUploadError(null);
     setUploading(true);
+    setUploadingKind("id");
     try {
       await uploadTrainerIdentityDocument(file);
       setHasIdDocument(true);
@@ -953,6 +1185,7 @@ export function TrainerJoinWizard() {
       setUploadError(reason instanceof Error ? reason.message : t("documentUploadFailed"));
     } finally {
       setUploading(false);
+      setUploadingKind(null);
     }
   }
 
@@ -1830,7 +2063,7 @@ export function TrainerJoinWizard() {
           <Card className="overflow-hidden">
             <CardHeader className="pb-4 sm:px-6 sm:pt-6">
               <div className="mb-2 grid size-11 place-items-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]">
-                <Eye aria-hidden="true" className="size-5" />
+                <Camera aria-hidden="true" className="size-5" />
               </div>
               <h2
                 id="photos-heading"
@@ -1845,47 +2078,7 @@ export function TrainerJoinWizard() {
             <CardContent className="space-y-6 sm:px-6">
               {uploadError ? <FormError id="upload-error" message={uploadError} /> : null}
 
-              {/* The logo first, because it is one file and optional, so it
-                  does not stand between the trainer and the photographs the
-                  listing actually needs. */}
-              <fieldset disabled={uploading} className="space-y-3">
-                <legend className="text-sm font-semibold">
-                  {t("logoLegend")} <OptionalCue />
-                </legend>
-                <p className="text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  {t("logoHelp")}
-                </p>
-
-                {logoUrl ? (
-                  <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={logoUrl}
-                      alt={t("logoAlt")}
-                      className="size-16 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] object-contain p-1"
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={removeLogo}>
-                      {t("removeLogo")}
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <Label htmlFor="logo-input" className="sr-only">
-                      {t("uploadLogo")}
-                    </Label>
-                    <Input
-                      id="logo-input"
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = "";
-                        if (file) void setLogo(file);
-                      }}
-                    />
-                  </>
-                )}
-              </fieldset>
+              <PhotoChecklist photos={photos} hasId={hasIdDocument} hasLogo={Boolean(logoUrl)} />
 
               <Separator />
 
@@ -1895,8 +2088,10 @@ export function TrainerJoinWizard() {
                 hint={t("workshopPhotosHint")}
                 photos={photos}
                 uploading={uploading}
+                busyHere={uploadingKind === "workshop"}
                 onAdd={addPhoto}
                 onRemove={removePhoto}
+                idea={{text: t("ideaEquipment"), icon: Wrench}}
               />
 
               <Separator />
@@ -1907,81 +2102,132 @@ export function TrainerJoinWizard() {
                 hint={t("workPhotosHint")}
                 photos={photos}
                 uploading={uploading}
+                busyHere={uploadingKind === "work"}
                 onAdd={addPhoto}
                 onAddBefore={(file, workId) => void addPhoto(file, "before", workId)}
                 onRemove={removePhoto}
+                idea={{text: t("ideaWork"), icon: Hammer}}
               />
 
               <Separator />
 
-              {/* The way in, for the listing's "find the gate" card. */}
-              <PhotoGroup
-                kind="entrance"
-                title={t("entrancePhotoTitle")}
-                hint={t("entrancePhotoHint")}
-                photos={photos}
-                uploading={uploading}
-                onAdd={addPhoto}
-                onRemove={removePhoto}
-                optional
-                max={1}
-              />
+              {/* The ID on its own, in grey and behind a padlock: it is never
+                  published, and it should not look like one more photo. */}
+              <section aria-labelledby="id-photo-title" className="rounded-2xl bg-[var(--color-muted)] p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-card)] text-[var(--color-muted-foreground)]">
+                    <LockKeyhole aria-hidden="true" className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 id="id-photo-title" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      {t("idPhotoLegend")}
+                      <NeededBadge />
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{t("idPrivate")}</p>
+                    {hasIdDocument ? (
+                      <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-visit)]">
+                        <CheckCircle2 aria-hidden="true" className="size-4" />
+                        {t("idOnFileShort")}
+                      </p>
+                    ) : null}
+                    <div className="mt-3">
+                      {uploadingKind === "id" ? (
+                        <p className="inline-flex items-center gap-2 text-sm">
+                          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                          {t("uploadingShort")}
+                        </p>
+                      ) : (
+                        <label
+                          htmlFor="id-input"
+                          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-card)] px-4 text-sm font-semibold hover:border-[var(--color-brand)] focus-within:ring-3 focus-within:ring-[var(--color-brand)]/20"
+                        >
+                          <Camera aria-hidden="true" className="size-4" />
+                          {hasIdDocument ? t("idReplace") : t("idTake")}
+                          <input
+                            id="id-input"
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            disabled={uploading}
+                            className="sr-only"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void addIdDocument(file);
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <Separator />
 
-              {/* The master's portrait, for the listing's portrait strip. */}
-              <PhotoGroup
-                kind="portrait"
-                title={t("portraitPhotoTitle")}
-                hint={t("portraitPhotoHint")}
-                photos={photos}
-                uploading={uploading}
-                onAdd={addPhoto}
-                onRemove={removePhoto}
-                optional
-                max={1}
-              />
-
-              <Separator />
-
+              {/* The optional three together at the end, so they do not stand
+                  between the trainer and the photographs the listing needs. */}
               <fieldset disabled={uploading} className="space-y-3">
                 <legend className="text-sm font-semibold">
-                  {t("idPhotoLegend")}
-                  <RequiredCue />
+                  {t("optionalTitle")} <OptionalCue />
                 </legend>
-                {hasIdDocument ? (
-                  <Alert>
-                    <CheckCircle2 aria-hidden="true" className="size-4" />
-                    <AlertDescription>
-                      {t("idOnFile")}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                <Label htmlFor="id-input" className="sr-only">
-                  {t("uploadId")}
-                </Label>
-                <Input
-                  id="id-input"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = "";
-                    if (file) void addIdDocument(file);
-                  }}
-                />
-                <p className="flex items-start gap-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                  <LockKeyhole aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                  <span>
-                    {t("idPrivate")}
-                  </span>
-                </p>
+                <ul className="grid gap-3 sm:grid-cols-3">
+                  <li>
+                    <SlotCard
+                      id="logo-input"
+                      icon={Building2}
+                      title={t("logoSlot")}
+                      sub={t("logoSlotHint")}
+                      imageUrl={logoUrl}
+                      imageAlt={t("logoAlt")}
+                      busy={uploadingKind === "logo"}
+                      onFile={(file) => void setLogo(file)}
+                      onRemove={() => void removeLogo()}
+                      contain
+                      camera={false}
+                    />
+                  </li>
+                  <li>
+                    <SlotCard
+                      id="photo-input-entrance"
+                      icon={DoorOpen}
+                      title={t("entranceSlot")}
+                      sub={t("entranceSlotHint")}
+                      imageUrl={photos.find((photo) => photo.kind === "entrance")?.url ?? null}
+                      imageAlt={t("entranceSlot")}
+                      busy={uploadingKind === "entrance"}
+                      onFile={(file) => void addPhoto(file, "entrance")}
+                      onRemove={() => {
+                        const entrance = photos.find((photo) => photo.kind === "entrance");
+                        if (entrance) void removePhoto(entrance.id);
+                      }}
+                    />
+                  </li>
+                  <li>
+                    <SlotCard
+                      id="photo-input-portrait"
+                      icon={UserRound}
+                      title={t("portraitSlot")}
+                      sub={t("portraitSlotHint")}
+                      imageUrl={photos.find((photo) => photo.kind === "portrait")?.url ?? null}
+                      imageAlt={t("portraitSlot")}
+                      busy={uploadingKind === "portrait"}
+                      onFile={(file) => void addPhoto(file, "portrait")}
+                      onRemove={() => {
+                        const portrait = photos.find((photo) => photo.kind === "portrait");
+                        if (portrait) void removePhoto(portrait.id);
+                      }}
+                    />
+                  </li>
+                </ul>
               </fieldset>
 
+              <Separator />
+
+              <StillNeeded photos={photos} hasId={hasIdDocument} />
+
               {uploading ? (
-                <p role="status" className="flex items-center gap-2 text-sm">
-                  <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                <p role="status" className="sr-only">
                   {t("uploading")}
                 </p>
               ) : null}
