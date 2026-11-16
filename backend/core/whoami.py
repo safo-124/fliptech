@@ -79,7 +79,9 @@ def whoami_payload(request):
             if customer
             else None
         ),
-        "seller": ({"name": seller.business_name or str(seller.phone)} if seller else None),
+        "seller": (
+            {"id": seller.pk, "name": seller.business_name or str(seller.phone)} if seller else None
+        ),
         "trainer": ({"name": trainer.full_name or str(trainer.phone)} if trainer else None),
         # Only the trainee carries a picture, because only the trainee has one
         # to carry. A workshop's identity on this site is its listing photos,

@@ -8,7 +8,7 @@
  */
 
 import {trainerFetch as sessionFetch} from "./trainer-api";
-import type {BagItem, BasketPrice, MarketplaceOrder} from "./types";
+import type {BagItem, BasketPrice, MarketplaceOrder, SellerShop} from "./types";
 
 export {TrainerApiError as MarketplaceApiError} from "./trainer-api";
 
@@ -190,4 +190,27 @@ export function replyToProblem(reference: string, reply: string) {
 /** An order, for the browser that made it or the signed-in buyer. */
 export function getOrder(reference: string) {
   return sessionFetch<MarketplaceOrder>(`/api/orders/${encodeURIComponent(reference)}/`);
+}
+
+/** The shop, read in the browser: the checkout's trust box and pickup point. */
+export function getShopForCheckout(sellerId: number) {
+  return sessionFetch<SellerShop>(`/api/sellers/${sellerId}/`);
+}
+
+export type DirectOrderInput = {
+  phone: string;
+  name: string;
+  quantity: number;
+  option?: number | null;
+  fulfilment: Fulfilment;
+  note?: string;
+};
+
+/** "Order from the maker", for a maker who takes payment directly. Nothing
+ *  is charged; `conversation_id` is the chat the order went into. */
+export function orderFromMaker(productId: number, body: DirectOrderInput) {
+  return sessionFetch<MarketplaceOrder & {conversation_id: number | null}>(
+    `/api/products/${productId}/direct-orders/`,
+    {method: "POST", body: JSON.stringify(body)},
+  );
 }

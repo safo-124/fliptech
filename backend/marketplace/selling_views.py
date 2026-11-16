@@ -23,6 +23,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.conf import settings
 from django.contrib.auth import get_user
 from django.db import transaction
+from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -30,7 +32,8 @@ from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from phonenumber_field.serializerfields import PhoneNumberField
+from rest_framework import serializers, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -779,7 +782,23 @@ def holds_payment(seller, pay_now_pesewas=0):
     return rule(seller, pay_now_pesewas)
 
 
+def buying_own(request, seller):
+    """True when the signed-in person is this seller: nobody buys or orders
+    their own item (it would only pay Fliiptech a commission on nothing)."""
+    user = getattr(request, "user", None)
+    return bool(user and user.is_authenticated and seller.user_id == user.pk)
+
+
+def own_item_refusal():
+    return Response(
+        {"detail": _("This is your own shop, so you cannot buy from it."), "code": "own_item"},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
 def _create_order(request, seller, data, bundle=None):
+    if buying_own(request, seller):
+        return own_item_refusal()
     if not (paystack.enabled() and seller.takes_payments):
         return Response(
             {"detail": _("This seller does not take payment on the site. Ask them instead.")},
@@ -951,6 +970,187 @@ class ShopOrderCreateView(APIView):
         return _create_order(request, _shop(pk), dict(serializer.validated_data))
 
 
+class DirectOrderSerializer(serializers.Serializer):
+    """ "Order from the maker": what a buyer asks for, to pay the maker."""
+
+    phone = PhoneNumberField()
+    name = serializers.CharField(max_length=120)
+    quantity = serializers.IntegerField(min_value=1, max_value=20, default=1)
+    option = serializers.IntegerField(required=False, allow_null=True)
+    fulfilment = serializers.ChoiceField(choices=Order.Fulfilment.choices, default="pickup")
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError(_("Say who the order is for."))
+        return value
+
+    def validate(self, attrs):
+        if attrs["fulfilment"] == Order.Fulfilment.DELIVERY and not attrs.get("note", "").strip():
+            raise serializers.ValidationError({"note": _("Say where it should be delivered.")})
+        return attrs
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class DirectOrderCreateView(APIView):
+    """ "Order from the maker", for a seller who cannot take payment on the
+    site yet (no ID check, or no payout account).
+
+    The buyer's phone is verified, as for Buy now. The order goes to the
+    seller's Orders marked "Pay the maker directly", the seller is texted,
+    and, where the buyer has an account, it opens the chat with the order in
+    it. Nothing is charged; stock is not taken until the maker hands it over.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=DirectOrderSerializer, responses={201: None})
+    def post(self, request, pk):
+        serializer = DirectOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        product = _public_products().filter(pk=pk).select_related("seller").first()
+        if product is None:
+            raise NotFound(_("No such product."))
+        seller = product.seller
+        if buying_own(request, seller):
+            return own_item_refusal()
+        if paystack.enabled() and seller.takes_payments:
+            return Response(
+                {"detail": _("This maker takes payment on the site: use Buy now.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if product.availability == Product.Availability.SOLD_OUT:
+            return Response(
+                {"detail": _("%(name)s is sold out.") % {"name": product.name}},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if product.stock is not None and data["quantity"] > product.stock:
+            return Response(
+                {
+                    "detail": _("Only %(count)s %(name)s left.")
+                    % {"count": product.stock, "name": product.name}
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        option = None
+        if data.get("option"):
+            option = product.options.filter(pk=data["option"], available=True).first()
+            if option is None:
+                return Response(
+                    {"detail": _("Choose one of the sizes or colours shown.")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        if not phone_vouched_for(request, data["phone"]):
+            return Response(
+                {"detail": _("Verify this phone number first.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if is_ratelimited(
+            request, group="direct-order", key=ratelimit_client_ip, rate="20/h", increment=True
+        ):
+            return Response(
+                {"detail": _("Too many orders. Try again later.")},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        unit = (option.price if option and option.price is not None else product.price) or 0
+        total = unit * data["quantity"]
+        with transaction.atomic():
+            order = Order.objects.create(
+                reference=payment_reference("fd"),
+                seller=seller,
+                product=product,
+                product_name=product.name[:200],
+                unit_price=unit,
+                quantity=data["quantity"],
+                # What it comes to at the listed price; agreed with the maker.
+                amount_pesewas=int(round(total * 100)),
+                plan=Order.Plan.DIRECT,
+                buyer_phone=data["phone"],
+                buyer_name=data["name"],
+                fulfilment=data["fulfilment"],
+                note=data.get("note", "").strip(),
+                payout=Order.Payout.SPLIT,
+            )
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_name=product.name,
+                option_label=option.label if option else "",
+                unit_price=unit,
+                quantity=data["quantity"],
+            )
+        request.session[SESSION_ORDERS] = [
+            *request.session.get(SESSION_ORDERS, [])[-19:],
+            order.reference,
+        ]
+        conversation_id = _direct_order_chat(order, product, option)
+        transaction.on_commit(lambda: _tell_seller_direct(order))
+        payload = OrderSerializer(order).data
+        payload["conversation_id"] = conversation_id
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+def _direct_order_words(order, option):
+    choice = f" ({option.label})" if option else ""
+    how = _("collect it") if order.fulfilment == Order.Fulfilment.PICKUP else _("have it delivered")
+    words = _("Order: %(qty)s × %(name)s%(choice)s. I would like to %(how)s.") % {
+        "qty": order.quantity,
+        "name": order.product_name,
+        "choice": choice,
+        "how": how,
+    }
+    if order.note:
+        words += " " + order.note
+    return words
+
+
+def _direct_order_chat(order, product, option):
+    """The order as the first message in the buyer's chat with the maker,
+    where they agree payment and pickup. Only where the buyer has an account
+    (verifying a number makes one); the seller is texted either way."""
+    from accounts.models import CustomerAccount
+
+    from .chat import open_product_chat
+
+    account = CustomerAccount.objects.filter(phone=order.buyer_phone, is_active=True).first()
+    if account is None:
+        return None
+    try:
+        return open_product_chat(product, account, _direct_order_words(order, option)).pk
+    except Exception:  # noqa: BLE001 - the order stands without the chat
+        logger.exception("Could not open the chat for direct order %s", order.reference)
+        return None
+
+
+def _tell_seller_direct(order):
+    from appsupport.notify import notify
+    from core.sms import send_sms
+
+    try:
+        notify(
+            order.seller.phone,
+            _(
+                "%(brand)s: new order to pay you directly. %(qty)s × %(name)s from %(buyer)s "
+                "on %(phone)s. Agree payment and pickup with them."
+            )
+            % {
+                "brand": settings.BRAND_NAME,
+                "qty": order.quantity,
+                "name": order.product_name,
+                "buyer": order.buyer_name,
+                "phone": order.buyer_phone,
+            },
+            sms="always",
+            link="/sell/shop#orders",
+            send=send_sms,
+        )
+    except Exception:  # noqa: BLE001 - the order stands without the text
+        logger.exception("Could not text the seller about %s", order.reference)
+
+
 def _buyers_order(request, reference):
     """The order, for the browser that made it or the signed-in person whose
     phone paid for it, from any phone."""
@@ -984,7 +1184,8 @@ class OrderView(APIView):
     @extend_schema(request=None, responses={200: None})
     def post(self, request, reference):
         order = _buyers_order(request, reference)
-        if order.status == PaymentStatus.PENDING:
+        # A direct order never went to Paystack: nothing to ask it.
+        if order.status == PaymentStatus.PENDING and order.plan != Order.Plan.DIRECT:
             try:
                 order = confirm_order(reference, paystack.verify(reference)) or order
             except paystack.PaystackError as exc:
@@ -1001,18 +1202,20 @@ class OrderView(APIView):
 
 
 class OwnOrdersView(APIView):
-    """What buyers have paid this seller for. Unpaid attempts are left out."""
+    """What buyers have paid this seller for, and orders to be paid to them
+    directly. Unpaid Paystack attempts are left out."""
 
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, IsActiveSeller]
 
     @extend_schema(responses={200: None})
     def get(self, request):
+        # Paid ones, and "Order from the maker" requests (paid to the maker).
         orders = (
             _account(request)
-            .orders.filter(status=PaymentStatus.PAID)
+            .orders.filter(Q(status=PaymentStatus.PAID) | Q(plan=Order.Plan.DIRECT))
             .select_related("seller")
-            .order_by("-paid_at")[:100]
+            .order_by(Coalesce("paid_at", "created_at").desc())[:100]
         )
         return Response({"results": OrderSerializer(orders, many=True).data})
 
