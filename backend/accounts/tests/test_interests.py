@@ -83,7 +83,7 @@ def test_learn_a_trade_makes_the_same_login_a_trainee(client):
     body = tick(client, ["learn", "buy"]).json()
 
     assert TraineeAccount.objects.get().user == user
-    assert body["roles"]["trainee"] == {"href": "/trainee"}
+    assert body["roles"]["trainee"] == {"href": "/account/learning"}
     # The trainee side recognises the same session: no second sign-in.
     assert client.get(reverse("trainee-session-me")).status_code == 200
 
@@ -112,4 +112,4 @@ def test_a_trainee_who_came_in_by_their_own_door_can_buy_too(client):
     body = client.get(reverse("account")).json()
 
     assert body["authenticated"] is True
-    assert body["roles"]["trainee"] == {"href": "/trainee"}
+    assert body["roles"]["trainee"] == {"href": "/account/learning"}

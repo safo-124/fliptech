@@ -18,6 +18,7 @@ export function AccountExtras() {
   const t = useTranslations("Account");
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [searches, setSearches] = useState<SavedSearch[] | null>(null);
+  const [allChats, setAllChats] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -37,8 +38,9 @@ export function AccountExtras() {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <section
+        id="messages"
         aria-labelledby="account-chats"
-        className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5"
+        className="scroll-mt-24 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5"
       >
         <h2 id="account-chats" className="flex items-center gap-2 text-base font-bold">
           <MessageSquare aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
@@ -53,7 +55,7 @@ export function AccountExtras() {
           <p className="mt-3 text-sm text-[var(--color-muted-foreground)]">…</p>
         ) : chats.length ? (
           <ul className="mt-3 divide-y divide-[var(--color-border)]">
-            {chats.slice(0, 5).map((chat) => (
+            {(allChats ? chats : chats.slice(0, 5)).map((chat) => (
               <li key={chat.id}>
                 <Link href={`/account/chats/${chat.id}`} className="flex items-center gap-3 py-2.5">
                   <span className="min-w-0 flex-1">
@@ -61,6 +63,9 @@ export function AccountExtras() {
                       {chat.with.name}
                     </span>
                     <span className="block truncate text-xs text-[var(--color-muted-foreground)]">
+                      {/* The same enquiry as on the Learning page, said the
+                          same way: a chat with a workshop is the enquiry. */}
+                      {chat.kind === "workshop" ? `${t("chatsKindWorkshop")} · ` : ""}
                       {chat.last?.sender === "buyer" ? `${t("chatsYou")}: ` : ""}
                       {chat.last?.body}
                     </span>
@@ -73,10 +78,15 @@ export function AccountExtras() {
         ) : (
           <p className="mt-3 text-sm text-[var(--color-muted-foreground)]">{t("chatsNone")}</p>
         )}
-        {chats && chats.length > 5 ? (
-          <Link href="/account/chats" className="mt-2 inline-block text-sm font-semibold text-[var(--color-brand)]">
+        {/* There is no page of all chats: the rest open here. */}
+        {chats && chats.length > 5 && !allChats ? (
+          <button
+            type="button"
+            onClick={() => setAllChats(true)}
+            className="mt-2 inline-flex min-h-10 items-center text-sm font-semibold text-[var(--color-brand)] hover:underline"
+          >
             {t("chatsAll")}
-          </Link>
+          </button>
         ) : null}
       </section>
 

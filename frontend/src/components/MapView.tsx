@@ -303,6 +303,10 @@ export default function MapView({
               ) : null}
               <span className={immersive ? "hidden lg:inline" : undefined}>
                 {t("interactiveMap", { count: validProviders.length })}
+                {/* The list counts every provider; say why the map shows fewer. */}
+                {providers.length > validProviders.length
+                  ? ` · ${t("notOnMap", { count: providers.length - validProviders.length })}`
+                  : ""}
               </span>
               {scopeLabel ? (
                 <span className={immersive ? "hidden lg:inline" : undefined}>{` ${scopeLabel}`}</span>

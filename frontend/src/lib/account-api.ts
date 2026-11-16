@@ -7,6 +7,7 @@
  */
 
 import {forgetAccountCopies} from "./bag";
+import {announceSignedOut} from "./sign-in";
 import {clearAllDrafts} from "./drafts";
 import {trainerFetch as sessionFetch} from "./trainer-fetch";
 import type {MarketplaceOrder} from "./types";
@@ -74,7 +75,21 @@ export function signOutAccount() {
   // Drafts go whether or not the request succeeds: the person is leaving.
   clearAllDrafts();
   forgetAccountCopies();
+  announceSignedOut();
   return sessionFetch<AccountSession>("/api/account/logout/", {method: "POST"});
+}
+
+/** Close the whole login. Refused with a 409 and `code` "runs_business" or
+ *  "paid_courses"; the server's message says why, in plain words. */
+export async function closeAccount() {
+  const result = await sessionFetch<{closed: true}>("/api/account/close/", {
+    method: "POST",
+    body: JSON.stringify({confirm: true}),
+  });
+  clearAllDrafts();
+  forgetAccountCopies();
+  announceSignedOut();
+  return result;
 }
 
 export function getMyOrders() {

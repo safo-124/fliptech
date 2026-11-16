@@ -51,3 +51,18 @@ export const SESSION_CHANGED = "fliiptech:session-changed";
 export function announceSessionChange() {
   window.dispatchEvent(new Event(SESSION_CHANGED));
 }
+
+/** Fired by every sign-out. The header forgets the person at once, without
+    waiting for the server or the next page. */
+export const SIGNED_OUT = "fliiptech:signed-out";
+
+export function announceSignedOut() {
+  // Not SESSION_CHANGED: that asks the server who is signed in, and this
+  // fires before the sign-out request has reached it. Never in the way of
+  // signing out, whatever the page is.
+  try {
+    window.dispatchEvent(new Event(SIGNED_OUT));
+  } catch {
+    // No window to tell: nothing is showing a name.
+  }
+}

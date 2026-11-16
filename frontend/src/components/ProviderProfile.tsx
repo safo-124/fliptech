@@ -800,6 +800,12 @@ function listeningScript(
     .join(" ");
 }
 
+/** "Accra Welding Works" as "AW": two letters stand in for a missing photo. */
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter((word) => /^[\p{L}\p{N}]/u.test(word));
+  return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "?").slice(0, 2)).toUpperCase();
+}
+
 export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
   const t = useTranslations("ProviderProfile");
   const tFormat = useTranslations("Format");
@@ -825,13 +831,26 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
             sizes="(max-width: 1024px) 100vw, 1400px"
           />
         ) : (
-          <div className="surface-grid flex aspect-[4/3] w-full items-center justify-center sm:aspect-video lg:aspect-[21/8]">
-            <div className="flex flex-col items-center text-[var(--color-muted-foreground)]">
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-[var(--color-card)] shadow-sm">
-                <Wrench className="size-7" aria-hidden="true" />
-              </div>
-              <p className="mt-3 text-sm font-medium">{t("photoComingSoon")}</p>
-            </div>
+          /* No photo yet: a short band with the logo or initials, not a
+             screen of empty grey. The page's facts start straight after. */
+          <div className="flex h-28 w-full items-center justify-center bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-muted))] sm:h-36">
+            {provider.logo ? (
+              <Image
+                src={provider.logo}
+                alt=""
+                width={96}
+                height={96}
+                className="size-20 rounded-2xl border border-[var(--color-border)] bg-white object-contain p-2 shadow-sm sm:size-24"
+                sizes="96px"
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="grid size-20 place-items-center rounded-2xl bg-[var(--color-card)] text-2xl font-extrabold tracking-[-0.03em] text-[var(--color-brand)] shadow-sm sm:size-24 sm:text-3xl"
+              >
+                {initials(provider.name)}
+              </span>
+            )}
           </div>
         )}
 

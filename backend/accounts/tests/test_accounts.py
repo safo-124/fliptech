@@ -155,7 +155,9 @@ def test_a_trainee_signing_in_gets_a_customer_account_on_their_login(client):
 
     trainee = TraineeAccount.objects.get()
     assert CustomerAccount.objects.get().user_id == trainee.user_id
-    assert client.get(reverse("account")).json()["roles"]["trainee"] == {"href": "/trainee"}
+    assert client.get(reverse("account")).json()["roles"]["trainee"] == {
+        "href": "/account/learning"
+    }
 
 
 @pytest.mark.django_db
