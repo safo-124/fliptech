@@ -1,4 +1,5 @@
 import {addRole} from "./account-api";
+import {forgetAccountCopies} from "./bag";
 import {clearAllDrafts} from "./drafts";
 import {getWhoami} from "./session-api";
 import {API_URL, TrainerApiError, trainerFetch} from "./trainer-fetch";
@@ -266,6 +267,7 @@ export async function submitTrainerProfile() {
 
 export function logoutTrainer() {
   clearAllDrafts();
+  forgetAccountCopies();
   return trainerFetch<TrainerSession>("/api/trainer/logout/", {
     method: "POST",
     body: JSON.stringify({}),

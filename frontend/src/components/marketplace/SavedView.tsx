@@ -10,7 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { searchProducts } from "@/lib/api";
 import { StockAlert } from "@/components/marketplace/StockAlert";
-import { allBags, onBagChange, savedIds, syncBagWithAccount, type StoredBag } from "@/lib/bag";
+import {
+  allBags,
+  onBagChange,
+  savedIds,
+  syncBagWithAccount,
+  syncSavedWithAccount,
+  type StoredBag,
+} from "@/lib/bag";
 import type { ProductCard } from "@/lib/types";
 
 /** What this browser saved, and any bags waiting to be paid for. */
@@ -18,6 +25,8 @@ export function SavedView() {
   const t = useTranslations("Marketplace");
   const [products, setProducts] = useState<ProductCard[] | null>(null);
   const [bags, setBags] = useState<Record<string, StoredBag>>({});
+  // Signed in: the list is the account's, on every phone they sign in on.
+  const [onAccount, setOnAccount] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -39,6 +48,10 @@ export function SavedView() {
     }
     void load();
     void syncBagWithAccount();
+    // What another phone saved, here too (the change event reloads the list).
+    void syncSavedWithAccount().then((synced) => {
+      if (active) setOnAccount(synced);
+    });
     const stop = onBagChange(() => void load());
     return () => {
       active = false;
@@ -95,7 +108,7 @@ export function SavedView() {
         ) : (
           <Card className="mt-4 p-8 text-center">
             <Heart aria-hidden="true" className="mx-auto size-6 text-[var(--color-muted-foreground)]" />
-            <p className="mt-3 text-sm text-[var(--color-muted-foreground)]">{t("savedEmpty")}</p>
+            <p className="mt-3 text-sm text-[var(--color-muted-foreground)]">{t(onAccount ? "savedEmptyAccount" : "savedEmpty")}</p>
             <Button asChild variant="outline" className="mt-4">
               <Link href="/marketplace">{t("backToMarketplace")}</Link>
             </Button>

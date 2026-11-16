@@ -7,6 +7,7 @@
  */
 
 import {addRole} from "./account-api";
+import {forgetAccountCopies} from "./bag";
 import {clearAllDrafts} from "./drafts";
 import {getWhoami} from "./session-api";
 import {trainerFetch as sessionFetch} from "./trainer-api";
@@ -135,6 +136,7 @@ export function startSelling() {
 
 export function signOutSeller() {
   clearAllDrafts();
+  forgetAccountCopies();
   return sessionFetch<SellerSession>("/api/seller/logout/", {method: "POST"});
 }
 

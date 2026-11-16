@@ -37,6 +37,7 @@ import { postJson } from "@/lib/api";
 import { ENQUIRY_DRAFT, readDraft, removeDraft, writeDraft } from "@/lib/drafts";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
 import { currentDraftOwner } from "@/lib/session-api";
+import { useAccountContact } from "@/lib/use-account-contact";
 import type { EnquiryConfirmation } from "@/lib/types";
 
 const schema = z.object({
@@ -68,7 +69,7 @@ export function EnquiryForm({
     resolver: zodResolver(schema),
     defaultValues: { phone: "", trainee_name: "", message: "" },
   });
-  const { register, handleSubmit, getValues, reset, formState } = form;
+  const { register, handleSubmit, getValues, reset, setValue, formState } = form;
 
   // Restore anything this same person typed before a reload or a dropped
   // connection. Who that is comes from the server, so a draft left by the
@@ -91,6 +92,16 @@ export function EnquiryForm({
   useEffect(() => {
     if (step === "code") codeInputRef.current?.focus();
   }, [step]);
+
+  // Signed in: their name and number to start with, not blank boxes. Their
+  // own number needs no code (the server says it is verified); another
+  // number typed instead is texted one, as for anybody.
+  const contact = useAccountContact();
+  useEffect(() => {
+    if (!contact) return;
+    if (!getValues("phone")) setValue("phone", contact.phone);
+    if (!getValues("trainee_name") && contact.name) setValue("trainee_name", contact.name);
+  }, [contact, getValues, setValue]);
 
   // Persisted from the form's own change event rather than react-hook-form's
   // watch(), whose returned function cannot be memoized safely and so forces a

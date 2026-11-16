@@ -1,7 +1,8 @@
 /**
- * The bag and "saved for later", kept in this browser only.
+ * The bag and "saved for later", kept in this browser, and on the account
+ * too while one is signed in (synced both ways, see below).
  *
- * No account: a buyer here usually has none, and a bag on one phone is all
+ * No account needed: a buyer here often has none, and a bag on one phone is all
  * that is needed to buy several things from one maker in one payment. One
  * bag per seller, because one payment goes to one seller. Prices are not
  * kept here: the server prices every bag when it is shown and when it is
@@ -150,16 +151,34 @@ export function toggleSaved(id: number) {
 }
 
 /**
- * After signing in: what this browser saved goes onto the account, and what
- * the account had comes back here, so the hearts are right on every phone.
+ * After signing in, and on the Saved page while signed in: what this browser
+ * saved goes onto the account, and what the account had comes back here, so
+ * the hearts are right on every phone. True when an account took part.
  */
-export async function syncSavedWithAccount() {
+export async function syncSavedWithAccount(): Promise<boolean> {
   try {
     const {changeSaved} = await import("./account-api");
     const {ids} = await changeSaved({add: savedIds()});
     write(SAVED, ids);
+    return true;
   } catch {
     // Signed out, or offline: the browser's list stands.
+    return false;
+  }
+}
+
+/**
+ * On signing out: the saved list and bags leave this browser. The account
+ * keeps them, and they come back on signing in, but the next person to use
+ * this phone should not see them, or have them added to their own account.
+ */
+export function forgetAccountCopies() {
+  try {
+    window.localStorage.removeItem(SAVED);
+    window.localStorage.removeItem(BAGS);
+    window.dispatchEvent(new Event(CHANGED));
+  } catch {
+    // Nothing kept, so nothing to forget.
   }
 }
 

@@ -7,6 +7,7 @@
  * session payload says so, which is what drives the support banner.
  */
 
+import {forgetAccountCopies} from "./bag";
 import {clearAllDrafts} from "./drafts";
 import {trainerFetch as sessionFetch} from "./trainer-api";
 import type {
@@ -140,6 +141,7 @@ export function confirmAddEmail(challengeId: string, email: string, code: string
 /** Signs a trainee out, or ends a staff support session. */
 export function logoutTrainee() {
   clearAllDrafts();
+  forgetAccountCopies();
   return sessionFetch<TraineeSession & {back_office_url?: string}>("/api/trainee/logout/", {
     method: "POST",
     body: JSON.stringify({}),

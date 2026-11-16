@@ -6,9 +6,13 @@ import {useTranslations} from "next-intl";
 import {useEffect, useState} from "react";
 
 import {Button} from "@/components/ui/button";
+import {addRole} from "@/lib/account-api";
+import {getWhoami} from "@/lib/session-api";
 import {getSavedProviders, getTraineeSession, removeSavedProvider, saveProvider} from "@/lib/trainee-api";
 
-type State = "loading" | "anonymous" | "saved" | "unsaved";
+// "joining": signed in on the site but not yet as a learner. Saving makes the
+// login a learner too, on the same session, instead of asking them to sign in.
+type State = "loading" | "anonymous" | "joining" | "saved" | "unsaved";
 
 /**
  * Save a workshop to the trainee's account. Lives on the profile page only:
@@ -25,7 +29,8 @@ export function SaveProviderButton({providerId, returnTo}: {providerId: number; 
     getTraineeSession()
       .then(async (session) => {
         if (!session.authenticated) {
-          if (active) setState("anonymous");
+          const who = await getWhoami().catch(() => null);
+          if (active) setState(who?.customer ? "joining" : "anonymous");
           return;
         }
         const saved = await getSavedProviders();
@@ -61,6 +66,7 @@ export function SaveProviderButton({providerId, returnTo}: {providerId: number; 
         await removeSavedProvider(providerId);
         setState("unsaved");
       } else {
+        if (state === "joining") await addRole("trainee");
         await saveProvider(providerId);
         setState("saved");
       }
