@@ -31,7 +31,7 @@ export function CheckoutAll() {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--color-border-strong)] p-8 text-center">
         <ShoppingBag aria-hidden="true" className="mx-auto size-6 text-[var(--color-muted-foreground)]" />
-        <p className="mt-3 text-sm text-[var(--color-muted-foreground)]">{t("savedEmpty")}</p>
+        <p className="mt-3 text-sm text-[var(--color-muted-foreground)]">{t("bagEmpty")}</p>
         <Button asChild variant="outline" className="mt-4">
           <Link href="/marketplace">{t("backToMarketplace")}</Link>
         </Button>

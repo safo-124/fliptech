@@ -8,8 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { requestBuyerCode, requestQuote, verifyBuyerCode, type QuoteInput } from "@/lib/marketplace-api";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
+import { useAccountContact } from "@/lib/use-account-contact";
 
 type Option = { slug: string; name: string };
 
@@ -18,8 +21,11 @@ type Option = { slug: string; name: string };
  * but not the buyer's number until they choose to take it up; the buyer is
  * texted each time one does. Same phone check as asking a question.
  */
+type Field = "trade" | "title" | "details" | "name" | "phone";
+
 export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[] }) {
   const t = useTranslations("Marketplace");
+  const contact = useAccountContact();
   const [form, setForm] = useState({
     trade: "",
     area: "",
@@ -28,17 +34,25 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
     quantity: "",
     budget: "",
     needed_by: "",
-    name: "",
-    phone: "",
   });
+  // Null until typed in: until then the signed-in account's name and number
+  // stand in, so nobody signed in is asked for them again.
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const [typedPhone, setTypedPhone] = useState<string | null>(null);
+  const name = typedName ?? contact?.name ?? "";
+  const phone = typedPhone ?? contact?.phone ?? "";
   const [step, setStep] = useState<"form" | "code" | "done">("form");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [result, setResult] = useState<{ reference: string; makers: number } | null>(null);
 
-  const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+  const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm({ ...form, [key]: event.target.value });
+    // A message goes as soon as the field is put right.
+    if (key in errors && event.target.value.trim()) setErrors((current) => ({ ...current, [key]: undefined }));
+  };
 
   async function send(e164: string) {
     const body: QuoteInput = {
@@ -49,25 +63,50 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
       quantity: form.quantity.trim() || undefined,
       budget: form.budget.trim() || undefined,
       needed_by: form.needed_by || null,
-      name: form.name.trim(),
+      name: name.trim(),
       phone: e164,
     };
     setResult(await requestQuote(body));
     setStep("done");
   }
 
+  /** Every problem at once, beside its field; the first is scrolled to. */
+  function check(): string | null {
+    const found: Partial<Record<Field, string>> = {
+      trade: form.trade ? undefined : t("quoteNeedTrade"),
+      title: form.title.trim() ? undefined : t("quoteNeedTitle"),
+      details: form.details.trim() ? undefined : t("quoteNeedDetails"),
+      name: name.trim() ? undefined : t("quoteNeedName"),
+      phone: ghanaPhoneSchema.safeParse(phone).success ? undefined : t("quoteNeedPhone"),
+    };
+    setErrors(found);
+    const first = (["trade", "title", "details", "name", "phone"] as const).find((key) => found[key]);
+    if (first) {
+      const element = document.getElementById(`quote-${first === "title" ? "title" : first}`);
+      // Centred, so it is never hidden under the sticky header.
+      element?.scrollIntoView({ block: "center", behavior: "smooth" });
+      element?.focus({ preventScroll: true });
+      return null;
+    }
+    return toGhanaE164(ghanaPhoneSchema.parse(phone));
+  }
+
   async function start(event: React.FormEvent) {
     event.preventDefault();
-    setBusy(true);
     setError(null);
+    const e164 = check();
+    if (!e164) return;
+    setBusy(true);
     try {
-      if (!form.trade || !form.title.trim() || !form.details.trim() || !form.name.trim()) {
-        throw new Error(t("quoteMissing"));
+      // Their own account's number: proved at sign-in, so no code. Any other
+      // number is checked by text, and the server holds to the same rule.
+      if (contact && e164 === contact.e164) {
+        await send(e164);
+      } else {
+        const asked = await requestBuyerCode(e164);
+        if (asked.verified) await send(e164);
+        else setStep("code");
       }
-      const e164 = toGhanaE164(ghanaPhoneSchema.parse(form.phone));
-      const asked = await requestBuyerCode(e164);
-      if (asked.verified) await send(e164);
-      else setStep("code");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("quoteFailed"));
     }
@@ -79,7 +118,7 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
     setBusy(true);
     setError(null);
     try {
-      const e164 = toGhanaE164(ghanaPhoneSchema.parse(form.phone));
+      const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
       await verifyBuyerCode(e164, code.trim());
       await send(e164);
     } catch (reason) {
@@ -105,7 +144,6 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
     );
   }
 
-  const field = "mt-1.5 w-full rounded-lg border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
   return (
     <Card>
       <CardContent className="pt-5">
@@ -115,46 +153,75 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
           </p>
         ) : null}
         {step === "form" ? (
-          <form onSubmit={start} className="space-y-4">
+          <form noValidate onSubmit={start} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
+              <div className="scroll-mt-28">
                 <Label htmlFor="quote-trade">{t("quoteTradeLabel")}</Label>
-                <select id="quote-trade" required value={form.trade} onChange={set("trade")} className={`${field} h-11`}>
+                <NativeSelect
+                  id="quote-trade"
+                  value={form.trade}
+                  onChange={set("trade")}
+                  aria-invalid={errors.trade ? true : undefined}
+                  aria-describedby={errors.trade ? "quote-trade-error" : undefined}
+                  className="mt-1.5"
+                >
                   <option value="">{t("choose")}</option>
                   {trades.map((trade) => (
                     <option key={trade.slug} value={trade.slug}>
                       {trade.name}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
+                {errors.trade ? (
+                  <p id="quote-trade-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {errors.trade}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <Label htmlFor="quote-area">{t("quoteAreaLabel")}</Label>
-                <select id="quote-area" value={form.area} onChange={set("area")} className={`${field} h-11`}>
+                <NativeSelect id="quote-area" value={form.area} onChange={set("area")} className="mt-1.5">
                   <option value="">{t("anyArea")}</option>
                   {areas.map((area) => (
                     <option key={area.slug} value={area.slug}>
                       {area.name}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
             <div>
               <Label htmlFor="quote-title">{t("quoteWhatLabel")}</Label>
-              <Input id="quote-title" required value={form.title} onChange={set("title")} placeholder={t("quoteWhatPlaceholder")} />
+              <Input
+                id="quote-title"
+                value={form.title}
+                onChange={set("title")}
+                placeholder={t("quoteWhatPlaceholder")}
+                aria-invalid={errors.title ? true : undefined}
+                aria-describedby={errors.title ? "quote-title-error" : undefined}
+              />
+              {errors.title ? (
+                  <p id="quote-title-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {errors.title}
+                  </p>
+                ) : null}
             </div>
             <div>
               <Label htmlFor="quote-details">{t("quoteDetailsLabel")}</Label>
-              <textarea
+              <Textarea
                 id="quote-details"
-                required
                 rows={4}
                 value={form.details}
                 onChange={set("details")}
                 placeholder={t("quoteDetailsPlaceholder")}
-                className={`${field} py-2`}
+                aria-invalid={errors.details ? true : undefined}
+                aria-describedby={errors.details ? "quote-details-error" : undefined}
               />
+              {errors.details ? (
+                  <p id="quote-details-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {errors.details}
+                  </p>
+                ) : null}
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
@@ -173,7 +240,22 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="quote-name">{t("buyNameLabel")}</Label>
-                <Input id="quote-name" required autoComplete="name" value={form.name} onChange={set("name")} />
+                <Input
+                  id="quote-name"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(event) => {
+                    setTypedName(event.target.value);
+                    if (event.target.value.trim()) setErrors((current) => ({ ...current, name: undefined }));
+                  }}
+                  aria-invalid={errors.name ? true : undefined}
+                  aria-describedby={errors.name ? "quote-name-error" : undefined}
+                />
+                {errors.name ? (
+                  <p id="quote-name-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {errors.name}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <Label htmlFor="quote-phone">{t("phoneLabel")}</Label>
@@ -182,11 +264,26 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  required
-                  value={form.phone}
-                  onChange={set("phone")}
+                  value={phone}
+                  onChange={(event) => {
+                    setTypedPhone(event.target.value);
+                    if (ghanaPhoneSchema.safeParse(event.target.value).success) {
+                      setErrors((current) => ({ ...current, phone: undefined }));
+                    }
+                  }}
                   placeholder="024 123 4567"
+                  aria-invalid={errors.phone ? true : undefined}
+                  aria-describedby={errors.phone ? "quote-phone-error" : "quote-phone-note"}
                 />
+                {errors.phone ? (
+                  <p id="quote-phone-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {errors.phone}
+                  </p>
+                ) : contact ? (
+                  <p id="quote-phone-note" className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">
+                    {contact.phone === phone ? t("quoteYourNumber") : t("quoteOtherNumber")}
+                  </p>
+                ) : null}
               </div>
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)]">{t("quotePrivacy")}</p>
@@ -197,7 +294,7 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
           </form>
         ) : (
           <form onSubmit={confirm} className="space-y-3.5">
-            <p className="text-sm text-[var(--color-muted-foreground)]">{t("codeSentTo", { phone: form.phone })}</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">{t("codeSentTo", { phone })}</p>
             <div>
               <Label htmlFor="quote-code">{t("codeLabel")}</Label>
               <Input

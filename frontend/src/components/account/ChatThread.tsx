@@ -47,6 +47,9 @@ export function ChatThread({
   const [problem, setProblem] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  // The chat would not open (not theirs, gone, or never was): say so, and
+  // offer nothing to type into, since there is nobody to send it to.
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const count = thread?.messages.length ?? 0;
 
@@ -60,10 +63,10 @@ export function ChatThread({
   useEffect(() => {
     load()
       .then(setThread)
-      .catch((error: Error) => setProblem(error.message));
+      .catch((error: Error) => setUnavailable(error.message || t("failed")));
     const timer = window.setInterval(refresh, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [load, refresh]);
+  }, [load, refresh, t]);
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
@@ -152,8 +155,13 @@ export function ChatThread({
       ) : null}
 
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4" aria-live="polite">
-        {thread === null && !problem ? (
+        {thread === null && !unavailable ? (
           <Loader2 aria-hidden="true" className="mx-auto size-5 animate-spin text-[var(--color-muted-foreground)]" />
+        ) : null}
+        {thread === null && unavailable ? (
+          <p role="alert" className="py-10 text-center text-sm text-[var(--color-muted-foreground)]">
+            {unavailable}
+          </p>
         ) : null}
         {thread?.messages.map((message) => {
           const mine = message.sender === side;
@@ -246,34 +254,36 @@ export function ChatThread({
         </div>
       ) : null}
 
-      <form onSubmit={(event) => void submit(event)} className="flex items-end gap-2 border-t border-[var(--color-border)] p-3">
-        <label htmlFor="chat-body" className="sr-only">
-          {t("placeholder")}
-        </label>
-        <textarea
-          id="chat-body"
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          placeholder={t("placeholder")}
-          maxLength={1000}
-          rows={1}
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)]"
-        />
-        <button
-          type="submit"
-          disabled={busy || !body.trim()}
-          aria-label={t("send")}
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--color-brand)] text-white disabled:opacity-50"
-        >
-          {busy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <Send aria-hidden="true" className="size-4" />}
-        </button>
-      </form>
+      {thread ? (
+        <form onSubmit={(event) => void submit(event)} className="flex items-end gap-2 border-t border-[var(--color-border)] p-3">
+          <label htmlFor="chat-body" className="sr-only">
+            {t("placeholder")}
+          </label>
+          <textarea
+            id="chat-body"
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            placeholder={t("placeholder")}
+            maxLength={1000}
+            rows={1}
+            className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)]"
+          />
+          <button
+            type="submit"
+            disabled={busy || !body.trim()}
+            aria-label={t("send")}
+            className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--color-brand)] text-white disabled:opacity-50"
+          >
+            {busy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <Send aria-hidden="true" className="size-4" />}
+          </button>
+        </form>
+      ) : null}
       {problem ? (
         <p role="alert" className="px-4 pb-3 text-sm font-semibold text-[var(--color-destructive)]">
           {problem}
