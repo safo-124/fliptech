@@ -17,10 +17,12 @@ from rest_framework.views import APIView
 
 
 def site_stats():
+    from catalog.listed import with_a_listed_course
     from marketplace.models import Product
     from providers.models import Provider, ProviderVideo, Verification
 
-    published = Provider.objects.published()
+    # Workshops someone could join, as search counts them (catalog/listed.py).
+    published = with_a_listed_course(Provider.objects.published())
     today = timezone.localdate()
     # One filter() call, so both conditions hold for the same visit: two
     # calls would let a passed visit and a different, unexpired one combine.

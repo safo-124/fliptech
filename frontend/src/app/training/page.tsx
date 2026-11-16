@@ -447,10 +447,13 @@ export default async function SearchPage({
                  */}
                 {/* items-start and content-start: a short list keeps its own
                     height instead of stretching to the map's, which left one
-                    card as tall as the map with a gap inside it. */}
+                    card as tall as the map with a gap inside it. pb-20 below
+                    lg: room for the floating "View on map" button (44px tall,
+                    20px off the bottom), so the last row's fee can scroll
+                    clear of it. */}
                 <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1fr)_34rem]">
                   <ul
-                    className="grid grid-cols-1 content-start items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]"
+                    className="grid grid-cols-1 content-start items-stretch gap-4 pb-20 sm:grid-cols-2 lg:grid-cols-1 lg:pb-0 xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]"
                     aria-labelledby="search-results-heading"
                   >
                     {results.results.map((provider) => (

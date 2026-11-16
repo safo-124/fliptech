@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.views import IsCustomer, _account
-from catalog.listed import listed_course_q
+from catalog.listed import listed_course_q, with_a_listed_course
 from catalog.models import Programme, Trade
 from geography.models import Area
 from providers.filters import ProviderFilter
@@ -49,7 +49,7 @@ def _area_payload(area):
 def _workshops(query, origin, request):
     from providers.serializers import ProviderListSerializer
 
-    base = Provider.objects.published().for_card().with_related()
+    base = with_a_listed_course(Provider.objects.published().for_card().with_related())
     params = {"q": query}
     if origin is not None:
         base = base.annotate(distance=Distance("location", origin))
@@ -276,7 +276,9 @@ class SuggestView(APIView):
 
         words = understood.words or (query if understood.trade is None else "")
         if words:
-            workshops = Provider.objects.published().filter(name__icontains=words)
+            workshops = with_a_listed_course(Provider.objects.published()).filter(
+                name__icontains=words
+            )
             if understood.trade is not None:
                 # "weld tem": Tema workshops that teach welding, not every Tema workshop.
                 workshops = workshops.filter(

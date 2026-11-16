@@ -16,6 +16,7 @@ from django.test import RequestFactory
 from PIL import Image
 
 from core.media import derive_public_origin, public_url
+from catalog.models import Programme, Trade
 from geography.models import Area, Region
 from providers.models import Provider, ProviderPhoto
 
@@ -41,6 +42,11 @@ def listed_provider(db, settings, tmp_path):
         location=ACCRA,
         contact_phone="+233241234567",
         status=Provider.Status.PUBLISHED,
+    )
+    # A course, so search lists it (catalog/listed.py).
+    trade = Trade.objects.create(name="Welding", slug="welding")
+    Programme.objects.create(
+        provider=provider, trade=trade, title="Arc welding", fee=1200, duration_weeks=12
     )
     photo = ProviderPhoto(provider=provider, kind=ProviderPhoto.Kind.WORKSHOP, image=jpeg())
     photo.approve()  # Public pages show approved photos only.

@@ -7,6 +7,7 @@ from django.contrib.gis.geos import Point
 from django.urls import reverse
 from django.utils import timezone
 
+from catalog.models import Programme, Trade
 from geography.models import Area, Region
 from providers.models import Provider, ProviderVideo, Verification
 
@@ -20,7 +21,7 @@ def area(db):
 
 
 def workshop(area, slug, status=Provider.Status.PUBLISHED):
-    return Provider.objects.create(
+    provider = Provider.objects.create(
         name=slug,
         slug=slug,
         area=area,
@@ -28,6 +29,12 @@ def workshop(area, slug, status=Provider.Status.PUBLISHED):
         contact_phone="+233240000601",
         status=status,
     )
+    # A course to join: a workshop with none is not counted (catalog/listed.py).
+    trade, _ = Trade.objects.get_or_create(slug="welding", defaults={"name": "Welding"})
+    Programme.objects.create(
+        provider=provider, trade=trade, title="Basics", fee=500, duration_weeks=8
+    )
+    return provider
 
 
 def visit(provider, officer, outcome, expires_on=None):
@@ -68,3 +75,17 @@ def test_only_what_a_visitor_could_find_is_counted(client, area, django_user_mod
     stats = client.get(reverse("site-stats")).json()
 
     assert stats == {"workshops": 2, "visited": 1, "lessons": 1, "products": 0}
+
+
+@pytest.mark.django_db
+def test_a_workshop_with_no_course_is_not_counted(client, area):
+    Provider.objects.create(
+        name="Empty",
+        slug="empty",
+        area=area,
+        location=ACCRA,
+        contact_phone="+233240000602",
+        status=Provider.Status.PUBLISHED,
+    )
+
+    assert client.get(reverse("site-stats")).json()["workshops"] == 0

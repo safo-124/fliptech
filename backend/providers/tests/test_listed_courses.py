@@ -138,3 +138,32 @@ def test_publishing_asks_the_site_to_refresh_the_trade_counts(
         publish_provider(waiting, actor=lead)
 
     assert sent == [1]
+
+
+@pytest.mark.django_db
+def test_a_workshop_with_no_course_is_left_out_of_search_but_keeps_its_page(client, board):  # noqa: F811
+    from geography.models import Area
+
+    empty = Provider.objects.create(
+        name="Mulago Electricals",
+        slug="mulago-electricals",
+        area=Area.objects.get(slug="madina"),
+        location=board_point(),
+        contact_phone="+233240000999",
+        status=Provider.Status.PUBLISHED,
+    )
+
+    listed = {card["name"] for card in client.get(reverse("provider-list")).json()["results"]}
+    found = client.get(reverse("search"), {"q": "Mulago"}).json()["workshops"]["results"]
+    page = client.get(reverse("provider-by-slug", args=["madina", empty.slug]))
+
+    assert "Mulago Electricals" not in listed
+    assert "Kofi Welding" in listed
+    assert all(card["name"] != "Mulago Electricals" for card in found)
+    assert page.status_code == 200
+
+
+def board_point():
+    from providers.tests.test_upcoming_intakes import ACCRA
+
+    return ACCRA

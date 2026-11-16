@@ -362,7 +362,7 @@ def test_cards_and_profiles_hide_programmes_from_inactive_trades(public_catalogu
         start_date=timezone.localdate() + timedelta(days=7),
     )
 
-    card = client.get("/api/providers/").json()["results"][0]
+    cards = client.get("/api/providers/").json()["results"]
     profile = client.get(
         reverse(
             "provider-by-slug",
@@ -370,9 +370,10 @@ def test_cards_and_profiles_hide_programmes_from_inactive_trades(public_catalogu
         )
     ).json()
 
-    assert card["lowest_fee"] is None
-    assert card["shortest_duration_weeks"] is None
-    assert card["next_intake"] is None
+    # Its only course is in a switched-off trade, so it has nothing to join:
+    # not listed in search at all (catalog/listed.py), and its own page,
+    # still reachable, shows no course.
+    assert cards == []
     assert profile["programmes"] == []
 
 
