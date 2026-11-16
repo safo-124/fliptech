@@ -445,9 +445,12 @@ export default async function SearchPage({
                  * the primary column. Auto-fit adds a third card only when it
                  * can remain at least 19rem wide.
                  */}
-                <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-5 xl:grid-cols-[minmax(0,1fr)_34rem]">
+                {/* items-start and content-start: a short list keeps its own
+                    height instead of stretching to the map's, which left one
+                    card as tall as the map with a gap inside it. */}
+                <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1fr)_34rem]">
                   <ul
-                    className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]"
+                    className="grid grid-cols-1 content-start items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-[repeat(auto-fit,minmax(19rem,1fr))]"
                     aria-labelledby="search-results-heading"
                   >
                     {results.results.map((provider) => (

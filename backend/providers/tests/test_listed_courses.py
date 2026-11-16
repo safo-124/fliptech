@@ -104,3 +104,37 @@ def test_an_enquiry_about_a_hidden_course_says_so_instead_of_a_start_date(board)
     assert (card["listed"], card["starts"]) == (False, None)
     # Still named: it is what was asked about.
     assert card["title"] == "Hairdressing basics"
+
+
+@pytest.mark.django_db
+def test_publishing_asks_the_site_to_refresh_the_trade_counts(
+    board,  # noqa: F811
+    settings,
+    monkeypatch,
+    django_capture_on_commit_callbacks,
+    django_user_model,
+):
+    from marketplace import page_refresh
+    from providers.lifecycle import publish_provider
+
+    settings.FRONTEND_REVALIDATE_URL = "http://frontend.test/revalidate"
+    settings.FRONTEND_REVALIDATE_SECRET = "s3cret"
+    sent = []
+    monkeypatch.setattr(page_refresh, "_send", lambda: sent.append(1))
+
+    class Now:
+        def __init__(self, target, daemon):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(page_refresh.threading, "Thread", Now)
+    waiting = Provider.objects.get(name="Draft Works")
+    Provider.objects.filter(pk=waiting.pk).update(status=Provider.Status.PENDING_APPROVAL)
+    lead = django_user_model.objects.create_user("lead", is_staff=True)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        publish_provider(waiting, actor=lead)
+
+    assert sent == [1]

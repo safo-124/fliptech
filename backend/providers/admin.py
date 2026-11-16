@@ -19,7 +19,7 @@ from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.gis.admin import GISModelAdmin
 from django.core.exceptions import PermissionDenied
-from django.db.models import Prefetch
+from django.db.models import Count, Prefetch, Q
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
@@ -214,6 +214,7 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
         "name",
         "area",
         "status_summary",
+        "photos_waiting",
         "trust_summary",
         "last_confirmed_at",
         "freshness",
@@ -294,6 +295,7 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
             {
                 "fields": (
                     "status",
+                    "photos_waiting",
                     "submitted_at",
                     "published_at",
                     "last_confirmed_at",
@@ -308,6 +310,7 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
     )
     readonly_fields = (
         "status",
+        "photos_waiting",
         "submitted_at",
         "published_at",
         "review_note",
@@ -339,6 +342,12 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
                     "verifications",
                     queryset=Verification.objects.order_by("-visited_on"),
                     to_attr="admin_verifications",
+                )
+            )
+            # "Photos waiting" in each row, in the same query.
+            .annotate(
+                admin_photos_waiting=Count(
+                    "photos", filter=Q(photos__approved_at__isnull=True), distinct=True
                 )
             )
         )
@@ -492,6 +501,29 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
             gov_text,
         )
 
+    @admin.display(description="Photos waiting")
+    def photos_waiting(self, obj):
+        """Photos not yet shown on the site. Publishing approves them; one
+        added after that waits here until approved under Photos."""
+        if obj is None or obj.pk is None:
+            return "—"
+        waiting = getattr(obj, "admin_photos_waiting", None)
+        if waiting is None:
+            waiting = obj.photos.filter(approved_at__isnull=True).count()
+        if not waiting:
+            return "None"
+        note = (
+            "approved when published"
+            if obj.status != Provider.Status.PUBLISHED
+            else "not shown until approved"
+        )
+        return format_html(
+            '<span class="pc-signal pc-signal--attention"><span class="pc-signal-dot" '
+            'aria-hidden="true"></span>{} waiting · {}</span>',
+            waiting,
+            note,
+        )
+
     @admin.display(description="Freshness", ordering="last_confirmed_at")
     def freshness(self, obj):
         if obj.status != Provider.Status.PUBLISHED:
@@ -583,10 +615,12 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
 
         updated = 0
         skipped = 0
+        photos = 0
         unconfirmed = []
         for provider in queryset:
             try:
-                publish_provider(provider, actor=request.user)
+                published = publish_provider(provider, actor=request.user)
+                photos += published.photos_approved
             except UnconfirmedTrainerError:
                 unconfirmed.append(provider.name)
                 continue
@@ -594,7 +628,11 @@ class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdm
                 skipped += 1
                 continue
             updated += 1
-        self.message_user(request, f"{updated} listing(s) published.")
+        self.message_user(
+            request,
+            f"{updated} listing(s) published"
+            + (f", and {photos} photo(s) approved with them and now shown." if photos else "."),
+        )
         if unconfirmed:
             self.message_user(
                 request,

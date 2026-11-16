@@ -43,7 +43,15 @@ def submit_provider(provider, *, actor):
 
 
 @transaction.atomic
-def publish_provider(provider, *, actor):
+def publish_provider(provider, *, actor, approve_photos=True):
+    """Publish a listing that is waiting for approval.
+
+    Its photos are approved in the same step: the person publishing has the
+    listing, photos and all, in front of them, and a listing published with
+    every photo still hidden showed only a logo and initials. Photos added
+    later wait for approval on their own, as before. Returns the provider;
+    `provider.photos_approved` says how many photos this step approved.
+    """
     provider = Provider.objects.select_for_update().get(pk=provider.pk)
     if provider.status != Provider.Status.PENDING_APPROVAL:
         raise ProviderTransitionError("Only a provider pending approval can be published.")
@@ -65,6 +73,13 @@ def publish_provider(provider, *, actor):
         reason="Approved and published",
         fields=["status", "published_at", "last_confirmed_at", "review_note"],
     )
+    provider.photos_approved = 0
+    if approve_photos:
+        from .models import ProviderPhoto
+
+        provider.photos_approved = ProviderPhoto.objects.filter(
+            provider=provider, approved_at__isnull=True
+        ).update(approved_at=now, approved_by=actor)
     # Section 09: the owner is sent a link to review their own listing. Queued
     # in the same transaction, so a publish that rolls back tells nobody.
     queue_live_notice(provider)
