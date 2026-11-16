@@ -321,3 +321,24 @@ def test_the_app_uses_the_same_basket_with_its_token(client, shop):  # noqa: F81
     shown = app.get(reverse("basket"), HTTP_AUTHORIZATION=f"Bearer {issue_token(user)}").json()
 
     assert shown["count"] == 2
+
+
+@pytest.mark.django_db
+def test_a_browser_gets_its_csrf_cookie_from_the_basket_before_changing_it(shop):  # noqa: F811
+    from django.test import Client
+
+    seller, product = shop
+    browser = Client(enforce_csrf_checks=True)
+
+    refused = add(browser, product)
+    browser.get(reverse("basket"))
+    token = browser.cookies["csrftoken"].value
+    added = browser.post(
+        reverse("basket-items"),
+        {"product": product.pk, "quantity": 1},
+        content_type=JSON,
+        HTTP_X_CSRFTOKEN=token,
+    )
+
+    assert refused.status_code == 403
+    assert added.status_code == 200 and added.json()["count"] == 1

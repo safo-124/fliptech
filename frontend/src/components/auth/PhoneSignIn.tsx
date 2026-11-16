@@ -15,7 +15,8 @@ import {
   verifyAccountCode,
   type AccountSession,
 } from "@/lib/account-api";
-import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
+import {syncSavedWithAccount} from "@/lib/bag";
+import {mergeBasketAfterSignIn} from "@/lib/basket";
 import {readDraft, removeDraft, writeDraft} from "@/lib/drafts";
 import {currentDraftOwner} from "@/lib/session-api";
 import {TrainerApiError} from "@/lib/trainer-fetch";
@@ -92,7 +93,7 @@ export function PhoneSignIn({
 
   async function finish(session: AccountSession, joined: boolean) {
     void syncSavedWithAccount();
-    void syncBagWithAccount();
+    void mergeBasketAfterSignIn();
     let current = session;
     if (role === "trainee" && current.authenticated && !current.roles.trainee) {
       try {

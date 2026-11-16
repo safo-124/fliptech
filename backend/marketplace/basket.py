@@ -19,6 +19,7 @@ import secrets
 from decimal import Decimal
 
 from django.db import transaction
+from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect
@@ -300,7 +301,7 @@ def _group_payload(seller, lines, visible, request):
 def basket_payload(basket, request, token=None, notice=""):
     """The basket grouped by seller, in the order things were first added."""
     if basket is None:
-        return {"token": token, "count": 0, "groups": [], "notice": notice}
+        return {"token": token, "owner": None, "count": 0, "groups": [], "notice": notice}
     lines = _lines_of(basket)
     visible = _visible_ids([line.product_id for line in lines])
     # Stock fell since it was put in: hold the line to what is left.
@@ -324,7 +325,15 @@ def basket_payload(basket, request, token=None, notice=""):
     count = sum(
         line["quantity"] for group in payload for line in group["lines"] if line["available"]
     )
-    return {"token": token, "count": count, "groups": payload, "notice": notice}
+    return {
+        "token": token,
+        # "account" once it is the signed-in buyer's: a device then forgets
+        # its token (the basket it named was merged in and deleted).
+        "owner": "account" if basket.account_id else "device",
+        "count": count,
+        "groups": payload,
+        "notice": notice,
+    }
 
 
 # --------------------------------------------------------------------------
@@ -378,6 +387,9 @@ class BasketView(_BasketAPIView):
 
     @extend_schema(responses={200: None})
     def get(self, request):
+        # The CSRF cookie the website's first change to the basket needs,
+        # for a visitor who has none yet.
+        get_token(request._request)
         basket, _token = basket_for(request)
         return Response(basket_payload(basket, request))
 

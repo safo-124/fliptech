@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCedis } from "@/lib/format";
 import { getAccount } from "@/lib/account-api";
-import { setBagLines } from "@/lib/bag";
-import { readPaymentQueue, savePaymentQueue, type PaymentQueue } from "@/lib/checkout-queue";
-import { confirmOrder, confirmReceived, orderBag, payBalance, reportOrderProblem } from "@/lib/marketplace-api";
+import { useBasket } from "@/components/basket/useBasket";
+import { loadBasket } from "@/lib/basket";
+import { confirmOrder, confirmReceived, payBalance, reportOrderProblem } from "@/lib/marketplace-api";
 import type { MarketplaceOrder } from "@/lib/types";
 
 /**
@@ -65,9 +65,9 @@ export function OrderStatus({ reference }: { reference: string }) {
       .then((found) => {
         if (!active) return;
         setOrder(found);
-        // Paid: that maker's bag is done. Not before: a failed or cancelled
-        // payment comes back to the bag as it was.
-        if (found.status === "paid") setBagLines(found.seller_id, []);
+        // Paid: the server took those lines out of the basket (not before:
+        // a failed or cancelled payment comes back to the basket as it was).
+        void loadBasket().catch(() => null);
       })
       .catch((reason) => {
         if (active) setProblem(reason instanceof Error ? reason.message : t("orderNotFound"));
@@ -113,7 +113,7 @@ export function OrderStatus({ reference }: { reference: string }) {
   const failed = !paid && !direct && order.status === "failed";
   return (
     <>
-    {paid ? <NextPayment /> : null}
+    {paid ? <MoreInBasket /> : null}
     <Card>
       <CardHeader>
         <div
@@ -333,7 +333,7 @@ export function OrderStatus({ reference }: { reference: string }) {
           <>
             <p className="text-[var(--color-muted-foreground)]">{t("orderPendingBody")}</p>
             <Button asChild variant="brand" className="min-h-12 w-full">
-              <Link href={`/marketplace/bag/${order.seller_id}`}>{t("backToCheckout")}</Link>
+              <Link href={`/marketplace/checkout/${order.seller_id}`}>{t("backToCheckout")}</Link>
             </Button>
           </>
         ) : (
@@ -342,7 +342,7 @@ export function OrderStatus({ reference }: { reference: string }) {
             {/* The bag was not emptied: going back finds it as it was. */}
             {failed ? (
               <Button asChild variant="brand" className="min-h-12 w-full">
-                <Link href={`/marketplace/bag/${order.seller_id}`}>{t("backToCheckout")}</Link>
+                <Link href={`/marketplace/checkout/${order.seller_id}`}>{t("backToCheckout")}</Link>
               </Button>
             ) : null}
           </>
@@ -359,58 +359,16 @@ export function OrderStatus({ reference }: { reference: string }) {
 }
 
 
-/** "Next: pay Kofi (2 of 3)": the rest of a whole-bag checkout. */
-function NextPayment() {
-  const t = useTranslations("Marketplace");
-  const [queue, setQueue] = useState<PaymentQueue | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Read once, in the browser: the queue lives in this tab's session.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setQueue(readPaymentQueue());
-  }, []);
-
-  if (!queue || !queue.sellers.length) return null;
-  const [next, ...rest] = queue.sellers;
-  const total = queue.total ?? queue.sellers.length + 1;
-  const step = total - queue.sellers.length + 1;
-
-  async function payNext() {
-    if (!queue) return;
-    setBusy(true);
-    setProblem(null);
-    try {
-      const { authorization_url } = await orderBag(next.sellerId, {
-        items: next.items,
-        phone: queue.details.phone,
-        name: queue.details.name,
-        fulfilment: queue.details.fulfilment,
-        note: queue.details.note || undefined,
-      });
-      savePaymentQueue(rest.length ? { ...queue, sellers: rest, total } : null);
-      window.location.assign(authorization_url);
-    } catch (error) {
-      setProblem(error instanceof Error ? error.message : t("nextPaymentFailed"));
-      setBusy(false);
-    }
-  }
-
+/** After paying one maker: what is still in the basket from others. */
+function MoreInBasket() {
+  const t = useTranslations("Basket");
+  const groups = useBasket()?.groups.filter((group) => group.lines.some((line) => line.available)) ?? [];
+  if (!groups.length) return null;
   return (
     <div className="mb-4 rounded-2xl border border-[var(--color-brand)]/30 bg-[var(--color-brand-soft)] p-4">
-      <p className="font-bold text-[var(--color-brand-strong)]">
-        {t("nextPayment", { seller: next.sellerName, step, total })}
-      </p>
-      <p className="mt-0.5 text-sm text-[var(--color-muted-foreground)]">{t("nextPaymentBody")}</p>
-      {problem ? (
-        <p role="alert" className="mt-2 text-sm text-[var(--color-destructive)]">
-          {problem}
-        </p>
-      ) : null}
-      <Button type="button" variant="brand" className="mt-3 w-full sm:w-auto" disabled={busy} onClick={() => void payNext()}>
-        {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-        {t("nextPayment", { seller: next.sellerName, step, total })}
+      <p className="font-bold text-[var(--color-brand-strong)]">{t("moreInBasket", { count: groups.length })}</p>
+      <Button asChild variant="brand" className="mt-3 min-h-12 w-full sm:w-auto">
+        <Link href="/marketplace/basket">{t("viewBasket")}</Link>
       </Button>
     </div>
   );

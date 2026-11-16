@@ -398,7 +398,7 @@ CORS_ALLOW_CREDENTIALS = True
 # Upload-Offset says where a piece of a video upload starts. Only matters when
 # the site and the API are on different origins, as in development.
 # x-fliptech-client: the app says so, for the search report (search/log.py).
-CORS_ALLOW_HEADERS = (*default_headers, "upload-offset", "x-fliptech-client")
+CORS_ALLOW_HEADERS = (*default_headers, "upload-offset", "x-fliptech-client", "x-basket-token")
 
 # Origins allowed to send cookie-carrying POSTs. In development the Next.js dev
 # server is a different origin from Django (another port), so a signed-in

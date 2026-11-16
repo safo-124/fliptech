@@ -46,7 +46,8 @@ import {
   type CustomerAccount,
   type MyQuestions,
 } from "@/lib/account-api";
-import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
+import {syncSavedWithAccount} from "@/lib/bag";
+import {mergeBasketAfterSignIn} from "@/lib/basket";
 import type {MarketplaceOrder} from "@/lib/types";
 
 /** A path on this site, never somewhere else: `next` comes from the address. */
@@ -79,7 +80,7 @@ export function AccountPage() {
     setSession(found);
     if (found.authenticated) {
       void syncSavedWithAccount();
-      void syncBagWithAccount();
+      void mergeBasketAfterSignIn();
     }
     return found;
   }, []);
@@ -92,7 +93,7 @@ export function AccountPage() {
         setSession(found);
         if (found.authenticated) {
       void syncSavedWithAccount();
-      void syncBagWithAccount();
+      void mergeBasketAfterSignIn();
     }
       })
       .catch(() => {
