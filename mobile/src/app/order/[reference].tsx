@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { CheckCircle2, Circle, MessageCircle, Phone, Receipt, ShieldCheck, TriangleAlert } from "lucide-react-native";
+import { CheckCircle2, Circle, Handshake, MessageCircle, Phone, Receipt, ShieldCheck, TriangleAlert } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Linking, ScrollView, Share, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -76,7 +76,36 @@ export default function OrderScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xl }}>
-          <View style={styles.card}>
+          {data.plan === "direct" ? (
+            <View style={[styles.note, styles.column, { backgroundColor: colors.warnBg }]}>
+              <View style={{ flexDirection: "row", gap: space.sm, alignItems: "center" }}>
+                <Handshake size={18} color={colors.warn} />
+                <Text variant="label">Your order is with {data.seller_name}</Text>
+              </View>
+              <Text variant="small">
+                Pay the maker directly. They will message or call you to agree payment and pickup. Nothing was
+                charged on Fliiptech.
+              </Text>
+            </View>
+          ) : data.status !== "paid" ? (
+            <View style={[styles.note, styles.column, { backgroundColor: colors.warnBg }]}>
+              <Text variant="label" style={{ color: colors.warn }}>
+                {data.status === "failed" ? "The payment did not go through" : "Not paid yet"}
+              </Text>
+              <Text variant="small">
+                Nothing was taken, or it is still on its way. Your bag is as you left it, so you can try again.
+              </Text>
+              {data.seller_id ? (
+                <Button
+                  label="Back to checkout"
+                  tone="soft"
+                  onPress={() => router.replace({ pathname: "/checkout", params: { seller: String(data.seller_id) } })}
+                />
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={[styles.card, data.plan === "direct" ? { display: "none" } : null]}>
             {steps(data).map((step, index, all) => (
               <View key={step.key} style={styles.step}>
                 <View style={{ alignItems: "center" }}>
@@ -234,6 +263,7 @@ export default function OrderScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  column: { flexDirection: "column", alignItems: "stretch" },
   card: {
     gap: 4,
     padding: space.lg,

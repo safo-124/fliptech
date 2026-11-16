@@ -192,6 +192,8 @@ def test_roles_are_added_to_the_same_login(client):
     assert SellerAccount.objects.get().user == user
     roles = seller.json()["roles"]
     assert roles["seller"]["status"] == "pending" and roles["trainer"]["status"] == "pending"
+    # The app hides "Buy now" on the seller's own items by this id.
+    assert roles["seller"]["id"] == SellerAccount.objects.get().pk
 
 
 @pytest.mark.django_db

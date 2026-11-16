@@ -43,6 +43,10 @@ export type ProductCard = {
     verified?: boolean;
     rating?: { average: number; count: number } | null;
     student_discount?: number | null;
+    /** The fixed delivery fee, or null when the seller does not deliver. */
+    delivery_fee?: string | null;
+    /** Made to order: the share paid up front, in percent. */
+    deposit_percent?: number | null;
   };
   /** "used" for second-hand tools. */
   condition?: "new" | "used";
@@ -248,7 +252,8 @@ export type Order = {
   fulfilment: "pickup" | "delivery";
   note: string;
   items: { product: number | null; product_name: string; option_label: string; unit_price: string; quantity: number }[];
-  plan: "full" | "deposit" | "collect";
+  /** "direct": ordered through the site, paid to the maker directly. */
+  plan: "full" | "deposit" | "collect" | "direct";
   deposit: string;
   balance: string;
   balance_status: string;
@@ -300,6 +305,8 @@ export type ShopDetail = {
     away_note: string;
   };
   products: ProductCard[];
+  /** Where to collect: the workshop's address and how to find the gate. */
+  pickup?: PickupPoint | null;
   on_plan: boolean;
   banner: string | null;
   reviews: { id: number; rating: number; comment: string; bought: boolean; product_name: string; buyer_name: string; created_at: string }[];

@@ -21,7 +21,7 @@ export type AccountState = {
   roles: {
     trainee: { href: string } | null;
     trainer: { href: string; status: string } | null;
-    seller: { href: string; status: string } | null;
+    seller: { id?: number; href: string; status: string } | null;
   } | null;
 };
 

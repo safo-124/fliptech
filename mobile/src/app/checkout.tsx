@@ -1,25 +1,31 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { Bike, ShieldCheck, Store } from "lucide-react-native";
+import { BadgeCheck, Bike, ShieldCheck, Star, Store } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button, Field, FormError } from "@/components/Form";
+import { PhoneProofFields, usePhoneProof } from "@/components/market/PhoneProof";
+import { PickupCard } from "@/components/market/PickupCard";
 import { StackHeader } from "@/components/StackHeader";
 import { Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api, ApiError, type BagRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { bySeller, useBag } from "@/lib/bag";
+import { SITE_URL } from "@/lib/config";
 import { cedis } from "@/lib/format";
 import { payOnPaystack } from "@/lib/pay";
-import { showPhone } from "@/lib/phone";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
 /**
- * Pay one seller for their part of the bag. The total is the server's, not
- * the phone's sum: delivery, codes and deposits are worked out there.
+ * Pay one seller for their part of the bag, on one page: phone (proved here
+ * with a code when not signed in, which signs them in silently), name,
+ * Collect or Delivery, the summary, who they are paying, then Paystack. The
+ * total is the server's, not the phone's sum: delivery, codes and deposits
+ * are worked out there. The bag is only emptied once payment is confirmed,
+ * so a failed or cancelled payment comes back to this page as it was.
  */
 export default function CheckoutScreen() {
   const { seller: sellerParam, all } = useLocalSearchParams<{ seller?: string; all?: string }>();
@@ -35,6 +41,12 @@ export default function CheckoutScreen() {
   const [paidRefs, setPaidRefs] = useState<string[]>([]);
   const group = everything ? groups[0] : groups.find((row) => row.seller.id === Number(sellerParam));
   const sellerId = group?.seller.id ?? Number(sellerParam);
+  const shop = useQuery({
+    queryKey: ["shop", String(sellerId)],
+    queryFn: () => api.shop(sellerId),
+    enabled: Boolean(group),
+  });
+  const proof = usePhoneProof();
   const addresses = useQuery({ queryKey: ["addresses"], queryFn: api.addresses, enabled: auth.signedIn });
   const [payAtCollection, setPayAtCollection] = useState(false);
   const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
@@ -60,10 +72,6 @@ export default function CheckoutScreen() {
   });
 
   async function pay() {
-    if (!auth.signedIn || !auth.account) {
-      router.push({ pathname: "/sign-in", params: { why: "to pay" } });
-      return;
-    }
     const wrong: Record<string, string> = {};
     if (name.trim().length < 2) wrong.name = "The seller needs a name to hand it over to.";
     if (fulfilment === "delivery" && !note.trim()) wrong.note = "Say where it should be delivered.";
@@ -72,9 +80,11 @@ export default function CheckoutScreen() {
     setProblem(null);
     setBusy(true);
     try {
+      const phone = await proof.prove(name);
+      if (!phone) return;
       const started = await api.checkout(sellerId, {
         ...request,
-        phone: auth.account.phone,
+        phone,
         name: name.trim(),
         note: note.trim(),
       });
@@ -95,7 +105,7 @@ export default function CheckoutScreen() {
       } else {
         Alert.alert(
           "Not paid yet",
-          "Nothing was taken, or it is still on its way. If money left your account, the order shows in My orders within a few minutes.",
+          "The payment did not go through, or it is still on its way. Your bag is just as you left it: try again when you are ready. If money left your account, the order shows in My orders within a few minutes.",
         );
       }
     } catch (error) {
@@ -126,6 +136,8 @@ export default function CheckoutScreen() {
   }
 
   const priced = price.data;
+  // Delivery only where the maker offers it (a fixed fee).
+  const delivers = shop.data ? shop.data.seller.delivery_fee !== null : false;
   const priceError = price.error instanceof ApiError ? price.error.message : price.error ? "The total did not load." : null;
 
   return (
@@ -158,18 +170,27 @@ export default function CheckoutScreen() {
             <Way
               active={fulfilment === "pickup"}
               icon={<Store size={20} color={fulfilment === "pickup" ? colors.brand : colors.mutedForeground} />}
-              title="Pick it up"
+              title="Collect"
               detail="Free"
               onPress={() => setFulfilment("pickup")}
             />
-            <Way
-              active={fulfilment === "delivery"}
-              icon={<Bike size={20} color={fulfilment === "delivery" ? colors.brand : colors.mutedForeground} />}
-              title="Deliver it"
-              detail={priced?.delivery_fee ? cedis(priced.delivery_fee) : "Ask"}
-              onPress={() => setFulfilment("delivery")}
-            />
+            {delivers ? (
+              <Way
+                active={fulfilment === "delivery"}
+                icon={<Bike size={20} color={fulfilment === "delivery" ? colors.brand : colors.mutedForeground} />}
+                title="Delivery"
+                detail={`${cedis(shop.data?.seller.delivery_fee ?? "0")} delivery`}
+                onPress={() => setFulfilment("delivery")}
+              />
+            ) : null}
           </View>
+          {fulfilment === "pickup" ? (
+            shop.data?.pickup ? (
+              <PickupCard pickup={shop.data.pickup} />
+            ) : (
+              <Text variant="small">The maker tells you where to collect it once you have paid.</Text>
+            )
+          ) : null}
           {fulfilment === "delivery" && priced?.delivery_area ? (
             <Text variant="small">Delivers to: {priced.delivery_area}</Text>
           ) : null}
@@ -189,6 +210,7 @@ export default function CheckoutScreen() {
           </Pressable>
         ) : null}
 
+        <PhoneProofFields proof={proof} />
         <Field label="Your name" value={name} onChangeText={setName} autoComplete="name" maxLength={120} error={fields.name} />
         <Field
           label={fulfilment === "delivery" ? "Where to deliver" : "A note for the seller (optional)"}
@@ -264,12 +286,44 @@ export default function CheckoutScreen() {
           )}
         </View>
 
-        <View style={styles.protect}>
-          <ShieldCheck size={20} color={colors.visit} />
-          <Text variant="small" style={{ flex: 1 }}>
-            {auth.account ? `The seller will call ${showPhone(auth.account.phone)} to hand it over. ` : ""}
-            Pay with MoMo or card on Paystack; it comes back here when done.
-          </Text>
+        <View style={styles.trust}>
+          <Text variant="label">You are paying {group.seller.business_name}</Text>
+          {shop.data ? (
+            <View style={styles.badges}>
+              {shop.data.seller.area ? <Text variant="small">{shop.data.seller.area}</Text> : null}
+              {shop.data.seller.verified ? (
+                <View style={styles.badge}>
+                  <BadgeCheck size={14} color={colors.visit} />
+                  <Text style={styles.badgeText}>ID checked</Text>
+                </View>
+              ) : null}
+              {shop.data.seller.rating ? (
+                <View style={styles.badge}>
+                  <Star size={14} color={colors.warn} />
+                  <Text style={styles.badgeText}>
+                    {shop.data.seller.rating.average.toFixed(1)} ({shop.data.seller.rating.count})
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={{ flexDirection: "row", gap: space.sm, marginTop: space.xs }}>
+            <ShieldCheck size={18} color={colors.visit} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="label">What if it doesn&apos;t arrive?</Text>
+              <Text variant="small">
+                Fliiptech holds your money until you have it. If it does not arrive, or is not as described, tell us
+                and you get it back.
+              </Text>
+              <Pressable
+                onPress={() => void Linking.openURL(`${SITE_URL}/marketplace/terms#refunds`)}
+                accessibilityRole="link"
+                style={{ minHeight: 44, justifyContent: "center" }}
+              >
+                <Text style={styles.link}>How refunds work</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
         <FormError message={problem} />
       </ScrollView>
@@ -277,14 +331,14 @@ export default function CheckoutScreen() {
       <View style={[styles.cta, { paddingBottom: insets.bottom + space.md }]}>
         <Button
           label={
-            !auth.signedIn
-              ? "Sign in to pay"
+            proof.waiting
+              ? "Check the code and pay"
               : priced
-                ? `Pay ${cedis(priced.pay_now)}`
-                : "Pay"
+                ? `Pay ${cedis(priced.pay_now)} with MoMo or card`
+                : "Pay with MoMo or card"
           }
           busy={busy}
-          disabled={auth.signedIn && !priced}
+          disabled={!priced}
           onPress={() => void pay()}
         />
       </View>
@@ -356,7 +410,19 @@ const styles = StyleSheet.create({
   strong: { fontFamily: fonts.bold, fontSize: 16, color: colors.foreground },
   strongValue: { fontFamily: fonts.extrabold, fontSize: 20, color: colors.brandDeep },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 },
-  protect: { flexDirection: "row", gap: space.md, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
+  trust: { gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
+  badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
+  },
+  badgeText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.foreground },
+  link: { fontFamily: fonts.semibold, fontSize: 14, color: colors.brand, textDecorationLine: "underline" },
   paidNote: { flexDirection: "row", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
   collect: { gap: 4, padding: space.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
   collectOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },

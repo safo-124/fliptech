@@ -13,6 +13,7 @@ import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
 import { cedis, shortDate } from "@/lib/format";
 import { photoUrl } from "@/lib/media";
+import { DirectPayBanner } from "@/components/market/DirectPayBanner";
 import { openOnSite } from "@/lib/open";
 import type { SellerProduct } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
@@ -76,6 +77,9 @@ export default function SellerScreen() {
           />
         }
       >
+        {(payouts.data ?? id.data) && !(payouts.data?.takes_payments ?? id.data?.takes_payments) ? (
+          <DirectPayBanner />
+        ) : null}
         <View style={styles.card}>
           <View style={styles.levels}>
             {LEVELS.map((row, index) => (

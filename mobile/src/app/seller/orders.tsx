@@ -4,6 +4,7 @@ import { CircleCheckBig, Hammer, MessageCircle, Package, Phone } from "lucide-re
 import { Alert, FlatList, Linking, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DirectPayBanner } from "@/components/market/DirectPayBanner";
 import { StackHeader } from "@/components/StackHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
@@ -34,11 +35,13 @@ const STAGES: Record<string, { label: string; color: string; bg: string }> = {
   refunded: { label: "Refunded", color: colors.mutedForeground, bg: colors.muted },
 };
 
-/** The shop's paid orders: who to call, what to hand over, and the buttons
+/** The shop's orders (paid ones, and orders to be paid directly): who to call, what to hand over, and the buttons
     that move an order on. The same actions as the website's dashboard. */
 export default function SellerOrdersScreen() {
   const insets = useSafeAreaInsets();
   const orders = useQuery({ queryKey: ["seller-orders"], queryFn: api.sellerOrders, refetchInterval: 60_000 });
+  const id = useQuery({ queryKey: ["seller-id"], queryFn: api.sellerId });
+  const directOnly = id.data ? !id.data.takes_payments : false;
 
   return (
     <View style={styles.screen}>
@@ -58,7 +61,8 @@ export default function SellerOrdersScreen() {
           refreshControl={
             <RefreshControl refreshing={orders.isRefetching} onRefresh={() => void orders.refetch()} tintColor={colors.brand} />
           }
-          ListEmptyComponent={<EmptyState title="No orders yet" body="Paid orders for your shop show here." />}
+          ListHeaderComponent={directOnly ? <DirectPayBanner /> : undefined}
+          ListEmptyComponent={<EmptyState title="No orders yet" body="Orders for your shop show here." />}
           renderItem={({ item }) => <SellerOrder order={item} />}
         />
       )}
@@ -72,6 +76,8 @@ function SellerOrder({ order }: { order: Order }) {
   const items = order.items.length
     ? order.items
     : [{ product_name: order.product_name, quantity: order.quantity, option_label: "" }];
+  // Ordered through the site, paid to the seller directly: nothing to move on here.
+  const direct = order.plan === "direct";
   const waitingToFinish = order.plan === "deposit" && order.balance_status === "waiting";
   const balanceDue = order.plan === "deposit" && order.balance_status === "due";
   const move = useMutation({
@@ -121,11 +127,17 @@ function SellerOrder({ order }: { order: Order }) {
       {order.note ? <Text variant="small">Note: “{order.note}”</Text> : null}
       {order.problem ? <Text variant="small" style={{ color: colors.destructive }}>Problem: “{order.problem}”</Text> : null}
 
-      <View style={[styles.stage, { backgroundColor: stage.bg }]}>
-        <Text style={[styles.stageText, { color: stage.color }]}>
-          {waitingToFinish ? "Deposit paid · make it, then mark it ready" : balanceDue ? "Waiting for the balance" : stage.label}
-        </Text>
-      </View>
+      {direct ? (
+        <View style={[styles.stage, { backgroundColor: colors.warnBg }]}>
+          <Text style={[styles.stageText, { color: colors.warn }]}>Pay the maker directly · agree payment and pickup</Text>
+        </View>
+      ) : (
+        <View style={[styles.stage, { backgroundColor: stage.bg }]}>
+          <Text style={[styles.stageText, { color: stage.color }]}>
+            {waitingToFinish ? "Deposit paid · make it, then mark it ready" : balanceDue ? "Waiting for the balance" : stage.label}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.actions}>
         <Pressable onPress={() => void Linking.openURL(`tel:${phone}`)} style={styles.action} accessibilityRole="button">
@@ -136,7 +148,7 @@ function SellerOrder({ order }: { order: Order }) {
           <MessageCircle size={16} color={colors.brand} />
           <Text style={styles.actionText}>Message</Text>
         </Pressable>
-        {order.stage === "new" && waitingToFinish ? (
+        {direct ? null : order.stage === "new" && waitingToFinish ? (
           <Pressable onPress={() => confirm("ready")} disabled={move.isPending} style={[styles.action, styles.primary]} accessibilityRole="button">
             <Hammer size={16} color="#fff" />
             <Text style={[styles.actionText, { color: "#fff" }]}>Ready</Text>

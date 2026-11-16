@@ -156,6 +156,18 @@ export const api = {
   priceBag: (seller: number, body: BagRequest) => postJson<BasketPrice>(`/api/sellers/${seller}/price/`, body),
   checkout: (seller: number, body: BagRequest & { phone: string; name: string; note?: string }) =>
     postJson<{ authorization_url: string; reference: string }>(`/api/sellers/${seller}/orders/`, body),
+  /** "Order from the maker": an order passed to a maker who is paid directly. */
+  orderFromMaker: (
+    product: number,
+    body: {
+      phone: string;
+      name: string;
+      quantity: number;
+      option: number | null;
+      fulfilment: "pickup" | "delivery";
+      note?: string;
+    },
+  ) => postJson<Order & { conversation_id: number | null }>(`/api/products/${product}/direct-orders/`, body),
   order: (reference: string) => getJson<Order>(`/api/orders/${reference}/`),
   confirmOrder: (reference: string) => postJson<Order>(`/api/orders/${reference}/`),
   myOrders: () => getJson<{ results: Order[] }>("/api/account/orders/"),
