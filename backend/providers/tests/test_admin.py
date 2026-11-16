@@ -109,6 +109,33 @@ def test_operations_lead_can_publish_a_listing(client, django_user_model, groups
 
 
 @pytest.mark.django_db
+def test_publishing_approves_the_listings_waiting_photos_and_says_so(
+    client, django_user_model, groups, provider
+):
+    from django.core.files.base import ContentFile
+
+    for kind in ("workshop", "work"):
+        ProviderPhoto.objects.create(
+            provider=provider, kind=kind, image=ContentFile(b"jpg", name=f"{kind}.jpg")
+        )
+    lead = staff_user(django_user_model, "lead", groups["lead"])
+    client.force_login(lead)
+
+    listing = client.get(reverse("admin:providers_provider_changelist"))
+    assert "2 waiting" in listing.content.decode()
+
+    response = client.post(
+        reverse("admin:providers_provider_changelist"),
+        {"action": "publish_listings", "_selected_action": [provider.pk]},
+        follow=True,
+    )
+
+    assert not ProviderPhoto.objects.filter(approved_at__isnull=True).exists()
+    assert ProviderPhoto.objects.filter(approved_by=lead).count() == 2
+    assert "2 photo(s) approved" in response.content.decode()
+
+
+@pytest.mark.django_db
 def test_publishing_skips_a_draft_that_was_never_submitted(
     client, django_user_model, groups, provider
 ):

@@ -240,7 +240,13 @@ export function ChatThread({
         <div ref={end} />
       </div>
 
-      {share && thread ? (
+      {thread?.closed ? (
+        <p role="status" className="border-t border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
+          {t("closedAccount")}
+        </p>
+      ) : null}
+
+      {share && thread && !thread.closed ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] px-4 py-2">
           <p className="text-xs text-[var(--color-muted-foreground)]">{t("privacy")}</p>
           <button
@@ -255,7 +261,7 @@ export function ChatThread({
         </div>
       ) : null}
 
-      {thread ? (
+      {thread && !thread.closed ? (
         <form onSubmit={(event) => void submit(event)} className="flex items-end gap-2 border-t border-[var(--color-border)] p-3">
           <label htmlFor="chat-body" className="sr-only">
             {t("placeholder")}

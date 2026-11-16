@@ -141,3 +141,42 @@ def test_the_sync_command_lines_up_old_accounts_and_dry_runs_first(client):
     call_command("sync_account_profiles", "--yes", stdout=StringIO())
     trainee = TraineeAccount.objects.get()
     assert (trainee.display_name, trainee.email) == ("Esi", "esi@example.com")
+
+
+@pytest.mark.django_db
+def test_closing_keeps_the_chats_for_the_shop_without_the_person(client, shop):  # noqa: F811
+    from django.test import Client
+
+    from marketplace.models import Conversation, Message
+
+    seller, _product = shop
+    sign_in(client)
+    account = CustomerAccount.objects.get()
+    chat = Conversation.objects.create(seller=seller, buyer=account)
+    Message.objects.create(conversation=chat, sender=Message.Sender.BUYER, body="Is it in blue?")
+    Message.objects.create(
+        conversation=chat, sender=Message.Sender.BUYER, kind=Message.Kind.PHONE, body=PHONE
+    )
+
+    assert close(client).status_code == 200
+
+    chat.refresh_from_db()
+    assert chat.buyer_id is None
+    bodies = list(chat.messages.values_list("body", flat=True))
+    assert "Is it in blue?" in bodies
+    assert not any(PHONE in body for body in bodies)
+
+    business = Client()
+    business.force_login(seller.user)
+    thread = business.get(reverse("inbox-chat", args=[chat.pk])).json()
+    assert thread["closed"] is True
+    assert thread["with"]["name"] == "Closed account"
+    business.get(reverse("account"))  # a CSRF cookie for the reply
+    token = business.cookies["csrftoken"].value
+    reply = business.post(
+        reverse("inbox-chat", args=[chat.pk]),
+        {"body": "Yes, in blue"},
+        content_type=JSON,
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert reply.status_code == 409

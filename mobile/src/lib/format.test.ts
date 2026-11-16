@@ -1,4 +1,4 @@
-import { cedis, courseLength } from "./format";
+import { cedis, courseLength, withArea } from "./format";
 
 describe("cedis", () => {
   it("drops pesewas from whole amounts and keeps them otherwise", () => {
@@ -19,5 +19,17 @@ describe("courseLength", () => {
     expect(courseLength(1, 30)).toBe("1 lesson · 1 min");
     expect(courseLength(5, 249)).toBe("5 lessons · 4 min");
     expect(courseLength(12, 5400)).toBe("12 lessons · 1.5 hours");
+  });
+});
+
+describe("withArea", () => {
+  it("adds the area once", () => {
+    expect(withArea("Zongo Junction road", "Madina")).toBe("Zongo Junction road, Madina");
+    expect(withArea("Zongo Junction road, Madina", "Madina")).toBe("Zongo Junction road, Madina");
+    expect(withArea("Zongo Junction road, madina.", "Madina")).toBe("Zongo Junction road, madina");
+    expect(withArea("", "Madina")).toBe("Madina");
+    expect(withArea(null, "Madina")).toBe("Madina");
+    // A street named after the area is not the area.
+    expect(withArea("Madina Market road", "Madina")).toBe("Madina Market road, Madina");
   });
 });

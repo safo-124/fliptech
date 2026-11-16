@@ -54,7 +54,7 @@ import { ClientMessages } from "@/i18n/ClientMessages";
 import { PROFILE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { BRAND } from "@/lib/brand";
 import { directionsUrl, hasPin } from "@/lib/directions";
-import { formatDate, formatDuration, formatFee, videoCost } from "@/lib/format";
+import { formatDate, formatDuration, formatFee, videoCost, withArea } from "@/lib/format";
 import { isTeachingLanguage } from "@/lib/teaching-languages";
 import type { Programme, ProviderDetail } from "@/lib/types";
 
@@ -586,8 +586,7 @@ function Location({ provider }: { provider: ProviderDetail }) {
         {t("locationHeading")}
       </h2>
       <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
-        {provider.address ? `${provider.address}, ` : ""}
-        {provider.area}
+        {withArea(provider.address, provider.area)}
       </p>
 
       <FindTheGate provider={provider} />
@@ -899,8 +898,7 @@ export function ProviderProfile({ provider }: { provider: ProviderDetail }) {
             <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-base">
               <MapPin className="mt-1 size-4 shrink-0" aria-hidden="true" />
               <span>
-                {provider.address ? `${provider.address}, ` : ""}
-                {provider.area}
+                {withArea(provider.address, provider.area)}
                 {hasPin(provider) ? (
                   <>
                     {" · "}

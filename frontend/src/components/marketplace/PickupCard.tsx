@@ -1,4 +1,5 @@
 import { Navigation, Store } from "lucide-react";
+import { withArea } from "@/lib/format";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
@@ -22,7 +23,7 @@ export function PickupCard({ pickup }: { pickup: PickupPoint }) {
         <Link href={pickup.workshop_path} className="font-semibold hover:underline">
           {pickup.name}
         </Link>
-        {pickup.address ? `, ${pickup.address}` : ""}, {pickup.area}
+        {`, ${withArea(pickup.address, pickup.area)}`}
       </p>
       {pickup.directions ? (
         <p className="mt-1 text-[var(--color-muted-foreground)]">{pickup.directions}</p>

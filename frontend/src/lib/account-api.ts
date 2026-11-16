@@ -187,6 +187,8 @@ export type ChatSummary = {
   business: {kind: "shop" | "workshop"; id: number; name: string; path: string};
   last: ChatMessage | null;
   unread: number;
+  /** The person closed their account: the business keeps the chat to read. */
+  closed?: boolean;
   last_message_at: string;
 };
 

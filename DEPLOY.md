@@ -581,6 +581,14 @@ staff rights or a password are never touched. It is safe to run again.
 People already signed in on the old, switched-off logins are signed out and
 simply sign in again.
 
+**Staff and the public site share one sign-in per browser.** Signing in to
+`/back-office` signs that browser out of any customer, trainer or seller
+account on the site, and the other way round. It is deliberate: a staff login
+is never treated as a customer, and support sessions (helping a trainee from
+their account page) run on the staff member's own session. To be signed in to
+both, use a private window or a second browser for the back office. The
+sign-in page says so.
+
 ## Messages instead of WhatsApp
 
 Buyers, sellers, trainees and trainers talk in the site's own chat, on the

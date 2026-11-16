@@ -101,3 +101,15 @@ export function videoCost(video: {
     mb: Math.max(1, Math.round(smallest.bytes / 1024 ** 2)),
   };
 }
+
+/**
+ * "Zongo Junction road" + "Madina" as "Zongo Junction road, Madina", but an
+ * address that already ends with its area ("Zongo Junction road, Madina")
+ * is left as it is, not "…, Madina, Madina".
+ */
+export function withArea(address: string | null | undefined, area: string): string {
+  const street = (address ?? "").trim().replace(/[\s,.]+$/, "");
+  if (!street) return area;
+  const tail = street.split(",").pop()?.trim().toLowerCase() ?? "";
+  return tail === area.trim().toLowerCase() ? street : `${street}, ${area}`;
+}

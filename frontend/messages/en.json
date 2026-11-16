@@ -888,9 +888,9 @@
   "Account": {
     "closeTitle": "Close your account",
     "closeDeletesLabel": "Deleted:",
-    "closeDeletes": "your sign-in, your name, email, photo and addresses, your saved items and bag, saved workshops and searches, the shops you follow, your chats (for the shop or workshop too), and your course progress and certificates.",
+    "closeDeletes": "your sign-in, your name, email, photo and addresses, your saved items and bag, saved workshops and searches, the shops you follow, any phone number you shared in a chat, and your course progress and certificates.",
     "closeKeepsLabel": "Kept:",
-    "closeKeeps": "your orders, and the enquiries you sent to workshops. They are the seller's and the workshop's records, under your phone number, but no longer linked to an account.",
+    "closeKeeps": "your orders, the enquiries you sent to workshops, and your chats. They are the seller's and the workshop's records: orders and enquiries stay under your phone number, chats without your name, and none of them is linked to an account any more.",
     "closeNotHere": "If you also run a workshop or a shop, or have paid for an online course, contact us to close the account, so those records are handled properly.",
     "closeButton": "Close my account",
     "closeConfirm": "Yes, close it for good",
@@ -995,6 +995,7 @@
     "shoppingTitle": "Shopping"
   },
   "Chat": {
+    "closedAccount": "This person closed their account. The chat is kept here for your records, but they cannot be reached through it.",
     "courseGone": "This course is no longer listed",
     "placeholder": "Write a message",
     "send": "Send",

@@ -1121,9 +1121,9 @@ class OwnEnquiriesView(APIView):
         )
         chats = {
             str(phone): pk
-            for phone, pk in Conversation.objects.filter(seller=account).values_list(
-                "buyer__phone", "pk"
-            )
+            for phone, pk in Conversation.objects.filter(
+                seller=account, buyer__isnull=False
+            ).values_list("buyer__phone", "pk")
         }
         return Response(
             {

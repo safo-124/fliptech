@@ -3,14 +3,17 @@
 What goes (deleted):
     the login and the customer account: name, email, photo, delivery
     addresses; saved items and the bag; saved searches and alerts; shops
-    followed; chats with shops and workshops; and, for a learner, saved
-    workshops, course progress, certificates, course reviews and lesson
-    questions. Unpaid course checkouts (never paid for) go too.
+    followed; and, for a learner, saved workshops, course progress,
+    certificates, course reviews and lesson questions. Unpaid course
+    checkouts (never paid for) go too. Any phone number the person shared in
+    a chat is taken out of it.
 
 What stays (not deleted, no longer linked to the person):
     orders, under the phone number, because they are the seller's sales
     record and the buyer's receipt; enquiries and enrolments sent to
-    workshops, because they are the workshop's record (trainees/erasure.py).
+    workshops, because they are the workshop's record (trainees/erasure.py);
+    chats with shops and workshops, which the business keeps as a "Closed
+    account" it can read but not reply to.
 
 When it is refused, and why:
     the login also runs a workshop or a shop: closing would take the
@@ -83,5 +86,26 @@ def close_login(user):
         close_account(trainee)
     user = get_user_model().objects.filter(pk=user.pk).first()
     if user is not None:
-        # Deletes the customer account and everything that cascades from it.
+        _forget_shared_numbers(user)
+        # Deletes the customer account and everything that cascades from it;
+        # chats are kept, without the person (Conversation.buyer is SET_NULL).
         user.delete()
+
+
+def _forget_shared_numbers(user):
+    """The numbers this person shared in their chats, taken out before the
+    chats are kept for the business without them."""
+    from marketplace.models import Message
+
+    try:
+        account = user.customer_account
+    except Exception:  # no customer account on this login
+        return
+    Message.objects.filter(
+        conversation__buyer=account,
+        sender=Message.Sender.BUYER,
+        kind=Message.Kind.PHONE,
+    ).update(
+        kind=Message.Kind.TEXT,
+        body=_("Number removed: this account was closed."),
+    )

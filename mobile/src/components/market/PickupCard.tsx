@@ -3,6 +3,7 @@ import { Navigation, Store } from "lucide-react-native";
 import { Linking, Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/Text";
+import { withArea } from "@/lib/format";
 import type { PickupPoint } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
@@ -30,8 +31,7 @@ export function PickupCard({ pickup }: { pickup: PickupPoint }) {
         <Text style={styles.name}>{pickup.name}</Text>
       </Pressable>
       <Text variant="small">
-        {pickup.address ? `${pickup.address}, ` : ""}
-        {pickup.area}
+        {withArea(pickup.address, pickup.area)}
       </Text>
       {pickup.directions ? <Text variant="small">{pickup.directions}</Text> : null}
       {pickup.lat !== null ? (

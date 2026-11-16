@@ -30,4 +30,17 @@
       <a href="{% url 'staff-email-login' %}">Email me a sign-in code instead</a>
     </div>
   {% endif %}
+
+  {% comment %}
+    One browser holds one sign-in for the whole site, back office included:
+    Django keeps a single signed-in user per session, and staff support
+    sessions (helping a trainee from their own account page) depend on it.
+    So signing in here signs this browser out of any account on the public
+    site. Said here, before it happens, rather than discovered after.
+  {% endcomment %}
+  <p class="bo-login-note">
+    Signing in here signs this browser out of any customer, trainer or seller
+    account on the public site. To use both at once, open the back office in
+    a private window or another browser.
+  </p>
 {% endblock %}

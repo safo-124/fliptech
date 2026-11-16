@@ -26,3 +26,15 @@ export function shortDate(iso: string | null | undefined): string {
   const sameYear = date.getFullYear() === new Date().getFullYear();
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
 }
+
+/**
+ * "Zongo Junction road" + "Madina" as "Zongo Junction road, Madina", but an
+ * address that already ends with its area ("Zongo Junction road, Madina")
+ * is left as it is, not "…, Madina, Madina".
+ */
+export function withArea(address: string | null | undefined, area: string): string {
+  const street = (address ?? "").trim().replace(/[\s,.]+$/, "");
+  if (!street) return area;
+  const tail = street.split(",").pop()?.trim().toLowerCase() ?? "";
+  return tail === area.trim().toLowerCase() ? street : `${street}, ${area}`;
+}
