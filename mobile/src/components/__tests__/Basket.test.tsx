@@ -4,6 +4,14 @@ import { Slot } from "expo-router";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+// Loaded here, before any test's clock starts: the first render of a screen
+// through the router is slow on a cold CI runner.
+import BasketScreen from "../../app/basket";
+import CheckoutScreen from "../../app/checkout";
+
+// Rendering through the router takes a few seconds on a cold CI runner.
+jest.setTimeout(20_000);
+
 
 const metrics = { frame: { x: 0, y: 0, width: 360, height: 780 }, insets: { top: 24, left: 0, right: 0, bottom: 16 } };
 
@@ -167,8 +175,7 @@ beforeEach(() => {
 
 describe("the basket screen", () => {
   it("shows the lines by seller with the right button for each", async () => {
-    const Basket = jest.requireActual("../../app/basket").default;
-    await renderRouter({ _layout: Layout, index: Basket });
+    await renderRouter({ _layout: Layout, index: BasketScreen });
 
     expect(await screen.findByText("Akua's Soaps")).toBeTruthy();
     expect(screen.getByText("Accra Welding")).toBeTruthy();
@@ -185,8 +192,7 @@ describe("the basket screen", () => {
 
   it("changes a quantity through the server", async () => {
     mockSetQuantity.mockResolvedValue(BASKET);
-    const Basket = jest.requireActual("../../app/basket").default;
-    await renderRouter({ _layout: Layout, index: Basket });
+    await renderRouter({ _layout: Layout, index: BasketScreen });
 
     const first = await screen.findByTestId("basket-line-1");
     const more = screen.getAllByLabelText("One more")[0];
@@ -200,8 +206,7 @@ describe("the basket screen", () => {
 
   it("says when the basket is empty", async () => {
     mockBasket = { ...BASKET, count: 0, groups: [] };
-    const Basket = jest.requireActual("../../app/basket").default;
-    await renderRouter({ _layout: Layout, index: Basket });
+    await renderRouter({ _layout: Layout, index: BasketScreen });
 
     expect(await screen.findByText("Your basket is empty")).toBeTruthy();
   });
@@ -226,9 +231,8 @@ describe("checking out", () => {
     });
     mockCheckout.mockResolvedValue({ kind: "pay", authorization_url: "https://paystack.test/x", reference: "fo-1" });
     mockConfirmOrder.mockResolvedValue({ reference: "fo-1", status: "paid" });
-    const Checkout = jest.requireActual("../../app/checkout").default;
     await renderRouter(
-      { _layout: Layout, checkout: Checkout, "order/[reference]": () => <View testID="order-page" /> },
+      { _layout: Layout, checkout: CheckoutScreen, "order/[reference]": () => <View testID="order-page" /> },
       { initialUrl: "/checkout?seller=6" },
     );
 
@@ -250,9 +254,8 @@ describe("checking out", () => {
 
   it("sends the order to a maker paid directly", async () => {
     mockCheckout.mockResolvedValue({ kind: "direct", reference: "fd-1", conversation_id: 9 });
-    const Checkout = jest.requireActual("../../app/checkout").default;
     await renderRouter(
-      { _layout: Layout, checkout: Checkout, "order/[reference]": () => <View testID="order-page" /> },
+      { _layout: Layout, checkout: CheckoutScreen, "order/[reference]": () => <View testID="order-page" /> },
       { initialUrl: "/checkout?seller=2" },
     );
 
