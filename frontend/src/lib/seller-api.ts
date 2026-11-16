@@ -12,6 +12,7 @@ import {announceSignedOut} from "./sign-in";
 import {clearAllDrafts} from "./drafts";
 import {getWhoami} from "./session-api";
 import {trainerFetch as sessionFetch} from "./trainer-api";
+import {API_URL, TrainerApiError, csrfToken} from "./trainer-fetch";
 import type {MarketplaceOrder, PayoutBank} from "./types";
 
 export {TrainerApiError as SellerApiError} from "./trainer-api";
@@ -180,11 +181,66 @@ export type ProductInput = {
   stock?: number | null;
 };
 
-export function createProduct(body: ProductInput) {
-  return sessionFetch<SellerProduct>("/api/seller/products/", {
+/** What the quick "Add an item" form sends: the item, the photos already
+ *  uploaded for it, sizes or colours, and whether to put it on sale. */
+export type QuickItemInput = ProductInput & {
+  photos?: number[];
+  options?: string[];
+  publish?: boolean;
+};
+
+export type CreatedProduct = SellerProduct & {
+  /** Asked to put it on sale but the shop cannot sell yet: saved as a draft. */
+  not_published?: {detail: string; code: string};
+};
+
+export function createProduct(body: QuickItemInput) {
+  return sessionFetch<CreatedProduct>("/api/seller/products/", {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export type PendingPhoto = {id: number; image: string | null};
+
+/**
+ * Upload a photo for an item not saved yet, reporting progress (0 to 1).
+ * XMLHttpRequest rather than fetch: fetch cannot report upload progress.
+ */
+export function uploadPendingPhoto(file: File, onProgress?: (share: number) => void) {
+  return new Promise<PendingPhoto>((resolve, reject) => {
+    const body = new FormData();
+    body.append("image", file);
+    const request = new XMLHttpRequest();
+    request.open("POST", `${API_URL}/api/seller/photos/`);
+    request.withCredentials = true;
+    request.setRequestHeader("Accept", "application/json");
+    const token = csrfToken();
+    if (token) request.setRequestHeader("X-CSRFToken", token);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total);
+    };
+    request.onload = () => {
+      let data: unknown = null;
+      try {
+        data = JSON.parse(request.responseText);
+      } catch {
+        // Not JSON: a proxy's error page.
+      }
+      if (request.status >= 200 && request.status < 300 && data) {
+        resolve(data as PendingPhoto);
+      } else {
+        const detail = (data as {detail?: string} | null)?.detail;
+        reject(new TrainerApiError(detail ?? "That photo did not upload.", request.status));
+      }
+    };
+    request.onerror = () => reject(new TrainerApiError("No connection. Try again.", 0));
+    request.send(body);
+  });
+}
+
+export function removePendingPhoto(id: number) {
+  return sessionFetch<void>(`/api/seller/photos/${id}/`, {method: "DELETE"});
 }
 
 export function updateProduct(id: number, body: Partial<ProductInput>) {

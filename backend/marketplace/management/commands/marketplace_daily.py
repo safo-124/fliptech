@@ -48,12 +48,29 @@ class Command(BaseCommand):
         from search.alerts import tell_training_alerts
 
         training = tell_training_alerts(now)
+        pruned = self.prune_pending_photos(now)
         self.stdout.write(
+            f"{pruned} unused waiting photo(s) deleted, "
             f"{asked} review request(s), {reminded} plan reminder(s) sent, "
             f"{released} held payment(s) released, {followers} follower(s) told of new products, "
             f"{searches} saved search(es) with new matches, {drops} price-drop text(s), "
             f"{training} training alert(s) texted."
         )
+
+    def prune_pending_photos(self, now):
+        """Photos taken for an item that was never saved: gone after a day,
+        files and all (marketplace.models.PendingProductPhoto)."""
+        from datetime import timedelta
+
+        from marketplace.models import PendingProductPhoto
+
+        stale = PendingProductPhoto.objects.filter(created_at__lt=now - timedelta(days=1))
+        count = 0
+        for photo in stale:
+            photo.image.delete(save=False)
+            photo.delete()
+            count += 1
+        return count
 
     def release_payments(self, now):
         """Buyer protection: pay sellers whose buyers have the goods, or

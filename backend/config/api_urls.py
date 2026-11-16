@@ -90,6 +90,8 @@ from marketplace.views import (
     OwnEnquiriesView,
     OwnProductsView,
     OwnProductView,
+    PendingPhotosView,
+    PendingPhotoView,
     ProductDetailView,
     ProductEnquiryCreateView,
     ProductListView,
@@ -482,6 +484,12 @@ urlpatterns = [
     # staff have taken down.
     path("seller/enquiries/", OwnEnquiriesView.as_view(), name="seller-enquiries"),
     path("seller/products/", OwnProductsView.as_view(), name="seller-products"),
+    path("seller/photos/", PendingPhotosView.as_view(), name="seller-pending-photos"),
+    path(
+        "seller/photos/<int:pk>/",
+        PendingPhotoView.as_view(),
+        name="seller-pending-photo",
+    ),
     path("seller/products/<int:pk>/", OwnProductView.as_view(), name="seller-product"),
     path(
         "seller/products/<int:pk>/published/",

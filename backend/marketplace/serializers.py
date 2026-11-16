@@ -307,6 +307,32 @@ class ProductDetailSerializer(ProductCardSerializer):
 # The seller's own view
 
 
+class CedisField(serializers.DecimalField):
+    """A price as a seller types it: "1,200", "GH₵ 1 200", "1200.50".
+
+    Commas, spaces and the currency are dropped before it is read as a
+    number. Empty means no price, which the shop shows as "Ask for price".
+    """
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("max_digits", 10)
+        kwargs.setdefault("decimal_places", 2)
+        kwargs.setdefault("min_value", 0)
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("allow_null", True)
+        super().__init__(**kwargs)
+
+    def to_internal_value(self, data):
+        if data is None:
+            return None
+        text = str(data).strip()
+        for noise in ("GH₵", "GHS", "GH¢", "₵", "cedis", "cedi", ",", " ", "\u00a0"):
+            text = text.replace(noise, "")
+        if not text:
+            return None
+        return super().to_internal_value(text)
+
+
 class OwnProductSerializer(serializers.ModelSerializer):
     """A product as its owner sees and edits it.
 
@@ -318,6 +344,8 @@ class OwnProductSerializer(serializers.ModelSerializer):
 
     photos = ProductPhotoSerializer(many=True, read_only=True)
     options = ProductOptionSerializer(many=True, read_only=True)
+    price = CedisField()
+    was_price = CedisField()
     status = serializers.CharField(read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     visible = serializers.SerializerMethodField()

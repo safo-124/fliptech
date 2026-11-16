@@ -30,7 +30,7 @@ export class TrainerApiError extends Error {
   }
 }
 
-function csrfToken(): string | null {
+export function csrfToken(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;

@@ -3,6 +3,7 @@
 import {formatCedis} from "@/lib/format";
 import {
   AlertTriangle,
+  Camera,
   CheckCircle2,
   Clock,
   Copy,
@@ -25,7 +26,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {useTranslations} from "next-intl";
 
 import {DashboardBottomBar, DashboardSidebar, type DashboardTab} from "@/components/dashboard/DashboardNav";
@@ -35,8 +36,12 @@ import {InboxList} from "@/components/account/Inbox";
 import {SellerIdCard} from "@/components/seller/SellerIdCard";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
+import {InlineItemEdit} from "@/components/seller/InlineItemEdit";
+import {QuickAddItem} from "@/components/seller/QuickAddItem";
+import {blankDraft, likeThis, type QuickItemDraft} from "@/lib/quick-item";
 import {getAllTrades} from "@/lib/api";
 import {checkPhoto} from "@/lib/photo-check";
+import {compressPhoto} from "@/lib/compress-photo";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
 import {Input} from "@/components/ui/input";
@@ -59,6 +64,7 @@ import {
   signOutSeller,
   updateProduct,
   withdrawProduct,
+  type CreatedProduct,
   type SellerEnquiry,
   type SellerProduct,
   type SellerProfile,
@@ -392,29 +398,113 @@ function ProductsTab({
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
 }) {
   const t = useTranslations("SellerDashboard");
+  const tq = useTranslations("QuickAdd");
+  // The quick "Add an item" form: where it starts (blank, or like a saved
+  // item) and the photos the camera has handed over so far.
+  const [quick, setQuick] = useState<{start: QuickItemDraft; files: File[]} | null>(null);
+  const [saved, setSaved] = useState<CreatedProduct | null>(null);
+  const camera = useRef<HTMLInputElement>(null);
 
-  if (editing) {
+  /** Open the form and the camera together: the camera has to be opened by
+   *  the tap itself, or a phone refuses. */
+  function openQuick(start: QuickItemDraft) {
+    setSaved(null);
+    setEditing(null);
+    setQuick({start, files: []});
+    camera.current?.click();
+  }
+
+  const picker = (
+    <input
+      ref={camera}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      multiple
+      className="sr-only"
+      tabIndex={-1}
+      aria-hidden="true"
+      onChange={(event) => {
+        const files = Array.from(event.target.files ?? []);
+        event.target.value = "";
+        if (files.length) setQuick((current) => (current ? {...current, files} : current));
+      }}
+    />
+  );
+
+  if (quick) {
     return (
-      <ProductEditor
+      <>
+        {picker}
+        <QuickAddItem
+          key={JSON.stringify(quick.start)}
+          trades={trades}
+          start={quick.start}
+          initialFiles={quick.files}
+          onClose={() => setQuick(null)}
+          onSaved={(product) => {
+            setQuick(null);
+            setSaved(product);
+            void run(() => Promise.resolve());
+          }}
+        />
+      </>
+    );
+  }
+
+  if (editing && editing !== "new") {
+    return (
+      <>
+        {picker}
+        <ProductEditor
         // The product as it is now, not as it was when the editor opened:
         // after a photo is added the list reloads, and the editor shows it
         // straight away instead of after a page reload.
-        product={editing === "new" ? null : (products.find((item) => item.id === editing.id) ?? editing)}
+        product={products.find((item) => item.id === editing.id) ?? editing}
         busy={busy}
         trades={trades}
         defaultTrade={defaultTrade}
         onClose={() => setEditing(null)}
         run={run}
       />
+      </>
     );
   }
 
+  // The camera input stays first in every view, so React keeps the same
+  // element when the form opens: the photos taken from "Add an item" arrive
+  // through it after the view has changed.
   return (
+    <>
+    {picker}
     <div className="space-y-4">
+      {saved ? (
+        // After saving: what happened, and the quickest way to the next one.
+        <div
+          role="status"
+          className="sticky bottom-24 z-20 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-[var(--shadow-lg)] lg:bottom-6"
+        >
+          <p className="text-base font-bold">
+            {saved.status === "published" ? tq("onSale") : tq("savedAsDraft")}
+          </p>
+          {saved.not_published ? (
+            <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{saved.not_published.detail}</p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="brand" className="min-h-11" onClick={() => openQuick(likeThis(saved))}>
+              <Copy aria-hidden="true" />
+              {tq("addAnother")}
+            </Button>
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => setSaved(null)}>
+              {tq("done")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold tracking-[-0.02em]">{t("yourProducts")}</h2>
-        <Button type="button" variant="brand" onClick={() => setEditing("new")}>
-          <Plus aria-hidden="true" />
+        <Button type="button" variant="brand" className="min-h-11" onClick={() => openQuick(blankDraft(defaultTrade))}>
+          <Camera aria-hidden="true" />
           {t("addProduct")}
         </Button>
       </div>
@@ -428,8 +518,13 @@ function ProductsTab({
           <p className="mx-auto mt-1.5 max-w-[42ch] text-sm leading-relaxed text-[var(--color-muted-foreground)]">
             {t("noProductsBody")}
           </p>
-          <Button type="button" variant="brand" className="mx-auto mt-5" onClick={() => setEditing("new")}>
-            <Plus aria-hidden="true" />
+          <Button
+            type="button"
+            variant="brand"
+            className="mx-auto mt-5 min-h-11"
+            onClick={() => openQuick(blankDraft(defaultTrade))}
+          >
+            <Camera aria-hidden="true" />
             {t("addFirst")}
           </Button>
         </Card>
@@ -462,16 +557,23 @@ function ProductsTab({
                       ) : (
                         formatCedis(product.price)
                       )}
+                      {product.stock !== null ? (
+                        <span
+                          className={`ml-2 text-xs ${
+                            product.stock <= 2 ? "text-[var(--color-warn)]" : "text-[var(--color-muted-foreground)]"
+                          }`}
+                        >
+                          {product.stock === 0 ? t("stockNone") : t("stockLeft", {count: product.stock})}
+                        </span>
+                      ) : null}
                     </p>
-                    {product.stock !== null ? (
-                      <p
-                        className={`mt-1 text-xs font-semibold ${
-                          product.stock <= 2 ? "text-[var(--color-warn)]" : "text-[var(--color-muted-foreground)]"
-                        }`}
-                      >
-                        {product.stock === 0 ? t("stockNone") : t("stockLeft", {count: product.stock})}
-                      </p>
-                    ) : null}
+                    {/* Price, stock and sold out, without opening the form.
+                        Keyed on the values, so a reload resets the boxes. */}
+                    <InlineItemEdit
+                      key={`${product.price}-${product.stock}-${product.availability}`}
+                      product={product}
+                      onChanged={(message) => run(() => Promise.resolve(), message)}
+                    />
                     {product.staff_note ? (
                       <p className="mt-1.5 rounded-lg bg-[var(--color-destructive)]/10 px-2 py-1 text-xs text-[var(--color-destructive)]">
                         {product.staff_note}
@@ -503,24 +605,6 @@ function ProductsTab({
                       >
                         <Copy aria-hidden="true" />
                         {t("copy")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() =>
-                          run(
-                            () =>
-                              updateProduct(product.id, {
-                                availability: product.availability === "sold_out" ? "available" : "sold_out",
-                                ...(product.availability === "sold_out" && product.stock === 0 ? {stock: null} : {}),
-                              }),
-                            product.availability === "sold_out" ? t("backInStock") : t("markedSoldOut"),
-                          )
-                        }
-                      >
-                        {product.availability === "sold_out" ? t("inStockAgain") : t("markSoldOut")}
                       </Button>
                       {product.status === "draft" ? (
                         <Button
@@ -560,6 +644,7 @@ function ProductsTab({
         </ul>
       )}
     </div>
+    </>
   );
 }
 
@@ -850,6 +935,13 @@ function ProductPhotos({
   // Fingerprints of the pictures sent from this editor, so the same file
   // picked twice (it used not to appear until a reload) is not sent twice.
   const [sent, setSent] = useState<string[]>([]);
+  // Shown the moment they are picked, from the phone's own copy, and kept
+  // until the item reloads with them. A photo used not to appear until the
+  // page was reloaded: if reloading the list failed, the editor kept the item
+  // as it was before the upload.
+  const [fresh, setFresh] = useState<{key: string; preview: string; id?: number}[]>([]);
+  const known = new Set(product.photos.map((photo) => photo.id));
+  const showing = fresh.filter((item) => item.id === undefined || !known.has(item.id));
   return (
     <div className="mt-6 border-t border-[var(--color-border)] pt-5">
       <p className="text-sm font-bold">{t("photos")}</p>
@@ -868,6 +960,17 @@ function ProductPhotos({
       ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2.5">
+        {showing.map((item) => (
+          <div key={item.key} className="relative size-20 overflow-hidden rounded-xl bg-[var(--color-muted)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.preview} alt="" className="size-full object-cover" />
+            {item.id === undefined ? (
+              <span className="absolute inset-0 grid place-items-center bg-black/30">
+                <Loader2 aria-hidden="true" className="size-5 animate-spin text-white" />
+              </span>
+            ) : null}
+          </div>
+        ))}
         {product.photos.map((photo) => (
           <div key={photo.id} className="group relative size-20 overflow-hidden rounded-xl bg-[var(--color-muted)]">
             {photo.image ? <Image src={photo.image} alt="" fill sizes="80px" className="object-cover" /> : null}
@@ -914,7 +1017,17 @@ function ProductPhotos({
                   return;
                 }
                 if (print) setSent((current) => [...current, print]);
-                void run(() => addProductPhoto(product.id, file));
+                const key = `${Date.now()}-${Math.random()}`;
+                setFresh((current) => [...current, {key, preview: URL.createObjectURL(file)}]);
+                void run(async () => {
+                  try {
+                    const photo = await addProductPhoto(product.id, await compressPhoto(file));
+                    setFresh((current) => current.map((item) => (item.key === key ? {...item, id: photo.id} : item)));
+                  } catch (reason) {
+                    setFresh((current) => current.filter((item) => item.key !== key));
+                    throw reason;
+                  }
+                });
               });
             }}
           />
