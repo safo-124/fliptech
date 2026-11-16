@@ -14,7 +14,7 @@ describe("safeNextPath", () => {
   it.each([null, "", "https://evil.example", "//evil.example", "/\\evil.example", "trainee"])(
     "falls back to the account page for %s",
     (value) => {
-      expect(safeNextPath(value)).toBe("/trainee");
+      expect(safeNextPath(value)).toBe("/account/learning");
     },
   );
 });

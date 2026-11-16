@@ -104,6 +104,7 @@ export const INBOX_CLIENT_NAMESPACES = ["Chat"] as const satisfies readonly Clie
 
 export const ACCOUNT_CLIENT_NAMESPACES = [
   "Account",
+  "AccountSections",
   "Chat",
   "SignIn",
   "Validation",

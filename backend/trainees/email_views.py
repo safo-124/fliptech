@@ -226,6 +226,10 @@ class TraineeAddEmailConfirmView(TraineeView):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        # The proved address is the account's address too (one profile).
+        from accounts.profile_sync import pull_from_trainee
+
+        pull_from_trainee(account, email=True)
         if self.ctx.is_support:
             record(self.ctx.support, "added_email")
         return Response(TraineeAccountSerializer(account).data)

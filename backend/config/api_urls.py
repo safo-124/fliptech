@@ -13,6 +13,7 @@ from accounts.views import AddressesView as AccountAddressesView
 from accounts.views import AddressView as AccountAddressView
 from accounts.views import AddRoleView as AccountAddRoleView
 from accounts.views import BagView as AccountBagView
+from accounts.views import CloseView as AccountCloseView
 from accounts.views import CodeRequestView as AccountCodeRequestView
 from accounts.views import CodeVerifyView as AccountCodeVerifyView
 from accounts.views import LogoutView as AccountLogoutView
@@ -574,6 +575,7 @@ urlpatterns = [
     path("account/request-code/", AccountCodeRequestView.as_view(), name="account-request-code"),
     path("account/verify-code/", AccountCodeVerifyView.as_view(), name="account-verify-code"),
     path("account/logout/", AccountLogoutView.as_view(), name="account-logout"),
+    path("account/close/", AccountCloseView.as_view(), name="account-close"),
     path("account/orders/", AccountOrdersView.as_view(), name="account-orders"),
     path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
     path("account/saved/", AccountSavedView.as_view(), name="account-saved"),

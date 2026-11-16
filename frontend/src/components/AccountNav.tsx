@@ -3,10 +3,13 @@
 import {
   BookOpen,
   ChevronDown,
+  GraduationCap,
   Heart,
   LayoutDashboard,
   LogOut,
+  MessageCircle,
   Package,
+  Send,
   Store,
   UserPlus,
   UserRound,
@@ -18,7 +21,7 @@ import {useEffect, useRef, useState} from "react";
 import {Button} from "@/components/ui/button";
 import {signOutAccount} from "@/lib/account-api";
 import {getWhoami} from "@/lib/session-api";
-import {SESSION_CHANGED, announceSessionChange} from "@/lib/sign-in";
+import {SESSION_CHANGED, SIGNED_OUT} from "@/lib/sign-in";
 import type {Whoami} from "@/lib/types";
 
 /**
@@ -36,6 +39,9 @@ export type AccountNavLabels = {
   myAccount: string;
   signUp: string;
   account: string;
+  messages: string;
+  enquiries: string;
+  learning: string;
   orders: string;
   saved: string;
   courses: string;
@@ -76,12 +82,19 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
         // Signed out is the safe answer: it offers a way in.
         .catch(() => {});
     }
+    // Any sign-out, from any page: gone now, not on the next page.
+    const forget = () => {
+      setAccount(null);
+      setOpen(null);
+    };
     load();
-    // Signing in from the sheet, or out from the menu, updates this at once.
+    // Signing in from the sheet, or out from anywhere, updates this at once.
     window.addEventListener(SESSION_CHANGED, load);
+    window.addEventListener(SIGNED_OUT, forget);
     return () => {
       active = false;
       window.removeEventListener(SESSION_CHANGED, load);
+      window.removeEventListener(SIGNED_OUT, forget);
     };
   }, [labels.account]);
 
@@ -123,9 +136,22 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
   const {who} = account;
   const items = [
     {href: "/account", label: labels.account, icon: UserRound},
+    {href: "/account#messages", label: labels.messages, icon: MessageCircle},
+    // Enquiries to workshops live with learning; questions to shops and
+    // quote requests on the account page.
+    {
+      href: who.trainee ? "/account/learning#enquiries" : "/account#questions",
+      label: labels.enquiries,
+      icon: Send,
+    },
     {href: "/account#orders", label: labels.orders, icon: Package},
     {href: "/marketplace/saved", label: labels.saved, icon: Heart},
-    ...(who.trainee ? [{href: "/learn/mine", label: labels.courses, icon: BookOpen}] : []),
+    ...(who.trainee
+      ? [
+          {href: "/account/learning", label: labels.learning, icon: GraduationCap},
+          {href: "/learn/mine", label: labels.courses, icon: BookOpen},
+        ]
+      : []),
     ...(who.trainer ? [{href: "/trainer/dashboard", label: labels.workshop, icon: LayoutDashboard}] : []),
     ...(who.seller ? [{href: "/sell/shop", label: labels.shop, icon: Store}] : []),
   ];
@@ -185,10 +211,10 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
             type="button"
             role="menuitem"
             onClick={async () => {
+              // Gone from the header before the server has answered.
               setOpen(null);
-              await signOutAccount().catch(() => {});
               setAccount(null);
-              announceSessionChange();
+              await signOutAccount().catch(() => {});
               router.push("/");
               router.refresh();
             }}

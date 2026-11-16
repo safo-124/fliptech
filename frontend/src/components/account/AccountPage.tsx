@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Package,
   Store,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ import {useTranslations} from "next-intl";
 import {useCallback, useEffect, useState} from "react";
 
 import {AccountExtras} from "@/components/account/AccountExtras";
+import {AccountSections} from "@/components/account/AccountSections";
 import {LearningCard} from "@/components/account/LearningCard";
 import {PhoneSignIn, WelcomeStep} from "@/components/auth/PhoneSignIn";
 import {announceSessionChange} from "@/lib/sign-in";
@@ -32,6 +34,7 @@ import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {
   addRole,
+  closeAccount,
   getAccount,
   getMyOrders,
   getMyQuestions,
@@ -336,7 +339,7 @@ function SignedIn({
       role: "trainee" as const,
       Icon: GraduationCap,
       state: roles.trainee,
-      href: "/trainee",
+      href: "/account/learning",
     },
     {
       role: "trainer" as const,
@@ -361,6 +364,7 @@ function SignedIn({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
+      <AccountSections current="account" />
       <header className="flex flex-wrap items-end justify-between gap-3">
         <AccountPhoto account={account} t={t}>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">{t("eyebrow")}</p>
@@ -444,7 +448,7 @@ function SignedIn({
 
       {/* ---------------------------------------------- questions & quotes */}
       {asked && (asked.questions.length || asked.quotes.length) ? (
-        <Card>
+        <Card id="questions" className="scroll-mt-24">
           <CardHeader className="flex-row items-center gap-3 space-y-0">
             <MessageCircle aria-hidden="true" className="size-5 text-[var(--color-brand)]" />
             <CardTitle>{t("questionsTitle")}</CardTitle>
@@ -532,7 +536,7 @@ function SignedIn({
       </Card>
 
       {/* --------------------------------------------------- your details */}
-      <Card>
+      <Card id="details" className="scroll-mt-24">
         <CardHeader className="flex-row items-center gap-3 space-y-0">
           <UserRound aria-hidden="true" className="size-5 text-[var(--color-brand)]" />
           <CardTitle>{t("detailsTitle")}</CardTitle>
@@ -645,6 +649,74 @@ function SignedIn({
           </form>
         </CardContent>
       </Card>
+
+      <CloseAccount onClosed={() => {
+        onSignedOut();
+        router.replace("/");
+      }} />
     </div>
+  );
+}
+
+/**
+ * The one Close account, for the whole login. What it deletes and what it
+ * keeps is said before the button, in the words of accounts/closing.py.
+ */
+function CloseAccount({onClosed}: {onClosed: () => void}) {
+  const t = useTranslations("Account");
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <Card id="close" className="scroll-mt-24 border-[var(--color-destructive)]/25">
+      <CardHeader className="flex-row items-center gap-3 space-y-0">
+        <Trash2 aria-hidden="true" className="size-5 text-[var(--color-destructive)]" />
+        <CardTitle>{t("closeTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm leading-6">
+        <p>
+          <strong>{t("closeDeletesLabel")}</strong> {t("closeDeletes")}
+        </p>
+        <p>
+          <strong>{t("closeKeepsLabel")}</strong> {t("closeKeeps")}
+        </p>
+        <p className="text-[var(--color-muted-foreground)]">{t("closeNotHere")}</p>
+        {problem ? (
+          <p role="alert" className="rounded-lg bg-[var(--color-destructive)]/10 px-3 py-2 text-[var(--color-destructive)]">
+            {problem}
+          </p>
+        ) : null}
+        {asking ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setProblem(null);
+                try {
+                  await closeAccount();
+                  onClosed();
+                } catch (reason) {
+                  setProblem(reason instanceof Error ? reason.message : t("failed"));
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+              {t("closeConfirm")}
+            </Button>
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => setAsking(false)}>
+              {t("closeKeep")}
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="outline" onClick={() => setAsking(true)}>
+            {t("closeButton")}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }

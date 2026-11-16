@@ -7,8 +7,6 @@ import {
   CheckCircle2,
   Headset,
   Loader2,
-  Mail,
-  MailCheck,
   LogOut,
   MessageCircle,
   MessageSquareOff,
@@ -37,19 +35,15 @@ import {browserApiUrl} from "@/lib/api-origin";
 import {formatDate, formatFee} from "@/lib/format";
 import {awaitingReply, matchesQuery} from "@/lib/trainee-progress";
 import {cn} from "@/lib/utils";
+import {addRole, getAccount, type CustomerAccount} from "@/lib/account-api";
 import {
-  closeTraineeAccount,
-  confirmAddEmail,
   getSavedProviders,
   getTraineeEnquiries,
   getTraineeEnrolments,
   getTraineeSession,
   logoutTrainee,
   removeSavedProvider,
-  removeTraineeAvatar,
-  requestAddEmailCode,
   updateTraineeAccount,
-  uploadTraineeAvatar,
 } from "@/lib/trainee-api";
 import type {
   SavedProvider,
@@ -253,20 +247,10 @@ export function TraineeDashboard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [name, setName] = useState("");
   const [channel, setChannel] = useState<TraineeChannel>("whatsapp");
-  // One object rather than five useStates: it is saved and reset as a unit,
-  // and five setters in the load effect is five chances to forget one.
-  // Adding an address is its own two-step flow: type it, then prove it with a
-  // code. It is not part of saveSettings, because an address is claimed by
-  // proving it and not by typing it into a form the server would have to take
-  // on trust.
-  const [emailDraft, setEmailDraft] = useState("");
-  const [emailCode, setEmailCode] = useState("");
-  const [emailChallenge, setEmailChallenge] = useState<string | null>(null);
-  const [emailBusy, setEmailBusy] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
-
+  // The one account: its name and photo are the ones shown here. They are
+  // changed on /account only, so there is one copy of each, not two.
+  const [profile, setProfile] = useState<CustomerAccount | null>(null);
   const [background, setBackground] = useState<TraineeBackground>({
     education_level: "",
     institution_name: "",
@@ -274,46 +258,6 @@ export function TraineeDashboard() {
     education_status: "",
     education_year: null,
   });
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [photoBusy, setPhotoBusy] = useState(false);
-
-  async function changePhoto(file: File | null) {
-    if (!file) return;
-    // Checked here as well as on the server so somebody on a slow connection
-    // is told before they spend the upload rather than after it.
-    if (file.size > 15 * 1024 * 1024) {
-      setError(t("photoTooLarge"));
-      return;
-    }
-    setPhotoBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const next = await uploadTraineeAvatar(file);
-      if (next.authenticated) setSession(next);
-      setNotice(t("photoUpdated"));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("photoSaveFailed"));
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  async function dropPhoto() {
-    setPhotoBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const next = await removeTraineeAvatar();
-      if (next.authenticated) setSession(next);
-      setNotice(t("photoRemoved"));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("photoRemoveFailed"));
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
   // Deep links, both ways: read the hash on arrival, and keep it in step when
   // a tab is chosen so the address bar can be shared or reloaded.
   useEffect(() => {
@@ -335,12 +279,27 @@ export function TraineeDashboard() {
 
   useEffect(() => {
     let active = true;
-    getTraineeSession()
+    async function signedIn() {
+      const current = await getTraineeSession();
+      if (current.authenticated) return current;
+      // Signed in on the site but not yet as a learner: this page is where
+      // learning lives, so opening it makes them one. No second sign-in.
+      const account = await getAccount();
+      if (!account.authenticated) return null;
+      await addRole("trainee");
+      const again = await getTraineeSession();
+      return again.authenticated ? again : null;
+    }
+    signedIn()
       .then(async (current) => {
-        if (!current.authenticated) {
-          router.replace("/trainee/sign-in");
+        if (!current) {
+          router.replace(`/account?next=${encodeURIComponent("/account/learning")}`);
           return;
         }
+        // Staff in a support session have no account of their own here.
+        void getAccount()
+          .then((found) => active && found.authenticated && setProfile(found.account))
+          .catch(() => {});
         const [nextEnquiries, nextEnrolments, nextSaved] = await Promise.all([
           getTraineeEnquiries(),
           getTraineeEnrolments(),
@@ -348,7 +307,6 @@ export function TraineeDashboard() {
         ]);
         if (!active) return;
         setSession(current);
-        setName(current.account.display_name);
         setChannel(current.account.preferred_channel);
         setBackground({
           education_level: current.account.education_level,
@@ -414,7 +372,6 @@ export function TraineeDashboard() {
     event.preventDefault();
     return run(async () => {
       const account = await updateTraineeAccount({
-        display_name: name.trim(),
         preferred_channel: channel,
         ...background,
         institution_name: background.institution_name.trim(),
@@ -424,51 +381,6 @@ export function TraineeDashboard() {
       setNotice(t("saved"));
     });
   };
-
-  async function sendEmailCode(event: React.FormEvent) {
-    event.preventDefault();
-    const address = emailDraft.trim();
-    if (!address.includes("@")) {
-      setEmailError(t("enterEmail"));
-      return;
-    }
-    setEmailBusy(true);
-    setEmailError(null);
-    try {
-      const challenge = await requestAddEmailCode(address);
-      setEmailChallenge(challenge.challenge_id);
-      setEmailCode("");
-    } catch (reason) {
-      setEmailError(reason instanceof Error ? reason.message : t("codeSendFailed"));
-    } finally {
-      setEmailBusy(false);
-    }
-  }
-
-  async function confirmEmail(event: React.FormEvent) {
-    event.preventDefault();
-    if (!emailChallenge) return;
-    setEmailBusy(true);
-    setEmailError(null);
-    try {
-      const account = await confirmAddEmail(emailChallenge, emailDraft.trim(), emailCode);
-      setSession((current) => (current ? {...current, account} : current));
-      setEmailChallenge(null);
-      setEmailDraft("");
-      setEmailCode("");
-      setNotice(t("emailAdded"));
-    } catch (reason) {
-      setEmailError(reason instanceof Error ? reason.message : t("codeFailed"));
-    } finally {
-      setEmailBusy(false);
-    }
-  }
-
-  const closeAccount = () =>
-    run(async () => {
-      await closeTraineeAccount();
-      router.replace("/");
-    });
 
   if (loading) {
     return (
@@ -501,7 +413,9 @@ export function TraineeDashboard() {
   // The phone is the account, so it is what we have before someone types a
   // name. Greeting a person by their own phone number reads like a receipt,
   // so the number moves to the line below and the greeting stays warm.
-  const named = Boolean(session.account.display_name.trim());
+  const displayName = (profile?.display_name ?? session.account.display_name).trim();
+  const photo = profile ? profile.photo : session.account.avatar;
+  const named = Boolean(displayName);
   const counts = {
     enquiries: awaitingReply(enquiries),
     saved: saved.length,
@@ -562,12 +476,12 @@ export function TraineeDashboard() {
 
   const identity = (
     <div className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-[var(--shadow-card)]">
-      {session.account.avatar ? (
+      {photo ? (
         /* A plain img, not next/image: it is 44px, so there is nothing for the
            optimiser to save, and one fewer round trip on a slow connection. */
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={session.account.avatar}
+          src={photo}
           alt=""
           className="size-11 shrink-0 rounded-xl object-cover"
         />
@@ -578,7 +492,7 @@ export function TraineeDashboard() {
       )}
       <div className="min-w-0">
         <p className="truncate text-sm font-bold leading-5">
-          {named ? session.account.display_name : t("yourAccount")}
+          {named ? displayName : t("yourAccount")}
         </p>
         <p className="truncate text-xs text-[var(--color-muted-foreground)]">{session.account.phone}</p>
       </div>
@@ -594,10 +508,10 @@ export function TraineeDashboard() {
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
-            {t("yourAccount")}
+            {t("learningEyebrow")}
           </p>
           <h1 className="truncate text-2xl font-bold tracking-[-0.03em] sm:text-3xl">
-            {named ? t("helloName", {name: session.account.display_name}) : t("helloThere")}
+            {named ? t("helloName", {name: displayName}) : t("helloThere")}
           </h1>
           <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
             {t("summary", {
@@ -806,74 +720,14 @@ export function TraineeDashboard() {
 
       {tab === "settings" ? (
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>{t("pictureTitle")}</CardTitle>
-              <CardDescription>{t("pictureBody")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap items-center gap-4">
-                {session.account.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={session.account.avatar}
-                    alt=""
-                    className="size-20 shrink-0 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="grid size-20 shrink-0 place-items-center rounded-full bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">
-                    <UserRound aria-hidden="true" className="size-8" />
-                  </span>
-                )}
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Label htmlFor="trainee-avatar">
-                    {session.account.avatar ? t("choosePicture") : t("addPicture")}
-                  </Label>
-                  <Input
-                    id="trainee-avatar"
-                    type="file"
-                    accept="image/*"
-                    disabled={photoBusy || readOnly}
-                    onChange={(event) => changePhoto(event.target.files?.[0] ?? null)}
-                  />
-                  {session.account.avatar ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={photoBusy || readOnly}
-                      onClick={dropPhoto}
-                    >
-                      {photoBusy ? (
-                        <Loader2 aria-hidden="true" className="animate-spin" />
-                      ) : (
-                        <Trash2 aria-hidden="true" />
-                      )}
-                      {t("removePicture")}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
-              <CardTitle>{t("detailsTitle")}</CardTitle>
-              <CardDescription>{t("detailsBody", {phone: session.account.phone})}</CardDescription>
+              <CardTitle>{t("preferencesTitle")}</CardTitle>
+              <CardDescription>{t("preferencesBody")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={saveSettings} className="space-y-4">
                 <fieldset disabled={busy || readOnly} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="trainee-name">{t("nameLabel")}</Label>
-                    <Input
-                      id="trainee-name"
-                      value={name}
-                      maxLength={120}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder={t("namePlaceholder")}
-                    />
-                  </div>
                   <div className="space-y-2">
                     <p className="text-sm font-medium">{t("channelQuestion")}</p>
                     {(["whatsapp", "telegram"] as const).map((option) => (
@@ -1019,124 +873,24 @@ export function TraineeDashboard() {
                 ) : null}
               </form>
 
-              {/* Adding an address is deliberately outside the settings form.
-                  An address is claimed by proving it with a code, not by
-                  typing it into a field the server takes on trust — so it
-                  cannot share a Save button with the name and the channel. */}
-              <div className="mt-6 space-y-3 border-t border-[var(--color-border)] pt-5">
-                <div>
-                  <p className="text-sm font-semibold">{t("emailSignInTitle")}</p>
-                  <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
-                    {t("emailSignInBody")}
-                  </p>
-                </div>
-
-                {session.account.email ? (
-                  <p className="flex items-center gap-2 rounded-xl bg-[var(--color-muted)]/65 p-3 text-sm">
-                    <MailCheck aria-hidden="true" className="size-4 shrink-0 text-[var(--color-visit)]" />
-                    <span>
-                      {t.rich("emailOnAccount", {
-                        email: session.account.email,
-                        strong: (chunks) => <strong>{chunks}</strong>,
-                      })}
-                    </span>
-                  </p>
-                ) : emailChallenge ? (
-                  <form onSubmit={confirmEmail} className="space-y-2">
-                    <Label htmlFor="trainee-email-code">
-                      {t("codeSentTo", {email: emailDraft.trim()})}
-                    </Label>
-                    <Input
-                      id="trainee-email-code"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={8}
-                      value={emailCode}
-                      onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, ""))}
-                      className="text-center text-lg font-semibold tabular-nums tracking-[0.3em]"
-                      autoFocus
-                    />
-                    {emailError ? (
-                      <p role="alert" className="text-sm text-[var(--color-destructive)]">
-                        {emailError}
-                      </p>
-                    ) : null}
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="submit" variant="brand" disabled={emailBusy}>
-                        {emailBusy ? (
-                          <Loader2 aria-hidden="true" className="animate-spin" />
-                        ) : null}
-                        {t("confirmEmail")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          setEmailChallenge(null);
-                          setEmailError(null);
-                        }}
-                      >
-                        {t("differentAddress")}
-                      </Button>
-                    </div>
-                  </form>
-                ) : (
-                  <form onSubmit={sendEmailCode} className="space-y-2">
-                    <fieldset disabled={readOnly} className="space-y-2">
-                      <Label htmlFor="trainee-new-email">{t("emailLabel")}</Label>
-                      <Input
-                        id="trainee-new-email"
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        value={emailDraft}
-                        onChange={(event) => setEmailDraft(event.target.value)}
-                      />
-                      {emailError ? (
-                        <p role="alert" className="text-sm text-[var(--color-destructive)]">
-                          {emailError}
-                        </p>
-                      ) : null}
-                      <Button type="submit" variant="outline" disabled={emailBusy}>
-                        {emailBusy ? (
-                          <Loader2 aria-hidden="true" className="animate-spin" />
-                        ) : (
-                          <Mail aria-hidden="true" />
-                        )}
-                        {t("sendCode")}
-                      </Button>
-                    </fieldset>
-                  </form>
-                )}
-              </div>
             </CardContent>
           </Card>
 
-          {session.support ? null : (
-            <Card className="border-[var(--color-destructive)]/20">
-              <CardHeader>
-                <CardTitle>{t("closeTitle")}</CardTitle>
-                <CardDescription>{t("closeBody")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {confirmClose ? (
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="button" variant="destructive" onClick={closeAccount} disabled={busy}>
-                      {t("closeConfirm")}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={() => setConfirmClose(false)}>
-                      {t("closeKeep")}
-                    </Button>
-                  </div>
-                ) : (
-                  <Button type="button" variant="outline" onClick={() => setConfirmClose(true)}>
-                    {t("closeAccount")}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("profileElsewhereTitle")}</CardTitle>
+              <CardDescription>{t("profileElsewhereBody")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link href="/account#details">
+                  <UserRound aria-hidden="true" />
+                  {t("profileElsewhereLink")}
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       ) : null}
         </div>

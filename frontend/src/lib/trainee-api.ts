@@ -8,6 +8,7 @@
  */
 
 import {forgetAccountCopies} from "./bag";
+import {announceSignedOut} from "./sign-in";
 import {clearAllDrafts} from "./drafts";
 import {trainerFetch as sessionFetch} from "./trainer-api";
 import type {
@@ -142,6 +143,7 @@ export function confirmAddEmail(challengeId: string, email: string, code: string
 export function logoutTrainee() {
   clearAllDrafts();
   forgetAccountCopies();
+  announceSignedOut();
   return sessionFetch<TraineeSession & {back_office_url?: string}>("/api/trainee/logout/", {
     method: "POST",
     body: JSON.stringify({}),
@@ -198,7 +200,7 @@ export function closeTraineeAccount() {
 /** Only same-site paths are accepted as a place to return to after sign-in. */
 export function safeNextPath(value: string | null | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
-    return "/trainee";
+    return "/account/learning";
   }
   return value;
 }

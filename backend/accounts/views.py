@@ -125,7 +125,7 @@ def _roles(user):
     held = set(roles_of(user))
     payload = {"trainee": None, "trainer": None, "seller": None}
     if "trainee_account" in held and user.trainee_account.is_active:
-        payload["trainee"] = {"href": "/trainee"}
+        payload["trainee"] = {"href": "/account/learning"}
     if "trainer_account" in held and user.trainer_account.is_active:
         payload["trainer"] = {
             "href": "/trainer/dashboard",
@@ -186,6 +186,10 @@ class AccountView(APIView):
             # A new address is not proven until a code sent to it is typed.
             serializer.validated_data["email_verified_at"] = None
         serializer.save()
+        # The learning pages show the same name and email (one profile).
+        from .profile_sync import push_to_trainee
+
+        push_to_trainee(account)
         # "Learn a trade" makes them a trainee straight away, on this login,
         # so a course started next needs no second sign-in. (Selling still
         # goes through the seller's own steps: staff confirm sellers.)
@@ -302,6 +306,33 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request._request)
         return Response({"authenticated": False, "account": None, "roles": None})
+
+
+class CloseView(APIView):
+    """Close the whole account. accounts/closing.py says what goes and what stays."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsCustomer]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request):
+        from .closing import CannotClose, close_login
+
+        if request.data.get("confirm") is not True:
+            return Response(
+                {"detail": _("Confirm that you want to close your account.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = request.user
+        try:
+            close_login(user)
+        except CannotClose as refused:
+            return Response(
+                {"detail": refused.message, "code": refused.code},
+                status=status.HTTP_409_CONFLICT,
+            )
+        logout(request._request)
+        return Response({"closed": True})
 
 
 class OrdersView(APIView):

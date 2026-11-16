@@ -92,6 +92,11 @@ const nextConfig: NextConfig = {
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   env: { API_URL: apiHost },
   poweredByHeader: false,
+  // The learner's pages moved into the one account area. Old links, emails
+  // and texts still land in the right place (the browser keeps any #tab).
+  redirects() {
+    return [{source: "/trainee", destination: "/account/learning", permanent: false}];
+  },
 };
 
 export default withNextIntl(nextConfig);

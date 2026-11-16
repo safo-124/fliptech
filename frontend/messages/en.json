@@ -457,10 +457,19 @@
     "copyright": "© {year} {brand} Skills Hub. All rights reserved.",
     "marketTerms": "Marketplace terms"
   },
+  "AccountSections": {
+    "label": "Your account",
+    "account": "Account",
+    "learning": "Learning",
+    "messages": "Messages"
+  },
   "AccountNav": {
     "myAccount": "Sign in",
     "signUp": "Register",
     "account": "My account",
+    "messages": "Messages",
+    "enquiries": "My enquiries",
+    "learning": "My learning",
     "orders": "My orders",
     "saved": "Saved and bag",
     "courses": "My courses",
@@ -573,6 +582,7 @@
     "noLocationsBody": "These providers are still available in the list view.",
     "providerCount": "{count, plural, one {# provider} other {# providers}}",
     "interactiveMap": "Interactive map · {count, plural, one {# provider} other {# providers}}",
+    "notOnMap": "{count, plural, one {# has} other {# have}} no map location",
     "showAll": "Show all providers",
     "keyboardHelp": "Use arrow keys to pan, + and − to zoom, and Tab then Enter to open a marker. Press Escape to close details.",
     "tilesFailed": "The base map tiles are not loading. Provider markers may still be available; check your connection or use the list view.",
@@ -740,7 +750,8 @@
   },
   "SaveProviderButton": {
     "save": "Save",
-    "saved": "Saved"
+    "saved": "Saved",
+    "failed": "That did not save. Try again."
   },
   "AreaPages": {
     "tradeTitle": "{trade} training in {place}",
@@ -875,6 +886,15 @@
     "chatNote": "{provider} replies in your messages here, and you get a text when they do. Your number stays hidden unless you share it."
   },
   "Account": {
+    "closeTitle": "Close your account",
+    "closeDeletesLabel": "Deleted:",
+    "closeDeletes": "your sign-in, your name, email, photo and addresses, your saved items and bag, saved workshops and searches, the shops you follow, your chats (for the shop or workshop too), and your course progress and certificates.",
+    "closeKeepsLabel": "Kept:",
+    "closeKeeps": "your orders, and the enquiries you sent to workshops. They are the seller's and the workshop's records, under your phone number, but no longer linked to an account.",
+    "closeNotHere": "If you also run a workshop or a shop, or have paid for an online course, contact us to close the account, so those records are handled properly.",
+    "closeButton": "Close my account",
+    "closeConfirm": "Yes, close it for good",
+    "closeKeep": "No, keep my account",
     "addPhoto": "Add a photo",
     "changePhoto": "Change photo",
     "removePhoto": "Remove",
@@ -958,6 +978,7 @@
     "chatsTitle": "Messages",
     "chatsNone": "Ask a workshop about a course, or message a seller from any product, and the chat shows here.",
     "chatsAll": "All messages",
+    "chatsKindWorkshop": "Training enquiry",
     "chatsYou": "You",
     "chatBack": "Messages",
     "searchesTitle": "Saved searches",
@@ -1204,6 +1225,12 @@
     "useEmail": "Use my email instead"
   },
   "TraineeDashboard": {
+    "learningEyebrow": "Your learning",
+    "preferencesTitle": "Learning preferences",
+    "preferencesBody": "How workshops should reach you, and your schooling if you want to share it. Optional.",
+    "profileElsewhereTitle": "Name, email, photo and closing your account",
+    "profileElsewhereBody": "These are on your account page, once for the whole site: what you change there shows here too.",
+    "profileElsewhereLink": "Open your account",
     "status": {
       "sent": "Sent to the workshop",
       "replied": "Workshop replied",
@@ -1379,8 +1406,8 @@
       "short": "Saved"
     },
     "settings": {
-      "label": "Settings",
-      "short": "Settings"
+      "label": "Preferences",
+      "short": "Prefs"
     }
   },
   "DashboardNav": {

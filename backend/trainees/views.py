@@ -250,6 +250,11 @@ class TraineeAccountView(TraineeView):
         serializer = TraineeAccountSerializer(self.ctx.account, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         account = serializer.save()
+        if "display_name" in serializer.validated_data:
+            # The app still edits the name here; /account shows the same one.
+            from accounts.profile_sync import pull_from_trainee
+
+            pull_from_trainee(account, name=True)
         if self.ctx.is_support:
             record(self.ctx.support, "updated_account", fields=sorted(serializer.validated_data))
         return Response(TraineeAccountSerializer(account).data)
@@ -271,7 +276,20 @@ class TraineeCloseAccountView(TraineeView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         account = self.ctx.account
+        from accounts.closing import why_not
+
+        problem = why_not(account.user)
+        if problem and problem.code == "paid_courses":
+            return Response(
+                {"detail": problem.message, "code": problem.code},
+                status=status.HTTP_409_CONFLICT,
+            )
         logout(request._request)
+        from courses.models import CoursePurchase
+
+        CoursePurchase.objects.filter(trainee=account).exclude(
+            status=CoursePurchase.Status.PAID
+        ).delete()
         close_account(account)
         return Response({"closed": True})
 
