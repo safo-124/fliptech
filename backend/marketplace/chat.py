@@ -82,12 +82,18 @@ def _course_card(enquiry):
     """The course an enquiry is about, for the card at the top of its message."""
     if enquiry is None:
         return None
+    from catalog.listed import is_listed
+
     programme = enquiry.programme
+    # A course taken down since: still named (it is what was asked about),
+    # but no start date that would read as an offer still open.
+    listed = bool(programme) and is_listed(programme)
     return {
         "reference": enquiry.reference_code,
         "title": programme.title if programme else "",
         "fee": f"{programme.fee:.2f}" if programme else None,
-        "starts": enquiry.intake.start_date if enquiry.intake_id else None,
+        "starts": enquiry.intake.start_date if enquiry.intake_id and listed else None,
+        "listed": listed,
     }
 
 

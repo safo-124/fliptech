@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import {PRIVATE_PREFIXES} from "./src/lib/private-paths";
 import createNextIntlPlugin from "next-intl/plugin";
 
 // Interface strings live in messages/<locale>.json; src/i18n/request.ts says
@@ -94,6 +95,16 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The learner's pages moved into the one account area. Old links, emails
   // and texts still land in the right place (the browser keeps any #tab).
+  // Signed-in pages are never kept by the browser or anything in between,
+  // so Back after signing out cannot show them (lib/private-paths.ts).
+  headers() {
+    return PRIVATE_PREFIXES.flatMap((prefix) =>
+      [prefix, `${prefix}/:path*`].map((source) => ({
+        source,
+        headers: [{key: "Cache-Control", value: "no-store, private"}],
+      })),
+    );
+  },
   redirects() {
     return [{source: "/trainee", destination: "/account/learning", permanent: false}];
   },

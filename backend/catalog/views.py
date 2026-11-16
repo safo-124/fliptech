@@ -1,7 +1,7 @@
-from django.db.models import Count, Q
+from django.db.models import Count
 from rest_framework import viewsets
 
-from providers.models import Provider
+from catalog.listed import listed_course_q
 
 from .models import Trade
 from .serializers import TradeSerializer
@@ -20,10 +20,8 @@ class TradeViewSet(viewsets.ReadOnlyModelViewSet):
                 provider_count=Count(
                     "programmes__provider",
                     distinct=True,
-                    filter=Q(
-                        programmes__is_active=True,
-                        programmes__provider__status=Provider.Status.PUBLISHED,
-                    ),
+                    # The same rule as every other public page (catalog/listed.py).
+                    filter=listed_course_q("programmes__"),
                 )
             )
             .order_by("display_order", "name")

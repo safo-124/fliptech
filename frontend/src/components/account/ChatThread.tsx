@@ -196,6 +196,7 @@ export function ChatThread({
                   <div className={`mb-1.5 rounded-xl p-2 text-xs ${tint}`}>
                     <p className="font-semibold">{t("enquiry", { title: message.course.title })}</p>
                     <p className={mine ? "text-white/80" : "text-[var(--color-muted-foreground)]"}>
+                      {message.course.listed === false ? `${t("courseGone")} · ` : ""}
                       {message.course.starts
                         ? `${t("enquiryStarts", {
                             date: new Date(message.course.starts).toLocaleDateString("en-GH", {

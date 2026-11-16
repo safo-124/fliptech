@@ -995,6 +995,7 @@
     "shoppingTitle": "Shopping"
   },
   "Chat": {
+    "courseGone": "This course is no longer listed",
     "placeholder": "Write a message",
     "send": "Send",
     "failed": "That did not send. Try again.",
@@ -1225,6 +1226,7 @@
     "useEmail": "Use my email instead"
   },
   "TraineeDashboard": {
+    "courseGone": "This course is no longer listed",
     "learningEyebrow": "Your learning",
     "preferencesTitle": "Learning preferences",
     "preferencesBody": "How workshops should reach you, and your schooling if you want to share it. Optional.",

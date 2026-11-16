@@ -41,6 +41,7 @@ function enquiry(overrides: Partial<TraineeEnquiry> = {}): TraineeEnquiry {
     reference_code: "ABC123",
     provider: provider(),
     programme_title: "Auto electrics",
+    programme_listed: true,
     intake_start: null,
     message: "",
     status: "sent",

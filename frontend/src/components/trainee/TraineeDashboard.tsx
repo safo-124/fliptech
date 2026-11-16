@@ -593,9 +593,11 @@ export function TraineeDashboard() {
                     </CardTitle>
                     <CardDescription>
                       {enquiry.programme_title || t("trainingEnquiry")}
-                      {enquiry.intake_start
-                        ? ` · ${t("starts", {date: formatDate(enquiry.intake_start)})}`
-                        : ""}
+                      {enquiry.programme_listed === false
+                        ? ` · ${t("courseGone")}`
+                        : enquiry.intake_start
+                          ? ` · ${t("starts", {date: formatDate(enquiry.intake_start)})}`
+                          : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">

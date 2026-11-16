@@ -20,6 +20,7 @@ from rest_framework.generics import RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from catalog.listed import listed_course_q
 from catalog.models import Programme
 from core.money import money
 from core.network import canonical_client_ip, ratelimit_client_ip
@@ -234,11 +235,9 @@ class UpcomingIntakesView(APIView):
 
         intakes = (
             Intake.objects.filter(
+                listed_course_q("programme__"),
                 is_open=True,
                 start_date__gte=timezone.localdate(),
-                programme__is_active=True,
-                programme__trade__is_active=True,
-                programme__provider__status=Provider.Status.PUBLISHED,
             )
             .filter(Q(places_remaining__isnull=True) | Q(places_remaining__gt=0))
             .select_related("programme__trade", "programme__provider__area")
@@ -332,12 +331,7 @@ class TradeAreaSummaryView(APIView):
         if not trade:
             raise ValidationError({"detail": _("trade is required.")})
 
-        programmes = Programme.objects.filter(
-            is_active=True,
-            trade__is_active=True,
-            trade__slug__iexact=trade,
-            provider__status=Provider.Status.PUBLISHED,
-        )
+        programmes = Programme.objects.filter(listed_course_q(), trade__slug__iexact=trade)
         area = request.query_params.get("area")
         region = request.query_params.get("region")
         if area:

@@ -91,13 +91,20 @@ export class ApiError extends Error {
 export const MARKETPLACE_TAG = "marketplace";
 /** Course pages, expired by Django when a course changes. */
 export const LEARN_TAG = "learn";
+/**
+ * Everything else read here: workshops, courses, intakes, trades, areas, the
+ * map. Expired by Django when a workshop, course, intake or trade changes
+ * (backend providers/page_refresh.py), so a listing taken down leaves
+ * /training, "Starting soon" and the trade counts at once, not five minutes on.
+ */
+export const TRAINING_TAG = "training";
 
 async function fetchJson<T>(
   path: string,
   {
     revalidate = LIST_REVALIDATE_SECONDS,
     retries = 2,
-    tags,
+    tags = [TRAINING_TAG],
   }: { revalidate?: number; retries?: number; tags?: string[] } = {},
 ): Promise<T> {
   const url = `${API_URL}${path}`;

@@ -492,6 +492,8 @@ class ProviderDetailSerializer(ProviderListSerializer):
 
     @extend_schema_field(ProgrammeSerializer(many=True))
     def get_programmes(self, obj):
+        # The workshop is the one being shown, so only the course and its
+        # trade decide here; the same rule as catalog/listed.py.
         active = [p for p in obj.programmes.all() if p.is_active and p.trade.is_active]
         return ProgrammeSerializer(active, many=True).data
 
