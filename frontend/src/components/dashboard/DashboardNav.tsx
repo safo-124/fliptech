@@ -66,6 +66,9 @@ export function DashboardSidebar<Key extends string>({
                 type="button"
                 onClick={() => onSelect(key)}
                 aria-current={active ? "page" : undefined}
+                // An explicit name, count included, so the button is never
+                // read out as nothing (or as just "3").
+                aria-label={count ? t("withCount", {label, count}) : label}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors",
                   active
@@ -125,7 +128,7 @@ export function DashboardBottomBar<Key extends string>({
         className="grid"
         style={{gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`}}
       >
-        {tabs.map(({key, short, Icon}) => {
+        {tabs.map(({key, label, short, Icon}) => {
           const active = tab === key;
           const count = counts[key];
           return (
@@ -134,6 +137,7 @@ export function DashboardBottomBar<Key extends string>({
                 type="button"
                 onClick={() => onSelect(key)}
                 aria-current={active ? "page" : undefined}
+                aria-label={count ? t("withCount", {label, count}) : label}
                 className={cn(
                   "relative flex min-h-14 w-full flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors",
                   active ? "text-[var(--color-brand-strong)]" : "text-[var(--color-muted-foreground)]",

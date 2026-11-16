@@ -155,7 +155,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
         ) : (
           <UserRound aria-hidden />
         )}
-        <span className="max-w-[9rem] truncate max-sm:hidden">{firstName(account.name)}</span>
+        <span className="max-w-[9rem] truncate max-sm:hidden">{account.name === labels.account ? labels.account : firstName(account.name)}</span>
         <ChevronDown
           aria-hidden
           className={`size-4 text-[var(--color-muted-foreground)] transition-transform ${isOpen ? "rotate-180" : ""}`}

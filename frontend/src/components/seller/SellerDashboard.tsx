@@ -1,5 +1,6 @@
 "use client";
 
+import {formatCedis} from "@/lib/format";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -34,6 +35,7 @@ import {InboxList} from "@/components/account/Inbox";
 import {SellerIdCard} from "@/components/seller/SellerIdCard";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
+import {getAllTrades} from "@/lib/api";
 import {checkPhoto} from "@/lib/photo-check";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
@@ -95,6 +97,13 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<SellerProduct | "new" | null>(null);
+  // For the item form's trade choice.
+  const [trades, setTrades] = useState<{id: number; name: string; slug: string}[]>([]);
+  useEffect(() => {
+    getAllTrades()
+      .then((all) => setTrades(all.map(({id, name, slug}) => ({id, name, slug}))))
+      .catch(() => {});
+  }, []);
 
   const fetchAll = useCallback(
     () =>
@@ -173,16 +182,23 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
   const live = products.filter((p) => p.visible).length;
   const unanswered = enquiries.length;
 
+  // A new shop, with nothing to sell yet, sees what it needs to start:
+  // its items, orders, chats and shop details. Growth tools, bundles and
+  // quote requests appear once there is an item to use them with, and
+  // "People asking" once somebody has asked.
+  const newShop = products.length === 0;
   const tabs: ReadonlyArray<DashboardTab<Tab>> = [
     {key: "products", label: t("tabProducts"), short: t("tabProductsShort"), Icon: Package},
-    {key: "grow", label: t("tabGrow"), short: t("tabGrowShort"), Icon: TrendingUp},
+    ...(newShop ? [] : [{key: "grow" as const, label: t("tabGrow"), short: t("tabGrowShort"), Icon: TrendingUp}]),
     {key: "orders", label: t("tabOrders"), short: t("tabOrdersShort"), Icon: ShoppingBag},
     {key: "chats", label: t("tabChats"), short: t("tabChatsShort"), Icon: MessagesSquare},
-    ...(seller.workshop
+    ...(seller.workshop && !newShop
       ? [{key: "bundles" as const, label: t("tabBundles"), short: t("tabBundlesShort"), Icon: PackagePlus}]
       : []),
-    {key: "quotes", label: t("tabQuotes"), short: t("tabQuotesShort"), Icon: FileText},
-    {key: "enquiries", label: t("tabEnquiries"), short: t("tabEnquiriesShort"), Icon: MessageCircle},
+    ...(newShop ? [] : [{key: "quotes" as const, label: t("tabQuotes"), short: t("tabQuotesShort"), Icon: FileText}]),
+    ...(newShop && unanswered === 0
+      ? []
+      : [{key: "enquiries" as const, label: t("tabEnquiries"), short: t("tabEnquiriesShort"), Icon: MessageCircle}]),
     {key: "shop", label: t("tabShop"), short: t("tabShopShort"), Icon: Store},
   ];
 
@@ -235,6 +251,8 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
               products={products}
               busy={busy}
               mayPublish={seller.may_sell}
+              trades={trades}
+              defaultTrade={seller.workshop?.trade_id ?? null}
               editing={editing}
               setEditing={setEditing}
               run={run}
@@ -352,10 +370,14 @@ function Banner({
 // ---------------------------------------------------------------------------
 // Products
 
+type TradeChoice = {id: number; name: string; slug: string};
+
 function ProductsTab({
   products,
   busy,
   mayPublish,
+  trades,
+  defaultTrade,
   editing,
   setEditing,
   run,
@@ -363,6 +385,8 @@ function ProductsTab({
   products: SellerProduct[];
   busy: boolean;
   mayPublish: boolean;
+  trades: TradeChoice[];
+  defaultTrade: number | null;
   editing: SellerProduct | "new" | null;
   setEditing: (value: SellerProduct | "new" | null) => void;
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
@@ -372,8 +396,13 @@ function ProductsTab({
   if (editing) {
     return (
       <ProductEditor
-        product={editing === "new" ? null : editing}
+        // The product as it is now, not as it was when the editor opened:
+        // after a photo is added the list reloads, and the editor shows it
+        // straight away instead of after a page reload.
+        product={editing === "new" ? null : (products.find((item) => item.id === editing.id) ?? editing)}
         busy={busy}
+        trades={trades}
+        defaultTrade={defaultTrade}
         onClose={() => setEditing(null)}
         run={run}
       />
@@ -431,7 +460,7 @@ function ProductsTab({
                       {product.price === null ? (
                         <span className="text-[var(--color-muted-foreground)]">{t("onRequest")}</span>
                       ) : (
-                        `GH₵${Number(product.price).toLocaleString("en-GH")}`
+                        formatCedis(product.price)
                       )}
                     </p>
                     {product.stock !== null ? (
@@ -499,7 +528,7 @@ function ProductsTab({
                           variant="brand"
                           size="sm"
                           disabled={busy || !mayPublish}
-                          title={mayPublish ? undefined : t("cannotPublishYet")}
+                          aria-describedby={mayPublish ? undefined : `publish-why-${product.id}`}
                           onClick={() => run(() => publishProduct(product.id), t("published"))}
                         >
                           {t("publish")}
@@ -516,6 +545,13 @@ function ProductsTab({
                         </Button>
                       ) : null}
                     </div>
+                    {product.status === "draft" && !mayPublish ? (
+                      // Said on the card, not only to screen readers: why the
+                      // button cannot be pressed yet.
+                      <p id={`publish-why-${product.id}`} className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+                        {t("cannotPublishYet")}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </Card>
@@ -554,11 +590,16 @@ function StatusPill({product}: {product: SellerProduct}) {
 function ProductEditor({
   product,
   busy,
+  trades,
+  defaultTrade,
   onClose,
   run,
 }: {
   product: SellerProduct | null;
   busy: boolean;
+  trades: TradeChoice[];
+  /** The workshop's trade, for a new item in a workshop's shop. */
+  defaultTrade: number | null;
   onClose: () => void;
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
 }) {
@@ -570,6 +611,13 @@ function ProductEditor({
   const [availability, setAvailability] = useState(product?.availability ?? "available");
   const [condition, setCondition] = useState(product?.condition ?? "new");
   const [stock, setStock] = useState(product?.stock !== null && product?.stock !== undefined ? String(product.stock) : "");
+  const [trade, setTrade] = useState<string>(
+    product ? (product.trade ? String(product.trade) : "") : defaultTrade ? String(defaultTrade) : "",
+  );
+  const tradeSlug = trades.find((item) => String(item.id) === trade)?.slug;
+  // A "before" price at or under the price is no sale: say so as they type.
+  const wasPriceTooLow =
+    Boolean(price && wasPrice) && Number(String(wasPrice).replace(/,/g, "")) <= Number(String(price).replace(/,/g, ""));
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -583,6 +631,7 @@ function ProductEditor({
       availability,
       condition,
       stock: stock.trim() === "" ? null : Math.max(0, Number.parseInt(stock, 10) || 0),
+      trade: trade ? Number(trade) : null,
     };
     await run(async () => {
       if (product) await updateProduct(product.id, body);
@@ -612,8 +661,21 @@ function ProductEditor({
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder={t("namePlaceholder")}
+              placeholder={itemExample(tradeSlug, t)}
             />
+          </div>
+
+          <div className="sm:w-1/2">
+            <Label htmlFor="product-trade">{t("tradeLabel")}</Label>
+            <NativeSelect id="product-trade" value={trade} onChange={(event) => setTrade(event.target.value)}>
+              <option value="">{t("tradeNone")}</option>
+              {trades.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </NativeSelect>
+            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("tradeHelp")}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -677,8 +739,18 @@ function ProductEditor({
               inputMode="decimal"
               value={wasPrice ?? ""}
               onChange={(event) => setWasPrice(event.target.value)}
+              aria-invalid={wasPriceTooLow || undefined}
+              aria-describedby="product-was-price-note"
             />
-            <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("wasPriceHelp")}</p>
+            {wasPriceTooLow ? (
+              <p id="product-was-price-note" className="mt-1.5 text-xs font-medium text-[var(--color-warn)]">
+                {t("wasPriceTooLow")}
+              </p>
+            ) : (
+              <p id="product-was-price-note" className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">
+                {t("wasPriceHelp")}
+              </p>
+            )}
           </div>
 
           <div>
@@ -739,6 +811,31 @@ function ProductEditor({
   );
 }
 
+/** An item name from the shop's trade, as the example. */
+const ITEMS_BY_TRADE = {
+  welding: "itemWelding",
+  tailoring: "itemTailoring",
+  plumbing: "itemPlumbing",
+  "auto-mechanics": "itemAuto",
+  hairdressing: "itemHair",
+  "electrical-installation": "itemElectrical",
+} as const;
+
+function itemExample(slug: string | undefined, t: ReturnType<typeof useTranslations<"SellerDashboard">>) {
+  const key = slug ? ITEMS_BY_TRADE[slug as keyof typeof ITEMS_BY_TRADE] : undefined;
+  return t(key ?? "namePlaceholder");
+}
+
+/** A short fingerprint of a file's bytes, or null where the browser cannot make one. */
+async function fingerprint(file: File): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    return Array.from(new Uint8Array(digest).slice(0, 12), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+
 function ProductPhotos({
   product,
   busy,
@@ -750,6 +847,9 @@ function ProductPhotos({
 }) {
   const t = useTranslations("SellerDashboard");
   const [warning, setWarning] = useState<string | null>(null);
+  // Fingerprints of the pictures sent from this editor, so the same file
+  // picked twice (it used not to appear until a reload) is not sent twice.
+  const [sent, setSent] = useState<string[]>([]);
   return (
     <div className="mt-6 border-t border-[var(--color-border)] pt-5">
       <p className="text-sm font-bold">{t("photos")}</p>
@@ -808,7 +908,14 @@ function ProductPhotos({
                         : null,
                 ),
               );
-              void run(() => addProductPhoto(product.id, file));
+              void fingerprint(file).then((print) => {
+                if (print && sent.includes(print)) {
+                  setWarning(t("photoAlreadyAdded"));
+                  return;
+                }
+                if (print) setSent((current) => [...current, print]);
+                void run(() => addProductPhoto(product.id, file));
+              });
             }}
           />
         </label>

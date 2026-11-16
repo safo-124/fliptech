@@ -1,5 +1,6 @@
 "use client";
 
+import {formatCedis, formatDate} from "@/lib/format";
 import { Printer } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -7,7 +8,6 @@ import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
-import { formatCedis } from "@/lib/format";
 import { getOrder } from "@/lib/marketplace-api";
 import type { MarketplaceOrder } from "@/lib/types";
 
@@ -50,7 +50,7 @@ export function OrderReceipt({ reference }: { reference: string }) {
             {paidAt ? (
               <p className="text-xs">
                 {t("receiptPaid", {
-                  date: paidAt.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" }),
+                  date: formatDate(paidAt.toISOString()),
                 })}
               </p>
             ) : null}

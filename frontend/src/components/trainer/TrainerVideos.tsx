@@ -81,7 +81,28 @@ async function keepAwake(): Promise<{release: () => Promise<void>} | null> {
  * watch it before it shows, separately from the listing: a live listing
  * stays live while a new video waits.
  */
-export function TrainerVideos({listingLive}: {listingLive: boolean}) {
+/** A video by its type, or by its name when the phone gives no type. */
+function isVideoFile(file: File) {
+  if (file.type) return file.type.startsWith("video/");
+  return /\.(mp4|m4v|mov|3gp|3g2|webm|mkv|avi|mpe?g|ts|wmv)$/i.test(file.name);
+}
+
+/** A lesson title in the trainer's own trade, as the example. */
+const LESSONS_BY_TRADE = {
+  welding: "lessonWelding",
+  tailoring: "lessonTailoring",
+  plumbing: "lessonPlumbing",
+  "auto-mechanics": "lessonAuto",
+  hairdressing: "lessonHair",
+  "electrical-installation": "lessonElectrical",
+} as const;
+
+function lessonExample(slug: string | undefined, t: ReturnType<typeof useTranslations<"TrainerVideos">>) {
+  const key = slug ? LESSONS_BY_TRADE[slug as keyof typeof LESSONS_BY_TRADE] : undefined;
+  return t(key ?? "titlePlaceholder");
+}
+
+export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; tradeSlug?: string}) {
   const t = useTranslations("TrainerVideos");
   const [videos, setVideos] = useState<TrainerVideo[] | null>(null);
   const [limits, setLimits] = useState<TrainerVideoLimits | null>(null);
@@ -98,6 +119,13 @@ export function TrainerVideos({listingLive}: {listingLive: boolean}) {
   const [paused, setPaused] = useState<Record<number, File>>({});
   const [resumeErrors, setResumeErrors] = useState<Record<number, string>>({});
   const fileInput = useRef<HTMLInputElement>(null);
+  // Arriving from the studio's "Add a lesson": go straight to the form.
+  useEffect(() => {
+    if (limits === null) return;
+    if (new URLSearchParams(window.location.search).get("upload") !== "1") return;
+    fileInput.current?.scrollIntoView({block: "center"});
+    fileInput.current?.focus({preventScroll: true});
+  }, [limits]);
 
   const reload = useCallback(async () => {
     const list = await getTrainerVideos();
@@ -175,7 +203,10 @@ export function TrainerVideos({listingLive}: {listingLive: boolean}) {
       file: file ? undefined : t("fileRequired"),
       title: title.trim() ? undefined : t("titleRequired"),
     };
-    if (file && file.size > limits.max_upload_bytes) {
+    if (file && !isVideoFile(file)) {
+      // accept="video/*" is a hint some phones ignore: a .jpg got through.
+      missing.file = t("notAVideo");
+    } else if (file && file.size > limits.max_upload_bytes) {
       missing.file = t("tooLarge", {
         size: formatBytes(file.size),
         max: formatBytes(limits.max_upload_bytes),
@@ -270,7 +301,13 @@ export function TrainerVideos({listingLive}: {listingLive: boolean}) {
             </ul>
           </div>
 
-          {limits === null ? null : full ? (
+          {limits === null ? null : limits.accepting === false ? (
+            // The server has no room for uploads right now: say so instead
+            // of a form that would refuse after the trainer has filled it.
+            <p role="status" className="rounded-xl border border-[var(--color-warn)]/25 bg-[var(--color-warn-bg)] p-4 text-sm leading-6 text-[var(--color-warn)]">
+              {t("notAccepting", {brand: BRAND})}
+            </p>
+          ) : full ? (
             <p className="text-sm text-[var(--color-muted-foreground)]">{t("full")}</p>
           ) : (
             <form noValidate onSubmit={add} className="grid gap-4 sm:grid-cols-2">
@@ -281,7 +318,16 @@ export function TrainerVideos({listingLive}: {listingLive: boolean}) {
                   id="video-file"
                   type="file"
                   accept="video/*"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    const chosen = event.target.files?.[0] ?? null;
+                    setFile(chosen);
+                    // Checked as soon as it is chosen, and the old message
+                    // goes once the file is right.
+                    setFieldErrors((current) => ({
+                      ...current,
+                      file: chosen && !isVideoFile(chosen) ? t("notAVideo") : undefined,
+                    }));
+                  }}
                   aria-invalid={fieldErrors.file ? true : undefined}
                   aria-describedby={fieldErrors.file ? "video-file-error" : "video-file-help"}
                 />
@@ -302,8 +348,11 @@ export function TrainerVideos({listingLive}: {listingLive: boolean}) {
                   type="text"
                   maxLength={100}
                   value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder={t("titlePlaceholder")}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    if (event.target.value.trim()) setFieldErrors((current) => ({...current, title: undefined}));
+                  }}
+                  placeholder={lessonExample(tradeSlug, t)}
                   aria-invalid={fieldErrors.title ? true : undefined}
                   aria-describedby={fieldErrors.title ? "video-title-error" : undefined}
                 />

@@ -72,7 +72,9 @@ export function SellerIdCard() {
       ) : state.status === "submitted" ? (
         <p className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
           <Clock aria-hidden="true" className="size-4" />
-          {t("idWaiting")}
+          {/* Why nothing is asked: a trainer's ID from the workshop sign-up
+              is used for the shop too, still to be checked for selling. */}
+          {state.note ? `${t("idWaiting")} ${state.note}` : t("idWaiting")}
         </p>
       ) : (
         <>

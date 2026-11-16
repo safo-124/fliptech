@@ -69,6 +69,14 @@ def _disk_has_room_for(size):
     return free - size >= settings.VIDEO_MIN_FREE_BYTES
 
 
+def accepting_uploads():
+    """Whether there is room for a video of any size right now."""
+    try:
+        return _disk_has_room_for(1)
+    except OSError:
+        return False
+
+
 def start_upload(provider, *, title, name, size, actor):
     """A new video, ready to receive its file. Raises VideoRefused.
 

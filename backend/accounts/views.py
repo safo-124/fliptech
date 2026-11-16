@@ -680,8 +680,14 @@ def _add_role(request, account, role):
         trainer_for(phone=account.phone, verified_at=now)
     elif role == "seller":
         from marketplace.auth import account_for_verified_phone as seller_for
+        from marketplace.auth import adopt_workshop, workshop_of
 
-        seller_for(phone=account.phone, verified_at=now, user=request.user)
+        seller = seller_for(phone=account.phone, verified_at=now, user=request.user)
+        # A trainer opening a shop from the account page gets the same as from
+        # the workshop dashboard: its name, area and ID carried over.
+        workshop = workshop_of(request.user)
+        if workshop is not None:
+            adopt_workshop(seller, workshop)
     else:
         return False
     # A fresh copy, so the new role's reverse relation is not cached as

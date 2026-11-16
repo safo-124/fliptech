@@ -20,7 +20,7 @@ from .models import Provider
 from .trainer_serializers import TrainerVideoInputSerializer, TrainerVideoSerializer
 from .trainer_views import IsActiveTrainer, _account, _profile_for
 from .video_uploads import ChunkRefused, read_chunk, receive_chunk
-from .videos import VideoRefused, limits, seconds_used, start_upload
+from .videos import VideoRefused, accepting_uploads, limits, seconds_used, start_upload
 
 
 def _own_video(request, video_id):
@@ -50,6 +50,10 @@ class TrainerVideosView(APIView):
                 "limits": {
                     **limits(),
                     "seconds_used": seconds_used(provider) if provider is not None else 0,
+                    # False when the server cannot take uploads now (its video
+                    # disk is nearly full): the dashboard says so up front
+                    # instead of offering a form that will refuse.
+                    "accepting": accepting_uploads(),
                 },
             }
         )

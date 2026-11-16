@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
@@ -99,7 +100,14 @@ export function StudioLessons() {
   }
 
   if (!lessons.length) {
-    return <p className="text-sm text-[var(--color-muted-foreground)]">{t("noLessons")}</p>;
+    return (
+      <p className="text-sm text-[var(--color-muted-foreground)]">
+        {t("noLessons")}{" "}
+        <Link href="/trainer/dashboard?upload=1#videos" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
+          {t("uploadFirst")}
+        </Link>
+      </p>
+    );
   }
 
   return (

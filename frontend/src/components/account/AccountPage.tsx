@@ -1,5 +1,6 @@
 "use client";
 
+import {formatCedis, formatDate} from "@/lib/format";
 import {
   Building2,
   Camera,
@@ -43,7 +44,6 @@ import {
   type MyQuestions,
 } from "@/lib/account-api";
 import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
-import {formatCedis} from "@/lib/format";
 import type {MarketplaceOrder} from "@/lib/types";
 
 /** A path on this site, never somewhere else: `next` comes from the address. */
@@ -53,7 +53,7 @@ function safeNext(value: string | null) {
 }
 
 function day(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"});
+  return formatDate(iso);
 }
 
 /**

@@ -481,6 +481,8 @@ export type TrainerVideoLimits = {
   max_upload_bytes: number;
   chunk_bytes: number;
   seconds_used: number;
+  /** False while the server cannot take uploads (its video disk is nearly full). */
+  accepting?: boolean;
 };
 
 export type TrainerVideoList = { videos: TrainerVideo[]; limits: TrainerVideoLimits };

@@ -1,4 +1,5 @@
 import { ArrowRight, GraduationCap, PackageCheck, Wrench } from "lucide-react";
+import { formatCedis } from "@/lib/format";
 import Image from "next/image";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
@@ -71,7 +72,7 @@ export async function BundleCard({ bundle, action = true }: { bundle: Bundle; ac
         </div>
         {bundle.saving && Number(bundle.saving) > 0 ? (
           <span className="shrink-0 rounded-full bg-[var(--color-visit-bg)] px-2.5 py-1 text-xs font-extrabold text-[var(--color-visit)]">
-            {t("bundleSave", { amount: `GH₵${Number(bundle.saving).toLocaleString("en-GH")}` })}
+            {t("bundleSave", { amount: formatCedis(bundle.saving) })}
           </span>
         ) : null}
       </div>
@@ -98,10 +99,10 @@ export async function BundleCard({ bundle, action = true }: { bundle: Bundle; ac
       </ul>
       <div className="mt-auto flex items-end justify-between gap-3 pt-5">
         <p>
-          <span className="text-2xl font-extrabold tracking-[-0.02em]">GH₵{Number(bundle.price).toLocaleString("en-GH")}</span>
+          <span className="text-2xl font-extrabold tracking-[-0.02em]">{formatCedis(bundle.price ?? "0")}</span>
           {bundle.full_price && bundle.full_price !== bundle.price ? (
             <span className="ml-2 text-sm text-[var(--color-muted-foreground)] line-through">
-              GH₵{Number(bundle.full_price).toLocaleString("en-GH")}
+              {formatCedis(bundle.full_price)}
             </span>
           ) : null}
         </p>

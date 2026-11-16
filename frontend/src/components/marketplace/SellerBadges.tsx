@@ -1,4 +1,5 @@
 import { BadgeCheck, GraduationCap, ShieldCheck, Zap } from "lucide-react";
+import { formatCedis } from "@/lib/format";
 import { useTranslations } from "next-intl";
 
 import type { SellerCard } from "@/lib/types";
@@ -52,7 +53,7 @@ export function SalePrice({ was }: { was: string | null }) {
   return (
     <span className="ml-2 text-[0.7em] font-semibold text-[var(--color-muted-foreground)] line-through">
       <span className="sr-only">{t("wasPrice")} </span>
-      GH₵{Number(was).toLocaleString("en-GH", { maximumFractionDigits: 2 })}
+      {formatCedis(String(was))}
     </span>
   );
 }
