@@ -15,8 +15,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory
 from PIL import Image
 
-from core.media import derive_public_origin, public_url
 from catalog.models import Programme, Trade
+from core.media import derive_public_origin, public_url
 from geography.models import Area, Region
 from providers.models import Provider, ProviderPhoto
 
