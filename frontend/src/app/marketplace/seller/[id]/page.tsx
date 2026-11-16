@@ -6,6 +6,7 @@
  * follows that.
  */
 
+import { formatCedis } from "@/lib/format";
 import { ArrowLeft, BadgeCheck, MapPin, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -117,7 +118,7 @@ export default async function SellerShopPage({ params }: { params: Promise<{ id:
             {Number(seller.delivery_fee) === 0
               ? t("freeDelivery", { area: seller.delivery_area || t("theirArea") })
               : t("deliveryFor", {
-                  fee: `GH₵${Number(seller.delivery_fee).toLocaleString("en-GH")}`,
+                  fee: formatCedis(seller.delivery_fee),
                   area: seller.delivery_area || t("theirArea"),
                 })}
           </p>

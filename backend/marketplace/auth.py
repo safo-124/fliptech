@@ -159,7 +159,71 @@ def start_selling(*, user, phone, verified_at, provider=None):
     with None by a later call that did not pass one.
     """
     account = account_for_verified_phone(phone=phone, verified_at=verified_at, user=user)
-    if provider is not None and account.provider_id != provider.pk:
+    if provider is not None:
+        adopt_workshop(account, provider)
+    return account
+
+
+def workshop_of(user):
+    """The workshop this login owns as a trainer, or None."""
+    from providers.models import TrainerAccount
+    from providers.trainer_profiles import TrainerProfileConflict, get_owned_profile
+
+    try:
+        trainer = user.trainer_account
+    except TrainerAccount.DoesNotExist:
+        return None
+    try:
+        return get_owned_profile(trainer)
+    except TrainerProfileConflict:
+        return None
+
+
+def adopt_workshop(account, provider):
+    """A shop that is a workshop starts from what the workshop already gave.
+
+    Links the two, fills the shop's name and area when they are empty (never
+    overwriting what the seller typed), and takes the owner's ID from the
+    workshop sign-up instead of asking for it twice. The ID is copied as
+    "sent, waiting for a check": staff still look at it for selling, which
+    is a different question from teaching, but the trainer is not asked to
+    photograph the same card again.
+    """
+    from django.core.files.base import ContentFile
+    from django.utils import timezone
+
+    from providers.models import ProviderEvidence
+
+    changed = []
+    if account.provider_id != provider.pk:
         account.provider = provider
-        account.save(update_fields=["provider", "updated_at"])
+        changed.append("provider")
+    if not account.business_name:
+        account.business_name = provider.name
+        changed.append("business_name")
+    if not account.area_id and provider.area_id:
+        account.area_id = provider.area_id
+        changed.append("area")
+    if account.id_status == SellerAccount.IdStatus.NONE and not account.id_document:
+        evidence = (
+            ProviderEvidence.objects.filter(
+                provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+            )
+            .order_by("-pk")
+            .first()
+        )
+        if evidence is not None and evidence.file:
+            try:
+                with evidence.file.open("rb") as handle:
+                    name = evidence.file.name.rsplit("/", 1)[-1]
+                    account.id_document.save(name, ContentFile(handle.read()), save=False)
+            except OSError:
+                pass
+            else:
+                account.id_status = SellerAccount.IdStatus.SUBMITTED
+                account.id_submitted_at = timezone.now()
+                account.id_note = _("Taken from your workshop sign-up.")
+                changed += ["id_document", "id_status", "id_submitted_at", "id_note"]
+    if changed:
+        account.save(update_fields=[*changed, "updated_at"])
     return account

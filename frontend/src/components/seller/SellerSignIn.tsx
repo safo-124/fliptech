@@ -10,7 +10,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader} from "@/comp
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
-import {getSellerSession, requestSellerCode, verifySellerCode} from "@/lib/seller-api";
+import {getSellerSessionForJoining, requestSellerCode, verifySellerCode} from "@/lib/seller-api";
 
 /**
  * Signing in to sell, which is also signing up.
@@ -40,7 +40,10 @@ export function SellerSignIn() {
   // prove a number they proved an hour ago.
   useEffect(() => {
     let active = true;
-    getSellerSession()
+    // Signed in on the site already (as a buyer, learner or trainer) counts
+    // too: the login is made a seller and goes to the shop, with no second
+    // phone code. See getSellerSessionForJoining.
+    getSellerSessionForJoining()
       .then((session) => {
         if (active && session.authenticated) router.replace("/sell/shop");
         else if (active) setChecking(false);

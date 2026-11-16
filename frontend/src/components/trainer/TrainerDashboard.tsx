@@ -658,8 +658,12 @@ export function TrainerDashboard() {
 
       {tab === "videos" ? (
         <div className="space-y-5">
-          {/* The studio is where a course is shaped and sold; this tab
-              keeps the uploads and the price a tap away. */}
+          <TrainerCourseSales />
+          {/* Uploading is here and only here: the studio's "Add a lesson"
+              comes back to this form. The studio below is for shaping and
+              pricing the course once lessons exist. */}
+          <TrainerVideos listingLive={profile.status === "published"} tradeSlug={profile.programme?.trade?.slug} />
+          {/* The studio: order lessons, set the price, see who watches. */}
           <Link
             href="/trainer/course"
             className="band group relative flex items-center gap-4 overflow-hidden rounded-2xl p-5 text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5"
@@ -673,8 +677,7 @@ export function TrainerDashboard() {
             </span>
             <ArrowRight aria-hidden="true" className="size-5 shrink-0 transition-transform group-hover:translate-x-1" />
           </Link>
-          <TrainerCourseSales />
-          <TrainerVideos listingLive={profile.status === "published"} />
+
         </div>
       ) : null}
 

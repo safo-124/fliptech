@@ -6,7 +6,9 @@
  * token.
  */
 
+import {addRole} from "./account-api";
 import {clearAllDrafts} from "./drafts";
+import {getWhoami} from "./session-api";
 import {trainerFetch as sessionFetch} from "./trainer-api";
 import type {MarketplaceOrder, PayoutBank} from "./types";
 
@@ -36,7 +38,7 @@ export type SellerProfile = {
   level: "confirmed" | "payments" | "verified";
   takes_payments: boolean;
   /** The training listing this shop is, when it is one. */
-  workshop: {name: string; slug: string; area_slug: string} | null;
+  workshop: {name: string; slug: string; area_slug: string; trade_id?: number | null} | null;
   away_until: string | null;
   away_note: string;
   verified_at: string | null;
@@ -92,6 +94,24 @@ export type SellerEnquiry = {
 
 export function getSellerSession() {
   return sessionFetch<SellerSession>("/api/seller/session/me/");
+}
+
+/**
+ * The seller session for someone who has come to start selling. Like the
+ * trainer one: a visitor already signed in on the site becomes a seller on
+ * the same login instead of being asked for their phone again.
+ */
+export async function getSellerSessionForJoining(): Promise<SellerSession> {
+  const session = await getSellerSession();
+  if (session.authenticated) return session;
+  const who = await getWhoami().catch(() => null);
+  if (!who?.customer) return session;
+  try {
+    await addRole("seller");
+  } catch {
+    return session;
+  }
+  return getSellerSession();
 }
 
 export function requestSellerCode(phone: string) {

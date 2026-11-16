@@ -388,13 +388,21 @@ class SellerProfileSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.DictField(allow_null=True))
     def get_workshop(self, obj):
-        """The training listing this shop is, for bundles and student prices."""
+        """The training listing this shop is, for bundles and student prices.
+
+        trade_id is the trade the workshop teaches (its first active course),
+        so a new item in a workshop's shop starts in that trade.
+        """
         if not obj.provider_id:
             return None
+        programme = (
+            obj.provider.programmes.filter(is_active=True).order_by("pk").only("trade_id").first()
+        )
         return {
             "name": obj.provider.name,
             "slug": obj.provider.slug,
             "area_slug": obj.provider.area.slug,
+            "trade_id": programme.trade_id if programme else None,
         }
 
     phone = serializers.CharField(read_only=True)

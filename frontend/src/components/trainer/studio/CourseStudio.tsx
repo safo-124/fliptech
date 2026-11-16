@@ -1,5 +1,6 @@
 "use client";
 
+import {formatCedis, formatDate} from "@/lib/format";
 import {
   Award,
   BarChart3,
@@ -44,7 +45,6 @@ import {
   setStudioCodeActive,
   verifyStudioBoost,
 } from "@/lib/course-api";
-import { formatCedis } from "@/lib/format";
 import { TrainerApiError } from "@/lib/trainer-fetch";
 import type { CourseReview, StudioCode, StudioDetails, StudioQuestion, StudioStats } from "@/lib/types";
 
@@ -135,7 +135,7 @@ export function CourseStudio() {
               </Link>
             ) : null}
             <Link
-              href="/trainer/dashboard#videos"
+              href="/trainer/dashboard?upload=1#videos"
               className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-bold text-[var(--color-brand)] hover:bg-white/90"
             >
               <PlayCircle aria-hidden="true" className="size-4" />
@@ -265,7 +265,12 @@ function Overview({ onUnanswered, onGo }: { onUnanswered: (n: number) => void; o
           {stats.lessons.length ? (
             <LessonFunnel lessons={stats.lessons} />
           ) : (
-            <p className="text-sm text-[var(--color-muted-foreground)]">{t("noLessons")}</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              {t("noLessons")}{" "}
+              <Link href="/trainer/dashboard?upload=1#videos" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
+                {t("uploadFirst")}
+              </Link>
+            </p>
           )}
         </section>
       </div>
@@ -600,7 +605,7 @@ function PromoCodes() {
               </span>
               <span className="min-w-0 flex-1 text-xs text-[var(--color-muted-foreground)]">
                 {t("percentOff", { percent: code.percent_off })} · {t("usesCount", { uses: code.uses, max: code.max_uses ?? "∞" })}
-                {code.expires_at ? ` · ${t("until", { date: new Date(code.expires_at).toLocaleDateString("en-GB") })}` : ""}
+                {code.expires_at ? ` · ${t("until", { date: formatDate(code.expires_at) })}` : ""}
               </span>
               <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold">
                 <input

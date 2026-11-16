@@ -324,6 +324,38 @@ class TrainerVideoInputSerializer(RejectUnknownFieldsMixin, serializers.Serializ
     title = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=255, allow_blank=True, required=False, default="")
     size = serializers.IntegerField(min_value=1)
+    # What the phone says the file is. Optional for older screens; when sent
+    # it has to be a video, and so does the name's extension (a .jpg was
+    # once accepted and only failed hours later, at encoding).
+    content_type = serializers.CharField(
+        max_length=100, required=False, allow_blank=True, default=""
+    )
+
+    VIDEO_EXTENSIONS = {
+        "mp4",
+        "m4v",
+        "mov",
+        "3gp",
+        "3g2",
+        "webm",
+        "mkv",
+        "avi",
+        "mpeg",
+        "mpg",
+        "ts",
+        "wmv",
+    }
+
+    def validate(self, attrs):
+        not_a_video = _("That file is not a video. Choose a video from your phone or camera.")
+        content_type = (attrs.get("content_type") or "").strip().lower()
+        if content_type and not content_type.startswith("video/"):
+            raise serializers.ValidationError({"name": not_a_video})
+        name = attrs.get("name") or ""
+        extension = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        if extension and extension not in self.VIDEO_EXTENSIONS:
+            raise serializers.ValidationError({"name": not_a_video})
+        return attrs
 
 
 class TrainerVideoSerializer(serializers.ModelSerializer):

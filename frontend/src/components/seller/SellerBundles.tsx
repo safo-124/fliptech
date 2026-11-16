@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCedis } from "@/lib/format";
 import { Loader2, PackagePlus, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
@@ -79,7 +80,7 @@ export function SellerBundlesTab({ products }: { products: SellerProduct[] }) {
                 <p className="text-sm text-[var(--color-muted-foreground)]">
                   {bundle.course ? `${t("bundleWithCourse")} · ` : ""}
                   {t("bundleItems", { count: bundle.items.length })}
-                  {bundle.price ? ` · GH₵${bundle.price} (${t("bundleSaves", { amount: `GH₵${bundle.saving}` })})` : ""}
+                  {bundle.price ? ` · ${formatCedis(bundle.price)} (${t("bundleSaves", { amount: formatCedis(bundle.saving ?? "0") })})` : ""}
                 </p>
                 {bundle.problem ? <p className="text-sm text-[var(--color-warn)]">{bundle.problem}</p> : null}
               </div>
@@ -217,7 +218,7 @@ function BundleForm({
                     className="size-4"
                   />
                   <label htmlFor={`bundle-${product.id}`} className="min-w-0 flex-1 truncate text-sm">
-                    {product.name} · GH₵{product.price}
+                    {product.name} · {product.price ? formatCedis(product.price) : ""}
                   </label>
                   {quantity !== undefined ? (
                     <NativeSelect

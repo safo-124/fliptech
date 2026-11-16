@@ -23,7 +23,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SellerShopPage() {
   const areas = await getAllAreas().catch(() => []);
   return (
-    <div className="py-6">
+    // app-shell: the same side padding as every other page, so the shop
+    // never touches the edge of a phone's screen.
+    <div className="app-shell py-6">
       <ClientMessages namespaces={SELLER_CLIENT_NAMESPACES}>
         <SellerDashboard areas={areas} />
       </ClientMessages>

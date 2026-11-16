@@ -223,7 +223,7 @@ export function getTrainerVideos() {
 export function startTrainerVideo(title: string, file: File) {
   return trainerFetch<TrainerVideo>("/api/trainer/profile/videos/", {
     method: "POST",
-    body: JSON.stringify({title, name: file.name, size: file.size}),
+    body: JSON.stringify({title, name: file.name, size: file.size, content_type: file.type}),
   });
 }
 

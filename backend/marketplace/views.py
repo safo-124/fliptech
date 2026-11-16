@@ -286,20 +286,8 @@ class StartSellingView(APIView):
         except SellerAccountElsewhere as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
 
-        # Prefilled, not forced: a workshop that sells under another name can
-        # change both from the dashboard. Only ever fills blanks, so a second
-        # call never overwrites what the seller has since typed.
-        changed = []
-        if provider is not None:
-            if not account.business_name:
-                account.business_name = provider.name
-                changed.append("business_name")
-            if not account.area_id and provider.area_id:
-                account.area_id = provider.area_id
-                changed.append("area")
-        if changed:
-            account.save(update_fields=[*changed, "updated_at"])
-
+        # Name, area and ID are taken from the workshop by start_selling
+        # (adopt_workshop), filling blanks only.
         return Response(SellerProfileSerializer(account).data)
 
 
