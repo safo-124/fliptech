@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { GraduationCap, Info, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store } from "lucide-react-native";
+import { GraduationCap, Handshake, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store, Zap } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
@@ -52,6 +52,14 @@ export default function ProductScreen() {
   const option = options.find((row) => row.id === optionId) ?? null;
   const needsOption = options.some((row) => row.available);
   const price = option?.price ?? data?.price ?? null;
+  // "Only N left": no more than that can be ordered.
+  const most = Math.min(MAX_QUANTITY, data?.few_left ?? MAX_QUANTITY);
+  // A seller cannot buy or order their own item (the server refuses it too).
+  const own = Boolean(data && auth.roles?.seller?.id === data.seller.id);
+  const soldOut = data?.availability === "sold_out";
+  const depositPercent =
+    data?.availability === "made_to_order" && data.seller.deposit_percent ? data.seller.deposit_percent : null;
+  const lineTotal = Number(price ?? 0) * quantity;
   // The addresses as the API gives them: PhotoPager sends each through the
   // resizer itself, and a resizer address sent through it again is refused.
   const photos = (data?.photos.length ? data.photos.map((photo) => photo.image) : [data?.photo]).filter(
@@ -103,6 +111,21 @@ export default function ProductScreen() {
       seller: { id: data.seller.id, business_name: data.seller.business_name },
     });
     bump.set(withSequence(withSpring(1.25), withSpring(1)));
+  }
+
+  /** Into the bag, then straight to the one checkout page for this maker. */
+  function buyNow() {
+    if (!data) return;
+    add();
+    router.push({ pathname: "/checkout", params: { seller: String(data.seller.id) } });
+  }
+
+  function orderFromMaker() {
+    if (!data) return;
+    router.push({
+      pathname: "/order-from-maker",
+      params: { product: String(data.id), option: option ? String(option.id) : "", quantity: String(quantity) },
+    });
   }
 
   return (
@@ -162,13 +185,14 @@ export default function ProductScreen() {
                 </View>
               </Pressable>
 
-              <Button
-                label={`Message ${data.seller.business_name}`}
-                tone="outline"
-                icon={<MessageSquare size={16} color={colors.brand} />}
-                onPress={message}
-                style={{ marginTop: space.md }}
-              />
+              {own ? (
+                <View style={[styles.protect, { backgroundColor: colors.brandSoft }]}>
+                  <Store size={20} color={colors.brand} />
+                  <Text variant="small" style={{ flex: 1 }}>
+                    This is your item. Buyers see the buttons to order it here; you cannot order your own.
+                  </Text>
+                </View>
+              ) : null}
 
               {data.seller.student_discount && data.seller.workshop ? (
                 <View style={styles.student}>
@@ -209,7 +233,7 @@ export default function ProductScreen() {
                 </View>
               ) : null}
 
-              {data.buy_online ? (
+              {!own && !soldOut ? (
                 <View style={styles.quantityRow}>
                   <Text variant="label">How many</Text>
                   <View style={styles.stepper}>
@@ -223,8 +247,9 @@ export default function ProductScreen() {
                     </Pressable>
                     <Text style={styles.count}>{quantity}</Text>
                     <Pressable
-                      onPress={() => setQuantity((n) => Math.min(MAX_QUANTITY, n + 1))}
-                      style={styles.step}
+                      onPress={() => setQuantity((n) => Math.min(most, n + 1))}
+                      disabled={quantity >= most}
+                      style={[styles.step, quantity >= most ? { opacity: 0.35 } : null]}
                       accessibilityRole="button"
                       accessibilityLabel="One more"
                     >
@@ -232,6 +257,13 @@ export default function ProductScreen() {
                     </Pressable>
                   </View>
                 </View>
+              ) : null}
+
+              {depositPercent && price && data.buy_online && !own ? (
+                <Text style={styles.deposit}>
+                  Pay deposit {cedis((lineTotal * depositPercent) / 100)} now,{" "}
+                  {cedis(lineTotal - (lineTotal * depositPercent) / 100)} when ready
+                </Text>
               ) : null}
 
               {data.description ? (
@@ -244,7 +276,7 @@ export default function ProductScreen() {
               {/* Buyer protection only where it applies: paying on the site.
                   Asking the seller means paying them directly, as the
                   website says on the same product. */}
-              {data.buy_online ? (
+              {own ? null : data.buy_online ? (
                 <View style={styles.protect}>
                   <ShieldCheck size={20} color={colors.visit} />
                   <Text variant="small" style={{ flex: 1 }}>
@@ -252,15 +284,22 @@ export default function ProductScreen() {
                     and we sort it out.
                   </Text>
                 </View>
-              ) : (
+              ) : soldOut ? null : (
                 <View style={[styles.protect, styles.direct]}>
-                  <Info size={20} color={colors.warn} />
+                  <Handshake size={20} color={colors.warn} />
                   <Text variant="small" style={{ flex: 1 }}>
-                    You pay the maker directly. Fliiptech does not handle the money and cannot refund it, so agree
-                    the price and the handover with them before you pay.
+                    This maker takes payment directly for now. Fliiptech passes your order to them and you agree
+                    payment and pickup in the chat.
                   </Text>
                 </View>
               )}
+
+              {!own ? (
+                <Pressable onPress={message} style={styles.ask} accessibilityRole="button">
+                  <MessageSquare size={16} color={colors.brand} />
+                  <Text style={styles.askText}>Ask a question</Text>
+                </Pressable>
+              ) : null}
             </>
           )}
         </View>
@@ -285,18 +324,37 @@ export default function ProductScreen() {
               </View>
             ) : null}
           </Pressable>
-          {data.buy_online ? (
+          {own ? (
+            <Button label="Open your shop" tone="outline" onPress={() => router.push("/seller")} style={{ flex: 1 }} />
+          ) : soldOut ? (
             <Button
-              label={needsOption && !option ? "Choose an option" : `Add to bag · ${cedis(Number(price ?? 0) * quantity)}`}
-              disabled={needsOption && !option}
-              onPress={add}
+              label="Get told when it is back"
+              tone="outline"
+              onPress={() => void waitForStock()}
               style={{ flex: 1 }}
             />
+          ) : data.buy_online ? (
+            <>
+              <Button
+                label={needsOption && !option ? "Choose one" : "Add to bag"}
+                tone="outline"
+                disabled={needsOption && !option}
+                onPress={add}
+                style={{ flex: 1, paddingHorizontal: space.sm }}
+              />
+              <Button
+                label={needsOption && !option ? "Buy now" : `Buy now · ${cedis(lineTotal)}`}
+                icon={<Zap size={16} color="#fff" />}
+                disabled={needsOption && !option}
+                onPress={buyNow}
+                style={{ flex: 1.4, paddingHorizontal: space.sm }}
+              />
+            </>
           ) : (
             <Button
-              label={data.availability === "sold_out" ? "Get told when it is back" : "Ask the seller"}
-              tone="outline"
-              onPress={data.availability === "sold_out" ? () => void waitForStock() : message}
+              label={needsOption && !option ? "Choose one first" : "Order from the maker"}
+              disabled={needsOption && !option}
+              onPress={orderFromMaker}
               style={{ flex: 1 }}
             />
           )}
@@ -381,6 +439,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.visitBg,
   },
   direct: { backgroundColor: colors.warnBg },
+  deposit: {
+    marginTop: space.md,
+    padding: space.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.brandSoft,
+    fontFamily: fonts.semibold,
+    color: colors.brandDeep,
+  },
+  ask: {
+    marginTop: space.md,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: space.xs,
+  },
+  askText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.brand },
   cta: {
     position: "absolute",
     left: 0,

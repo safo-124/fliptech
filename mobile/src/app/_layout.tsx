@@ -105,6 +105,7 @@ export default function RootLayout() {
               <Stack.Screen name="product/[id]" />
               <Stack.Screen name="bag" />
               <Stack.Screen name="checkout" />
+              <Stack.Screen name="order-from-maker" />
               <Stack.Screen name="my-courses" />
               <Stack.Screen name="orders" />
               <Stack.Screen name="shop/[id]" />

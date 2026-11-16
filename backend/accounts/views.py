@@ -133,6 +133,7 @@ def _roles(user):
         }
     if "seller_account" in held and user.seller_account.is_active:
         payload["seller"] = {
+            "id": user.seller_account.pk,
             "href": "/sell/shop",
             "status": user.seller_account.approval_status,
         }
