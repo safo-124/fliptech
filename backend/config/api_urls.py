@@ -50,6 +50,7 @@ from marketplace import bundles, chat
 from marketplace.selling_views import (
     BasketPriceView,
     CopyProductView,
+    DirectOrderCreateView,
     FeaturedShopsView,
     FollowShopView,
     OrderBalanceView,
@@ -519,6 +520,11 @@ urlpatterns = [
     # The marketplace's measured and paid parts; see marketplace/selling_views.py.
     path("products/<int:pk>/viewed/", ProductViewedView.as_view(), name="product-viewed"),
     path("products/<int:pk>/orders/", OrderCreateView.as_view(), name="product-order-create"),
+    path(
+        "products/<int:pk>/direct-orders/",
+        DirectOrderCreateView.as_view(),
+        name="product-direct-order",
+    ),
     path("orders/<str:reference>/", OrderView.as_view(), name="order-detail"),
     path("orders/<str:reference>/received/", OrderReceivedView.as_view(), name="order-received"),
     path("orders/<str:reference>/problem/", OrderProblemView.as_view(), name="order-problem"),

@@ -1,11 +1,11 @@
 "use client";
 
-import { Check, ShoppingBag } from "lucide-react";
+import { Check, ShoppingBag, Zap } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Checkout } from "@/components/marketplace/Checkout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,8 @@ import type { ProductOption } from "@/lib/types";
  * several things from this maker at once.
  *
  * A product with sizes or colours asks which one first; the price follows
- * the choice. The paying itself is Checkout, shared with the bag page.
+ * the choice. "Buy now" puts it in the bag and opens the one checkout page
+ * (the bag page); "Add to bag" keeps shopping. Neither needs an account.
  */
 export function BuyNow({
   productId,
@@ -27,6 +28,8 @@ export function BuyNow({
   options,
   sellerId,
   sellerName,
+  maxQuantity = 20,
+  deposit,
 }: {
   productId: number;
   productName: string;
@@ -34,8 +37,14 @@ export function BuyNow({
   options: ProductOption[];
   sellerId: number;
   sellerName: string;
+  /** "Only N left": no more than that can be bought. */
+  maxQuantity?: number;
+  /** Made to order with a deposit: the share paid now, in percent. */
+  deposit?: number | null;
 }) {
   const t = useTranslations("Marketplace");
+  const router = useRouter();
+  const most = Math.max(1, Math.min(20, maxQuantity));
   const choosable = options.filter((option) => option.available);
   const [option, setOption] = useState<number | null>(choosable.length === 1 ? choosable[0].id : null);
   const [quantity, setQuantity] = useState(1);
@@ -55,6 +64,14 @@ export function BuyNow({
     });
     setAdded(true);
   }
+
+  function buyNow() {
+    add();
+    router.push(`/marketplace/bag/${sellerId}`);
+  }
+
+  // Made to order with a deposit: what is paid now and when it is ready.
+  const depositNow = deposit ? (Number(unit) * quantity * deposit) / 100 : null;
 
   return (
     <Card className="border-[var(--color-brand)]/30">
@@ -106,46 +123,57 @@ export function BuyNow({
               type="number"
               inputMode="numeric"
               min={1}
-              max={20}
+              max={most}
               value={quantity}
               onChange={(event) => {
-                setQuantity(Math.min(20, Math.max(1, Number(event.target.value) || 1)));
+                setQuantity(Math.min(most, Math.max(1, Number(event.target.value) || 1)));
                 setAdded(false);
               }}
-              className="mt-1.5 h-11 w-full rounded-lg border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm"
+              aria-describedby={most < 20 ? "buy-quantity-left" : undefined}
+              className="mt-1.5 h-12 w-full rounded-lg border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-base"
             />
           </div>
-          <p className="pb-2.5 text-sm text-[var(--color-muted-foreground)]">
+          <p className="pb-3 text-sm text-[var(--color-muted-foreground)]">
             {t("each", { price: formatCedis(unit) })}
+            {most < 20 ? (
+              <span id="buy-quantity-left" className="block font-semibold text-[var(--color-warn)]">
+                {t("onlyLeft", { count: most })}
+              </span>
+            ) : null}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" disabled={needsChoice} onClick={add}>
+        {depositNow !== null ? (
+          <p className="rounded-xl bg-[var(--color-brand-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--color-brand-strong)]">
+            {t("depositPlain", {
+              now: formatCedis(depositNow.toFixed(2)),
+              later: formatCedis((Number(unit) * quantity - depositNow).toFixed(2)),
+            })}
+          </p>
+        ) : null}
+
+        {needsChoice ? (
+          <p className="text-sm text-[var(--color-muted-foreground)]">{t("chooseOptionFirst")}</p>
+        ) : null}
+        <div className="grid gap-2">
+          <Button type="button" variant="brand" className="min-h-12 w-full text-base" disabled={needsChoice} onClick={buyNow}>
+            <Zap aria-hidden="true" />
+            {t("buyTitle")}
+          </Button>
+          <Button type="button" variant="outline" className="min-h-12 w-full" disabled={needsChoice} onClick={add}>
             {added ? <Check aria-hidden="true" /> : <ShoppingBag aria-hidden="true" />}
             {added ? t("addedToBag") : t("addToBag")}
           </Button>
           {added ? (
             <Link
               href={`/marketplace/bag/${sellerId}`}
-              className="text-sm font-semibold text-[var(--color-brand)] hover:underline"
+              className="inline-flex min-h-11 items-center justify-center text-sm font-semibold text-[var(--color-brand)] hover:underline"
             >
               {t("seeBag")}
             </Link>
           ) : null}
         </div>
-
-        <div className="border-t border-[var(--color-border)] pt-4">
-          {needsChoice ? (
-            <p className="text-sm text-[var(--color-muted-foreground)]">{t("chooseOptionFirst")}</p>
-          ) : (
-            <Checkout
-              sellerId={sellerId}
-              sellerName={sellerName}
-              items={[{ product: productId, option, quantity }]}
-            />
-          )}
-        </div>
+        <p className="text-xs text-[var(--color-muted-foreground)]">{t("payMomoCard", { seller: sellerName })}</p>
       </CardContent>
     </Card>
   );

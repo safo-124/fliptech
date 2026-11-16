@@ -809,6 +809,10 @@ class Order(TimeStampedModel):
         FULL = "full", "Paid in full"
         DEPOSIT = "deposit", "Deposit, then the balance when ready"
         COLLECT = "collect", "Deposit online, the rest in cash on collection"
+        # "Order from the maker": a seller who cannot take payment on the site
+        # yet. No money passes through Fliiptech; the order tells the seller
+        # what was asked for, and they agree payment and pickup in the chat.
+        DIRECT = "direct", "Pay the maker directly"
 
     class Balance(models.TextChoices):
         NONE = "none", "No balance"

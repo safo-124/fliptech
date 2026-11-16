@@ -35,7 +35,14 @@ export function activeFilterCount(params: MarketplaceParams) {
   return FILTER_KEYS.filter((key) => params[key]).length;
 }
 
-export function MarketFilters({ params }: { params: MarketplaceParams }) {
+export function MarketFilters({
+  params,
+  payOnlineAvailable = true,
+}: {
+  params: MarketplaceParams;
+  /** Some product can be paid on the site: only then is the switch shown. */
+  payOnlineAvailable?: boolean;
+}) {
   const t = useTranslations("Marketplace");
   const count = activeFilterCount(params);
   const soldBy = params.sold_by ?? "";
@@ -155,7 +162,7 @@ export function MarketFilters({ params }: { params: MarketplaceParams }) {
             {t("showOnly")}
           </legend>
           <div className="mt-2 flex flex-col gap-1.5">
-            {SWITCHES.map(([key, label]) => (
+            {SWITCHES.filter(([key]) => key !== "pay_online" || payOnlineAvailable || params.pay_online).map(([key, label]) => (
               <label key={key} className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
                 <input
                   type="checkbox"

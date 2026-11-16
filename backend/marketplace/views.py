@@ -75,6 +75,7 @@ from .serializers import (
     SellerCardSerializer,
     SellerOTPVerifySerializer,
     SellerProfileSerializer,
+    pickup_point,
 )
 
 PURPOSE = PhoneVerification.Purpose.SELLER_ACCESS
@@ -1165,6 +1166,8 @@ class SellerDetailView(APIView):
                     public_url(seller.banner.url, request) if plan and seller.banner else None
                 ),
                 "reviews": PublicReviewSerializer(reviews, many=True).data,
+                # Where to collect, for the checkout's "Collect" choice.
+                "pickup": pickup_point(seller),
             }
         )
 

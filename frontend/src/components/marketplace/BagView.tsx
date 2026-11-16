@@ -94,7 +94,6 @@ export function BagView({ sellerId }: { sellerId: number }) {
             sellerId={sellerId}
             sellerName={bag.sellerName}
             items={lines.map(({ product, option, quantity }) => ({ product, option, quantity }))}
-            onPaying={() => setBagLines(sellerId, [])}
           />
         </CardContent>
       </Card>

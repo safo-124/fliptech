@@ -15,8 +15,7 @@ import { getTranslations } from "next-intl/server";
 
 import { MessageSeller } from "@/components/marketplace/MessageSeller";
 import { PickupCard } from "@/components/marketplace/PickupCard";
-import { AskSeller } from "@/components/marketplace/AskSeller";
-import { BuyNow } from "@/components/marketplace/BuyNow";
+import { ProductActions } from "@/components/marketplace/ProductActions";
 import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
 import { ReportProduct } from "@/components/marketplace/ReportProduct";
 import { StockAlert } from "@/components/marketplace/StockAlert";
@@ -299,27 +298,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </p>
           ) : null}
 
-          {product.availability === "made_to_order" && product.buy_online && product.seller.deposit_percent ? (
-            <p className="rounded-xl bg-[var(--color-brand-soft)] px-3 py-2.5 text-sm text-[var(--color-brand-strong)]">
-              {t("depositNote", { percent: product.seller.deposit_percent })}
-            </p>
-          ) : null}
 
           {/* A client subtree, so its strings have to be handed over
               explicitly. Without the provider the panel throws and takes the
               whole page down with it — the product rendered its title from
               generateMetadata and then 500'd. */}
           <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
-            {product.buy_online && product.price ? (
-              <BuyNow
-                productId={product.id}
-                productName={product.name}
-                price={product.price}
-                options={product.options}
-                sellerId={product.seller.id}
-                sellerName={product.seller.business_name}
-              />
-            ) : null}
+            <ProductActions product={product} />
             {product.availability === "sold_out" ? <StockAlert productId={product.id} /> : null}
             <MessageSeller
               sellerId={product.seller.id}
@@ -327,7 +312,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               productId={product.id}
               productName={product.name}
             />
-            <AskSeller productId={product.id} sellerName={product.seller.business_name} />
             <ProductViewBeacon productId={product.id} />
             <ReportProduct productId={product.id} />
           </ClientMessages>
