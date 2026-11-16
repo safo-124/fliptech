@@ -30,7 +30,7 @@ from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -52,6 +52,15 @@ PAGE = 100
 # Who is on which side, in the words the API uses.
 PERSON = Message.Sender.BUYER
 BUSINESS = Message.Sender.SELLER
+
+
+class ChatClosed(APIException):
+    """The person closed their account: the chat is kept, but there is
+    nobody on the other end to write to or text."""
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "This person closed their account, so they cannot be reached here."
+    default_code = "chat_closed"
 
 
 def _site(path):
@@ -142,11 +151,16 @@ def _summary(conversation, side, request):
         them = {"name": business["name"], "id": business["id"]}
     else:
         fallback = _("A trainee") if business["kind"] == "workshop" else _("A buyer")
-        them = {"name": conversation.buyer.display_name or fallback, "id": None}
+        if conversation.buyer_id is None:
+            them = {"name": _("Closed account"), "id": None}
+        else:
+            them = {"name": conversation.buyer.display_name or fallback, "id": None}
     return {
         "id": conversation.pk,
         "kind": business["kind"],
         "with": them,
+        # The person closed their account: kept to read, not to answer.
+        "closed": conversation.buyer_id is None,
         "business": business,
         "last": _message(last, request) if last else None,
         "unread": _unread(conversation, side),
@@ -183,6 +197,8 @@ def business_phones(conversation):
 def _post(conversation, side, body, product, request, *, kind=Message.Kind.TEXT, enquiry=None):
     """Add a message and, unless they were told about this thread recently,
     tell the other side. A business's message also marks what it answers."""
+    if conversation.buyer_id is None:
+        raise ChatClosed(_("This person closed their account, so they cannot be reached here."))
     now = timezone.now()
     with transaction.atomic():
         conversation = (

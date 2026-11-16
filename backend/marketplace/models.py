@@ -1250,8 +1250,15 @@ class Conversation(models.Model):
         blank=True,
         related_name="conversations",
     )
+    # Empty once the person closes their account (accounts/closing.py): the
+    # chat stays with the shop or workshop as their record, with nobody on
+    # the other end to reply to.
     buyer = models.ForeignKey(
-        "accounts.CustomerAccount", on_delete=models.CASCADE, related_name="conversations"
+        "accounts.CustomerAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="conversations",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     last_message_at = models.DateTimeField(default=timezone.now, db_index=True)
@@ -1288,7 +1295,7 @@ class Conversation(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.buyer} and {self.business_name}"
+        return f"{self.buyer or 'Closed account'} and {self.business_name}"
 
     @property
     def business_name(self):
