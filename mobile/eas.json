@@ -14,16 +14,16 @@
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://135.181.93.156.nip.io",
-        "EXPO_PUBLIC_SITE_URL": "https://135.181.93.156.nip.io"
+        "EXPO_PUBLIC_API_URL": "https://fliiptech.com",
+        "EXPO_PUBLIC_SITE_URL": "https://fliiptech.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://135.181.93.156.nip.io",
-        "EXPO_PUBLIC_SITE_URL": "https://135.181.93.156.nip.io"
+        "EXPO_PUBLIC_API_URL": "https://fliiptech.com",
+        "EXPO_PUBLIC_SITE_URL": "https://fliiptech.com"
       }
     }
   },
