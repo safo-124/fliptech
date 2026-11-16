@@ -384,12 +384,37 @@ export type SellerPayouts = {
 export type SellerProduct = {
   id: number;
   name: string;
+  description: string;
   price: string | null;
+  was_price: string | null;
+  trade: number | null;
   availability: "available" | "made_to_order" | "sold_out";
+  condition: "new" | "used";
   stock: number | null;
+  options: { id: number; label: string; price: string | null; available: boolean }[];
   status: "draft" | "published" | "suspended";
   visible: boolean;
   photos: { id: number; image: string | null }[];
+};
+
+/** What "Add an item" sends (backend marketplace/views.py OwnProductsView). */
+export type QuickItemInput = {
+  name: string;
+  description?: string;
+  price?: string | null;
+  was_price?: string | null;
+  trade?: number | null;
+  availability?: SellerProduct["availability"];
+  condition?: SellerProduct["condition"];
+  stock?: number | null;
+  photos?: number[];
+  options?: string[];
+  publish?: boolean;
+};
+
+export type CreatedProduct = SellerProduct & {
+  /** Asked to put it on sale but the shop cannot sell yet: saved as a draft. */
+  not_published?: { detail: string; code: string };
 };
 
 /** Site search (backend search/views.py). */
