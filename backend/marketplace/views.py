@@ -57,6 +57,7 @@ from .models import (
     PaymentStatus,
     Product,
     ProductEnquiry,
+    ProductOption,
     ProductPhoto,
     SellerAccount,
     SellerPayment,
@@ -346,19 +347,160 @@ class OwnProductsView(APIView):
 
     @extend_schema(request=OwnProductSerializer, responses={201: None})
     def post(self, request):
+        """Add an item, in one request from the quick form.
+
+        Besides the product's own fields it takes `photos` (ids of photos
+        already uploaded to the waiting area, in order), `options` (labels
+        such as sizes or colours) and `publish`. With `publish`, the item goes
+        on sale if the shop may sell; otherwise it is saved as a draft and
+        `not_published` says exactly why, so nothing is lost either way.
+        """
         account = _account(request)
         serializer = OwnProductSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        product = Product(
-            seller=account,
-            slug=_unique_slug(account, serializer.validated_data["name"]),
-            **serializer.validated_data,
+        data = dict(serializer.validated_data)
+        if data.get("trade") is None:
+            # The shop's own trade, so the seller need not choose it.
+            data["trade"] = default_trade(account)
+        photo_ids = _ids(request.data.get("photos"))[:MAX_PHOTOS_PER_PRODUCT]
+        labels = _labels(request.data.get("options"))
+        with transaction.atomic():
+            product = Product(seller=account, slug=_unique_slug(account, data["name"]), **data)
+            # Created as a draft; publishing below goes through the same
+            # checks as the Publish button.
+            product.status = Product.Status.DRAFT
+            product.save()
+            attach_pending_photos(account, product, photo_ids, request.user)
+            for position, label in enumerate(labels):
+                ProductOption.objects.create(product=product, label=label, display_order=position)
+
+        payload = {}
+        if request.data.get("publish") is True:
+            refusal = publish_refusal(account, product)
+            if refusal is None:
+                publish(product)
+            else:
+                payload["not_published"] = {"detail": refusal[0], "code": refusal[1]}
+        product = account.products.prefetch_related("photos", "options").get(pk=product.pk)
+        return Response(
+            {**OwnProductSerializer(product).data, **payload}, status=status.HTTP_201_CREATED
         )
-        # A new product is always a draft. Publishing is its own call, so a
-        # client cannot create something already live by accident.
-        product.status = Product.Status.DRAFT
-        product.save()
-        return Response(OwnProductSerializer(product).data, status=status.HTTP_201_CREATED)
+
+
+def _ids(raw):
+    """A list of whole numbers from the request, ignoring anything else."""
+    if not isinstance(raw, list):
+        return []
+    ids = []
+    for value in raw:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if number not in ids:
+            ids.append(number)
+    return ids
+
+
+def _labels(raw):
+    """Sizes or colours as typed: "S, M, L" or ["Red", "Blue"]."""
+    if isinstance(raw, str):
+        raw = raw.split(",")
+    if not isinstance(raw, list):
+        return []
+    labels = []
+    for value in raw:
+        label = str(value).strip()[:60]
+        if label and label.lower() not in {existing.lower() for existing in labels}:
+            labels.append(label)
+    return labels[:20]
+
+
+def default_trade(account):
+    """The trade a new item starts in: the workshop's (its first active
+    course), else the trade of the shop's latest item, else none."""
+    if account.provider_id:
+        programme = (
+            account.provider.programmes.filter(is_active=True, trade__is_active=True)
+            .order_by("pk")
+            .only("trade_id")
+            .first()
+        )
+        if programme is not None:
+            return programme.trade
+    latest = account.products.exclude(trade=None).order_by("-created_at").first()
+    return latest.trade if latest else None
+
+
+def attach_pending_photos(account, product, ids, user):
+    """Move the seller's waiting photos onto the item, in the order given.
+    The same file: nothing is uploaded or re-encoded again."""
+    from .models import PendingProductPhoto
+
+    waiting = {photo.pk: photo for photo in account.pending_photos.filter(pk__in=ids)}
+    start = product.photos.count()
+    room = max(MAX_PHOTOS_PER_PRODUCT - start, 0)
+    chosen = [waiting[pk] for pk in ids if pk in waiting][:room]
+    for position, photo in enumerate(chosen, start=start):
+        ProductPhoto.objects.create(
+            product=product,
+            image=photo.image.name,
+            exif_stripped=True,
+            display_order=position,
+            uploaded_by=photo.uploaded_by or user,
+        )
+    # The rows go; the files now belong to the item.
+    PendingProductPhoto.objects.filter(pk__in=[photo.pk for photo in chosen]).delete()
+    return len(chosen)
+
+
+def publish_refusal(account, product):
+    """Why this item cannot go on sale now, as (message, code), or None.
+
+    Three different reasons, three different things to do about it, so they
+    are not collapsed into one message. The quick form shows the message
+    under "Saved as a draft".
+    """
+    if not account.may_sell:
+        if not account.business_name or not account.area_id:
+            return (
+                _("Add your shop name and where you are before listing anything."),
+                "shop_details",
+            )
+        if not account.is_confirmed:
+            return (
+                _(
+                    "Your seller sign-up is still being checked. You can keep adding "
+                    "products, and they go live once it is approved."
+                ),
+                "not_confirmed",
+            )
+        return (_("This seller account cannot list products."), "cannot_sell")
+    if product.status == Product.Status.SUSPENDED:
+        return (
+            _("This product was taken down by staff and cannot be put back from here."),
+            "suspended",
+        )
+    if product.status != Product.Status.PUBLISHED and over_free_limit(account):
+        return (
+            _(
+                "A free shop can show %(limit)s products at a time. Take one "
+                "down, or get the Shop plan to show as many as you like."
+            )
+            % {"limit": settings.MARKETPLACE_FREE_PRODUCT_LIMIT},
+            "free_limit",
+        )
+    return None
+
+
+def publish(product):
+    product.status = Product.Status.PUBLISHED
+    fields = ["status", "updated_at"]
+    if product.published_at is None:
+        # What the shop's followers are told about, once.
+        product.published_at = timezone.now()
+        fields.append("published_at")
+    product.save(update_fields=fields)
 
 
 def _owned_product(request, pk):
@@ -423,50 +565,15 @@ class ProductPublishView(APIView):
     @extend_schema(request=None, responses={200: None})
     def post(self, request, pk):
         account, product = _owned_product(request, pk)
-        if not account.may_sell:
-            # Three different reasons, three different things to do about it,
-            # so they are not collapsed into one message.
-            if not account.business_name or not account.area_id:
-                detail = _("Add your shop name and where you are before listing anything.")
-            elif not account.is_confirmed:
-                detail = _(
-                    "Your seller sign-up is still being checked. You can keep adding "
-                    "products, and they go live once it is approved."
-                )
-            else:
-                detail = _("This seller account cannot list products.")
-            return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
-
-        if product.status == Product.Status.SUSPENDED:
-            return Response(
-                {
-                    "detail": _(
-                        "This product was taken down by staff and cannot be put back from here."
-                    )
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        if product.status != Product.Status.PUBLISHED and over_free_limit(account):
-            return Response(
-                {
-                    "detail": _(
-                        "A free shop can show %(limit)s products at a time. Take one "
-                        "down, or get the Shop plan to show as many as you like."
-                    )
-                    % {"limit": settings.MARKETPLACE_FREE_PRODUCT_LIMIT},
-                    "code": "free_limit",
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        product.status = Product.Status.PUBLISHED
-        fields = ["status", "updated_at"]
-        if product.published_at is None:
-            # What the shop's followers are told about, once.
-            product.published_at = timezone.now()
-            fields.append("published_at")
-        product.save(update_fields=fields)
+        refusal = publish_refusal(account, product)
+        if refusal is not None:
+            detail, code = refusal
+            payload = {"detail": detail}
+            if code == "free_limit":
+                payload["code"] = code
+            http = status.HTTP_409_CONFLICT if code == "free_limit" else status.HTTP_403_FORBIDDEN
+            return Response(payload, status=http)
+        publish(product)
         return Response(OwnProductSerializer(product).data)
 
     @extend_schema(responses={200: None})
@@ -531,6 +638,63 @@ class ProductPhotosView(APIView):
             ProductPhotoSerializer(photo, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+MAX_PENDING_PHOTOS = 12
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class PendingPhotosView(APIView):
+    """Photos for an item not saved yet: uploaded as they are taken, and
+    attached when the item is (OwnProductsView, `photos`)."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(request=None, responses={201: None})
+    def post(self, request):
+        from .models import PendingProductPhoto
+
+        account = _account(request)
+        upload = request.FILES.get("image")
+        if upload is None:
+            return Response({"detail": _("Choose a picture.")}, status=status.HTTP_400_BAD_REQUEST)
+        refusal = validate_image_upload(upload)
+        if refusal:
+            return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
+        if strip_exif(upload) is None:
+            return Response(
+                {"detail": _("That file is not an image we can read.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        upload.seek(0)
+        if account.pending_photos.count() >= MAX_PENDING_PHOTOS:
+            return Response(
+                {"detail": _("Save the item first, then add more pictures.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        photo = PendingProductPhoto.objects.create(
+            seller=account, image=upload, uploaded_by=request.user
+        )
+        return Response(
+            {"id": photo.pk, "image": public_url(photo.image.url, request)},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class PendingPhotoView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsActiveSeller]
+
+    @extend_schema(responses={204: None})
+    def delete(self, request, pk):
+        photo = _account(request).pending_photos.filter(pk=pk).first()
+        if photo is None:
+            raise NotFound(_("No such picture."))
+        photo.image.delete(save=False)
+        photo.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @method_decorator(csrf_protect, name="dispatch")

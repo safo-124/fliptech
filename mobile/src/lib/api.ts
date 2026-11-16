@@ -25,6 +25,8 @@ import type {
   TrainerShop,
   TradeOption,
   WorkshopDetail,
+  QuickItemInput,
+  CreatedProduct,
 } from "./types";
 
 export class ApiError extends Error {
@@ -202,8 +204,13 @@ export const api = {
   stockAlert: (product: number, phone: string) =>
     postJson<{ detail: string }>(`/api/products/${product}/notify/`, { phone }),
   sellerProducts: () => getJson<SellerProduct[] | { results: SellerProduct[] }>("/api/seller/products/"),
-  updateSellerProduct: (id: number, body: Partial<Pick<SellerProduct, "availability" | "stock">>) =>
+  updateSellerProduct: (id: number, body: Partial<Pick<SellerProduct, "availability" | "stock" | "price">>) =>
     request<SellerProduct>("PATCH", `/api/seller/products/${id}/`, { body }),
+  /** "Add an item": the item, its waiting photos, sizes, and whether to put it on sale. */
+  createSellerProduct: (body: QuickItemInput) => postJson<CreatedProduct>("/api/seller/products/", body),
+  removePendingPhoto: (id: number) => request<void>("DELETE", `/api/seller/photos/${id}/`),
+  /** The shop, for its workshop's trade (the new item's default). */
+  sellerAccount: () => getJson<{ workshop: { trade_id: number | null } | null }>("/api/seller/account/"),
   sellerId: () => getJson<{ status: string; status_label: string; level: string; takes_payments: boolean; note: string }>("/api/seller/id/"),
   courseTools: (area: string, slug: string) =>
     getJson<{ chosen: boolean; tools: string[]; products: ProductCard[] }>(`/api/courses/${area}/${slug}/tools/`),
@@ -219,6 +226,43 @@ export type BagRequest = {
   code?: string;
   pay_at_collection?: boolean;
 };
+
+/**
+ * Upload a photo for an item not saved yet, reporting progress (0 to 1).
+ * XMLHttpRequest, not fetch: only it reports upload progress.
+ */
+export function uploadPendingPhoto(
+  uri: string,
+  mimeType = "image/jpeg",
+  onProgress?: (share: number) => void,
+): Promise<{ id: number; image: string | null }> {
+  return new Promise((resolve, reject) => {
+    const body = new FormData();
+    const ext = mimeType.split("/")[1] || "jpg";
+    body.append("image", { uri, name: `item.${ext}`, type: mimeType } as unknown as Blob);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}/api/seller/photos/`);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("X-Fliptech-Client", "app");
+    const signedIn = token();
+    if (signedIn) xhr.setRequestHeader("Authorization", `Bearer ${signedIn}`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      let data: unknown = null;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        // A proxy's error page, not JSON.
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && data) resolve(data as { id: number; image: string | null });
+      else reject(new ApiError(fieldErrors(data).detail ?? "That photo did not upload.", xhr.status));
+    };
+    xhr.onerror = () => reject(new ApiError("No connection. Check your data or Wi-Fi and try again.", 0));
+    xhr.send(body);
+  });
+}
 
 /**
  * Set the signed-in account's photo from a picture on the phone. Multipart,

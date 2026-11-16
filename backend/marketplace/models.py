@@ -474,6 +474,46 @@ class ProductPhoto(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class PendingProductPhoto(TimeStampedModel):
+    """A photo taken before its item is saved.
+
+    "Add an item" opens the camera first: the seller photographs the thing,
+    and each picture uploads straight away, while they type the name and
+    price. They wait here until "Put on sale" or "Save as draft", which moves
+    them onto the new item (the same file, no second upload). Ones left by a
+    form never finished are deleted after a day (marketplace_daily).
+    """
+
+    seller = models.ForeignKey(
+        SellerAccount,
+        on_delete=models.CASCADE,
+        related_name="pending_photos",
+    )
+    image = models.ImageField(upload_to="products/%Y/%m/")
+    # Phone photographs carry GPS, as for ProductPhoto.
+    exif_stripped = models.BooleanField(default=False)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"Photo waiting for an item from {self.seller}"
+
+    def save(self, *args, **kwargs):
+        if self.image and not self.image._committed and not self.exif_stripped:
+            cleaned = strip_exif(self.image)
+            if cleaned is not None:
+                self.image.save(stripped_name(self.image.name), cleaned, save=False)
+                self.exif_stripped = True
+        super().save(*args, **kwargs)
+
+
 class ProductEnquiry(TimeStampedModel):
     """A buyer asking a seller about something they make.
 

@@ -1,8 +1,9 @@
 import { router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { BadgeCheck, IdCard, ShieldCheck } from "lucide-react-native";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { BadgeCheck, Camera, Check, IdCard, ShieldCheck } from "lucide-react-native";
+import { useState } from "react";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Form";
@@ -30,8 +31,9 @@ const WAITING: Record<string, string> = {
 
 /**
  * The seller's shop, the parts a phone needs: their level and ID check,
- * where their money is (paid out, held and when, refunded), and stock with
- * a quick Sold out switch. The full dashboard is on the website.
+ * where their money is (paid out, held and when, refunded), and their items
+ * with a quick Sold out switch and price and stock edits. "Add an item" is
+ * photo first (seller/add.tsx). The full dashboard is on the website.
  */
 export default function SellerScreen() {
   const insets = useSafeAreaInsets();
@@ -140,9 +142,14 @@ export default function SellerScreen() {
           </>
         ) : null}
 
-        <Text variant="heading">Stock</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text variant="heading">Stock</Text>
+          <Pressable onPress={() => router.push("/seller/add")} accessibilityRole="button" style={styles.addLink}>
+            <Text style={styles.addLinkText}>+ Add an item</Text>
+          </Pressable>
+        </View>
         {(products.data ?? []).map((product) => (
-          <View key={product.id} style={styles.row}>
+          <View key={product.id} style={[styles.row, { flexWrap: "wrap" }]}>
             <View style={styles.thumb}>
               {product.photos[0]?.image ? (
                 <Image source={photoUrl(product.photos[0].image)} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -169,16 +176,85 @@ export default function SellerScreen() {
             >
               <Text style={styles.switchText}>{product.availability === "sold_out" ? "Sold out" : "In stock"}</Text>
             </Pressable>
+            {/* Price and stock, changed here without opening anything. */}
+            <QuickEdits
+              key={`${product.price}-${product.stock}`}
+              product={product}
+              onSaved={() => void client.invalidateQueries({ queryKey: ["seller-products"] })}
+            />
           </View>
         ))}
         <View style={{ flexDirection: "row", gap: space.sm }}>
           <Button label="Orders" onPress={() => router.push("/seller/orders")} style={{ flex: 1 }} />
           <Button label="Messages" tone="outline" onPress={() => router.push("/inbox")} style={{ flex: 1 }} />
         </View>
-        {/* Adding products with photos, and sending an ID, are on the
-            website for now: both upload pictures. */}
-        <Button label="Add products on the website" tone="soft" onPress={() => void openOnSite("/sell/shop")} />
+        {/* Photo first, in under a minute (seller/add.tsx). */}
+        <Button
+          label="Add an item"
+          icon={<Camera size={18} color="#fff" />}
+          onPress={() => router.push("/seller/add")}
+        />
       </ScrollView>
+    </View>
+  );
+}
+
+/** Price and stock for one item, each saved with its own tick. */
+function QuickEdits({ product, onSaved }: { product: SellerProduct; onSaved: () => void }) {
+  const shown = (value: string | null) => (value ? value.replace(/\.00$/, "") : "");
+  const [price, setPrice] = useState(shown(product.price));
+  const [stock, setStock] = useState(product.stock === null ? "" : String(product.stock));
+  const save = useMutation({
+    mutationFn: (body: Partial<Pick<SellerProduct, "price" | "stock">>) => api.updateSellerProduct(product.id, body),
+    onSuccess: onSaved,
+    onError: (error) => Alert.alert("That did not save", error instanceof Error ? error.message : "Try again."),
+  });
+  const priceChanged = price.trim() !== shown(product.price);
+  const stockChanged = stock !== (product.stock === null ? "" : String(product.stock));
+  return (
+    <View style={styles.edits}>
+      <View style={styles.editBox}>
+        <TextInput
+          value={price}
+          onChangeText={setPrice}
+          keyboardType="decimal-pad"
+          placeholder="Ask for price"
+          placeholderTextColor={colors.mutedForeground}
+          accessibilityLabel={`Price of ${product.name}`}
+          style={styles.editInput}
+        />
+        {priceChanged ? (
+          <Pressable
+            style={styles.tick}
+            onPress={() => save.mutate({ price: price.trim() || null })}
+            accessibilityRole="button"
+            accessibilityLabel="Save the price"
+          >
+            <Check size={18} color="#fff" />
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.editBox}>
+        <TextInput
+          value={stock}
+          onChangeText={(text) => setStock(text.replace(/\D/g, ""))}
+          keyboardType="number-pad"
+          placeholder="Stock"
+          placeholderTextColor={colors.mutedForeground}
+          accessibilityLabel={`How many ${product.name} are left (empty: not counted)`}
+          style={styles.editInput}
+        />
+        {stockChanged ? (
+          <Pressable
+            style={styles.tick}
+            onPress={() => save.mutate({ stock: stock === "" ? null : Number.parseInt(stock, 10) || 0 })}
+            accessibilityRole="button"
+            accessibilityLabel="Save the stock count"
+          >
+            <Check size={18} color="#fff" />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -217,4 +293,21 @@ const styles = StyleSheet.create({
   switch: { minWidth: 84, alignItems: "center", paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.visit },
   switchOff: { backgroundColor: colors.mutedForeground },
   switchText: { fontFamily: fonts.bold, fontSize: 12, color: "#ffffff" },
+  addLink: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.sm },
+  addLinkText: { fontFamily: fonts.bold, fontSize: 15, color: colors.brand },
+  edits: { flexBasis: "100%", flexDirection: "row", gap: space.sm },
+  editBox: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  editInput: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: space.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.foreground,
+  },
+  tick: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.brand },
 });

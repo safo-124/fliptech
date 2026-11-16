@@ -47,6 +47,7 @@ export const LEARN_CLIENT_NAMESPACES = ["Classroom", "MyLearning"] as const sati
 export const SELLER_CLIENT_NAMESPACES = [
   "SellerPages",
   "SellerDashboard",
+  "QuickAdd",
   "SellerGrowth",
   "Chat",
   "DashboardNav",
