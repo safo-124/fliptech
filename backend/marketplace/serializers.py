@@ -300,7 +300,14 @@ class ProductDetailSerializer(ProductCardSerializer):
         ]
 
     class Meta(ProductCardSerializer.Meta):
-        fields = [*ProductCardSerializer.Meta.fields, "description", "photos", "options", "pickup"]
+        fields = [
+            *ProductCardSerializer.Meta.fields,
+            "description",
+            "photos",
+            "options",
+            "pickup",
+            "make_days",
+        ]
 
 
 # --------------------------------------------------------------------------
@@ -390,6 +397,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "availability",
             "condition",
             "stock",
+            "make_days",
             "options",
             "status",
             "status_label",
