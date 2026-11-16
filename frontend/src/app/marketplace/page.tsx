@@ -69,13 +69,18 @@ export default async function MarketplacePage({
   const filtered = Boolean(params.trade || params.area || params.q || filterCount);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const [products, trades, areas, trainerShops, t] = await Promise.all([
+  const [products, trades, areas, trainerShops, t, payable] = await Promise.all([
     searchProducts(params).catch(() => null),
     getAllTrades().catch(() => []),
     getAllAreas().catch(() => []),
     // The "made by people who teach it" row, on the plain first page only.
     filtered || page > 1 ? null : getTrainerShops().catch(() => null),
     getTranslations("Marketplace"),
+    // "Pay on Fliiptech" is only offered as a filter when something can be
+    // paid that way; otherwise it would always lead to an empty page.
+    searchProducts({ pay_online: "1" })
+      .then((found) => found.count > 0)
+      .catch(() => false),
   ]);
 
   const results = products?.results ?? [];
@@ -187,7 +192,7 @@ export default async function MarketplacePage({
                 }}
               />
             </div>
-            <MarketFilters params={params} />
+            <MarketFilters params={params} payOnlineAvailable={payable} />
           </form>
 
           <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">

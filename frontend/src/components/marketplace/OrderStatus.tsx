@@ -63,7 +63,11 @@ export function OrderStatus({ reference }: { reference: string }) {
     if (url.search) window.history.replaceState(null, "", url.pathname);
     confirmOrder(reference)
       .then((found) => {
-        if (active) setOrder(found);
+        if (!active) return;
+        setOrder(found);
+        // Paid: that maker's bag is done. Not before: a failed or cancelled
+        // payment comes back to the bag as it was.
+        if (found.status === "paid") setBagLines(found.seller_id, []);
       })
       .catch((reason) => {
         if (active) setProblem(reason instanceof Error ? reason.message : t("orderNotFound"));
@@ -104,6 +108,9 @@ export function OrderStatus({ reference }: { reference: string }) {
   }
 
   const paid = order.status === "paid";
+  // "Order from the maker": nothing paid on the site; the maker is paid directly.
+  const direct = order.plan === "direct";
+  const failed = !paid && !direct && order.status === "failed";
   return (
     <>
     {paid ? <NextPayment /> : null}
@@ -111,15 +118,21 @@ export function OrderStatus({ reference }: { reference: string }) {
       <CardHeader>
         <div
           className={`mb-2 grid size-11 place-items-center rounded-xl ${
-            paid
+            paid || direct
               ? "bg-[var(--color-visit-bg)] text-[var(--color-visit)]"
               : "bg-[var(--color-destructive)]/10 text-[var(--color-destructive)]"
           }`}
         >
-          {paid ? <CheckCircle2 aria-hidden="true" className="size-5" /> : <XCircle aria-hidden="true" className="size-5" />}
+          {paid || direct ? <CheckCircle2 aria-hidden="true" className="size-5" /> : <XCircle aria-hidden="true" className="size-5" />}
         </div>
         <CardTitle>
-          {paid ? t("orderPaidTitle") : order.status === "pending" ? t("orderPendingTitle") : t("orderFailedTitle")}
+          {direct
+            ? t("directSentTitle", { seller: order.seller_name })
+            : paid
+              ? t("orderPaidTitle")
+              : order.status === "pending"
+                ? t("orderPendingTitle")
+                : t("orderFailedTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -304,10 +317,35 @@ export function OrderStatus({ reference }: { reference: string }) {
               </Link>
             ) : null}
           </>
+        ) : direct ? (
+          <>
+            <p className="rounded-lg bg-[var(--color-brand-soft)] px-3 py-2 font-semibold text-[var(--color-brand-strong)]">
+              {t("payMakerDirectly")}
+            </p>
+            <p className="leading-relaxed">{t("directSentBody", { seller: order.seller_name })}</p>
+            <MessageSeller
+              sellerId={order.seller_id}
+              sellerName={order.seller_name}
+              productId={order.product ?? undefined}
+            />
+          </>
         ) : order.status === "pending" ? (
-          <p className="text-[var(--color-muted-foreground)]">{t("orderPendingBody")}</p>
+          <>
+            <p className="text-[var(--color-muted-foreground)]">{t("orderPendingBody")}</p>
+            <Button asChild variant="brand" className="min-h-12 w-full">
+              <Link href={`/marketplace/bag/${order.seller_id}`}>{t("backToCheckout")}</Link>
+            </Button>
+          </>
         ) : (
-          <p className="text-[var(--color-muted-foreground)]">{t("orderFailedBody")}</p>
+          <>
+            <p className="text-[var(--color-muted-foreground)]">{t("orderFailedBody")}</p>
+            {/* The bag was not emptied: going back finds it as it was. */}
+            {failed ? (
+              <Button asChild variant="brand" className="min-h-12 w-full">
+                <Link href={`/marketplace/bag/${order.seller_id}`}>{t("backToCheckout")}</Link>
+              </Button>
+            ) : null}
+          </>
         )}
         <Button asChild variant="outline" className="w-full">
           <Link href={order.product ? `/marketplace/${order.product}` : "/marketplace"}>
@@ -352,7 +390,6 @@ function NextPayment() {
         note: queue.details.note || undefined,
       });
       savePaymentQueue(rest.length ? { ...queue, sellers: rest, total } : null);
-      setBagLines(next.sellerId, []);
       window.location.assign(authorization_url);
     } catch (error) {
       setProblem(error instanceof Error ? error.message : t("nextPaymentFailed"));

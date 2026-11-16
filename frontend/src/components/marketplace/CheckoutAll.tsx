@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 import { Checkout } from "@/components/marketplace/Checkout";
 import { Button } from "@/components/ui/button";
-import { allBags, onBagChange, setBagLines, syncBagWithAccount, type StoredBag } from "@/lib/bag";
+import { allBags, onBagChange, syncBagWithAccount, type StoredBag } from "@/lib/bag";
 
 /**
  * One checkout for the whole bag. Each seller is still paid separately (the
@@ -86,7 +86,6 @@ export function CheckoutAll() {
           sellerName={first.sellerName}
           items={first.items.map(({ product, option, quantity }) => ({ product, option, quantity }))}
           queue={queue}
-          onPaying={() => setBagLines(Number(firstId), [])}
         />
       </div>
     </div>

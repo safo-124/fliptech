@@ -333,15 +333,22 @@ export function SellerOrdersTab() {
                         })}
                       </p>
                     </div>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                        order.stage === "new"
-                          ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
-                          : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
-                      }`}
-                    >
-                      {t(`stage.${order.stage}`)}
-                    </span>
+                    {order.plan === "direct" ? (
+                      // "Order from the maker": nothing paid on the site.
+                      <span className="rounded-full bg-[var(--color-warn-bg)] px-2.5 py-1 text-[11px] font-bold text-[var(--color-warn)]">
+                        {t("payDirectly")}
+                      </span>
+                    ) : (
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          order.stage === "new"
+                            ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
+                            : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
+                        }`}
+                      >
+                        {t(`stage.${order.stage}`)}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-2 text-sm">
                     {order.buyer_name} ·{" "}

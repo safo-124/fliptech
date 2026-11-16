@@ -34,6 +34,7 @@ import {SellerGrowthTab} from "@/components/seller/SellerGrowth";
 import {SellerBundlesTab} from "@/components/seller/SellerBundles";
 import {InboxList} from "@/components/account/Inbox";
 import {SellerIdCard} from "@/components/seller/SellerIdCard";
+import {DirectPayBanner} from "@/components/seller/DirectPayBanner";
 import {SellerOrdersTab} from "@/components/seller/SellerOrders";
 import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
 import {InlineItemEdit} from "@/components/seller/InlineItemEdit";
@@ -252,6 +253,11 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
         />
 
         <div className="min-w-0">
+          {(tab === "products" || tab === "orders") && !seller.takes_payments ? (
+            <div className="mb-4">
+              <DirectPayBanner onSendId={() => setTab("shop")} />
+            </div>
+          ) : null}
           {tab === "products" ? (
             <ProductsTab
               products={products}

@@ -683,7 +683,7 @@ export type Whoami = {
   user_id?: number | null;
   /** Everyone signed in has a customer account. */
   customer: {name: string; avatar?: string | null} | null;
-  seller: {name: string} | null;
+  seller: {id?: number; name: string} | null;
   trainer: {name: string} | null;
   // Only the trainee has a picture — a workshop is represented by its listing
   // photos, not a portrait.
@@ -772,6 +772,8 @@ export type SellerShop = {
   on_plan: boolean;
   banner: string | null;
   reviews: SellerReview[];
+  /** Where to collect, when the shop is a workshop. */
+  pickup?: PickupPoint | null;
 };
 
 /** An order on the site, as its buyer or seller sees it. See marketplace/selling_views.py. */
@@ -795,7 +797,8 @@ export type MarketplaceOrder = {
     unit_price: string;
     quantity: number;
   }[];
-  plan: "full" | "deposit" | "collect";
+  /** direct: "Order from the maker", paid to the maker, not on the site. */
+  plan: "full" | "deposit" | "collect" | "direct";
   /** For a deposit order: what was paid first, and what is owed when ready. */
   deposit: string;
   balance: string;
