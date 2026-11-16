@@ -32,3 +32,19 @@ def is_listed(programme):
         and programme.trade.is_active
         and programme.provider.status == Provider.Status.PUBLISHED
     )
+
+
+def with_a_listed_course(workshops):
+    """Only workshops someone could join: at least one listed course.
+
+    Search, the map and the home page's count use this, so a workshop with
+    no course yet (or whose courses were all taken down) is not shown as a
+    card with no fee, no length and no trade. Its own page stays reachable.
+    """
+    from django.db.models import Exists, OuterRef
+
+    from catalog.models import Programme
+
+    return workshops.filter(
+        Exists(Programme.objects.filter(listed_course_q(), provider=OuterRef("pk")))
+    )

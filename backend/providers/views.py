@@ -20,7 +20,7 @@ from rest_framework.generics import RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from catalog.listed import listed_course_q
+from catalog.listed import listed_course_q, with_a_listed_course
 from catalog.models import Programme
 from core.money import money
 from core.network import canonical_client_ip, ratelimit_client_ip
@@ -107,6 +107,12 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = Provider.objects.published().for_card().with_related()
+        if getattr(self, "action", "list") != "retrieve":
+            # Search and the map list only workshops with something to join:
+            # at least one listed course (catalog/listed.py). One with none
+            # showed as "Fee not listed / Duration not listed" with no trade.
+            # Its own page stays reachable.
+            queryset = with_a_listed_course(queryset)
 
         # Map view: everything inside the visible rectangle.
         bbox = self.request.query_params.get("bbox")
