@@ -60,7 +60,9 @@ export function appPath(sitePath: string): string {
   if (first === "marketplace") {
     if (second === "order" && third) return `/order/${third}`;
     if (second === "seller" && third) return `/shop/${third}`;
-    if (second === "bag") return "/bag";
+    // The basket, and the old per-seller bag and checkout links to it.
+    if (second === "basket" || second === "bag") return "/basket";
+    if (second === "checkout" && third) return `/checkout?seller=${third}`;
     if (second === "saved") return "/saved";
     if (second && /^\d+$/.test(second)) return `/product/${second}`;
     const q = query.get("q");

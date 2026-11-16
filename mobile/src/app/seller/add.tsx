@@ -300,6 +300,15 @@ export default function AddItemScreen() {
                 keyboardType="number-pad"
                 placeholder="Not counted"
               />
+              {draft.availability === "made_to_order" ? (
+                <Field
+                  label="Days to make (optional)"
+                  value={draft.makeDays}
+                  onChangeText={(text) => set("makeDays", text.replace(/\D/g, "").slice(0, 3))}
+                  keyboardType="number-pad"
+                  hint={'Buyers see "About N days to make".'}
+                />
+              ) : null}
               <View style={{ gap: space.sm }}>
                 <Text variant="label">Condition</Text>
                 <View style={{ flexDirection: "row", gap: space.sm }}>

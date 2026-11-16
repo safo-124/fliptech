@@ -702,6 +702,7 @@ function ProductEditor({
   const [availability, setAvailability] = useState(product?.availability ?? "available");
   const [condition, setCondition] = useState(product?.condition ?? "new");
   const [stock, setStock] = useState(product?.stock !== null && product?.stock !== undefined ? String(product.stock) : "");
+  const [makeDays, setMakeDays] = useState(product?.make_days ? String(product.make_days) : "");
   const [trade, setTrade] = useState<string>(
     product ? (product.trade ? String(product.trade) : "") : defaultTrade ? String(defaultTrade) : "",
   );
@@ -722,6 +723,7 @@ function ProductEditor({
       availability,
       condition,
       stock: stock.trim() === "" ? null : Math.max(0, Number.parseInt(stock, 10) || 0),
+      make_days: makeDays.trim() === "" ? null : Math.min(365, Math.max(1, Number.parseInt(makeDays, 10) || 1)),
       trade: trade ? Number(trade) : null,
     };
     await run(async () => {
@@ -809,6 +811,19 @@ function ProductEditor({
             />
             <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("stockHelp")}</p>
           </div>
+
+          {availability === "made_to_order" ? (
+            <div className="sm:w-1/2">
+              <Label htmlFor="product-make-days">{t("makeDaysLabel")}</Label>
+              <Input
+                id="product-make-days"
+                inputMode="numeric"
+                value={makeDays}
+                onChange={(event) => setMakeDays(event.target.value.replace(/\D/g, "").slice(0, 3))}
+              />
+              <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("makeDaysHelp")}</p>
+            </div>
+          ) : null}
 
           <div className="sm:w-1/2">
             <Label htmlFor="product-condition">{t("conditionLabel")}</Label>

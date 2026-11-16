@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { cedis, courseLength } from "@/lib/format";
 import { photoUrl } from "@/lib/media";
+import { QuickAdd } from "@/components/market/QuickAdd";
 import type { CourseCard as Course, ProductCard as Product, ProviderCard as Workshop } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -124,6 +125,15 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
       <View style={styles.heart}>
         <Heart productId={product.id} size={32} />
       </View>
+      {soldOut || !product.price ? null : (
+        // Over the photo's bottom corner: a box the photo's shape, so it sits
+        // there at any card width.
+        <View pointerEvents="box-none" style={styles.photoBox}>
+          <View style={styles.quickAdd}>
+            <QuickAdd productId={product.id} name={product.name} />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -171,6 +181,8 @@ export function WorkshopRow({ workshop, onPress }: { workshop: Workshop; onPress
 
 const styles = StyleSheet.create({
   heart: { position: "absolute", top: 8, right: 8, zIndex: 2 },
+  photoBox: { position: "absolute", top: 0, left: 0, right: 0, aspectRatio: 1, zIndex: 2 },
+  quickAdd: { position: "absolute", right: 8, bottom: 8 },
   fewLeft: { fontFamily: fonts.bold, fontSize: 11, color: colors.warn },
   trainer: { flexDirection: "row", alignItems: "center", gap: 4 },
   trainerText: { fontFamily: fonts.semibold, fontSize: 11, color: colors.brand },

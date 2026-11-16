@@ -2341,7 +2341,9 @@
     "payoutsHeld": "Held",
     "payoutsRefunded": "Refunded",
     "payoutsHeldWhy": "Held money is paid when the buyer confirms, or a few days after you hand it over with no problem.",
-    "replyInChat": "Reply in the chat"
+    "replyInChat": "Reply in the chat",
+    "makeDaysLabel": "Days to make (optional)",
+    "makeDaysHelp": "Made to order: about how many days you need. Buyers see \"About N days to make\"."
   },
   "SellerGrowth": {
     "payDirectly": "Pay the maker directly",

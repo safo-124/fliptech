@@ -35,6 +35,8 @@ export class ApiError extends Error {
     readonly status: number,
     /** The API's words for each field it refused, when it named them. */
     readonly fields: Record<string, string> = {},
+    /** The response as sent, for the few callers that need more than words. */
+    readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -61,14 +63,18 @@ function fieldErrors(body: unknown): Record<string, string> {
 export async function request<T>(
   method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   path: string,
-  { params = {}, body }: { params?: Params; body?: unknown } = {},
+  {
+    params = {},
+    body,
+    headers: extra = {},
+  }: { params?: Params; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value) query.set(key, value);
   }
   // The header tells the search report a search came from the app.
-  const headers: Record<string, string> = { Accept: "application/json", "X-Fliptech-Client": "app" };
+  const headers: Record<string, string> = { Accept: "application/json", "X-Fliptech-Client": "app", ...extra };
   const signedIn = token();
   if (signedIn) headers.Authorization = `Bearer ${signedIn}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -91,7 +97,7 @@ export async function request<T>(
       (response.status >= 500
         ? "Something went wrong on our side. Try again in a minute."
         : "That did not work. Check and try again.");
-    throw new ApiError(message, response.status, fields);
+    throw new ApiError(message, response.status, fields, data);
   }
   return data as T;
 }

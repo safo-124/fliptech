@@ -342,3 +342,20 @@ def test_a_browser_gets_its_csrf_cookie_from_the_basket_before_changing_it(shop)
 
     assert refused.status_code == 403
     assert added.status_code == 200 and added.json()["count"] == 1
+
+
+@pytest.mark.django_db
+def test_a_seller_says_how_many_days_a_made_to_order_item_takes(client, shop):  # noqa: F811
+    seller, product = shop
+    client.force_login(seller.user)
+
+    response = client.patch(
+        reverse("seller-product", args=[product.pk]),
+        {"availability": "made_to_order", "make_days": 7},
+        content_type=JSON,
+    )
+    shown = client.get(reverse("product-detail", args=[product.pk])).json()
+
+    assert response.status_code == 200, response.content
+    assert response.json()["make_days"] == 7
+    assert shown["make_days"] == 7

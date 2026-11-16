@@ -221,7 +221,7 @@ export default function OrderScreen() {
             // Beside the call, for what a call is bad at: an address, a photo
             // of the colour, a time that suits.
             <Button
-              label="Message the seller"
+              label="Message the maker"
               icon={<MessageCircle size={16} color="#ffffff" />}
               onPress={() =>
                 router.push({

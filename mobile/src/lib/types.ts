@@ -203,6 +203,8 @@ export type ProductDetail = ProductCard & {
   options: ProductOption[];
   /** Collect from the workshop, when the shop is a training workshop. */
   pickup: PickupPoint | null;
+  /** Made to order: about how many days the maker needs, when they said. */
+  make_days?: number | null;
 };
 
 export type PickupPoint = {
@@ -398,6 +400,7 @@ export type SellerProduct = {
   availability: "available" | "made_to_order" | "sold_out";
   condition: "new" | "used";
   stock: number | null;
+  make_days?: number | null;
   options: { id: number; label: string; price: string | null; available: boolean }[];
   status: "draft" | "published" | "suspended";
   visible: boolean;
@@ -414,6 +417,7 @@ export type QuickItemInput = {
   availability?: SellerProduct["availability"];
   condition?: SellerProduct["condition"];
   stock?: number | null;
+  make_days?: number | null;
   photos?: number[];
   options?: string[];
   publish?: boolean;
