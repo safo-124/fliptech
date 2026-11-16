@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.views import IsCustomer, _account
+from catalog.listed import listed_course_q
 from catalog.models import Programme, Trade
 from geography.models import Area
 from providers.filters import ProviderFilter
@@ -130,10 +131,7 @@ def _matching_trades(understood, query):
             provider_count=Count(
                 "programmes__provider",
                 distinct=True,
-                filter=Q(
-                    programmes__is_active=True,
-                    programmes__provider__status=Provider.Status.PUBLISHED,
-                ),
+                filter=listed_course_q("programmes__"),
             )
         )
     }

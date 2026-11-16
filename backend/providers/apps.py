@@ -26,3 +26,6 @@ class ProvidersConfig(AppConfig):
         post_delete.connect(
             _discard_video_files, sender="providers.ProviderVideo", dispatch_uid="video-files"
         )
+        from .page_refresh import connect
+
+        connect()

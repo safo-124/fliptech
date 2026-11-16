@@ -123,7 +123,10 @@ class ProviderLinkSerializer(serializers.ModelSerializer):
 class TraineeEnquirySerializer(serializers.ModelSerializer):
     provider = ProviderLinkSerializer(read_only=True)
     programme_title = serializers.CharField(source="programme.title", default="", read_only=True)
-    intake_start = serializers.DateField(source="intake.start_date", default=None, read_only=True)
+    intake_start = serializers.SerializerMethodField()
+    # False once the course is taken down (catalog/listed.py): the card says
+    # so instead of a start date that reads as still on offer.
+    programme_listed = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     conversation_id = serializers.SerializerMethodField()
     whatsapp_url = serializers.SerializerMethodField()
@@ -134,6 +137,7 @@ class TraineeEnquirySerializer(serializers.ModelSerializer):
             "reference_code",
             "provider",
             "programme_title",
+            "programme_listed",
             "intake_start",
             "message",
             "status",
@@ -141,6 +145,18 @@ class TraineeEnquirySerializer(serializers.ModelSerializer):
             "whatsapp_url",
             "created_at",
         ]
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_programme_listed(self, obj):
+        from catalog.listed import is_listed
+
+        return obj.programme is None or is_listed(obj.programme)
+
+    @extend_schema_field(serializers.DateField(allow_null=True))
+    def get_intake_start(self, obj):
+        if obj.intake_id is None or not self.get_programme_listed(obj):
+            return None
+        return obj.intake.start_date
 
     @extend_schema_field(serializers.CharField())
     def get_status(self, obj):

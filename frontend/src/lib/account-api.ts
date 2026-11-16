@@ -168,7 +168,14 @@ export type ChatMessage = {
   kind: "text" | "enquiry" | "phone";
   body: string;
   product: {id: number; name: string; price: string | null; photo: string | null} | null;
-  course: {reference: string; title: string; fee: string | null; starts: string | null} | null;
+  course: {
+    reference: string;
+    title: string;
+    fee: string | null;
+    starts: string | null;
+    /** False once the course is taken down: say so, not a start date. */
+    listed: boolean;
+  } | null;
   created_at: string;
 };
 

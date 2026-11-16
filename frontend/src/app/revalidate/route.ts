@@ -12,7 +12,7 @@
 import {revalidateTag} from "next/cache";
 import {timingSafeEqual} from "node:crypto";
 
-import {LEARN_TAG, MARKETPLACE_TAG} from "@/lib/api";
+import {LEARN_TAG, MARKETPLACE_TAG, TRAINING_TAG} from "@/lib/api";
 
 function allowed(given: string | null) {
   const secret = process.env.REVALIDATE_SECRET;
@@ -30,5 +30,6 @@ export async function POST(request: Request) {
   // change, which is the point of being asked.
   revalidateTag(MARKETPLACE_TAG, {expire: 0});
   revalidateTag(LEARN_TAG, {expire: 0});
+  revalidateTag(TRAINING_TAG, {expire: 0});
   return Response.json({revalidated: true});
 }

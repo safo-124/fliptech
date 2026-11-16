@@ -582,6 +582,8 @@ export type TraineeEnquiry = {
   reference_code: string;
   provider: TraineeProviderLink;
   programme_title: string;
+  /** False once the course is taken down: the card says so. */
+  programme_listed: boolean;
   intake_start: string | null;
   message: string;
   status: TraineeEnquiryStatus;

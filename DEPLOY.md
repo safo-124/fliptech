@@ -502,10 +502,11 @@ Nothing to switch on for most of these; they arrive with the release.
   every product. They are a plain-language draft: **have a lawyer read them**
   before relying on them, and edit the wording in
   `frontend/messages/en.json` under `MarketTerms`.
-- **Instant page updates.** Product and shop pages are cached for five
-  minutes. To have them update the moment a seller changes something (a
-  price, back in stock, away mode), pick any long random string and set it
-  in both env files, then deploy:
+- **Instant page updates.** Product, shop, course and training pages
+  (`/training`, the home page's "Starting soon", trade counts, the map) are
+  cached for five minutes. To have them update the moment something changes
+  (a price, back in stock, a workshop or course hidden or published), pick
+  any long random string and set it in both env files, then deploy:
   ```
   # /home/safo/deploy-staging/backend.env
   FRONTEND_REVALIDATE_URL=http://127.0.0.1:3000/revalidate

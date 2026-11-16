@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { PrivatePageGuard } from "@/components/PrivatePageGuard";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import {SiteFooter} from "@/components/SiteFooter";
@@ -86,6 +87,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
+        <PrivatePageGuard />
         {/* Answers openSignIn() from any page: see lib/sign-in.ts. */}
         <ClientMessages namespaces={SIGN_IN_CLIENT_NAMESPACES}>
           <SignInSheet />
