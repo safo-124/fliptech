@@ -58,9 +58,9 @@ def trainer_for(user, provider, phone="+233201110901"):
 
 
 @pytest.mark.django_db
-def test_deleting_a_shop_with_no_sales_deletes_everything(  # noqa: F811
+def test_deleting_a_shop_with_no_sales_deletes_everything(
     client,
-    shop,
+    shop,  # noqa: F811
     settings,
     tmp_path,
     django_capture_on_commit_callbacks,  # noqa: F811
