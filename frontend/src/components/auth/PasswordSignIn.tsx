@@ -44,6 +44,7 @@ export function PasswordSignIn({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export function PasswordSignIn({
       } else if (mode === "register") {
         const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) throw new Error(t("emailInvalid"));
+        if (password !== confirm) throw new Error(t("passwordsDiffer"));
         const session = await registerWithPassword({phone: e164, email: email.trim(), password});
         await onSignedIn(session, true);
       } else {
@@ -85,7 +87,15 @@ export function PasswordSignIn({
     setBusy(false);
   }
 
-  const passwordField = (id: string, label: string, autoComplete: string, hint?: string) => (
+  const passwordField = (
+    id: string,
+    label: string,
+    autoComplete: string,
+    hint?: string,
+    value = password,
+    onChange: (next: string) => void = setPassword,
+    invalid = false,
+  ) => (
     <div>
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
@@ -95,9 +105,10 @@ export function PasswordSignIn({
           autoComplete={autoComplete}
           required
           minLength={mode === "register" ? 8 : undefined}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
           className="pr-12"
+          aria-invalid={invalid || undefined}
           aria-describedby={hint ? `${id}-hint` : undefined}
         />
         <button
@@ -111,7 +122,10 @@ export function PasswordSignIn({
         </button>
       </div>
       {hint ? (
-        <p id={`${id}-hint`} className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">
+        <p
+          id={`${id}-hint`}
+          className={`mt-1.5 text-xs ${invalid ? "font-medium text-[var(--color-destructive)]" : "text-[var(--color-muted-foreground)]"}`}
+        >
           {hint}
         </p>
       ) : null}
@@ -200,6 +214,15 @@ export function PasswordSignIn({
           </p>
         </div>
         {passwordField(`${idPrefix}-new-password`, t("newPasswordLabel"), "new-password", t("passwordHint"))}
+        {passwordField(
+          `${idPrefix}-confirm-password`,
+          t("confirmPasswordLabel"),
+          "new-password",
+          confirm && confirm !== password ? t("passwordsDiffer") : undefined,
+          confirm,
+          setConfirm,
+          Boolean(confirm) && confirm !== password,
+        )}
         <Button type="submit" variant="brand" className="w-full" disabled={busy}>
           {busy ? <Loader2 aria-hidden className="animate-spin" /> : null}
           {t("registerSubmit")}

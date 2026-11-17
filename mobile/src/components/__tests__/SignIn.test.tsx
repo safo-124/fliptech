@@ -68,6 +68,7 @@ describe("signing in with a password", () => {
     await fireEvent.changeText(screen.getByLabelText("Phone number"), "24 111 5555");
     await fireEvent.changeText(screen.getByLabelText("Email"), "esi@example.com");
     await fireEvent.changeText(screen.getByLabelText("Choose a password"), "Kente-loom-2026");
+    await fireEvent.changeText(screen.getByLabelText("Confirm password"), "Kente-loom-2026");
     await act(async () => {
       fireEvent.press(screen.getByText("Create my account"));
     });
@@ -112,5 +113,21 @@ describe("signing in with a password", () => {
     await open();
 
     expect(screen.getByText("Send me a code instead")).toBeTruthy();
+  });
+
+  it("refuses two passwords that are not the same", async () => {
+    await open();
+    await fireEvent.press(screen.getByText("New here? Create an account"));
+
+    await fireEvent.changeText(screen.getByLabelText("Phone number"), "24 111 5555");
+    await fireEvent.changeText(screen.getByLabelText("Email"), "esi@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Choose a password"), "Kente-loom-2026");
+    await fireEvent.changeText(screen.getByLabelText("Confirm password"), "Kente-loom-2027");
+    await act(async () => {
+      fireEvent.press(screen.getByText("Create my account"));
+    });
+
+    expect(mockRegister).not.toHaveBeenCalled();
+    expect(screen.getAllByText("The two passwords are not the same.").length).toBeGreaterThan(0);
   });
 });

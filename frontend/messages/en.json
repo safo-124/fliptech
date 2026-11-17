@@ -3048,7 +3048,9 @@
     "useCode": "Send me a code instead",
     "usePassword": "Use a password instead",
     "emailInvalid": "Enter an email address, like you@example.com.",
-    "loginNeeded": "Type your phone number or email."
+    "loginNeeded": "Type your phone number or email.",
+    "confirmPasswordLabel": "Confirm password",
+    "passwordsDiffer": "The two passwords are not the same."
   },
   "Basket": {
     "added": "Added to your basket",
