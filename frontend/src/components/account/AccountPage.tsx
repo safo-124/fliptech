@@ -24,6 +24,7 @@ import {useCallback, useEffect, useState} from "react";
 import {AccountExtras} from "@/components/account/AccountExtras";
 import {AccountSections} from "@/components/account/AccountSections";
 import {LearningCard} from "@/components/account/LearningCard";
+import {AccountSecurity} from "@/components/account/AccountSecurity";
 import {PhoneSignIn, WelcomeStep} from "@/components/auth/PhoneSignIn";
 import {announceSessionChange} from "@/lib/sign-in";
 import {TrainerApiError} from "@/lib/trainer-fetch";
@@ -650,6 +651,8 @@ function SignedIn({
           </form>
         </CardContent>
       </Card>
+
+      <AccountSecurity account={account} reload={reload} />
 
       <CloseAccount onClosed={() => {
         onSignedOut();

@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import { ArrowRight, Check, Loader2, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -26,7 +27,7 @@ type Step = "ask" | "code" | "done";
  * number is already verified, which is the whole point of the shared trust
  * and the reason this is not a two-screen form for most people.
  */
-export function AskSeller({
+function AskSellerForm({
   productId,
   sellerName,
 }: {
@@ -225,5 +226,14 @@ export function AskSeller({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function AskSeller(props: React.ComponentProps<typeof AskSellerForm>) {
+  return (
+    <SignInGate request={{interest: "buy"}}>
+      <AskSellerForm {...props} />
+    </SignInGate>
   );
 }

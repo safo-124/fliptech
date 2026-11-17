@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import { Check, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -23,7 +24,7 @@ type Option = { slug: string; name: string };
  */
 type Field = "trade" | "title" | "details" | "name" | "phone";
 
-export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[] }) {
+function QuoteFormForm({ trades, areas }: { trades: Option[]; areas: Option[] }) {
   const t = useTranslations("Marketplace");
   const contact = useAccountContact();
   const [form, setForm] = useState({
@@ -314,5 +315,14 @@ export function QuoteForm({ trades, areas }: { trades: Option[]; areas: Option[]
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function QuoteForm(props: React.ComponentProps<typeof QuoteFormForm>) {
+  return (
+    <SignInGate request={{interest: "buy"}}>
+      <QuoteFormForm {...props} />
+    </SignInGate>
   );
 }

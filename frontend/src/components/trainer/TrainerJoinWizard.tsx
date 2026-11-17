@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {
   AlertCircle,
@@ -865,7 +866,7 @@ function LoadingCard() {
   );
 }
 
-export function TrainerJoinWizard() {
+function TrainerJoinWizardForm() {
   const t = useTranslations("TrainerJoinWizard");
   const tValidation = useTranslations("Validation");
   const tFormat = useTranslations("Format");
@@ -3089,5 +3090,14 @@ export function TrainerJoinWizard() {
         </section>
       ) : null}
     </form>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function TrainerJoinWizard() {
+  return (
+    <SignInGate request={{interest: "teach"}}>
+      <TrainerJoinWizardForm />
+    </SignInGate>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import { Bell, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -17,7 +18,7 @@ import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
  * makes it available again. The number is proved first (or is the signed-in
  * account's), so nobody can sign a stranger up for texts.
  */
-export function StockAlert({ productId }: { productId: number }) {
+function StockAlertForm({ productId }: { productId: number }) {
   const t = useTranslations("Marketplace");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -129,5 +130,14 @@ export function StockAlert({ productId }: { productId: number }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function StockAlert(props: React.ComponentProps<typeof StockAlertForm>) {
+  return (
+    <SignInGate request={{interest: "buy"}}>
+      <StockAlertForm {...props} />
+    </SignInGate>
   );
 }

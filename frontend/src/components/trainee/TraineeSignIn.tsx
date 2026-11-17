@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import {
   ArrowLeft,
   ArrowRight,
@@ -64,7 +65,7 @@ type Method = "phone" | "email";
  * Sign up and sign in are the same thing for a trainee: prove the phone number
  * and the account exists. There is no separate registration form to abandon.
  */
-export function TraineeSignIn() {
+function TraineeSignInForm() {
   const t = useTranslations("TraineeSignIn");
   const tEducation = useTranslations("Education");
   const tValidation = useTranslations("Validation");
@@ -601,5 +602,14 @@ export function TraineeSignIn() {
         </CardFooter>
       </form>
     </Card>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function TraineeSignIn() {
+  return (
+    <SignInGate request={{role: "trainee", interest: "learn"}}>
+      <TraineeSignInForm />
+    </SignInGate>
   );
 }

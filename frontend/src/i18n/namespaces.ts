@@ -35,6 +35,7 @@ export const PROFILE_CLIENT_NAMESPACES = [
  * before a code is spent, and Format for the cedi amounts the panel echoes.
  */
 export const MARKETPLACE_CLIENT_NAMESPACES = [
+  "SignInGate",
   "Marketplace",
   "Basket",
   "Validation",
@@ -46,6 +47,7 @@ export const LEARN_CLIENT_NAMESPACES = ["Classroom", "MyLearning"] as const sati
 
 /** The seller's sign-in and their own workspace. */
 export const SELLER_CLIENT_NAMESPACES = [
+  "SignInGate",
   "SellerPages",
   "SellerDashboard",
   "QuickAdd",
@@ -61,6 +63,7 @@ export const REPORT_CLIENT_NAMESPACES = ["ReportProblem"] as const satisfies rea
 
 /** The enquiry page, which is a client component throughout. */
 export const ENQUIRY_CLIENT_NAMESPACES = [
+  "SignInGate",
   "EnquiryPage",
   "EnquiryForm",
   "Validation",
@@ -68,6 +71,7 @@ export const ENQUIRY_CLIENT_NAMESPACES = [
 
 /** /trainee: sign-in, overview and dashboard. */
 export const TRAINEE_CLIENT_NAMESPACES = [
+  "SignInGate",
   "TraineeSignIn",
   "Education",
   "TraineeDashboard",
@@ -81,6 +85,7 @@ export const TRAINEE_CLIENT_NAMESPACES = [
 
 /** /trainer: the join wizard, the dashboard and the account pages. */
 export const TRAINER_CLIENT_NAMESPACES = [
+  "SignInGate",
   "TrainerJoinWizard",
   "TeachingLanguages",
   "TrainerDashboard",
@@ -106,6 +111,7 @@ export const INBOX_CLIENT_NAMESPACES = ["Chat"] as const satisfies readonly Clie
 
 export const ACCOUNT_CLIENT_NAMESPACES = [
   "Account",
+  "AccountPassword",
   "AccountSections",
   "Chat",
   "SignIn",

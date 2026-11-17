@@ -1,6 +1,6 @@
 "use client";
 
-import { Handshake, Loader2, LockKeyhole, MapPin, Send, ShieldCheck, Store, Truck } from "lucide-react";
+import { Handshake, Loader2, LockKeyhole, LogIn, MapPin, Send, ShieldCheck, Store, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +16,7 @@ import { getAccount, getAddresses, updateAccount, type SavedAddress } from "@/li
 import { checkoutSeller, groupFor, loadBasket } from "@/lib/basket";
 import { formatCedis } from "@/lib/format";
 import { priceBag, requestBuyerCode, verifyBuyerCode, type Fulfilment } from "@/lib/marketplace-api";
+import { openSignIn, SESSION_CHANGED } from "@/lib/sign-in";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
 import type { BasketPrice } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -54,14 +55,19 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
   const [error, setError] = useState<string | null>(null);
   const [savedAddress, setSavedAddress] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  // The phone code is offered only while it is switched on; otherwise a
+  // buyer who is not signed in signs in (or creates an account) first.
+  const [codeOn, setCodeOn] = useState(false);
   const codeInput = useRef<HTMLInputElement>(null);
 
   // Signed in: their number, name and last address are known, and their own
   // number needs no code.
   useEffect(() => {
     let active = true;
+    function load() {
     getAccount()
       .then((session) => {
+        if (active) setCodeOn(Boolean(session.sign_in?.code));
         if (!active || !session.authenticated) return;
         setAccountPhone(session.account.phone);
         setPhone((typed) => typed || session.account.phone);
@@ -73,8 +79,18 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
           .catch(() => {});
       })
       .catch(() => {});
+    }
+    load();
+    // Signed in from the sheet: their number, name and address, and the
+    // server merges this browser's basket into the account's.
+    function signedIn() {
+      load();
+      void loadBasket().catch(() => null);
+    }
+    window.addEventListener(SESSION_CHANGED, signedIn);
     return () => {
       active = false;
+      window.removeEventListener(SESSION_CHANGED, signedIn);
     };
   }, []);
 
@@ -185,6 +201,7 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
   }
 
   const seller = group.seller;
+  const needsSignIn = !accountPhone && !codeOn;
   const ownNumber =
     Boolean(accountPhone) &&
     (() => {
@@ -233,6 +250,22 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
       </ul>
 
       {/* ------------------------------------------------------- phone */}
+      {needsSignIn ? (
+        <div className="space-y-3 rounded-2xl border border-[var(--color-brand)]/30 bg-[var(--color-brand-soft)]/50 p-4">
+          <p className="text-base font-bold">{t("signInTitle")}</p>
+          <p className="text-sm text-[var(--color-muted-foreground)]">{t("signInBody")}</p>
+          <Button
+            type="button"
+            variant="brand"
+            className="min-h-12 w-full"
+            onClick={() => void openSignIn({ interest: "buy", reason: t("signInReason") })}
+          >
+            <LogIn aria-hidden="true" />
+            {t("signInButton")}
+          </Button>
+        </div>
+      ) : (
+      <>
       <div>
         <Label htmlFor="basket-phone">{tm("phoneLabel")}</Label>
         <Input
@@ -255,6 +288,8 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
           {ownNumber ? tm("phoneYours") : tm("phoneCodeHint")}
         </p>
       </div>
+      </>
+      )}
       {codeSent ? (
         <div className="rounded-xl border-2 border-[var(--color-brand)]/40 bg-[var(--color-brand-soft)]/50 p-3">
           <Label htmlFor="basket-code">{tm("codeSentTo", { phone })}</Label>
@@ -497,7 +532,7 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
         type="submit"
         variant="brand"
         className="h-auto min-h-12 w-full whitespace-normal py-2.5 text-center text-base"
-        disabled={busy || (pays ? !price : !directTotals)}
+        disabled={busy || needsSignIn || (pays ? !price : !directTotals)}
       >
         {busy ? (
           <Loader2 aria-hidden="true" className="animate-spin" />
