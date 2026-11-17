@@ -31,12 +31,16 @@ export function PasswordSignIn({
   initialMode,
   onSignedIn,
   onUseCode,
+  onModeChange,
 }: {
   idPrefix: string;
   initialMode: PasswordMode;
   onSignedIn: (session: AccountSession, joined: boolean) => void | Promise<void>;
   /** Offered only when the phone code is switched on. */
   onUseCode?: () => void;
+  /** Told whenever the form switches between sign in, create and forgot,
+      so the page's heading can say the same. */
+  onModeChange?: (mode: PasswordMode) => void;
 }) {
   const t = useTranslations("SignIn");
   const [mode, setMode] = useState<PasswordMode>(initialMode);
@@ -55,8 +59,16 @@ export function PasswordSignIn({
     return reason instanceof Error ? reason.message : t("failed");
   }
 
+  // The page asked for the other form (Register or Sign in in the header).
+  const [asked, setAsked] = useState(initialMode);
+  if (asked !== initialMode) {
+    setAsked(initialMode);
+    setMode(initialMode);
+  }
+
   function go(next: PasswordMode) {
     setMode(next);
+    onModeChange?.(next);
     setError(null);
     setSent(null);
   }

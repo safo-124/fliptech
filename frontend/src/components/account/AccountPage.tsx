@@ -168,17 +168,26 @@ function SignIn({
   onAlreadyRegistered: () => void;
 }) {
   const t = useTranslations("Account");
+  // The heading follows the form: Register and Sign in in the header change
+  // `newcomer`, and the form's own links switch it too.
+  const [joining, setJoining] = useState(newcomer);
+  const [asked, setAsked] = useState(newcomer);
+  if (asked !== newcomer) {
+    setAsked(newcomer);
+    setJoining(newcomer);
+  }
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="text-3xl font-bold tracking-[-0.035em]">{newcomer ? t("joinTitle") : t("signInTitle")}</h1>
+      <h1 className="text-3xl font-bold tracking-[-0.035em]">{joining ? t("joinTitle") : t("signInTitle")}</h1>
       <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
-        {newcomer ? t("joinLead") : t("signInLead")}
+        {joining ? t("joinLead") : t("signInLead")}
       </p>
       <Card className="mt-5">
         <CardContent className="pt-5">
           <PhoneSignIn
             idPrefix="account"
             register={newcomer}
+            onModeChange={(mode) => setJoining(mode === "register")}
             onAlreadyRegistered={onAlreadyRegistered}
             onDone={onSignedIn}
           />
