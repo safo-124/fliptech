@@ -3,6 +3,7 @@ import Link from "next/link";
 import {useTranslations} from "next-intl";
 
 import {AccountNav} from "@/components/AccountNav";
+import {BasketLink} from "@/components/basket/BasketLink";
 import {BrandMark} from "@/components/BrandMark";
 import {BRAND} from "@/lib/brand";
 import {MainNav} from "@/components/nav/MainNav";
@@ -22,6 +23,7 @@ import type {NavLabels, NavSection} from "@/components/nav/types";
 export function SiteHeader() {
   const t = useTranslations("SiteHeader");
   const tAccount = useTranslations("AccountNav");
+  const tBasket = useTranslations("Basket");
 
   const sections: NavSection[] = [
     {
@@ -103,10 +105,11 @@ export function SiteHeader() {
             <span className="nav-logo">
               <BrandMark motion="open" className="size-7 transition-transform duration-500 group-hover:rotate-90" />
             </span>
-            {/* The mark alone below 360px, where the wordmark, two account
-                buttons and the menu are wider than the screen. Still named. */}
-            <span className="sr-only min-[360px]:hidden">{BRAND}</span>
-            <span className="leading-none max-[359px]:hidden">
+            {/* The mark alone below 400px, where the wordmark, the basket,
+                two account buttons and the menu are wider than the screen.
+                Still named. */}
+            <span className="sr-only min-[400px]:hidden">{BRAND}</span>
+            <span className="leading-none max-[399px]:hidden">
               <span className="nav-word">{BRAND.toLowerCase()}</span>
               <span className="nav-sub">{t("productName")}</span>
             </span>
@@ -122,6 +125,9 @@ export function SiteHeader() {
                 {t("searchPill")}
               </span>
             </Link>
+            <BasketLink
+              labels={{basket: tBasket("basket"), added: tBasket("added"), viewBasket: tBasket("viewBasket")}}
+            />
             <AccountNav
               labels={{
                 myAccount: tAccount("myAccount"),

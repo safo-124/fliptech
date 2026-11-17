@@ -1,27 +1,32 @@
 import { router } from "expo-router";
-import { ShoppingBag } from "lucide-react-native";
+import { ShoppingBasket } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { useBag } from "@/lib/bag";
+import { useBasket } from "@/lib/basket";
 import { colors, fonts, shadow } from "@/theme/tokens";
 
 import { Text } from "./Text";
 
-/** The bag, top right of the shop, with how many things are in it. */
-export function BagButton() {
-  const { count } = useBag();
+/** The basket, top right of the shop and the product page, with how many
+    things are in it (the server's count, the same as the website's). */
+export function BasketButton({ size = 48 }: { size?: number }) {
+  const { count } = useBasket();
   return (
     <Pressable
-      onPress={() => router.push("/bag")}
+      onPress={() => router.push("/basket")}
       accessibilityRole="button"
-      accessibilityLabel={count ? `Bag, ${count} things` : "Bag"}
+      accessibilityLabel={count ? `Basket, ${count} ${count === 1 ? "item" : "items"}` : "Basket"}
       hitSlop={6}
-      style={({ pressed }) => [styles.button, pressed ? { transform: [{ scale: 0.94 }] } : null]}
+      style={({ pressed }) => [
+        styles.button,
+        { width: size, height: size, borderRadius: size / 2 },
+        pressed ? { transform: [{ scale: 0.94 }] } : null,
+      ]}
     >
-      <ShoppingBag size={22} color={colors.brand} strokeWidth={2.2} />
+      <ShoppingBasket size={22} color={colors.brand} strokeWidth={2.2} />
       {count ? (
         <View style={styles.dot}>
-          <Text style={styles.dotText}>{String(count)}</Text>
+          <Text style={styles.dotText}>{count > 99 ? "99+" : String(count)}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -30,9 +35,6 @@ export function BagButton() {
 
 const styles = StyleSheet.create({
   button: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.card,

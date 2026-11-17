@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, ShoppingBag } from "lucide-react";
+import { Heart } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -10,28 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { searchProducts } from "@/lib/api";
 import { StockAlert } from "@/components/marketplace/StockAlert";
-import {
-  allBags,
-  onBagChange,
-  savedIds,
-  syncBagWithAccount,
-  syncSavedWithAccount,
-  type StoredBag,
-} from "@/lib/bag";
+import { onBagChange, savedIds, syncSavedWithAccount } from "@/lib/bag";
 import type { ProductCard } from "@/lib/types";
 
-/** What this browser saved, and any bags waiting to be paid for. */
+/** What this browser (or the account) saved for later. The basket has its
+    own page, /marketplace/basket. */
 export function SavedView() {
   const t = useTranslations("Marketplace");
   const [products, setProducts] = useState<ProductCard[] | null>(null);
-  const [bags, setBags] = useState<Record<string, StoredBag>>({});
   // Signed in: the list is the account's, on every phone they sign in on.
   const [onAccount, setOnAccount] = useState(false);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      setBags(allBags());
       const ids = savedIds();
       if (!ids.length) {
         if (active) setProducts([]);
@@ -47,7 +39,6 @@ export function SavedView() {
       }
     }
     void load();
-    void syncBagWithAccount();
     // What another phone saved, here too (the change event reloads the list).
     void syncSavedWithAccount().then((synced) => {
       if (active) setOnAccount(synced);
@@ -59,41 +50,8 @@ export function SavedView() {
     };
   }, []);
 
-  const bagList = Object.entries(bags);
   return (
     <div className="space-y-8">
-      {bagList.length ? (
-        <section>
-          <h2 className="text-lg font-extrabold tracking-[-0.025em]">{t("yourBags")}</h2>
-          <ul className="mt-3 space-y-2">
-            {bagList.map(([sellerId, bag]) => (
-              <li key={sellerId}>
-                <Link
-                  href={`/marketplace/bag/${sellerId}`}
-                  className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 text-sm hover:border-[var(--color-brand)]"
-                >
-                  <span className="inline-flex items-center gap-2 font-semibold">
-                    <ShoppingBag aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
-                    {bag.sellerName}
-                  </span>
-                  <span className="text-[var(--color-muted-foreground)]">
-                    {t("bagItems", { count: bag.items.reduce((n, item) => n + item.quantity, 0) })}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {bagList.length > 1 ? (
-            <Button asChild variant="brand" className="mt-3 w-full sm:w-auto">
-              <Link href="/marketplace/checkout">
-                <ShoppingBag aria-hidden="true" />
-                {t("checkoutAll")}
-              </Link>
-            </Button>
-          ) : null}
-        </section>
-      ) : null}
-
       <section>
         <h1 className="text-2xl font-extrabold tracking-[-0.03em]">{t("savedTitle")}</h1>
         {products === null ? null : products.length ? (

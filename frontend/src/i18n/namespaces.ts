@@ -36,6 +36,7 @@ export const PROFILE_CLIENT_NAMESPACES = [
  */
 export const MARKETPLACE_CLIENT_NAMESPACES = [
   "Marketplace",
+  "Basket",
   "Validation",
   "Format",
 ] as const satisfies readonly ClientNamespace[];

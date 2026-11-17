@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { QuickAdd } from "@/components/basket/QuickAdd";
 import { SaveButton } from "@/components/marketplace/SaveButton";
 import { SalePrice, SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Card } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import type { ProductCard } from "@/lib/types";
 export function ProductTile({ product }: { product: ProductCard }) {
   const t = useTranslations("Marketplace");
   const tFormat = useTranslations("Format");
+  const tBasket = useTranslations("Basket");
   const gone = product.availability === "sold_out";
 
   return (
@@ -123,6 +125,13 @@ export function ProductTile({ product }: { product: ProductCard }) {
         labels={{ save: t("saveForLater"), saved: t("savedForLater") }}
         className="absolute right-2 top-2"
       />
+      {gone || product.price === null ? null : (
+        // Over the photo's bottom corner: a box the photo's shape, so the
+        // button sits there at any card width.
+        <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[4/3]">
+          <QuickAdd productId={product.id} label={tBasket("quickAdd", { name: product.name })} className="pointer-events-auto absolute bottom-2 right-2" />
+        </div>
+      )}
     </article>
   );
 }

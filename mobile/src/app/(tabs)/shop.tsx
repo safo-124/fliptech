@@ -4,7 +4,7 @@ import { GraduationCap, SlidersHorizontal, X } from "lucide-react-native";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
-import { BagButton } from "@/components/BagButton";
+import { BasketButton } from "@/components/BasketButton";
 import { ProductCard } from "@/components/Cards";
 import { Button } from "@/components/Form";
 import { Chip, FilterSheet } from "@/components/market/FilterSheet";
@@ -54,7 +54,7 @@ export default function ShopScreen() {
         title="Tools and goods"
         placeholder="Search the marketplace"
         onSearch={(q) => toggle({ q })}
-        action={<BagButton />}
+        action={<BasketButton />}
       />
 
       <ScrollView

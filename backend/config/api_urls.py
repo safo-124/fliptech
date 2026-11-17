@@ -47,6 +47,13 @@ from courses.views import (
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from marketplace import bundles, chat
+from marketplace.basket import (
+    BasketCheckoutView,
+    BasketItemsView,
+    BasketLineView,
+    BasketMergeView,
+    BasketView,
+)
 from marketplace.selling_views import (
     BasketPriceView,
     CopyProductView,
@@ -594,6 +601,11 @@ urlpatterns = [
     path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
     path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
     path("account/bag/", AccountBagView.as_view(), name="account-bag"),
+    path("basket/", BasketView.as_view(), name="basket"),
+    path("basket/items/", BasketItemsView.as_view(), name="basket-items"),
+    path("basket/items/<int:pk>/", BasketLineView.as_view(), name="basket-line"),
+    path("basket/merge/", BasketMergeView.as_view(), name="basket-merge"),
+    path("basket/checkout/<int:seller_id>/", BasketCheckoutView.as_view(), name="basket-checkout"),
     path("account/addresses/", AccountAddressesView.as_view(), name="account-addresses"),
     path("account/addresses/<int:pk>/", AccountAddressView.as_view(), name="account-address"),
     # Chats between a person and a shop or a workshop; see marketplace/chat.py.

@@ -1,80 +1,75 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { BadgeCheck, Bike, ShieldCheck, Star, Store } from "lucide-react-native";
+import { BadgeCheck, CloudOff, Handshake, ShieldCheck, Star, Store, Truck } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button, Field, FormError } from "@/components/Form";
+import { BasketLineRow } from "@/components/market/BasketLineRow";
+import { Row, Way } from "@/components/market/Choice";
 import { PhoneProofFields, usePhoneProof } from "@/components/market/PhoneProof";
 import { PickupCard } from "@/components/market/PickupCard";
 import { StackHeader } from "@/components/StackHeader";
 import { Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
-import { api, ApiError, type BagRequest } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { bySeller, useBag } from "@/lib/bag";
+import { groupFor, useBasket } from "@/lib/basket";
 import { SITE_URL } from "@/lib/config";
 import { cedis } from "@/lib/format";
+import { useOnline } from "@/lib/online";
 import { payOnPaystack } from "@/lib/pay";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
 /**
- * Pay one seller for their part of the bag, on one page: phone (proved here
- * with a code when not signed in, which signs them in silently), name,
- * Collect or Delivery, the summary, who they are paying, then Paystack. The
- * total is the server's, not the phone's sum: delivery, codes and deposits
- * are worked out there. The bag is only emptied once payment is confirmed,
- * so a failed or cancelled payment comes back to this page as it was.
+ * Checking out one seller's part of the basket, on one screen: the lines
+ * (still adjustable), phone (a code typed here when it is not the signed-in
+ * buyer's own number; the code fills itself in from the SMS where the phone
+ * offers it, and checking it signs them in and merges their basket), name,
+ * Collect or Delivery, the summary, who they are paying, and one button.
+ *
+ * A seller who takes payments: "Pay GH₵X with MoMo or card" opens Paystack
+ * in the app's browser sheet (lib/pay.ts); the lines stay in the basket
+ * until the payment is confirmed. One who does not: "Send order to <seller>"
+ * sends it to them to be paid directly. Either way the order's screen comes
+ * next. Every total is the server's.
  */
 export default function CheckoutScreen() {
-  const { seller: sellerParam, all } = useLocalSearchParams<{ seller?: string; all?: string }>();
+  const { seller: sellerParam, way } = useLocalSearchParams<{ seller?: string; way?: string }>();
+  const sellerId = Number(sellerParam);
   const insets = useSafeAreaInsets();
   const auth = useAuth();
-  const bag = useBag();
-  const client = useQueryClient();
-  // One checkout for the whole bag: every seller in turn, with the same
-  // details. Each is still paid separately: the money goes to them.
-  const everything = all === "1";
-  const groups = bySeller(bag.items);
-  const [total] = useState(groups.length);
-  const [paidRefs, setPaidRefs] = useState<string[]>([]);
-  const group = everything ? groups[0] : groups.find((row) => row.seller.id === Number(sellerParam));
-  const sellerId = group?.seller.id ?? Number(sellerParam);
-  const shop = useQuery({
-    queryKey: ["shop", String(sellerId)],
-    queryFn: () => api.shop(sellerId),
-    enabled: Boolean(group),
-  });
+  const basket = useBasket();
+  const online = useOnline();
   const proof = usePhoneProof();
-  const addresses = useQuery({ queryKey: ["addresses"], queryFn: api.addresses, enabled: auth.signedIn });
-  const [payAtCollection, setPayAtCollection] = useState(false);
-  const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
+  const group = groupFor(basket.basket, sellerId);
+  const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">(way === "delivery" ? "delivery" : "pickup");
   const [name, setName] = useState(auth.account?.display_name ?? "");
   const [note, setNote] = useState(auth.account?.delivery_address ?? "");
-  const [typedCode, setTypedCode] = useState("");
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
 
-  const request: BagRequest = {
-    items: (group?.items ?? []).map((row) => ({ product: row.product, option: row.option, quantity: row.quantity })),
-    fulfilment,
-    ...(code ? { code } : {}),
-    ...(payAtCollection && fulfilment === "pickup" ? { pay_at_collection: true } : {}),
-  };
+  const handover = group?.delivery ? fulfilment : "pickup";
+  const pays = Boolean(group?.takes_payments);
+  const items = (group?.lines ?? [])
+    .filter((line) => line.available)
+    .map((line) => ({ product: line.product, option: line.option, quantity: line.quantity }));
+  // A seller paid on the site: the exact sum to be charged, from the same
+  // server function checkout uses (student prices, deposits).
   const price = useQuery({
-    queryKey: ["bag-price", sellerId, request],
-    queryFn: () => api.priceBag(sellerId, request),
-    enabled: Boolean(group),
+    queryKey: ["bag-price", sellerId, items, handover],
+    queryFn: () => api.priceBag(sellerId, { items, fulfilment: handover }),
+    enabled: pays && items.length > 0 && online,
     retry: false,
   });
 
-  async function pay() {
+  async function submit() {
+    if (!group) return;
     const wrong: Record<string, string> = {};
-    if (name.trim().length < 2) wrong.name = "The seller needs a name to hand it over to.";
-    if (fulfilment === "delivery" && !note.trim()) wrong.note = "Say where it should be delivered.";
+    if (name.trim().length < 2) wrong.name = "The seller needs a name for the order.";
+    if (handover === "delivery" && !note.trim()) wrong.note = "Say where it should be delivered.";
     setFields(wrong);
     if (Object.keys(wrong).length) return;
     setProblem(null);
@@ -82,30 +77,25 @@ export default function CheckoutScreen() {
     try {
       const phone = await proof.prove(name);
       if (!phone) return;
-      const started = await api.checkout(sellerId, {
-        ...request,
+      const result = await basket.checkout(sellerId, {
         phone,
         name: name.trim(),
-        note: note.trim(),
+        fulfilment: handover,
+        note: note.trim() || undefined,
       });
-      await payOnPaystack(started.authorization_url);
-      const order = await api.confirmOrder(started.reference);
+      if (result.kind === "direct") {
+        router.replace({ pathname: "/order/[reference]", params: { reference: result.reference } });
+        return;
+      }
+      await payOnPaystack(result.authorization_url);
+      const order = await api.confirmOrder(result.reference);
+      void basket.refresh();
       if (order.status === "paid") {
-        bag.clearSeller(sellerId);
-        void client.invalidateQueries({ queryKey: ["orders"] });
-        const left = groups.filter((row) => row.seller.id !== sellerId);
-        if (everything && left.length) {
-          setPaidRefs((now) => [...now, order.reference]);
-          setPayAtCollection(false);
-          setCode("");
-          setTypedCode("");
-          return;
-        }
         router.replace({ pathname: "/order/[reference]", params: { reference: order.reference } });
       } else {
         Alert.alert(
           "Not paid yet",
-          "The payment did not go through, or it is still on its way. Your bag is just as you left it: try again when you are ready. If money left your account, the order shows in My orders within a few minutes.",
+          "The payment did not go through, or it is still on its way. Your basket is just as you left it: try again when you are ready.",
         );
       }
     } catch (error) {
@@ -120,282 +110,214 @@ export default function CheckoutScreen() {
     }
   }
 
-  if (!group && paidRefs.length) {
-    router.replace("/orders");
-    return null;
-  }
-  if (!group) {
+  if (!group || !items.length) {
     return (
       <View style={styles.screen}>
         <StackHeader title="Checkout" />
-        <Text variant="small" style={{ padding: space.lg }}>
-          Nothing from this seller is in your bag.
-        </Text>
+        {basket.loading ? (
+          <View style={{ padding: space.lg }}>
+            <Skeleton style={{ height: 200 }} />
+          </View>
+        ) : (
+          <View style={{ padding: space.lg, gap: space.md }}>
+            <Text>Nothing from this seller is in your basket.</Text>
+            <Button label="View basket" tone="outline" onPress={() => router.replace("/basket")} />
+          </View>
+        )}
       </View>
     );
   }
 
+  const seller = group.seller;
   const priced = price.data;
-  // Delivery only where the maker offers it (a fixed fee).
-  const delivers = shop.data ? shop.data.seller.delivery_fee !== null : false;
-  const priceError = price.error instanceof ApiError ? price.error.message : price.error ? "The total did not load." : null;
+  const direct = group.totals[handover];
+  const amount = priced ? cedis(priced.plan === "full" ? priced.total : priced.pay_now) : "";
+  const label = !pays
+    ? proof.waiting
+      ? "Check the code and send the order"
+      : `Send order to ${seller.business_name}`
+    : proof.waiting
+      ? `Check the code and pay ${amount}`
+      : priced && priced.plan !== "full"
+        ? `Pay deposit ${amount} with MoMo or card`
+        : `Pay ${amount} with MoMo or card`;
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <StackHeader
-        eyebrow={everything && total > 1 ? `PAY ${paidRefs.length + 1} OF ${total}` : "CHECKOUT"}
-        title={group.seller.business_name}
-      />
+      <StackHeader eyebrow="CHECKOUT" title={seller.business_name} />
       <ScrollView
         contentContainerStyle={{ padding: space.lg, gap: space.xl, paddingBottom: insets.bottom + 140 }}
         keyboardShouldPersistTaps="handled"
       >
-        {paidRefs.length ? (
-          <View style={styles.paidNote}>
-            <ShieldCheck size={18} color={colors.visit} />
-            <Text variant="small" style={{ flex: 1, color: colors.visit }}>
-              Paid {paidRefs.length} of {total}. Now {group.seller.business_name}, with the same details.
-            </Text>
+        {!online ? (
+          <View style={styles.offline} accessibilityLiveRegion="polite">
+            <CloudOff size={16} color={colors.warn} />
+            <Text style={styles.offlineText}>You&apos;re offline</Text>
           </View>
         ) : null}
-        {everything && groups.length > 1 ? (
-          <Text variant="small">
-            Then: {groups.slice(1).map((row) => row.seller.business_name).join(", ")}. Each seller is paid separately,
-            straight to them.
-          </Text>
-        ) : null}
+
+        <View style={styles.card}>
+          {group.lines.map((line) => (
+            <BasketLineRow key={line.id} line={line} offline={!online} />
+          ))}
+        </View>
+
+        <PhoneProofFields proof={proof} />
+        <Field label="Your name" value={name} onChangeText={setName} autoComplete="name" maxLength={120} error={fields.name} />
+
         <View style={{ gap: space.sm }}>
           <Text variant="label">How do you want it?</Text>
           <View style={{ flexDirection: "row", gap: space.sm }}>
             <Way
-              active={fulfilment === "pickup"}
-              icon={<Store size={20} color={fulfilment === "pickup" ? colors.brand : colors.mutedForeground} />}
-              title="Collect"
-              detail="Free"
+              active={handover === "pickup"}
               onPress={() => setFulfilment("pickup")}
+              icon={<Store size={18} color={colors.brand} />}
+              title="Collect"
             />
-            {delivers ? (
+            {group.delivery ? (
               <Way
-                active={fulfilment === "delivery"}
-                icon={<Bike size={20} color={fulfilment === "delivery" ? colors.brand : colors.mutedForeground} />}
-                title="Delivery"
-                detail={`${cedis(shop.data?.seller.delivery_fee ?? "0")} delivery`}
+                active={handover === "delivery"}
                 onPress={() => setFulfilment("delivery")}
+                icon={<Truck size={18} color={colors.brand} />}
+                title="Delivery"
+                detail={`${cedis(group.delivery.fee)} delivery`}
               />
             ) : null}
           </View>
-          {fulfilment === "pickup" ? (
-            shop.data?.pickup ? (
-              <PickupCard pickup={shop.data.pickup} />
+          {handover === "pickup" ? (
+            group.pickup ? (
+              <PickupCard pickup={group.pickup} />
             ) : (
-              <Text variant="small">The maker tells you where to collect it once you have paid.</Text>
+              <Text variant="small">{seller.business_name} tells you where to collect it.</Text>
             )
-          ) : null}
-          {fulfilment === "delivery" && priced?.delivery_area ? (
-            <Text variant="small">Delivers to: {priced.delivery_area}</Text>
           ) : null}
         </View>
 
-        {fulfilment === "pickup" && priced?.collect_deposit_percent ? (
-          <Pressable
-            onPress={() => setPayAtCollection((on) => !on)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: payAtCollection }}
-            style={[styles.collect, payAtCollection ? styles.collectOn : null]}
-          >
-            <Text variant="label">Pay part now, the rest in cash when you collect</Text>
-            <Text variant="small">
-              Pay {priced.collect_deposit_percent}% now to hold it. If the seller cannot hand it over, you get it back.
-            </Text>
-          </Pressable>
-        ) : null}
-
-        <PhoneProofFields proof={proof} />
-        <Field label="Your name" value={name} onChangeText={setName} autoComplete="name" maxLength={120} error={fields.name} />
         <Field
-          label={fulfilment === "delivery" ? "Where to deliver" : "A note for the seller (optional)"}
+          label={handover === "delivery" ? "Where to deliver" : "A note for the maker (optional)"}
           value={note}
           onChangeText={setNote}
           multiline
           maxLength={500}
-          placeholder={fulfilment === "delivery" ? "House number, street, a landmark" : "Anything they should know"}
+          placeholder={handover === "delivery" ? "House number, street, a landmark" : "Anything they should know"}
           error={fields.note}
         />
-        {fulfilment === "delivery" && addresses.data?.results.length ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }} style={{ marginTop: -space.md }}>
-            {addresses.data.results.map((saved) => (
-              <Pressable
-                key={saved.id}
-                onPress={() => setNote(saved.address)}
-                style={[styles.address, note === saved.address ? styles.addressOn : null]}
-                accessibilityRole="button"
-              >
-                <Text style={{ fontSize: 13 }} numberOfLines={1}>
-                  {saved.label || saved.address}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        ) : null}
-        <View style={{ flexDirection: "row", gap: space.sm, alignItems: "flex-end" }}>
-          <View style={{ flex: 1 }}>
-            <Field
-              label="Discount code (optional)"
-              value={typedCode}
-              onChangeText={setTypedCode}
-              autoCapitalize="characters"
-              maxLength={30}
-              error={code && priceError ? priceError : fields.code}
-            />
-          </View>
-          <Button label="Apply" tone="soft" onPress={() => setCode(typedCode.trim())} style={{ minHeight: 50 }} />
-        </View>
 
         <View style={styles.summary}>
-          {price.isPending ? (
-            <Skeleton style={{ height: 120 }} />
-          ) : priced ? (
+          {pays ? (
+            price.isPending && online ? (
+              <Skeleton style={{ height: 90 }} />
+            ) : priced ? (
+              <>
+                {priced.lines.map((line) => (
+                  <Row
+                    key={`${line.product}-${line.option}`}
+                    label={`${line.quantity} × ${line.product_name}${line.option_label ? ` (${line.option_label})` : ""}`}
+                    value={cedis(line.total)}
+                  />
+                ))}
+                {Number(priced.discount) > 0 ? <Row label="Student price" value={`−${cedis(priced.discount)}`} /> : null}
+                {handover === "delivery" ? <Row label="Delivery" value={cedis(priced.delivery)} /> : null}
+                <Row label="Total" value={cedis(priced.total)} strong />
+                {priced.plan === "deposit" ? (
+                  <Text variant="small">
+                    Pay deposit {cedis(priced.pay_now)} now, {cedis(priced.balance)} when ready.
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <FormError message={price.error instanceof ApiError ? price.error.message : group.problem || null} />
+            )
+          ) : direct ? (
             <>
-              {priced.lines.map((line) => (
-                <Row
-                  key={`${line.product}-${line.option}`}
-                  label={`${line.quantity} × ${line.product_name}${line.option_label ? ` (${line.option_label})` : ""}`}
-                  value={cedis(line.total)}
-                />
-              ))}
-              {Number(priced.discount) > 0 ? (
-                <Row label={priced.student ? "Student price" : `Code ${priced.code}`} value={`−${cedis(priced.discount)}`} />
-              ) : null}
-              {fulfilment === "delivery" ? <Row label="Delivery" value={cedis(priced.delivery)} /> : null}
-              <View style={styles.divider} />
-              <Row label="Total" value={cedis(priced.total)} strong />
-              {priced.plan === "collect" ? (
-                <Text variant="small">
-                  Pay {cedis(priced.pay_now)} now to hold it and {cedis(priced.balance)} in cash when you collect.
-                </Text>
-              ) : null}
-              {priced.plan === "deposit" ? (
-                <Text variant="small">
-                  Made to order: pay {cedis(priced.pay_now)} now ({priced.deposit_percent}% deposit) and{" "}
-                  {cedis(priced.balance)} when it is ready.
-                </Text>
-              ) : null}
+              <Row label="Subtotal" value={cedis(direct.subtotal)} />
+              {handover === "delivery" ? <Row label="Delivery" value={cedis(direct.delivery)} /> : null}
+              <Row label="Total" value={cedis(direct.total)} strong />
             </>
-          ) : (
-            <FormError message={priceError} />
-          )}
+          ) : null}
         </View>
 
         <View style={styles.trust}>
-          <Text variant="label">You are paying {group.seller.business_name}</Text>
-          {shop.data ? (
-            <View style={styles.badges}>
-              {shop.data.seller.area ? <Text variant="small">{shop.data.seller.area}</Text> : null}
-              {shop.data.seller.verified ? (
-                <View style={styles.badge}>
-                  <BadgeCheck size={14} color={colors.visit} />
-                  <Text style={styles.badgeText}>ID checked</Text>
-                </View>
-              ) : null}
-              {shop.data.seller.rating ? (
-                <View style={styles.badge}>
-                  <Star size={14} color={colors.warn} />
-                  <Text style={styles.badgeText}>
-                    {shop.data.seller.rating.average.toFixed(1)} ({shop.data.seller.rating.count})
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-          <View style={{ flexDirection: "row", gap: space.sm, marginTop: space.xs }}>
+          <Text variant="label">You are paying {seller.business_name}</Text>
+          <View style={styles.badges}>
+            {seller.area ? <Text variant="small">{seller.area}</Text> : null}
+            {seller.verified ? (
+              <View style={styles.badge}>
+                <BadgeCheck size={14} color={colors.visit} />
+                <Text style={styles.badgeText}>Checked by Fliiptech</Text>
+              </View>
+            ) : null}
+            {seller.rating ? (
+              <View style={styles.badge}>
+                <Star size={14} color={colors.warn} />
+                <Text style={styles.badgeText}>
+                  {seller.rating.average.toFixed(1)} ({seller.rating.count})
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ flexDirection: "row", gap: space.sm }}>
             <ShieldCheck size={18} color={colors.visit} />
             <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="label">What if it doesn&apos;t arrive?</Text>
-              <Text variant="small">
-                Fliiptech holds your money until you have it. If it does not arrive, or is not as described, tell us
-                and you get it back.
-              </Text>
-              <Pressable
-                onPress={() => void Linking.openURL(`${SITE_URL}/marketplace/terms#refunds`)}
-                accessibilityRole="link"
-                style={{ minHeight: 44, justifyContent: "center" }}
-              >
-                <Text style={styles.link}>How refunds work</Text>
-              </Pressable>
+              {pays ? (
+                <>
+                  <Text variant="label">What if it doesn&apos;t arrive?</Text>
+                  <Text variant="small">
+                    Fliiptech holds your money until you have it. If it does not arrive, or is not as described, tell
+                    us and you get it back.
+                  </Text>
+                  <Pressable
+                    onPress={() => void Linking.openURL(`${SITE_URL}/marketplace/terms#refunds`)}
+                    accessibilityRole="link"
+                    style={{ minHeight: 44, justifyContent: "center" }}
+                  >
+                    <Text style={styles.link}>How refunds work</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Text variant="small">
+                  You pay {seller.business_name} directly, so Fliiptech cannot refund it. Agree the price and the
+                  handover in the chat before you pay.
+                </Text>
+              )}
             </View>
           </View>
         </View>
+
+        {pays ? null : (
+          <View style={styles.direct}>
+            <Handshake size={18} color={colors.warn} />
+            <Text variant="small" style={{ flex: 1 }}>
+              This maker takes payment directly. We send them your order and you agree payment and pickup in the chat.
+            </Text>
+          </View>
+        )}
         <FormError message={problem} />
       </ScrollView>
 
       <View style={[styles.cta, { paddingBottom: insets.bottom + space.md }]}>
         <Button
-          label={
-            proof.waiting
-              ? "Check the code and pay"
-              : priced
-                ? `Pay ${cedis(priced.pay_now)} with MoMo or card`
-                : "Pay with MoMo or card"
-          }
+          label={label}
           busy={busy}
-          disabled={!priced}
-          onPress={() => void pay()}
+          disabled={!online || (pays ? !priced : !direct)}
+          onPress={() => void submit()}
         />
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-function Way({
-  active,
-  icon,
-  title,
-  detail,
-  onPress,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: active }}
-      style={[styles.way, active ? styles.wayOn : null]}
-    >
-      {icon}
-      <Text variant="label">{title}</Text>
-      <Text variant="small">{detail}</Text>
-    </Pressable>
-  );
-}
-
-function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <View style={styles.row}>
-      <Text style={[{ flex: 1 }, strong ? styles.strong : styles.rowLabel]} numberOfLines={2}>
-        {label}
-      </Text>
-      <Text style={strong ? styles.strongValue : styles.rowValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  way: {
-    flex: 1,
-    gap: 4,
-    padding: space.md,
+  offline: { flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.warnBg },
+  offlineText: { fontFamily: fonts.semibold, color: colors.warn },
+  card: {
+    paddingHorizontal: space.md,
     borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
     backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  wayOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
   summary: {
     gap: space.sm,
     padding: space.lg,
@@ -404,12 +326,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  row: { flexDirection: "row", gap: space.md, alignItems: "baseline" },
-  rowLabel: { color: colors.mutedForeground, fontSize: 14 },
-  rowValue: { fontFamily: fonts.semibold, fontSize: 14, color: colors.foreground },
-  strong: { fontFamily: fonts.bold, fontSize: 16, color: colors.foreground },
-  strongValue: { fontFamily: fonts.extrabold, fontSize: 20, color: colors.brandDeep },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 },
   trust: { gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
   badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
   badge: {
@@ -423,19 +339,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.foreground },
   link: { fontFamily: fonts.semibold, fontSize: 14, color: colors.brand, textDecorationLine: "underline" },
-  paidNote: { flexDirection: "row", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
-  collect: { gap: 4, padding: space.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
-  collectOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  address: {
-    maxWidth: 220,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  addressOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  direct: { flexDirection: "row", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.warnBg },
   cta: {
     position: "absolute",
     left: 0,

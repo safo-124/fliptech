@@ -13,6 +13,8 @@ export type QuickItemDraft = {
   trade: number | null;
   description: string;
   stock: string;
+  /** Made to order: about how many days to make it; empty when not said. */
+  makeDays: string;
   condition: "new" | "used";
   wasPrice: string;
   options: string;
@@ -27,6 +29,7 @@ export function blankDraft(trade: number | null): QuickItemDraft {
     trade,
     description: "",
     stock: "",
+    makeDays: "",
     condition: "new",
     wasPrice: "",
     options: "",
@@ -42,6 +45,7 @@ export function likeThis(product: SellerProduct): QuickItemDraft {
     trade: product.trade,
     description: product.description,
     stock: "",
+    makeDays: product.make_days ? String(product.make_days) : "",
     condition: product.condition,
     wasPrice: product.was_price ? plainPrice(product.was_price) : "",
     options: product.options.map((option) => option.label).join(", "),
@@ -75,6 +79,7 @@ export function toInput(
   publish: boolean,
 ): QuickItemInput {
   const stock = draft.stock.trim();
+  const days = draft.availability === "made_to_order" ? Number.parseInt(draft.makeDays, 10) : Number.NaN;
   return {
     name: draft.name.trim(),
     price: draft.price.trim() || null,
@@ -84,6 +89,7 @@ export function toInput(
     description: draft.description.trim(),
     condition: draft.condition,
     stock: stock === "" ? null : Math.max(0, Number.parseInt(stock, 10) || 0),
+    ...(Number.isFinite(days) && days > 0 ? { make_days: Math.min(days, 365) } : {}),
     options: draft.options
       .split(",")
       .map((label) => label.trim())
