@@ -13,6 +13,11 @@ export type Account = {
   email: string | null;
   delivery_address: string;
   created_at: string;
+  /** False for an account made with a phone code: it can set one. */
+  has_password?: boolean;
+  email_verified?: boolean;
+  /** False for a number given at sign-up and never proven with a code. */
+  phone_verified?: boolean;
 };
 
 export type AccountState = {
@@ -23,6 +28,8 @@ export type AccountState = {
     trainer: { href: string; status: string } | null;
     seller: { id?: number; href: string; status: string } | null;
   } | null;
+  /** Whether the phone code is offered besides a password (backend PHONE_CODE_SIGN_IN). */
+  sign_in?: { code: boolean };
 };
 
 type Auth = {
@@ -33,6 +40,13 @@ type Auth = {
   roles: AccountState["roles"];
   requestCode: (phone: string) => Promise<{ challenge_id: string; expires_in_seconds: number }>;
   verifyCode: (input: { phone: string; code: string; challenge_id: string; name?: string }) => Promise<void>;
+  /** Phone number (however typed) or email, and the password. */
+  signInWithPassword: (login: string, password: string) => Promise<void>;
+  register: (input: { phone: string; email: string; password: string; name?: string }) => Promise<void>;
+  /** Emails a link to set a new password; the answer says so, whoever asks. */
+  forgotPassword: (login: string) => Promise<string>;
+  /** False while SMS codes cannot be relied on: password only. */
+  codeSignIn: boolean;
   /** Make this login a trainee too, for courses: once, and silently. */
   ensureTrainee: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -76,6 +90,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 5 * 60_000,
   });
 
+  // Whether the code is offered: asked of the server, signed in or not.
+  const methods = useQuery({
+    queryKey: ["sign-in-methods"],
+    queryFn: async () => (await getJson<AccountState>("/api/account/")).sign_in ?? { code: false },
+    enabled: ready,
+    staleTime: 10 * 60_000,
+  });
+
+  const keepToken = useCallback(
+    async (reply: AccountState & { token: string }) => {
+      await saveToken(reply.token);
+      client.setQueryData(["account"], { authenticated: true, account: reply.account, roles: reply.roles, sign_in: reply.sign_in });
+      setHasToken(true);
+    },
+    [client],
+  );
+
   const value = useMemo<Auth>(
     () => ({
       ready,
@@ -92,9 +123,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: name || undefined,
           device,
         });
-        await saveToken(reply.token);
-        client.setQueryData(["account"], { authenticated: true, account: reply.account, roles: reply.roles });
-        setHasToken(true);
+        await keepToken(reply);
+      },
+      codeSignIn: Boolean(methods.data?.code),
+      async signInWithPassword(login, password) {
+        const device = [Device.manufacturer, Device.modelName].filter(Boolean).join(" ");
+        await keepToken(
+          await postJson<AccountState & { token: string }>("/api/app/sign-in/", { login, password, device }),
+        );
+      },
+      async register({ phone, email, password, name }) {
+        const device = [Device.manufacturer, Device.modelName].filter(Boolean).join(" ");
+        await keepToken(
+          await postJson<AccountState & { token: string }>("/api/app/register/", {
+            phone,
+            email,
+            password,
+            name: name || undefined,
+            device,
+          }),
+        );
+      },
+      async forgotPassword(login) {
+        return (await postJson<{ detail: string }>("/api/account/password/forgot/", { login })).detail;
       },
       async ensureTrainee() {
         if (account.data?.roles?.trainee) return;
@@ -111,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         client.invalidateQueries();
       },
     }),
-    [ready, hasToken, account.data, client, forget],
+    [ready, hasToken, account.data, client, forget, keepToken, methods.data],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
