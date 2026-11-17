@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -19,7 +20,7 @@ import type { Bundle } from "@/lib/types";
  * phone check is the same as for any order, and the course opens on that
  * phone when the payment arrives.
  */
-export function BundleCheckout({ bundle }: { bundle: Bundle }) {
+function BundleCheckoutForm({ bundle }: { bundle: Bundle }) {
   const t = useTranslations("Marketplace");
   const [step, setStep] = useState<"details" | "code">("details");
   const [phone, setPhone] = useState("");
@@ -176,5 +177,14 @@ export function BundleCheckout({ bundle }: { bundle: Bundle }) {
         </form>
       )}
     </div>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function BundleCheckout(props: React.ComponentProps<typeof BundleCheckoutForm>) {
+  return (
+    <SignInGate request={{interest: "buy"}}>
+      <BundleCheckoutForm {...props} />
+    </SignInGate>
   );
 }

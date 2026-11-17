@@ -1,26 +1,20 @@
 /**
- * The bag and "saved for later", kept in this browser, and on the account
- * too while one is signed in (synced both ways, see below).
+ * "Saved for later" and recently viewed, kept in this browser, and the saved
+ * list on the account too while one is signed in (synced both ways).
  *
- * No account needed: a buyer here often has none, and a bag on one phone is all
- * that is needed to buy several things from one maker in one payment. One
- * bag per seller, because one payment goes to one seller. Prices are not
- * kept here: the server prices every bag when it is shown and when it is
- * paid for, so an old price in the browser can never be charged.
+ * The basket is not here: it lives on the server (lib/basket.ts), the same
+ * for the website and the app. OLD_BAGS is the key the browser-only bag
+ * used to be kept under; lib/basket.ts moves anything left there into the
+ * server basket once, then removes it.
  *
  * Every read and write is wrapped: storage can be switched off, full, or
  * missing in a private window, and the site must still work without it.
  */
 
-import type {BagItem} from "./types";
-
-const BAGS = "fliiptech:bags";
+export const OLD_BAGS = "fliiptech:bags";
 const SAVED = "fliiptech:saved";
 const RECENT = "fliiptech:recent";
 const CHANGED = "fliiptech:bag-changed";
-
-export type StoredLine = BagItem & {name: string; optionLabel: string};
-export type StoredBag = {sellerName: string; items: StoredLine[]};
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -31,62 +25,12 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function write(key: string, value: unknown, fromAccount = false) {
+function write(key: string, value: unknown) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
     window.dispatchEvent(new Event(CHANGED));
   } catch {
     // Not kept; the page still works for this visit.
-  }
-  if (key === BAGS && !fromAccount) pushBagSoon();
-}
-
-/** Every line of every bag, as the API takes them. */
-function allLines() {
-  return Object.values(read<Record<string, StoredBag>>(BAGS, {})).flatMap((bag) =>
-    bag.items.map((item) => ({product: item.product, option: item.option, quantity: item.quantity})),
-  );
-}
-
-let pushTimer: ReturnType<typeof setTimeout> | undefined;
-
-/** Keep the account's bag the same as this browser's (signed in only; a
-    refusal when signed out is quiet). Debounced: a burst of taps is one save. */
-function pushBagSoon() {
-  if (typeof window === "undefined") return;
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => {
-    void import("./account-api")
-      .then(({replaceBag}) => replaceBag(allLines()))
-      .catch(() => {});
-  }, 800);
-}
-
-/**
- * After signing in, or on a visit while signed in: this browser's bag joins
- * the account's, and the result comes back here, so the bag is the same on
- * the phone and the website.
- */
-export async function syncBagWithAccount() {
-  try {
-    const {addToAccountBag} = await import("./account-api");
-    const {items} = await addToAccountBag(allLines());
-    const bags: Record<string, StoredBag> = {};
-    for (const row of items) {
-      const key = String(row.seller.id);
-      const bag = bags[key] ?? {sellerName: row.seller.business_name, items: []};
-      bag.items.push({
-        product: row.product,
-        option: row.option,
-        quantity: row.quantity,
-        name: row.name,
-        optionLabel: row.option_label,
-      });
-      bags[key] = bag;
-    }
-    write(BAGS, bags, true);
-  } catch {
-    // Signed out, or offline: the browser's bag stands.
   }
 }
 
@@ -97,40 +41,6 @@ export function onBagChange(listener: () => void) {
     window.removeEventListener(CHANGED, listener);
     window.removeEventListener("storage", listener);
   };
-}
-
-export function allBags(): Record<string, StoredBag> {
-  return read<Record<string, StoredBag>>(BAGS, {});
-}
-
-export function bagFor(sellerId: number): StoredBag | null {
-  return allBags()[String(sellerId)] ?? null;
-}
-
-export function addToBag(sellerId: number, sellerName: string, line: StoredLine) {
-  const bags = allBags();
-  const bag = bags[String(sellerId)] ?? {sellerName, items: []};
-  const same = bag.items.find((item) => item.product === line.product && item.option === line.option);
-  if (same) same.quantity = Math.min(20, same.quantity + line.quantity);
-  else bag.items = [...bag.items, line].slice(0, 20);
-  bags[String(sellerId)] = {...bag, sellerName};
-  write(BAGS, bags);
-}
-
-export function setBagLines(sellerId: number, items: StoredLine[]) {
-  const bags = allBags();
-  const bag = bags[String(sellerId)];
-  if (!bag) return;
-  if (items.length) bags[String(sellerId)] = {...bag, items};
-  else delete bags[String(sellerId)];
-  write(BAGS, bags);
-}
-
-export function bagCount() {
-  return Object.values(allBags()).reduce(
-    (sum, bag) => sum + bag.items.reduce((n, item) => n + item.quantity, 0),
-    0,
-  );
 }
 
 export function savedIds(): number[] {
@@ -168,14 +78,16 @@ export async function syncSavedWithAccount(): Promise<boolean> {
 }
 
 /**
- * On signing out: the saved list and bags leave this browser. The account
+ * On signing out: the saved list and the basket's device token leave this
+ * browser. The account
  * keeps them, and they come back on signing in, but the next person to use
  * this phone should not see them, or have them added to their own account.
  */
 export function forgetAccountCopies() {
   try {
     window.localStorage.removeItem(SAVED);
-    window.localStorage.removeItem(BAGS);
+    window.localStorage.removeItem(OLD_BAGS);
+    window.localStorage.removeItem("fliiptech:basket-token");
     window.dispatchEvent(new Event(CHANGED));
   } catch {
     // Nothing kept, so nothing to forget.

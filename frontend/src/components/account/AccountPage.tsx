@@ -24,6 +24,7 @@ import {useCallback, useEffect, useState} from "react";
 import {AccountExtras} from "@/components/account/AccountExtras";
 import {AccountSections} from "@/components/account/AccountSections";
 import {LearningCard} from "@/components/account/LearningCard";
+import {AccountSecurity} from "@/components/account/AccountSecurity";
 import {PhoneSignIn, WelcomeStep} from "@/components/auth/PhoneSignIn";
 import {announceSessionChange} from "@/lib/sign-in";
 import {TrainerApiError} from "@/lib/trainer-fetch";
@@ -46,7 +47,8 @@ import {
   type CustomerAccount,
   type MyQuestions,
 } from "@/lib/account-api";
-import {syncBagWithAccount, syncSavedWithAccount} from "@/lib/bag";
+import {syncSavedWithAccount} from "@/lib/bag";
+import {mergeBasketAfterSignIn} from "@/lib/basket";
 import type {MarketplaceOrder} from "@/lib/types";
 
 /** A path on this site, never somewhere else: `next` comes from the address. */
@@ -79,7 +81,7 @@ export function AccountPage() {
     setSession(found);
     if (found.authenticated) {
       void syncSavedWithAccount();
-      void syncBagWithAccount();
+      void mergeBasketAfterSignIn();
     }
     return found;
   }, []);
@@ -92,7 +94,7 @@ export function AccountPage() {
         setSession(found);
         if (found.authenticated) {
       void syncSavedWithAccount();
-      void syncBagWithAccount();
+      void mergeBasketAfterSignIn();
     }
       })
       .catch(() => {
@@ -649,6 +651,8 @@ function SignedIn({
           </form>
         </CardContent>
       </Card>
+
+      <AccountSecurity account={account} reload={reload} />
 
       <CloseAccount onClosed={() => {
         onSignedOut();

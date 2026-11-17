@@ -1,5 +1,5 @@
-"""Telling someone something: as a notice the app collects, and by SMS
-when the app will not show it.
+"""Telling someone something: as a notice the app collects, by email when
+they have confirmed an address, and by SMS when the app will not show it.
 
 Every alert that used to be one `send_sms` call goes through `notify`
 instead. Sign-in codes do not: they are always texted (enquiries/otp.py).
@@ -9,6 +9,11 @@ The rule for the SMS:
   the record people keep, app or not.
 * otherwise only when no app signed in to that number has checked in for
   two days. A phone that collects its notices is told there, for free.
+
+The email: to the confirmed address of the account with that number, for
+every notice, so a person without the app (or while SMS cannot be relied
+on) still hears. Chat messages are emailed at most once an hour per chat,
+so a busy conversation does not fill an inbox.
 """
 
 import logging
@@ -68,6 +73,52 @@ def users_with_phone(phone):
     return ids
 
 
+CHAT_EMAIL_EVERY = timedelta(hours=1)
+
+
+def confirmed_email(phone):
+    """The confirmed email of the person with this number, or None."""
+    from accounts.models import CustomerAccount
+    from marketplace.models import SellerAccount
+    from providers.models import TrainerAccount
+
+    for model in (CustomerAccount, SellerAccount, TrainerAccount):
+        email = (
+            model.objects.filter(phone=phone, email_verified_at__isnull=False)
+            .exclude(email__isnull=True)
+            .exclude(email="")
+            .values_list("email", flat=True)
+            .first()
+        )
+        if email:
+            return email
+    return None
+
+
+def _email(phone, title, body, path):
+    """Email the notice, when there is a confirmed address. Never raises: the
+    notice and the text stand without it."""
+    from django.core.cache import cache
+
+    from core.mail import send_email
+
+    try:
+        email = confirmed_email(phone)
+        if not email:
+            return False
+        if "/chats" in path or "/inbox" in path:
+            key = f"notify-email:{email}:{path}"
+            if not cache.add(key, 1, int(CHAT_EMAIL_EVERY.total_seconds())):
+                return False
+        site = (settings.PUBLIC_SITE_URL or "").rstrip("/")
+        link = f"\n\nOpen it: {site}{path}" if path and site else ""
+        first = body.split(". ")[0][:90]
+        return send_email(email, f"{title}: {first}", f"{body}{link}")
+    except Exception:  # noqa: BLE001 - an email that fails must not stop the rest
+        logger.exception("Could not email the notice to %s", phone)
+        return False
+
+
 def app_is_active(phone, now=None):
     from accounts.models import AppToken
 
@@ -95,10 +146,11 @@ def notify(to, message, *, sms="auto", link="", send=None):
     path = path or link
     title, body = _split(text)
     notice = Notice.objects.create(phone=phone, title=title[:80], body=body[:500], link=path[:300])
+    emailed = _email(phone, title, body, path)
     if sms == "always" or not app_is_active(phone):
         sent = (send or send_sms)(phone, message)
         Notice.objects.filter(pk=notice.pk).update(texted=True)
-        return sent
+        return sent or emailed
     return True
 
 

@@ -20,7 +20,8 @@ import { AppServices } from "@/components/AppServices";
 import { TabBarVisibilityProvider } from "@/components/FloatingTabBar";
 import { Text } from "@/components/Text";
 import { AuthProvider } from "@/lib/auth";
-import { BagProvider } from "@/lib/bag";
+import { BasketToast } from "@/components/market/BasketToast";
+import { BasketProvider } from "@/lib/basket";
 import { reportCrash } from "@/lib/crash";
 import { DataSaverProvider } from "@/lib/datasaver";
 import { KEEP_FOR_MS, keep, persister } from "@/lib/offline.cache";
@@ -91,7 +92,7 @@ export default function RootLayout() {
         <DataSaverProvider>
         <AuthProvider>
           <SavedProvider>
-          <BagProvider>
+          <BasketProvider>
           <TabBarVisibilityProvider>
             <StatusBar style="dark" />
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
@@ -103,9 +104,8 @@ export default function RootLayout() {
               <Stack.Screen name="workshop/[area]/[slug]" />
               <Stack.Screen name="course/[area]/[slug]" />
               <Stack.Screen name="product/[id]" />
-              <Stack.Screen name="bag" />
+              <Stack.Screen name="basket" />
               <Stack.Screen name="checkout" />
-              <Stack.Screen name="order-from-maker" />
               <Stack.Screen name="my-courses" />
               <Stack.Screen name="orders" />
               <Stack.Screen name="shop/[id]" />
@@ -127,8 +127,9 @@ export default function RootLayout() {
               <Stack.Screen name="web" options={{ animation: "none" }} />
             </Stack>
             <AppServices />
+            <BasketToast />
           </TabBarVisibilityProvider>
-          </BagProvider>
+          </BasketProvider>
           </SavedProvider>
         </AuthProvider>
         </DataSaverProvider>

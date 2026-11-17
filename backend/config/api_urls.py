@@ -7,6 +7,7 @@ endpoints, the tokenised dashboard, and the signed-in trainee and trainer areas.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts import passwords
 from accounts.app_views import AppCodeRequestView, AppCodeVerifyView, AppSignOutView
 from accounts.views import AccountPhotoView, AccountView
 from accounts.views import AddressesView as AccountAddressesView
@@ -47,6 +48,13 @@ from courses.views import (
 from enquiries.views import EnquiryCreateView, OTPRequestView, OTPVerifyView
 from geography.views import AreaViewSet, RegionViewSet
 from marketplace import bundles, chat
+from marketplace.basket import (
+    BasketCheckoutView,
+    BasketItemsView,
+    BasketLineView,
+    BasketMergeView,
+    BasketView,
+)
 from marketplace.selling_views import (
     BasketPriceView,
     CopyProductView,
@@ -584,8 +592,31 @@ urlpatterns = [
     path("app/request-code/", AppCodeRequestView.as_view(), name="app-request-code"),
     path("app/verify-code/", AppCodeVerifyView.as_view(), name="app-verify-code"),
     path("app/sign-out/", AppSignOutView.as_view(), name="app-sign-out"),
+    path("app/register/", passwords.AppRegisterView.as_view(), name="app-register"),
+    path("app/sign-in/", passwords.AppSignInView.as_view(), name="app-sign-in"),
     # One sign-in for everyone; see accounts/views.py.
     path("account/", AccountView.as_view(), name="account"),
+    path("account/register/", passwords.RegisterView.as_view(), name="account-register"),
+    path("account/sign-in/", passwords.SignInView.as_view(), name="account-sign-in"),
+    path(
+        "account/password/forgot/",
+        passwords.ForgotPasswordView.as_view(),
+        name="account-password-forgot",
+    ),
+    path(
+        "account/password/reset/",
+        passwords.ResetPasswordView.as_view(),
+        name="account-password-reset",
+    ),
+    path("account/password/", passwords.SetPasswordView.as_view(), name="account-password"),
+    path(
+        "account/email/confirm/", passwords.ConfirmEmailView.as_view(), name="account-email-confirm"
+    ),
+    path(
+        "account/email/resend/",
+        passwords.ResendConfirmEmailView.as_view(),
+        name="account-email-resend",
+    ),
     path("account/request-code/", AccountCodeRequestView.as_view(), name="account-request-code"),
     path("account/verify-code/", AccountCodeVerifyView.as_view(), name="account-verify-code"),
     path("account/logout/", AccountLogoutView.as_view(), name="account-logout"),
@@ -594,6 +625,11 @@ urlpatterns = [
     path("account/questions/", AccountQuestionsView.as_view(), name="account-questions"),
     path("account/saved/", AccountSavedView.as_view(), name="account-saved"),
     path("account/bag/", AccountBagView.as_view(), name="account-bag"),
+    path("basket/", BasketView.as_view(), name="basket"),
+    path("basket/items/", BasketItemsView.as_view(), name="basket-items"),
+    path("basket/items/<int:pk>/", BasketLineView.as_view(), name="basket-line"),
+    path("basket/merge/", BasketMergeView.as_view(), name="basket-merge"),
+    path("basket/checkout/<int:seller_id>/", BasketCheckoutView.as_view(), name="basket-checkout"),
     path("account/addresses/", AccountAddressesView.as_view(), name="account-addresses"),
     path("account/addresses/<int:pk>/", AccountAddressView.as_view(), name="account-address"),
     # Chats between a person and a shop or a workshop; see marketplace/chat.py.

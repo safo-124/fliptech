@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { GraduationCap, Handshake, MessageSquare, Minus, Plus, ShieldCheck, ShoppingBag, Store, Zap } from "lucide-react-native";
+import { GraduationCap, Handshake, MessageSquare, Minus, Plus, ShieldCheck, Store, Zap } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackBar } from "@/components/BackBar";
@@ -15,7 +14,9 @@ import { Heart } from "@/components/market/Heart";
 import { PickupCard } from "@/components/market/PickupCard";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { MAX_QUANTITY, useBag } from "@/lib/bag";
+import { BasketButton } from "@/components/BasketButton";
+import { showBasketToast } from "@/components/market/BasketToast";
+import { useBasket } from "@/lib/basket";
 import { SITE_URL } from "@/lib/config";
 import { cedis } from "@/lib/format";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
@@ -26,17 +27,18 @@ const AVAILABILITY = {
   sold_out: { label: "Sold out", color: colors.mutedForeground, bg: colors.muted },
 } as const;
 
-/** A product: photos, options, how many, then into the bag. */
+/** A product: photos, options, how many, then into the basket (or straight
+    to checkout with this maker with "Order now"). */
+const MAX_QUANTITY = 20;
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const bag = useBag();
+  const basket = useBasket();
+  const [adding, setAdding] = useState<"add" | "order" | null>(null);
   const auth = useAuth();
   const product = useQuery({ queryKey: ["product", id], queryFn: () => api.product(id) });
   const [optionId, setOptionId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const bump = useSharedValue(1);
-  const bumped = useAnimatedStyle(() => ({ transform: [{ scale: bump.get() }] }));
 
   if (product.isError) {
     return (
@@ -98,34 +100,19 @@ export default function ProductScreen() {
     }
   }
 
-  function add() {
+  /** Into the basket on the server; "order" goes on to checkout. */
+  async function put(then: "add" | "order") {
     if (!data) return;
-    bag.add({
-      product: data.id,
-      option: option?.id ?? null,
-      optionLabel: option?.label ?? "",
-      quantity,
-      name: data.name,
-      photo: data.photo,
-      price,
-      seller: { id: data.seller.id, business_name: data.seller.business_name },
-    });
-    bump.set(withSequence(withSpring(1.25), withSpring(1)));
-  }
-
-  /** Into the bag, then straight to the one checkout page for this maker. */
-  function buyNow() {
-    if (!data) return;
-    add();
-    router.push({ pathname: "/checkout", params: { seller: String(data.seller.id) } });
-  }
-
-  function orderFromMaker() {
-    if (!data) return;
-    router.push({
-      pathname: "/order-from-maker",
-      params: { product: String(data.id), option: option ? String(option.id) : "", quantity: String(quantity) },
-    });
+    setAdding(then);
+    try {
+      const next = await basket.add(data.id, option?.id ?? null, quantity);
+      if (then === "order") router.push({ pathname: "/checkout", params: { seller: String(data.seller.id) } });
+      else showBasketToast(next.notice || undefined);
+    } catch (error) {
+      Alert.alert("That did not work", error instanceof ApiError ? error.message : "Check your connection and try again.");
+    } finally {
+      setAdding(null);
+    }
   }
 
   return (
@@ -259,6 +246,11 @@ export default function ProductScreen() {
                 </View>
               ) : null}
 
+              {data.availability === "made_to_order" && data.make_days ? (
+                <Text variant="small" style={{ marginTop: space.sm }}>
+                  About {data.make_days} {data.make_days === 1 ? "day" : "days"} to make
+                </Text>
+              ) : null}
               {depositPercent && price && data.buy_online && !own ? (
                 <Text style={styles.deposit}>
                   Pay deposit {cedis((lineTotal * depositPercent) / 100)} now,{" "}
@@ -309,21 +301,7 @@ export default function ProductScreen() {
 
       {data ? (
         <View style={[styles.cta, { paddingBottom: insets.bottom + space.md }]}>
-          <Pressable
-            onPress={() => router.push("/bag")}
-            style={styles.bagButton}
-            accessibilityRole="button"
-            accessibilityLabel={`Bag, ${bag.count} things`}
-          >
-            <Animated.View style={bumped}>
-              <ShoppingBag size={22} color={colors.brand} />
-            </Animated.View>
-            {bag.count ? (
-              <View style={styles.dot}>
-                <Text style={styles.dotText}>{String(bag.count)}</Text>
-              </View>
-            ) : null}
-          </Pressable>
+          <BasketButton size={52} />
           {own ? (
             <Button label="Open your shop" tone="outline" onPress={() => router.push("/seller")} style={{ flex: 1 }} />
           ) : soldOut ? (
@@ -333,30 +311,25 @@ export default function ProductScreen() {
               onPress={() => void waitForStock()}
               style={{ flex: 1 }}
             />
-          ) : data.buy_online ? (
+          ) : (
             <>
               <Button
-                label={needsOption && !option ? "Choose one" : "Add to bag"}
-                tone="outline"
-                disabled={needsOption && !option}
-                onPress={add}
-                style={{ flex: 1, paddingHorizontal: space.sm }}
+                label={needsOption && !option ? "Choose one" : "Add to basket"}
+                busy={adding === "add"}
+                disabled={(needsOption && !option) || adding !== null || !data.price}
+                onPress={() => void put("add")}
+                style={{ flex: 1.2, paddingHorizontal: space.sm }}
               />
               <Button
-                label={needsOption && !option ? "Buy now" : `Buy now · ${cedis(lineTotal)}`}
-                icon={<Zap size={16} color="#fff" />}
-                disabled={needsOption && !option}
-                onPress={buyNow}
-                style={{ flex: 1.4, paddingHorizontal: space.sm }}
+                label="Order now"
+                tone="outline"
+                icon={<Zap size={16} color={colors.brand} />}
+                busy={adding === "order"}
+                disabled={(needsOption && !option) || adding !== null || !data.price}
+                onPress={() => void put("order")}
+                style={{ flex: 1, paddingHorizontal: space.sm }}
               />
             </>
-          ) : (
-            <Button
-              label={needsOption && !option ? "Choose one first" : "Order from the maker"}
-              disabled={needsOption && !option}
-              onPress={orderFromMaker}
-              style={{ flex: 1 }}
-            />
           )}
         </View>
       ) : null}
@@ -471,25 +444,4 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     ...shadow.floating,
   },
-  bagButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.brandSoft,
-  },
-  dot: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.brandPink,
-  },
-  dotText: { fontFamily: fonts.bold, fontSize: 11, color: "#fff" },
 });

@@ -59,7 +59,9 @@ class TraineeAccount(TimeStampedModel):
         related_name="trainee_account",
     )
     phone = PhoneNumberField(unique=True)
-    phone_verified_at = models.DateTimeField()
+    # Empty until the number is proven with a code. An account made with a
+    # password (while SMS codes cannot be relied on) starts without it.
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
 
     # A second way into the same account, not a second account.
     #

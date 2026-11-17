@@ -1014,27 +1014,6 @@ class DirectOrderCreateView(APIView):
         product = _public_products().filter(pk=pk).select_related("seller").first()
         if product is None:
             raise NotFound(_("No such product."))
-        seller = product.seller
-        if buying_own(request, seller):
-            return own_item_refusal()
-        if paystack.enabled() and seller.takes_payments:
-            return Response(
-                {"detail": _("This maker takes payment on the site: use Buy now.")},
-                status=status.HTTP_409_CONFLICT,
-            )
-        if product.availability == Product.Availability.SOLD_OUT:
-            return Response(
-                {"detail": _("%(name)s is sold out.") % {"name": product.name}},
-                status=status.HTTP_409_CONFLICT,
-            )
-        if product.stock is not None and data["quantity"] > product.stock:
-            return Response(
-                {
-                    "detail": _("Only %(count)s %(name)s left.")
-                    % {"count": product.stock, "name": product.name}
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
         option = None
         if data.get("option"):
             option = product.options.filter(pk=data["option"], available=True).first()
@@ -1043,71 +1022,132 @@ class DirectOrderCreateView(APIView):
                     {"detail": _("Choose one of the sizes or colours shown.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        if not phone_vouched_for(request, data["phone"]):
+        return create_direct_order(
+            request,
+            product.seller,
+            [{"product": product, "option": option, "quantity": data["quantity"]}],
+            phone=data["phone"],
+            name=data["name"],
+            fulfilment=data["fulfilment"],
+            note=data.get("note", ""),
+        )
+
+
+def create_direct_order(request, seller, items, *, phone, name, fulfilment, note=""):
+    """An order to pay the maker directly ("Send order to <seller>"), for a
+    seller who cannot take payment on the site yet: from a product page or
+    from one seller's group in the basket.
+
+    `items` are {"product", "option", "quantity"} with the objects already
+    checked to be the seller's and on show. The buyer's phone must be
+    verified. The seller is texted and sees it in Orders; where the buyer
+    has an account, the chat opens with the order in it; the buyer is
+    texted the order's link. Nothing is charged, and stock is not taken
+    until the maker hands it over.
+    """
+    if buying_own(request, seller):
+        return own_item_refusal()
+    if paystack.enabled() and seller.takes_payments:
+        return Response(
+            {"detail": _("This maker takes payment on the site: pay with MoMo or card.")},
+            status=status.HTTP_409_CONFLICT,
+        )
+    if not items:
+        return Response({"detail": _("Choose something to order.")}, status=400)
+    for item in items:
+        product = item["product"]
+        if product.seller_id != seller.pk:
+            return Response({"detail": _("No such product.")}, status=404)
+        if product.availability == Product.Availability.SOLD_OUT:
             return Response(
-                {"detail": _("Verify this phone number first.")},
-                status=status.HTTP_403_FORBIDDEN,
+                {"detail": _("%(name)s is sold out.") % {"name": product.name}},
+                status=status.HTTP_409_CONFLICT,
             )
-        if is_ratelimited(
-            request, group="direct-order", key=ratelimit_client_ip, rate="20/h", increment=True
-        ):
+        if product.stock is not None and item["quantity"] > product.stock:
             return Response(
-                {"detail": _("Too many orders. Try again later.")},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
+                {
+                    "detail": _("Only %(count)s %(name)s left.")
+                    % {"count": product.stock, "name": product.name}
+                },
+                status=status.HTTP_409_CONFLICT,
             )
-        unit = (option.price if option and option.price is not None else product.price) or 0
-        total = unit * data["quantity"]
-        with transaction.atomic():
-            order = Order.objects.create(
-                reference=payment_reference("fd"),
-                seller=seller,
-                product=product,
-                product_name=product.name[:200],
-                unit_price=unit,
-                quantity=data["quantity"],
-                # What it comes to at the listed price; agreed with the maker.
-                amount_pesewas=int(round(total * 100)),
-                plan=Order.Plan.DIRECT,
-                buyer_phone=data["phone"],
-                buyer_name=data["name"],
-                fulfilment=data["fulfilment"],
-                note=data.get("note", "").strip(),
-                payout=Order.Payout.SPLIT,
-            )
-            OrderItem.objects.create(
+    if not phone_vouched_for(request, phone):
+        return Response(
+            {"detail": _("Verify this phone number first.")},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if is_ratelimited(
+        request, group="direct-order", key=ratelimit_client_ip, rate="20/h", increment=True
+    ):
+        return Response(
+            {"detail": _("Too many orders. Try again later.")},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    def unit_of(item):
+        option = item["option"]
+        return (option.price if option and option.price is not None else item["product"].price) or 0
+
+    first = items[0]
+    count = sum(item["quantity"] for item in items)
+    total = sum(unit_of(item) * item["quantity"] for item in items)
+    summary = first["product"].name
+    if len(items) > 1:
+        summary = _("%(name)s and %(more)s more") % {"name": summary, "more": len(items) - 1}
+    with transaction.atomic():
+        order = Order.objects.create(
+            reference=payment_reference("fd"),
+            seller=seller,
+            product=first["product"],
+            product_name=summary[:200],
+            unit_price=unit_of(first),
+            quantity=count,
+            # What it comes to at the listed prices; agreed with the maker.
+            amount_pesewas=int(round(total * 100)),
+            plan=Order.Plan.DIRECT,
+            buyer_phone=phone,
+            buyer_name=name.strip(),
+            fulfilment=fulfilment,
+            note=(note or "").strip(),
+            payout=Order.Payout.SPLIT,
+        )
+        OrderItem.objects.bulk_create(
+            OrderItem(
                 order=order,
-                product=product,
-                product_name=product.name,
-                option_label=option.label if option else "",
-                unit_price=unit,
-                quantity=data["quantity"],
+                product=item["product"],
+                product_name=item["product"].name,
+                option_label=item["option"].label if item["option"] else "",
+                unit_price=unit_of(item),
+                quantity=item["quantity"],
             )
-        request.session[SESSION_ORDERS] = [
-            *request.session.get(SESSION_ORDERS, [])[-19:],
-            order.reference,
-        ]
-        conversation_id = _direct_order_chat(order, product, option)
-        transaction.on_commit(lambda: _tell_seller_direct(order))
-        payload = OrderSerializer(order).data
-        payload["conversation_id"] = conversation_id
-        return Response(payload, status=status.HTTP_201_CREATED)
+            for item in items
+        )
+    request.session[SESSION_ORDERS] = [
+        *request.session.get(SESSION_ORDERS, [])[-19:],
+        order.reference,
+    ]
+    conversation_id = _direct_order_chat(order, first["product"], items)
+    transaction.on_commit(lambda: _tell_seller_direct(order))
+    transaction.on_commit(lambda: _tell_buyer_direct(order))
+    payload = OrderSerializer(order).data
+    payload["conversation_id"] = conversation_id
+    return Response(payload, status=status.HTTP_201_CREATED)
 
 
-def _direct_order_words(order, option):
-    choice = f" ({option.label})" if option else ""
+def _direct_order_words(order, items):
+    things = "; ".join(
+        f"{item['quantity']} × {item['product'].name}"
+        + (f" ({item['option'].label})" if item["option"] else "")
+        for item in items
+    )
     how = _("collect it") if order.fulfilment == Order.Fulfilment.PICKUP else _("have it delivered")
-    words = _("Order: %(qty)s × %(name)s%(choice)s. I would like to %(how)s.") % {
-        "qty": order.quantity,
-        "name": order.product_name,
-        "choice": choice,
-        "how": how,
-    }
+    words = _("Order: %(things)s. I would like to %(how)s.") % {"things": things, "how": how}
     if order.note:
         words += " " + order.note
     return words
 
 
-def _direct_order_chat(order, product, option):
+def _direct_order_chat(order, product, items):
     """The order as the first message in the buyer's chat with the maker,
     where they agree payment and pickup. Only where the buyer has an account
     (verifying a number makes one); the seller is texted either way."""
@@ -1119,7 +1159,7 @@ def _direct_order_chat(order, product, option):
     if account is None:
         return None
     try:
-        return open_product_chat(product, account, _direct_order_words(order, option)).pk
+        return open_product_chat(product, account, _direct_order_words(order, items)).pk
     except Exception:  # noqa: BLE001 - the order stands without the chat
         logger.exception("Could not open the chat for direct order %s", order.reference)
         return None
@@ -1149,6 +1189,31 @@ def _tell_seller_direct(order):
         )
     except Exception:  # noqa: BLE001 - the order stands without the text
         logger.exception("Could not text the seller about %s", order.reference)
+
+
+def _tell_buyer_direct(order):
+    """The buyer's copy, with the order's link: what happens next."""
+    from appsupport.notify import notify
+    from core.sms import send_sms
+
+    try:
+        notify(
+            order.buyer_phone,
+            _(
+                "%(brand)s: your order %(ref)s is with %(seller)s. They will contact you to "
+                "agree payment and pickup. You pay them directly."
+            )
+            % {
+                "brand": settings.BRAND_NAME,
+                "ref": order.reference,
+                "seller": order.seller.business_name,
+            },
+            sms="always",
+            link=f"/marketplace/order/{order.reference}",
+            send=send_sms,
+        )
+    except Exception:  # noqa: BLE001 - the order stands without the text
+        logger.exception("Could not text the buyer about %s", order.reference)
 
 
 def _buyers_order(request, reference):
@@ -1198,6 +1263,9 @@ class OrderView(APIView):
                 order = confirm_balance(order.balance_reference, verified) or order
             except paystack.PaystackError:
                 pass
+        from .basket import clear_paid_lines
+
+        clear_paid_lines(request, order)
         return Response(OrderSerializer(order).data)
 
 

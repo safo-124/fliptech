@@ -62,6 +62,7 @@ export type SellerProduct = {
   availability: "available" | "made_to_order" | "sold_out";
   condition: "new" | "used";
   stock: number | null;
+  make_days?: number | null;
   options: {id: number; label: string; price: string | null; available: boolean}[];
   status: "draft" | "published" | "suspended";
   /** What would most help it sell; see backend OwnProductSerializer.get_tips. */
@@ -179,6 +180,7 @@ export type ProductInput = {
   availability?: SellerProduct["availability"];
   condition?: SellerProduct["condition"];
   stock?: number | null;
+  make_days?: number | null;
 };
 
 /** What the quick "Add an item" form sends: the item, the photos already

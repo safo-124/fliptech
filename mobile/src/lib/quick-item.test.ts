@@ -48,4 +48,12 @@ describe("the quick item form", () => {
     expect(nameExample("welding", "x")).toBe("Metal shoe rack");
     expect(nameExample("hairdressing", "x")).toBe("Braided wig");
   });
+
+  it("sends the days to make only for something made to order", () => {
+    const made = toInput({ ...blankDraft(null), name: "Gate", availability: "made_to_order", makeDays: "10" }, [], false);
+    const ready = toInput({ ...blankDraft(null), name: "Gate", makeDays: "10" }, [], false);
+
+    expect(made.make_days).toBe(10);
+    expect(ready).not.toHaveProperty("make_days");
+  });
 });

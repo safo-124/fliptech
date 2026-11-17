@@ -106,6 +106,21 @@ class AccountSerializer(serializers.ModelSerializer):
     def get_photo(self, obj):
         return public_url(obj.photo.url, self.context.get("request")) if obj.photo else None
 
+    has_password = serializers.SerializerMethodField()
+    email_verified = serializers.SerializerMethodField()
+    phone_verified = serializers.SerializerMethodField()
+
+    def get_has_password(self, obj) -> bool:
+        """False for an account made with a phone code: it can set one."""
+        return obj.user.has_usable_password()
+
+    def get_email_verified(self, obj) -> bool:
+        return obj.email_verified_at is not None
+
+    def get_phone_verified(self, obj) -> bool:
+        """False for a number given at password sign-up and never proven."""
+        return obj.phone_verified_at is not None
+
     class Meta:
         model = CustomerAccount
         fields = [
@@ -116,6 +131,9 @@ class AccountSerializer(serializers.ModelSerializer):
             "photo",
             "interests",
             "created_at",
+            "has_password",
+            "email_verified",
+            "phone_verified",
         ]
         read_only_fields = ["phone", "photo", "created_at"]
 
@@ -141,13 +159,16 @@ def _roles(user):
 
 
 def account_payload(request):
+    # Whether "Send me a code" is offered, besides phone or email and a password.
+    methods = {"code": settings.PHONE_CODE_SIGN_IN}
     account = own_customer_account(request)
     if account is None:
-        return {"authenticated": False, "account": None, "roles": None}
+        return {"authenticated": False, "account": None, "roles": None, "sign_in": methods}
     return {
         "authenticated": True,
         "account": AccountSerializer(account, context={"request": request}).data,
         "roles": _roles(request.user),
+        "sign_in": methods,
     }
 
 
@@ -184,9 +205,14 @@ class AccountView(APIView):
             "email" in serializer.validated_data
             and serializer.validated_data["email"] != account.email
         ):
-            # A new address is not proven until a code sent to it is typed.
+            # A new address is not proven until the link sent to it is opened.
             serializer.validated_data["email_verified_at"] = None
+        changed_email = serializer.validated_data.get("email_verified_at", "kept") is None
         serializer.save()
+        if changed_email and account.email:
+            from .passwords import send_confirm_email
+
+            transaction.on_commit(lambda: send_confirm_email(account))
         # The learning pages show the same name and email (one profile).
         from .profile_sync import push_to_trainee
 

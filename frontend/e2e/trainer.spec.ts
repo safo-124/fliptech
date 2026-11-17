@@ -40,6 +40,21 @@ async function mockTrainerApi(
         : {user_id: null, customer: null, trainer: null, trainee: null, seller: null},
     ),
   );
+  // The account check in front of the wizard (SignInGate): these tests walk
+  // the phone-code sign-up, so the code is switched on here.
+  await page.route(/\/api\/account\/$/, (route) =>
+    json(
+      route,
+      signedIn || authenticated
+        ? {
+            authenticated: true,
+            account: {phone: "+233241234567", display_name: signedInAs?.name ?? "", email: null},
+            roles: {trainee: null, trainer: authenticated ? {status: "pending"} : null, seller: null},
+            sign_in: {code: true},
+          }
+        : {authenticated: false, account: null, roles: null, sign_in: {code: true}},
+    ),
+  );
   await page.route("**/api/account/roles/trainer/**", (route) => {
     calls.push("add-trainer-role");
     authenticated = true;

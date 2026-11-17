@@ -77,7 +77,9 @@ class SellerAccount(TimeStampedModel):
     # buyer messages on WhatsApp, so an account without one has no way to be
     # reached about an order.
     phone = PhoneNumberField(unique=True)
-    phone_verified_at = models.DateTimeField()
+    # Empty until the number is proven with a code. An account made with a
+    # password (while SMS codes cannot be relied on) starts without it.
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
 
     # A second way in, not a second account. Null rather than blank so the
     # uniqueness constraint ignores every account that has not added one; a
@@ -384,6 +386,9 @@ class Product(TimeStampedModel):
     # How many are left, when the seller counts them. Null: not counted.
     # Paid orders take from it; at 0 the product shows as sold out.
     stock = models.PositiveIntegerField(null=True, blank=True)
+    # Made to order: about how many days the seller needs to make it, shown
+    # as "About N days" in the basket and at checkout. Null: not said.
+    make_days = models.PositiveSmallIntegerField(null=True, blank=True)
 
     # Second-hand tools: a trainee who has finished their course sells the
     # kit on. Said on every card, so nobody buys used thinking it is new.
@@ -1456,3 +1461,65 @@ class BundleItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.product_id} in {self.bundle_id}"
+
+
+class Basket(models.Model):
+    """The shopping basket, kept on the server so the website and the app
+    show the same one and every rule (stock, prices, own items) is applied
+    in one place (marketplace/basket.py).
+
+    Signed in, it belongs to the customer account. Signed out, it belongs to
+    a random token the device keeps (local storage on the website, secure
+    storage on the phone) and sends as X-Basket-Token; on sign-in it is
+    merged into the account's basket and the token's basket is deleted.
+    """
+
+    account = models.OneToOneField(
+        "accounts.CustomerAccount",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="basket",
+    )
+    # Only a hash is kept: the token works like a password for the basket.
+    token_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(account__isnull=False) | models.Q(token_hash__isnull=False),
+                name="a_basket_has_an_owner",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Basket {self.pk} ({'account ' + str(self.account_id) if self.account_id else 'device'})"
+
+
+class BasketLine(models.Model):
+    """One thing in a basket. The price is a snapshot from when it was put
+    in, so a later change can be pointed out ("Price changed from GH₵X to
+    GH₵Y"); what is charged is always the price at checkout."""
+
+    basket = models.ForeignKey(Basket, on_delete=models.CASCADE, related_name="lines")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="in_baskets")
+    option = models.ForeignKey(
+        ProductOption, on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+    quantity = models.PositiveSmallIntegerField(default=1)
+    price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["added_at", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["basket", "product", "option"],
+                name="a_basket_line_once",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity} x {self.product_id} in basket {self.basket_id}"

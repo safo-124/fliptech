@@ -225,7 +225,18 @@ else:
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
+    # A person signing in with their phone number or email and a password
+    # (accounts/passwords.py). Staff logins are refused there.
+    "accounts.passwords.PhoneOrEmailBackend",
 ]
+
+# How long a "set a new password" link from the email works.
+PASSWORD_RESET_TIMEOUT = 2 * 60 * 60
+
+# The phone code sign-in. Off while SMS codes cannot be relied on: the website
+# and the app offer phone or email and a password instead. The code endpoints
+# keep working, so switching this on brings the code back as a second way in.
+PHONE_CODE_SIGN_IN = env.bool("PHONE_CODE_SIGN_IN", default=False)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -398,7 +409,7 @@ CORS_ALLOW_CREDENTIALS = True
 # Upload-Offset says where a piece of a video upload starts. Only matters when
 # the site and the API are on different origins, as in development.
 # x-fliptech-client: the app says so, for the search report (search/log.py).
-CORS_ALLOW_HEADERS = (*default_headers, "upload-offset", "x-fliptech-client")
+CORS_ALLOW_HEADERS = (*default_headers, "upload-offset", "x-fliptech-client", "x-basket-token")
 
 # Origins allowed to send cookie-carrying POSTs. In development the Next.js dev
 # server is a different origin from Django (another port), so a signed-in

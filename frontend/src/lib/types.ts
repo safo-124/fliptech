@@ -876,6 +876,8 @@ export type ProductDetail = ProductCard & {
   options: ProductOption[];
   /** Collect from the workshop: its address and map point, for a shop that is one. */
   pickup: PickupPoint | null;
+  /** Made to order: about how many days the maker needs, when they said. */
+  make_days?: number | null;
 };
 
 export type PickupPoint = {
