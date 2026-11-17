@@ -336,24 +336,34 @@ class LogoutView(APIView):
 
 
 class CloseView(APIView):
-    """Close the whole account. accounts/closing.py says what goes and what stays."""
+    """Delete the whole account: shop, workshop and all. accounts/removal.py
+    says what goes and the few money records that stay, emptied."""
 
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsCustomer]
 
     @extend_schema(request=None, responses={200: None})
     def post(self, request):
-        from .closing import CannotClose, close_login
+        from .removal import CannotRemove, remove_login
 
         if request.data.get("confirm") is not True:
             return Response(
-                {"detail": _("Confirm that you want to close your account.")},
+                {"detail": _("Confirm that you want to delete your account.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         user = request.user
+        # A password account proves it is the person, not someone at an
+        # unlocked phone. An account that only ever used codes has none.
+        if user.has_usable_password() and not user.check_password(
+            str(request.data.get("password") or "")
+        ):
+            return Response(
+                {"detail": _("That password is not right."), "code": "password"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
-            close_login(user)
-        except CannotClose as refused:
+            remove_login(user)
+        except CannotRemove as refused:
             return Response(
                 {"detail": refused.message, "code": refused.code},
                 status=status.HTTP_409_CONFLICT,

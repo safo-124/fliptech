@@ -1,7 +1,20 @@
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 
 from .models import AppToken, CustomerAccount
+from .removal_admin import UserRemovalAdmin
+
+User = get_user_model()
+if admin.site.is_registered(User):
+    admin.site.unregister(User)
+
+
+@admin.register(User)
+class LoginAdmin(UserRemovalAdmin, UserAdmin):
+    """Django's own user admin, with Delete running accounts/removal.py so a
+    login's shop or workshop leaves the website with it."""
 
 
 @admin.register(CustomerAccount)

@@ -50,6 +50,8 @@ type Auth = {
   /** Make this login a trainee too, for courses: once, and silently. */
   ensureTrainee: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Delete the whole login, shop and workshop included; signs out here. */
+  deleteAccount: (password?: string) => Promise<void>;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -160,6 +162,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         await forget();
         client.invalidateQueries();
+      },
+      async deleteAccount(password) {
+        await postJson("/api/account/close/", password === undefined ? { confirm: true } : { confirm: true, password });
+        await forget();
+        client.clear();
       },
     }),
     [ready, hasToken, account.data, client, forget, keepToken, methods.data],
