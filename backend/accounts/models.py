@@ -21,7 +21,9 @@ class CustomerAccount(TimeStampedModel):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="customer_account"
     )
     phone = PhoneNumberField(unique=True)
-    phone_verified_at = models.DateTimeField()
+    # Empty until the number is proven with a code. An account made with a
+    # password (while SMS codes cannot be relied on) starts without it.
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
     # A second way in and somewhere to send receipts. Null rather than blank
     # so the uniqueness constraint ignores everyone without one.
     email = models.EmailField(unique=True, null=True, blank=True)

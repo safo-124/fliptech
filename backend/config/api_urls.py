@@ -7,6 +7,7 @@ endpoints, the tokenised dashboard, and the signed-in trainee and trainer areas.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts import passwords
 from accounts.app_views import AppCodeRequestView, AppCodeVerifyView, AppSignOutView
 from accounts.views import AccountPhotoView, AccountView
 from accounts.views import AddressesView as AccountAddressesView
@@ -591,8 +592,31 @@ urlpatterns = [
     path("app/request-code/", AppCodeRequestView.as_view(), name="app-request-code"),
     path("app/verify-code/", AppCodeVerifyView.as_view(), name="app-verify-code"),
     path("app/sign-out/", AppSignOutView.as_view(), name="app-sign-out"),
+    path("app/register/", passwords.AppRegisterView.as_view(), name="app-register"),
+    path("app/sign-in/", passwords.AppSignInView.as_view(), name="app-sign-in"),
     # One sign-in for everyone; see accounts/views.py.
     path("account/", AccountView.as_view(), name="account"),
+    path("account/register/", passwords.RegisterView.as_view(), name="account-register"),
+    path("account/sign-in/", passwords.SignInView.as_view(), name="account-sign-in"),
+    path(
+        "account/password/forgot/",
+        passwords.ForgotPasswordView.as_view(),
+        name="account-password-forgot",
+    ),
+    path(
+        "account/password/reset/",
+        passwords.ResetPasswordView.as_view(),
+        name="account-password-reset",
+    ),
+    path("account/password/", passwords.SetPasswordView.as_view(), name="account-password"),
+    path(
+        "account/email/confirm/", passwords.ConfirmEmailView.as_view(), name="account-email-confirm"
+    ),
+    path(
+        "account/email/resend/",
+        passwords.ResendConfirmEmailView.as_view(),
+        name="account-email-resend",
+    ),
     path("account/request-code/", AccountCodeRequestView.as_view(), name="account-request-code"),
     path("account/verify-code/", AccountCodeVerifyView.as_view(), name="account-verify-code"),
     path("account/logout/", AccountLogoutView.as_view(), name="account-logout"),

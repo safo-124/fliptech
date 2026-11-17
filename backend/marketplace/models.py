@@ -77,7 +77,9 @@ class SellerAccount(TimeStampedModel):
     # buyer messages on WhatsApp, so an account without one has no way to be
     # reached about an order.
     phone = PhoneNumberField(unique=True)
-    phone_verified_at = models.DateTimeField()
+    # Empty until the number is proven with a code. An account made with a
+    # password (while SMS codes cannot be relied on) starts without it.
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
 
     # A second way in, not a second account. Null rather than blank so the
     # uniqueness constraint ignores every account that has not added one; a

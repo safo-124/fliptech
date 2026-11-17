@@ -1,10 +1,12 @@
-"""Passwordless phone identities shared by every kind of account.
+"""Phone identities shared by every kind of account.
 
-Both kinds of account sit on a dedicated Django user that can never log in to
-the back office: no password, no staff flag, no groups, no permissions. The
-checks live here once so the trainer and trainee flows cannot drift apart on
-the property that matters most, which is that a phone login can never become a
-staff login.
+Every account sits on a dedicated Django user that can never log in to the
+back office: no staff flag, no superuser, no groups, no permissions. It is
+made without a password; the person may set one later to sign in with their
+phone or email and that password (accounts/passwords.py), which does not make
+it a staff login. The checks live here once so the flows cannot drift apart on
+the property that matters most, which is that a person's login can never
+become a staff login.
 """
 
 from uuid import uuid4
@@ -36,12 +38,14 @@ def create_dedicated_user(user_model, *, prefix):
 
 
 def user_is_unprivileged(user):
-    """True only for a user that a phone login is allowed to establish."""
+    """True only for a user that a person's sign-in (a phone code, or their
+    own password) is allowed to establish: never staff, a superuser, or a
+    login with groups or permissions. A password of their own is allowed: it
+    is how a person signs in while SMS codes cannot be relied on."""
     return (
         user.is_active
         and not user.is_staff
         and not user.is_superuser
-        and not user.has_usable_password()
         and not user.groups.exists()
         and not user.user_permissions.exists()
     )
