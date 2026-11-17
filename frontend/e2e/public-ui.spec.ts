@@ -123,9 +123,15 @@ test.describe("public discovery UI", () => {
 
     await enquire.click();
     await expect(page.getByRole("heading", {level: 1, name: /send an enquiry/i})).toBeVisible();
-    await expect(page.getByLabel(/your phone number/i)).toBeVisible();
-    await expect(page.getByRole("button", {name: /continue/i})).toBeVisible();
-    await expectMinimumTapHeight(page, 'button[type="submit"]');
+    // Signed out, with the phone code switched off (the default while SMS
+    // cannot be relied on): the form asks them to sign in or create an
+    // account first, in the sign-in sheet.
+    const signIn = page.getByRole("button", {name: /sign in or create an account/i});
+    await expect(signIn).toBeVisible();
+    const box = await signIn.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await signIn.click();
+    await expect(page.getByLabel(/phone number or email/i)).toBeVisible();
     await expectNoPageOverflow(page);
   });
 });
