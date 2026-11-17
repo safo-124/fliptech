@@ -1,5 +1,6 @@
 "use client";
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import {ArrowRight, Loader2, Store} from "lucide-react";
 import {useRouter} from "next/navigation";
 import {useEffect, useState} from "react";
@@ -25,7 +26,7 @@ import {getSellerSessionForJoining, requestSellerCode, verifySellerCode} from "@
  * field goes into the address bar, the history and the server log. Unnamed
  * controls submit nothing, so the fallback is a harmless reload.
  */
-export function SellerSignIn() {
+function SellerSignInForm() {
   const t = useTranslations("SellerPages");
   const router = useRouter();
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -170,5 +171,14 @@ export function SellerSignIn() {
         </Button>
       </CardFooter>
     </Card>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function SellerSignIn() {
+  return (
+    <SignInGate request={{interest: "sell"}}>
+      <SellerSignInForm />
+    </SignInGate>
   );
 }

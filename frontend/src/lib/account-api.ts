@@ -24,14 +24,23 @@ export type CustomerAccount = {
   /** What they said brought them, ticked once after signing up. */
   interests: ("learn" | "teach" | "buy" | "sell")[];
   created_at: string;
+  /** False for an account made with a phone code: it can set one. */
+  has_password?: boolean;
+  email_verified?: boolean;
+  /** False for a number given at sign-up and never proven with a code. */
+  phone_verified?: boolean;
 };
 
+/** Which ways in are offered besides phone or email and a password. */
+export type SignInMethods = {code: boolean};
+
 export type AccountSession =
-  | {authenticated: false; account: null; roles: null}
+  | {authenticated: false; account: null; roles: null; sign_in?: SignInMethods}
   | {
       authenticated: true;
       account: CustomerAccount;
       roles: {trainee: RoleState; trainer: RoleState; seller: RoleState};
+      sign_in?: SignInMethods;
     };
 
 /** Set the account's picture (a file from the browser) or take it off. */
@@ -63,6 +72,56 @@ export function verifyAccountCode(body: {challenge_id: string; phone: string; co
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** A new account: phone, email and a password (backend accounts/passwords.py).
+ *  Signs in; a link to confirm the email is sent. */
+export function registerWithPassword(body: {phone: string; email: string; password: string; name?: string}) {
+  return sessionFetch<AccountSession & {joined: boolean}>("/api/account/register/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** `login` is a phone number (however typed) or an email address. */
+export function signInWithPassword(login: string, password: string) {
+  return sessionFetch<AccountSession & {joined: boolean}>("/api/account/sign-in/", {
+    method: "POST",
+    body: JSON.stringify({login, password}),
+  });
+}
+
+/** Emails a link to set a new password. The answer is the same whether or not
+ *  the account exists. */
+export function forgotPassword(login: string) {
+  return sessionFetch<{detail: string}>("/api/account/password/forgot/", {
+    method: "POST",
+    body: JSON.stringify({login}),
+  });
+}
+
+/** The link from the email: a new password, and signed in. */
+export function resetPassword(body: {uid: string; token: string; password: string}) {
+  return sessionFetch<AccountSession>("/api/account/password/reset/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Set a password (an account made with a code has none) or change it. */
+export function setAccountPassword(body: {password: string; current_password?: string}) {
+  return sessionFetch<AccountSession>("/api/account/password/", {method: "POST", body: JSON.stringify(body)});
+}
+
+export function confirmEmail(body: {uid: string; token: string}) {
+  return sessionFetch<{confirmed: boolean; email: string}>("/api/account/email/confirm/", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function resendConfirmEmail() {
+  return sessionFetch<{detail: string}>("/api/account/email/resend/", {method: "POST"});
 }
 
 export function updateAccount(

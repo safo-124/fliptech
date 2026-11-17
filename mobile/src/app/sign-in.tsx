@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, MessageSquareText, X } from "lucide-react-native";
+import { ArrowLeft, Eye, EyeOff, KeyRound, MailCheck, MessageSquareText, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, type TextInputInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,8 +15,11 @@ const CODE_LENGTH = 6;
 const RESEND_AFTER = 30;
 
 /**
- * Sign in with a phone number and the code texted to it: no passwords.
- * The same login as the website. A first sign-in makes the account.
+ * Sign in with a phone number or email and a password, create an account
+ * (phone, email, password), or ask for a link to set a new password: the
+ * same login as the website (backend accounts/passwords.py). The phone code
+ * is offered too ("Send me a code instead") only while it is switched on,
+ * because SMS codes cannot be relied on yet.
  *
  * Opened as a sheet from wherever sign-in is needed; `why` says what for
  * ("to send an enquiry"), and it closes back to that screen when done.
@@ -25,6 +28,7 @@ export default function SignInScreen() {
   const { why } = useLocalSearchParams<{ why?: string }>();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
+  const [mode, setMode] = useState<"sign_in" | "register" | "forgot" | "code">("sign_in");
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [typed, setTyped] = useState("");
   const [name, setName] = useState("");
@@ -67,6 +71,11 @@ export default function SignInScreen() {
     }
   }
 
+  function done() {
+    if (router.canGoBack()) router.back();
+    else router.replace("/me");
+  }
+
   async function checkCode(entered = code) {
     if (!phone || !challenge || entered.length < CODE_LENGTH) return;
     setProblem(null);
@@ -91,19 +100,37 @@ export default function SignInScreen() {
       >
         <View style={styles.top}>
           <Pressable
-            onPress={() => (step === "code" ? setStep("phone") : router.back())}
+            onPress={() =>
+              mode === "code" && step === "code"
+                ? setStep("phone")
+                : mode !== "sign_in"
+                  ? setMode("sign_in")
+                  : router.back()
+            }
             hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel={step === "code" ? "Change the number" : "Close"}
+            accessibilityLabel={mode === "sign_in" ? "Close" : "Back"}
             style={styles.iconButton}
           >
-            {step === "code" ? <ArrowLeft size={22} color={colors.foreground} /> : <X size={22} color={colors.foreground} />}
+            {mode === "sign_in" ? <X size={22} color={colors.foreground} /> : <ArrowLeft size={22} color={colors.foreground} />}
           </Pressable>
         </View>
+
+        {mode !== "code" ? (
+          <PasswordForms
+            mode={mode}
+            why={why}
+            setMode={setMode}
+            onDone={done}
+            onUseCode={auth.codeSignIn ? () => setMode("code") : undefined}
+          />
+        ) : (
+        <>
 
         <View style={styles.badge}>
           <MessageSquareText size={28} color={colors.brand} />
         </View>
+
 
         {step === "phone" ? (
           <>
@@ -189,8 +216,229 @@ export default function SignInScreen() {
             </View>
           </>
         )}
+        </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function PasswordForms({
+  mode,
+  why,
+  setMode,
+  onDone,
+  onUseCode,
+}: {
+  mode: "sign_in" | "register" | "forgot";
+  why?: string;
+  setMode: (mode: "sign_in" | "register" | "forgot") => void;
+  onDone: () => void;
+  onUseCode?: () => void;
+}) {
+  const auth = useAuth();
+  const [login, setLogin] = useState("");
+  const [typedPhone, setTypedPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [sent, setSent] = useState<string | null>(null);
+
+  function go(next: "sign_in" | "register" | "forgot") {
+    setProblem(null);
+    setFields({});
+    setSent(null);
+    setMode(next);
+  }
+
+  async function submit() {
+    setProblem(null);
+    setFields({});
+    if (mode === "register") {
+      const phone = ghanaPhone(typedPhone);
+      const wrong: Record<string, string> = {};
+      if (!phone) wrong.phone = "Enter a Ghana mobile number, like 024 123 4567.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) wrong.email = "Enter an email address, like you@example.com.";
+      if (password.length < 8) wrong.password = "At least 8 characters.";
+      if (Object.keys(wrong).length) {
+        setFields(wrong);
+        return;
+      }
+    } else if (!login.trim()) {
+      setFields({ login: "Type your phone number or email." });
+      return;
+    }
+    setBusy(true);
+    try {
+      if (mode === "sign_in") {
+        await auth.signInWithPassword(login.trim(), password);
+        onDone();
+      } else if (mode === "register") {
+        await auth.register({ phone: ghanaPhone(typedPhone) ?? "", email: email.trim(), password, name: name.trim() });
+        onDone();
+      } else {
+        setSent(await auth.forgotPassword(login.trim()));
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setFields(error.fields);
+        setProblem(error.fields.detail ?? (Object.keys(error.fields).length ? null : error.message));
+      } else {
+        setProblem("That did not work. Try again.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const passwordField = (label: string, hint?: string) => (
+    <View>
+      <Field
+        label={label}
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry={!show}
+        autoComplete={mode === "register" ? "new-password" : "current-password"}
+        textContentType={mode === "register" ? "newPassword" : "password"}
+        autoCapitalize="none"
+        hint={hint}
+        error={fields.password}
+        onSubmitEditing={() => void submit()}
+        returnKeyType="go"
+      />
+      <Pressable
+        onPress={() => setShow((on) => !on)}
+        accessibilityRole="button"
+        accessibilityLabel={show ? "Hide password" : "Show password"}
+        style={styles.eye}
+        hitSlop={6}
+      >
+        {show ? <EyeOff size={20} color={colors.mutedForeground} /> : <Eye size={20} color={colors.mutedForeground} />}
+      </Pressable>
+    </View>
+  );
+
+  const link = (label: string, onPress: () => void) => (
+    <Pressable onPress={onPress} accessibilityRole="button" style={styles.link}>
+      <Text style={styles.linkText}>{label}</Text>
+    </Pressable>
+  );
+
+  return (
+    <>
+      <View style={styles.badge}>
+        <KeyRound size={28} color={colors.brand} />
+      </View>
+      {mode === "forgot" ? (
+        <>
+          <Text variant="display" style={styles.title}>
+            Set a new password
+          </Text>
+          <Text style={styles.lead}>Type your phone number or email. We email you a link to set a new password.</Text>
+          <View style={styles.form}>
+            {sent ? (
+              <View style={styles.sent} accessibilityLiveRegion="polite">
+                <MailCheck size={18} color={colors.visit} />
+                <Text style={{ flex: 1, color: colors.visit }}>{sent}</Text>
+              </View>
+            ) : null}
+            <Field
+              label="Phone number or email"
+              value={login}
+              onChangeText={setLogin}
+              autoCapitalize="none"
+              autoComplete="username"
+              placeholder="024 123 4567 or you@example.com"
+              error={fields.login}
+            />
+            <FormError message={problem} />
+            <Button label="Email me a link" onPress={() => void submit()} busy={busy} />
+            <Text variant="small">No email on your account? Contact support and we will set a password for you.</Text>
+            {link("Back to sign in", () => go("sign_in"))}
+          </View>
+        </>
+      ) : mode === "register" ? (
+        <>
+          <Text variant="display" style={styles.title}>
+            Create your account
+          </Text>
+          <Text style={styles.lead}>
+            {why ? `Create an account ${why}. ` : ""}Your courses, orders and saved things follow you to any phone.
+          </Text>
+          <View style={styles.form}>
+            <Field
+              label="Phone number"
+              prefix="+233"
+              value={typedPhone}
+              onChangeText={setTypedPhone}
+              placeholder="24 123 4567"
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              error={fields.phone}
+            />
+            <Field
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              hint="For your receipts, and to reset your password if you forget it."
+              error={fields.email}
+            />
+            <Field
+              label="Your name (optional)"
+              value={name}
+              onChangeText={setName}
+              placeholder="Ama Owusu"
+              autoComplete="name"
+              textContentType="name"
+              maxLength={120}
+            />
+            {passwordField("Choose a password", "At least 8 characters. Not just numbers.")}
+            <FormError message={problem} />
+            <Button label="Create my account" onPress={() => void submit()} busy={busy} />
+            {link("Already have an account? Sign in", () => go("sign_in"))}
+            {onUseCode ? link("Send me a code instead", onUseCode) : null}
+          </View>
+        </>
+      ) : (
+        <>
+          <Text variant="display" style={styles.title}>
+            Sign in
+          </Text>
+          <Text style={styles.lead}>
+            {why ? `Sign in ${why}. ` : ""}With your phone number or email and your password.
+          </Text>
+          <View style={styles.form}>
+            <Field
+              label="Phone number or email"
+              value={login}
+              onChangeText={setLogin}
+              autoCapitalize="none"
+              autoComplete="username"
+              textContentType="username"
+              placeholder="024 123 4567 or you@example.com"
+              error={fields.login}
+            />
+            {passwordField("Password")}
+            <FormError message={problem} />
+            <Button label="Sign in" onPress={() => void submit()} busy={busy} />
+            {link("Forgot your password?", () => go("forgot"))}
+            {link("Signed up with a code before? Set a password", () => go("forgot"))}
+            {link("New here? Create an account", () => go("register"))}
+            {onUseCode ? link("Send me a code instead", onUseCode) : null}
+          </View>
+        </>
+      )}
+    </>
   );
 }
 
@@ -233,4 +481,8 @@ const styles = StyleSheet.create({
   cellActive: { borderColor: colors.brand, borderWidth: 2 },
   digit: { fontFamily: fonts.extrabold, fontSize: 24, color: colors.brandDeep },
   hiddenInput: { position: "absolute", width: 1, height: 1, opacity: 0 },
+  eye: { position: "absolute", right: 4, top: 30, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  link: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
+  linkText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.brand },
+  sent: { flexDirection: "row", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.visitBg },
 });

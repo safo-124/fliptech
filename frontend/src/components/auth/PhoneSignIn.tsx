@@ -8,8 +8,10 @@ import {ZodError} from "zod";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
+import {PasswordSignIn} from "@/components/auth/PasswordSignIn";
 import {
   addRole,
+  getAccount,
   requestAccountCode,
   updateAccount,
   verifyAccountCode,
@@ -32,32 +34,105 @@ const INTERESTS: {key: Interest; icon: typeof GraduationCap}[] = [
   {key: "sell", icon: Store},
 ];
 
+type SignInProps = {
+  role?: "trainee";
+  interest?: Interest;
+  idPrefix?: string;
+  /** The Create your account page: starts on creating an account. */
+  register?: boolean;
+  /** Called when a number that already has an account chooses to sign in. */
+  onAlreadyRegistered?: () => void;
+  onDone: (session: AccountSession, joined: boolean) => void | Promise<void>;
+};
+
 /**
- * Signing in with a phone, the same everywhere: the number, the code, and
- * for someone new one more screen, their name and what brought them.
+ * Signing in, the same everywhere: phone number or email and a password
+ * (or creating an account, or a link to set a new password), and for someone
+ * new one more screen, their name and what brought them.
+ *
+ * The phone code is offered too ("Send me a code instead") only while it is
+ * switched on (backend PHONE_CODE_SIGN_IN): SMS codes cannot be relied on yet.
  *
  * `onDone` gets the session once they are in. `role: "trainee"` makes the
  * login a trainee too (for learning), and `interest` ticks that card in
  * advance on the welcome screen.
  */
-export function PhoneSignIn({
+export function PhoneSignIn(props: SignInProps) {
+  const {role, interest, idPrefix = "sign-in", register = false, onDone} = props;
+  const [useCode, setUseCode] = useState(false);
+  const [codeOn, setCodeOn] = useState(false);
+  const [welcome, setWelcome] = useState<{name: string} | null>(null);
+  const chosen: Interest[] = interest ? [interest] : role === "trainee" ? ["learn"] : [];
+
+  useEffect(() => {
+    let active = true;
+    // Also hands out the CSRF cookie the sign-in needs.
+    getAccount()
+      .then((session) => active && setCodeOn(Boolean(session.sign_in?.code)))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (welcome) {
+    return (
+      <WelcomeStep
+        idPrefix={idPrefix}
+        initialName={welcome.name}
+        initialChosen={chosen}
+        onSaved={(session) => finishSignIn(session, true, role, onDone)}
+      />
+    );
+  }
+  if (useCode && codeOn) return <CodeSignIn {...props} />;
+  return (
+    <PasswordSignIn
+      idPrefix={idPrefix}
+      initialMode={register ? "register" : "sign_in"}
+      onUseCode={codeOn ? () => setUseCode(true) : undefined}
+      onSignedIn={async (session, joined) => {
+        // Someone new (or with no name yet): their name and what brought them.
+        if (joined || (session.authenticated && !session.account.display_name)) {
+          setWelcome({name: session.authenticated ? session.account.display_name : ""});
+          return;
+        }
+        await finishSignIn(session, false, role, onDone);
+      }}
+    />
+  );
+}
+
+/** What every way of signing in does once the person is in. */
+async function finishSignIn(
+  session: AccountSession,
+  joined: boolean,
+  role: "trainee" | undefined,
+  onDone: SignInProps["onDone"],
+) {
+  void syncSavedWithAccount();
+  void mergeBasketAfterSignIn();
+  let current = session;
+  if (role === "trainee" && current.authenticated && !current.roles.trainee) {
+    try {
+      current = await addRole("trainee");
+    } catch {
+      // A trainee login staff switched off stays off; the page says so.
+    }
+  }
+  announceSessionChange();
+  await onDone(current, joined);
+}
+
+/** The phone and the code: only while the code is switched on. */
+function CodeSignIn({
   role,
   interest,
   idPrefix = "sign-in",
   register = false,
   onAlreadyRegistered,
   onDone,
-}: {
-  role?: "trainee";
-  interest?: Interest;
-  idPrefix?: string;
-  /** The Create your account page: a number that already has an account is
-   *  told so, with a way to sign in, instead of being sent a code. */
-  register?: boolean;
-  /** Called when that happens and they choose to sign in instead. */
-  onAlreadyRegistered?: () => void;
-  onDone: (session: AccountSession, joined: boolean) => void | Promise<void>;
-}) {
+}: SignInProps) {
   const t = useTranslations("SignIn");
   const [step, setStep] = useState<"phone" | "code" | "welcome">("phone");
   const [phone, setPhone] = useState("");
@@ -92,18 +167,7 @@ export function PhoneSignIn({
   }
 
   async function finish(session: AccountSession, joined: boolean) {
-    void syncSavedWithAccount();
-    void mergeBasketAfterSignIn();
-    let current = session;
-    if (role === "trainee" && current.authenticated && !current.roles.trainee) {
-      try {
-        current = await addRole("trainee");
-      } catch {
-        // A trainee login staff switched off stays off; the page says so.
-      }
-    }
-    announceSessionChange();
-    await onDone(current, joined);
+    await finishSignIn(session, joined, role, onDone);
   }
 
   async function sendCode(intent?: "register") {

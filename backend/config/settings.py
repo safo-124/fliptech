@@ -225,7 +225,18 @@ else:
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
+    # A person signing in with their phone number or email and a password
+    # (accounts/passwords.py). Staff logins are refused there.
+    "accounts.passwords.PhoneOrEmailBackend",
 ]
+
+# How long a "set a new password" link from the email works.
+PASSWORD_RESET_TIMEOUT = 2 * 60 * 60
+
+# The phone code sign-in. Off while SMS codes cannot be relied on: the website
+# and the app offer phone or email and a password instead. The code endpoints
+# keep working, so switching this on brings the code back as a second way in.
+PHONE_CODE_SIGN_IN = env.bool("PHONE_CODE_SIGN_IN", default=False)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

@@ -12,6 +12,7 @@
  * for the same person, never for the next one to use the tab.
  */
 
+import {SignInGate} from "@/components/auth/SignInGate";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertCircle,
@@ -48,7 +49,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function EnquiryForm({
+function EnquiryFormForm({
   programmeId,
   intakeId,
   onSent,
@@ -386,5 +387,14 @@ export function EnquiryForm({
         </p>
       </div>
     </form>
+  );
+}
+
+/** Signed in first while the phone code is switched off (see SignInGate). */
+export function EnquiryForm(props: React.ComponentProps<typeof EnquiryFormForm>) {
+  return (
+    <SignInGate request={{interest: "learn"}}>
+      <EnquiryFormForm {...props} />
+    </SignInGate>
   );
 }

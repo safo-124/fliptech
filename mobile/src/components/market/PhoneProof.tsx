@@ -1,7 +1,9 @@
+import { router } from "expo-router";
+import { LogIn } from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { Field } from "@/components/Form";
+import { Button, Field } from "@/components/Form";
 import { Text } from "@/components/Text";
 import { useAuth } from "@/lib/auth";
 import { ghanaPhone, showPhone } from "@/lib/phone";
@@ -16,6 +18,10 @@ export type PhoneProof = ReturnType<typeof usePhoneProof>;
  * box for it under the phone; the next press checks the code, which signs
  * them in to the app silently (a first one makes the account).
  *
+ * While the code is switched off (SMS cannot be relied on), someone not
+ * signed in is asked to sign in or create an account first (phone, email,
+ * password) instead; once they are back, it is their own number.
+ *
  * `prove()` returns the proved number, or null when the code has just been
  * sent and the form should wait for it (or the number is wrong; `error`
  * says so).
@@ -29,8 +35,14 @@ export function usePhoneProof() {
   const [error, setError] = useState<string | undefined>();
   const own = auth.signedIn ? (auth.account?.phone ?? null) : null;
 
+  const needsSignIn = !own && !auth.codeSignIn;
+
   async function prove(name?: string): Promise<string | null> {
     if (own) return own;
+    if (needsSignIn) {
+      setError("Sign in or create an account first.");
+      return null;
+    }
     const e164 = ghanaPhone(typed);
     if (!e164) {
       setError("Enter a Ghana mobile number, like 024 123 4567.");
@@ -60,6 +72,7 @@ export function usePhoneProof() {
 
   return {
     own,
+    needsSignIn,
     typed,
     setTyped: (value: string) => {
       setTyped(value);
@@ -86,6 +99,22 @@ export function PhoneProofFields({ proof }: { proof: PhoneProof }) {
         <Text variant="small">
           The maker calls or messages you on this number.
         </Text>
+      </View>
+    );
+  }
+  if (proof.needsSignIn) {
+    return (
+      <View style={styles.signIn}>
+        <Text variant="label">Sign in or create an account</Text>
+        <Text variant="small">
+          So the maker knows who the order is from and can reach you: your phone number, email and a password.
+        </Text>
+        <Button
+          label="Sign in or create an account"
+          icon={<LogIn size={18} color="#fff" />}
+          onPress={() => router.push({ pathname: "/sign-in", params: { why: "to order" } })}
+        />
+        {proof.error ? <Text style={{ color: colors.destructive }}>{proof.error}</Text> : null}
       </View>
     );
   }
@@ -121,6 +150,14 @@ export function PhoneProofFields({ proof }: { proof: PhoneProof }) {
 }
 
 const styles = StyleSheet.create({
+  signIn: {
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
   own: {
     gap: 2,
     padding: space.md,
