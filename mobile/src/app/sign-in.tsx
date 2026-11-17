@@ -242,6 +242,7 @@ function PasswordForms({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -264,6 +265,7 @@ function PasswordForms({
       if (!phone) wrong.phone = "Enter a Ghana mobile number, like 024 123 4567.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) wrong.email = "Enter an email address, like you@example.com.";
       if (password.length < 8) wrong.password = "At least 8 characters.";
+      else if (confirm !== password) wrong.confirm = "The two passwords are not the same.";
       if (Object.keys(wrong).length) {
         setFields(wrong);
         return;
@@ -295,18 +297,24 @@ function PasswordForms({
     }
   }
 
-  const passwordField = (label: string, hint?: string) => (
+  const passwordField = (
+    label: string,
+    hint?: string,
+    value = password,
+    onChange: (next: string) => void = setPassword,
+    error = fields.password,
+  ) => (
     <View>
       <Field
         label={label}
-        value={password}
-        onChangeText={setPassword}
+        value={value}
+        onChangeText={onChange}
         secureTextEntry={!show}
         autoComplete={mode === "register" ? "new-password" : "current-password"}
         textContentType={mode === "register" ? "newPassword" : "password"}
         autoCapitalize="none"
         hint={hint}
-        error={fields.password}
+        error={error}
         onSubmitEditing={() => void submit()}
         returnKeyType="go"
       />
@@ -403,6 +411,13 @@ function PasswordForms({
               maxLength={120}
             />
             {passwordField("Choose a password", "At least 8 characters. Not just numbers.")}
+            {passwordField(
+              "Confirm password",
+              undefined,
+              confirm,
+              setConfirm,
+              fields.confirm ?? (confirm && confirm !== password ? "The two passwords are not the same." : undefined),
+            )}
             <FormError message={problem} />
             <Button label="Create my account" onPress={() => void submit()} busy={busy} />
             {link("Already have an account? Sign in", () => go("sign_in"))}
