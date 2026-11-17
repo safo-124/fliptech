@@ -71,19 +71,19 @@ def test_closing_needs_the_confirm(client):
 
 
 @pytest.mark.django_db
-def test_a_login_that_runs_a_shop_is_not_closed_from_here(client):
+def test_a_login_that_runs_a_shop_is_deleted_with_the_shop(client):
     sign_in(client)
     client.post(reverse("account-add-role", args=["seller"]))
 
     response = close(client)
 
-    assert response.status_code == 409
-    assert response.json()["code"] == "runs_business"
-    assert CustomerAccount.objects.exists()
+    assert response.status_code == 200
+    assert not CustomerAccount.objects.exists()
+    assert not get_user_model().objects.exists()
 
 
 @pytest.mark.django_db
-def test_a_paid_course_keeps_the_account_open_and_says_why(client, shop):  # noqa: F811
+def test_a_paid_course_keeps_the_sale_when_the_account_is_deleted(client, shop):  # noqa: F811
     seller, _product = shop
     sign_in(client)
     client.post(reverse("account-add-role", args=["trainee"]))
@@ -98,16 +98,17 @@ def test_a_paid_course_keeps_the_account_open_and_says_why(client, shop):  # noq
         status=CoursePurchase.Status.PAID,
     )
 
-    account_close = close(client)
     trainee_close = client.post(
         reverse("trainee-account-close"), {"confirm": True}, content_type=JSON
     )
+    account_close = close(client)
 
-    assert account_close.status_code == 409
-    assert account_close.json()["code"] == "paid_courses"
-    # The learner's own close button no longer fails with a server error.
+    # The learner's own close button still says why it cannot (no server
+    # error); Delete my account deletes everything but the paid sale.
     assert trainee_close.status_code == 409
-    assert TraineeAccount.objects.exists()
+    assert account_close.status_code == 200
+    assert CoursePurchase.objects.count() == 1
+    assert TraineeAccount.objects.get().display_name == ""
 
 
 @pytest.mark.django_db

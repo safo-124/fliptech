@@ -168,17 +168,26 @@ function SignIn({
   onAlreadyRegistered: () => void;
 }) {
   const t = useTranslations("Account");
+  // The heading follows the form: Register and Sign in in the header change
+  // `newcomer`, and the form's own links switch it too.
+  const [joining, setJoining] = useState(newcomer);
+  const [asked, setAsked] = useState(newcomer);
+  if (asked !== newcomer) {
+    setAsked(newcomer);
+    setJoining(newcomer);
+  }
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="text-3xl font-bold tracking-[-0.035em]">{newcomer ? t("joinTitle") : t("signInTitle")}</h1>
+      <h1 className="text-3xl font-bold tracking-[-0.035em]">{joining ? t("joinTitle") : t("signInTitle")}</h1>
       <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
-        {newcomer ? t("joinLead") : t("signInLead")}
+        {joining ? t("joinLead") : t("signInLead")}
       </p>
       <Card className="mt-5">
         <CardContent className="pt-5">
           <PhoneSignIn
             idPrefix="account"
             register={newcomer}
+            onModeChange={(mode) => setJoining(mode === "register")}
             onAlreadyRegistered={onAlreadyRegistered}
             onDone={onSignedIn}
           />
@@ -654,7 +663,7 @@ function SignedIn({
 
       <AccountSecurity account={account} reload={reload} />
 
-      <CloseAccount onClosed={() => {
+      <CloseAccount hasPassword={account.has_password !== false} onClosed={() => {
         onSignedOut();
         router.replace("/");
       }} />
@@ -663,14 +672,19 @@ function SignedIn({
 }
 
 /**
- * The one Close account, for the whole login. What it deletes and what it
- * keeps is said before the button, in the words of accounts/closing.py.
+ * Delete my account, for the whole login: shop and workshop included
+ * (backend accounts/removal.py). What it deletes and the money records it
+ * keeps are said before the button. A password account gives its password,
+ * and everyone types DELETE, so it is never pressed by accident.
  */
-function CloseAccount({onClosed}: {onClosed: () => void}) {
+function CloseAccount({hasPassword, onClosed}: {hasPassword: boolean; onClosed: () => void}) {
   const t = useTranslations("Account");
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [typed, setTyped] = useState("");
+  const ready = typed.trim().toUpperCase() === t("closeTypeWord") && (!hasPassword || password.length > 0);
   return (
     <Card id="close" className="scroll-mt-24 border-[var(--color-destructive)]/25">
       <CardHeader className="flex-row items-center gap-3 space-y-0">
@@ -691,30 +705,57 @@ function CloseAccount({onClosed}: {onClosed: () => void}) {
           </p>
         ) : null}
         {asking ? (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setProblem(null);
-                try {
-                  await closeAccount();
-                  onClosed();
-                } catch (reason) {
-                  setProblem(reason instanceof Error ? reason.message : t("failed"));
-                  setBusy(false);
-                }
-              }}
-            >
-              {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-              {t("closeConfirm")}
-            </Button>
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => setAsking(false)}>
-              {t("closeKeep")}
-            </Button>
-          </div>
+          <form
+            className="space-y-3"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (!ready) return;
+              setBusy(true);
+              setProblem(null);
+              try {
+                await closeAccount(hasPassword ? password : undefined);
+                onClosed();
+              } catch (reason) {
+                setProblem(reason instanceof Error ? reason.message : t("failed"));
+                setBusy(false);
+              }
+            }}
+          >
+            {hasPassword ? (
+              <div>
+                <Label htmlFor="close-password">{t("closePasswordLabel")}</Label>
+                <Input
+                  id="close-password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </div>
+            ) : null}
+            <div>
+              <Label htmlFor="close-type">{t("closeTypeLabel")}</Label>
+              <Input
+                id="close-type"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                required
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" variant="destructive" disabled={busy || !ready}>
+                {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+                {t("closeConfirm")}
+              </Button>
+              <Button type="button" variant="ghost" disabled={busy} onClick={() => setAsking(false)}>
+                {t("closeKeep")}
+              </Button>
+            </div>
+          </form>
         ) : (
           <Button type="button" variant="outline" onClick={() => setAsking(true)}>
             {t("closeButton")}

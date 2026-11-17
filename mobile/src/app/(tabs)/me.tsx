@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { router, type Href } from "expo-router";
-import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Inbox, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
+import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Inbox, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, Trash2, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 
@@ -235,6 +235,16 @@ export default function MeScreen() {
               <LogOut size={18} color={colors.destructive} />
             </View>
             <Text style={[styles.rowText, { color: colors.destructive }]}>Sign out</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/delete-account")}
+            style={[styles.list, styles.row]}
+            accessibilityRole="button"
+          >
+            <View style={[styles.icon, { backgroundColor: "#fdecec" }]}>
+              <Trash2 size={18} color={colors.destructive} />
+            </View>
+            <Text style={[styles.rowText, { color: colors.destructive }]}>Delete my account</Text>
           </Pressable>
         </View>
       ) : null}

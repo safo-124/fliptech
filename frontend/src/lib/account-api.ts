@@ -138,12 +138,13 @@ export function signOutAccount() {
   return sessionFetch<AccountSession>("/api/account/logout/", {method: "POST"});
 }
 
-/** Close the whole login. Refused with a 409 and `code` "runs_business" or
- *  "paid_courses"; the server's message says why, in plain words. */
-export async function closeAccount() {
+/** Delete the whole login, shop and workshop included (backend
+ *  accounts/removal.py). A password account sends its password; a wrong one
+ *  is a 403 whose message says so. */
+export async function closeAccount(password?: string) {
   const result = await sessionFetch<{closed: true}>("/api/account/close/", {
     method: "POST",
-    body: JSON.stringify({confirm: true}),
+    body: JSON.stringify(password === undefined ? {confirm: true} : {confirm: true, password}),
   });
   clearAllDrafts();
   forgetAccountCopies();

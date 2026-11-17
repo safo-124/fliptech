@@ -31,6 +31,7 @@ from django.views.decorators.http import require_POST
 from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
+from accounts.removal_admin import ProviderRemovalAdmin, TrainerRemovalAdmin
 from core.ranged import serve_private_file
 from core.site_links import provider_page_url
 
@@ -201,7 +202,13 @@ class ReturnForChangesForm(forms.Form):
 
 
 @admin.register(Provider)
-class ProviderAdmin(OwnerMessagesAdminMixin, ExportActionMixin, SimpleHistoryAdmin, GISModelAdmin):
+class ProviderAdmin(
+    ProviderRemovalAdmin,
+    OwnerMessagesAdminMixin,
+    ExportActionMixin,
+    SimpleHistoryAdmin,
+    GISModelAdmin,
+):
     """Provider onboarding, the screen a field officer lives in.
 
     ExportActionMixin is here for a specific reason: Section 03 names "no way to
@@ -1287,7 +1294,7 @@ class ProviderEvidenceAdmin(admin.ModelAdmin):
 
 
 @admin.register(TrainerAccount)
-class TrainerAccountAdmin(admin.ModelAdmin):
+class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
     """Workshop owners who submit their own listing.
 
     This exists so the disable path is reachable. `TrainerAccount.is_active` is

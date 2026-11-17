@@ -27,6 +27,8 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
+from accounts.removal_admin import SellerRemovalAdmin
+
 from .admin_outbox import SellerMessagesMixin
 from .models import (
     ChatReport,
@@ -48,7 +50,7 @@ CONFIRM_PERM = "marketplace.confirm_seller"
 
 
 @admin.register(SellerAccount)
-class SellerAccountAdmin(SellerMessagesMixin, admin.ModelAdmin):
+class SellerAccountAdmin(SellerRemovalAdmin, SellerMessagesMixin, admin.ModelAdmin):
     """Who may sell, and whether anyone has checked them.
 
     Anyone can sign up to sell, so a sign-up is not trusted until someone with

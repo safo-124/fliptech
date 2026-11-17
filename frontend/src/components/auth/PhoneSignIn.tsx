@@ -43,6 +43,8 @@ type SignInProps = {
   /** Called when a number that already has an account chooses to sign in. */
   onAlreadyRegistered?: () => void;
   onDone: (session: AccountSession, joined: boolean) => void | Promise<void>;
+  /** The password form switched between sign in, create and forgot. */
+  onModeChange?: (mode: "sign_in" | "register" | "forgot") => void;
 };
 
 /**
@@ -90,6 +92,7 @@ export function PhoneSignIn(props: SignInProps) {
     <PasswordSignIn
       idPrefix={idPrefix}
       initialMode={register ? "register" : "sign_in"}
+      onModeChange={props.onModeChange}
       onUseCode={codeOn ? () => setUseCode(true) : undefined}
       onSignedIn={async (session, joined) => {
         // Someone new (or with no name yet): their name and what brought them.
