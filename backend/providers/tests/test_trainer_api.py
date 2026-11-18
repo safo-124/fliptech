@@ -355,9 +355,17 @@ def test_existing_trainer_identity_with_permissions_fails_closed(django_user_mod
 
 @pytest.mark.django_db
 def test_loopback_proxy_clients_have_independent_minute_rate_buckets(csrf_client, monkeypatch):
+    from types import SimpleNamespace
+
+    import django_ratelimit.core
+
     from enquiries import otp
 
     monkeypatch.setattr(otp, "_generate_code", lambda: CODE)
+    # One fixed minute for the rate limiter: its window ends at a different
+    # second for every key, so seven real requests can straddle that edge
+    # and the sixth is not refused.
+    monkeypatch.setattr(django_ratelimit.core, "time", SimpleNamespace(time=lambda: 1_800_000_000))
     cache.clear()
     headers = csrf_headers(csrf_client)
     url = reverse("trainer-otp-request")

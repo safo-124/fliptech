@@ -931,7 +931,7 @@
     "metaTitle": "Your account",
     "signInTitle": "Sign in",
     "joinTitle": "Create your account",
-    "joinLead": "Your phone number, your email and a password. One account for learning, buying and selling.",
+    "joinLead": "Your phone number and a password, and an email if you like. One account for learning, buying and selling.",
     "signInLead": "Sign in with your phone number or email and your password. New here? Create an account in a minute.",
     "phoneLabel": "Phone number",
     "nameLabel": "Your name",
@@ -3033,8 +3033,8 @@
     "passwordHint": "At least 8 characters. Not just numbers.",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "emailLabel": "Email",
-    "emailHint": "For your receipts, and to reset your password if you forget it.",
+    "emailLabel": "Email (optional)",
+    "emailHint": "For your receipts, and to reset your password if you forget it. Without one, a forgotten password means contacting us.",
     "registerSubmit": "Create my account",
     "signInSubmit": "Sign in",
     "forgotLink": "Forgot your password?",
@@ -3107,13 +3107,13 @@
     "moreInBasket": "Your basket still has things from {count, plural, one {another maker} other {# other makers}}.",
     "directTrust": "You pay {seller} directly, so Fliiptech cannot refund it. Agree the price and the handover in the chat before you pay.",
     "signInTitle": "Sign in or create an account",
-    "signInBody": "So the maker knows who the order is from and can reach you: your phone number, email and a password.",
+    "signInBody": "So the maker knows who the order is from and can reach you: your phone number and a password.",
     "signInButton": "Sign in or create an account",
     "signInReason": "Sign in or create an account to order."
   },
   "SignInGate": {
     "title": "Sign in or create an account to continue",
-    "body": "It takes a minute: your phone number, your email and a password.",
+    "body": "It takes a minute: your phone number and a password.",
     "button": "Sign in or create an account"
   },
   "AccountPassword": {
