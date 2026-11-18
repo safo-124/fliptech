@@ -106,22 +106,59 @@ class UserRemovalAdmin(_RemovalAdmin):
         return obj
 
 
+def workshop_logins(provider):
+    """The logins behind a workshop: its trainer, and whoever runs the shop
+    opened from it (marketplace SellerAccount.provider)."""
+    from marketplace.models import SellerAccount
+
+    users = [m.trainer.user for m in provider.trainer_memberships.select_related("trainer__user")]
+    users += [
+        s.user for s in SellerAccount.objects.filter(provider=provider).select_related("user")
+    ]
+    seen, unique = set(), []
+    for user in users:
+        if user.pk not in seen:
+            seen.add(user.pk)
+            unique.append(user)
+    return unique
+
+
 class ProviderRemovalAdmin(_RemovalAdmin):
-    """Deleting a workshop on its own: the page and everything on it go,
-    the trainers' logins stay."""
+    """Deleting a workshop takes the people who run it with it: the trainer's
+    login, their shop and its products, the same as deleting the trainer.
+    A workshop nobody runs any more goes on its own."""
 
     def removal_user(self, obj):
         return None
 
     def removal_lines(self, obj):
-        return describe_provider(obj)
+        logins = workshop_logins(obj)
+        if not logins:
+            return describe_provider(obj)
+        lines = []
+        for user in logins:
+            if user.is_staff or user.is_superuser:
+                lines.append(f"{user}: a staff login, so it stays; only the workshop goes.")
+                lines.extend(describe_provider(obj))
+            else:
+                lines.extend(describe_login(user))
+        return lines
 
     def delete_model(self, request, obj):
         from django.db import transaction
 
+        from providers.models import Provider
+
         from .removal import _Files
 
         with transaction.atomic():
-            files = _Files()
-            remove_provider(obj, files)
-            files.delete_on_commit()
+            for user in workshop_logins(obj):
+                if user.is_staff or user.is_superuser:
+                    continue
+                remove_login(user)
+            # Still there when nobody ran it, or a staff login did.
+            provider = Provider.objects.filter(pk=obj.pk).first()
+            if provider is not None:
+                files = _Files()
+                remove_provider(provider, files)
+                files.delete_on_commit()

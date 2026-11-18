@@ -269,3 +269,41 @@ def test_the_back_office_will_not_delete_a_staff_login(client, boss):
 
     assert "staff login" in page.content.decode()
     assert User.objects.filter(pk=other.pk).exists()
+
+
+@pytest.mark.django_db
+def test_the_back_office_deleting_a_workshop_takes_the_trainer_and_shop_too(client, boss, shop):  # noqa: F811
+    seller, product = shop
+    provider = workshop(seller.area)
+    trainer_for(seller.user, provider)  # the shop's owner runs the workshop
+    seller.provider = provider
+    seller.save()
+    url = reverse("admin:providers_provider_delete", args=[provider.pk])
+
+    page = client.get(url).content.decode()
+    assert "leave the website at once" in page
+
+    response = client.post(url, {"post": "yes"}, follow=True)
+
+    assert response.status_code == 200
+    assert not Provider.objects.exists()
+    assert not Product.objects.exists()
+    assert not Product.objects.visible().exists()
+    assert not SellerAccount.objects.exists()
+    assert not TrainerAccount.objects.exists()
+    assert not User.objects.filter(pk=seller.user_id).exists()
+
+
+@pytest.mark.django_db
+def test_the_back_office_deleting_a_workshop_nobody_runs_deletes_just_the_workshop(
+    client,
+    boss,
+    shop,  # noqa: F811
+):
+    seller, _product = shop
+    provider = workshop(seller.area)
+
+    client.post(reverse("admin:providers_provider_delete", args=[provider.pk]), {"post": "yes"})
+
+    assert not Provider.objects.exists()
+    assert SellerAccount.objects.filter(pk=seller.pk).exists()  # someone else's shop
