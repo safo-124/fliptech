@@ -5,7 +5,7 @@ is the way in that does not need a text to arrive. One login per person, as
 before: the password is set on the same Django user the phone code signs in
 to, so a person can use either.
 
-  POST /api/account/register/          phone, email, password, name -> signed in
+  POST /api/account/register/          phone, password, name, email (optional) -> signed in
   POST /api/account/sign-in/           login (phone or email), password
   POST /api/account/password/forgot/   login -> a reset link by email
   POST /api/account/password/reset/    uid, token, password -> signed in
@@ -272,12 +272,18 @@ def _clean_password(password, user=None):
 
 class RegisterSerializer(serializers.Serializer):
     phone = PhoneNumberField()
-    email = serializers.EmailField(max_length=254)
+    # Optional for now, while phone codes are off: without one, a forgotten
+    # password needs staff (or, once codes are back, a code to the phone).
+    email = serializers.EmailField(
+        max_length=254, required=False, allow_blank=True, allow_null=True
+    )
     password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
     name = serializers.CharField(max_length=120, required=False, allow_blank=True)
 
     def validate_email(self, value):
-        value = value.strip().lower()
+        value = (value or "").strip().lower()
+        if not value:
+            return None
         for model in _role_models():
             if model.objects.filter(email__iexact=value).exists():
                 raise serializers.ValidationError(
@@ -347,7 +353,7 @@ def register(data):
         user=user,
         phone=data["phone"],
         phone_verified_at=None,
-        email=data["email"],
+        email=data.get("email") or None,
         display_name=(data.get("name") or "").strip()[:120],
         last_seen_at=timezone.now(),
     )

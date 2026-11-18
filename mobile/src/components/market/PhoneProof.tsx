@@ -19,8 +19,8 @@ export type PhoneProof = ReturnType<typeof usePhoneProof>;
  * them in to the app silently (a first one makes the account).
  *
  * While the code is switched off (SMS cannot be relied on), someone not
- * signed in is asked to sign in or create an account first (phone, email,
- * password) instead; once they are back, it is their own number.
+ * signed in is asked to sign in or create an account first (phone, password,
+ * and an email if they like) instead; once they are back, it is their own number.
  *
  * `prove()` returns the proved number, or null when the code has just been
  * sent and the form should wait for it (or the number is wrong; `error`
@@ -107,7 +107,7 @@ export function PhoneProofFields({ proof }: { proof: PhoneProof }) {
       <View style={styles.signIn}>
         <Text variant="label">Sign in or create an account</Text>
         <Text variant="small">
-          So the maker knows who the order is from and can reach you: your phone number, email and a password.
+          So the maker knows who the order is from and can reach you: your phone number and a password.
         </Text>
         <Button
           label="Sign in or create an account"

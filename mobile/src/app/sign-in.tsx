@@ -16,7 +16,7 @@ const RESEND_AFTER = 30;
 
 /**
  * Sign in with a phone number or email and a password, create an account
- * (phone, email, password), or ask for a link to set a new password: the
+ * (phone, password, and an email if they like), or ask for a link to set a new password: the
  * same login as the website (backend accounts/passwords.py). The phone code
  * is offered too ("Send me a code instead") only while it is switched on,
  * because SMS codes cannot be relied on yet.
@@ -263,7 +263,8 @@ function PasswordForms({
       const phone = ghanaPhone(typedPhone);
       const wrong: Record<string, string> = {};
       if (!phone) wrong.phone = "Enter a Ghana mobile number, like 024 123 4567.";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) wrong.email = "Enter an email address, like you@example.com.";
+      // Optional while phone codes are off; checked only when given.
+      if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) wrong.email = "Enter an email address, like you@example.com.";
       if (password.length < 8) wrong.password = "At least 8 characters.";
       else if (confirm !== password) wrong.confirm = "The two passwords are not the same.";
       if (Object.keys(wrong).length) {
@@ -390,7 +391,7 @@ function PasswordForms({
               error={fields.phone}
             />
             <Field
-              label="Email"
+              label="Email (optional)"
               value={email}
               onChangeText={setEmail}
               placeholder="you@example.com"
@@ -398,7 +399,7 @@ function PasswordForms({
               autoCapitalize="none"
               autoComplete="email"
               textContentType="emailAddress"
-              hint="For your receipts, and to reset your password if you forget it."
+              hint="For your receipts, and to reset your password if you forget it. Without one, a forgotten password means contacting us."
               error={fields.email}
             />
             <Field

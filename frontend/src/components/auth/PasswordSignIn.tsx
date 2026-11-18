@@ -20,7 +20,7 @@ export type PasswordMode = "sign_in" | "register" | "forgot";
 
 /**
  * Signing in with a phone number or email and a password, creating an
- * account (phone, email, password), or asking for a link to set a new
+ * account (phone, password, and an email if they want one), or asking for a link to set a new
  * password (backend accounts/passwords.py). The way in while SMS codes cannot
  * be relied on; PhoneSignIn shows it, and the code only when it is switched on.
  *
@@ -84,9 +84,11 @@ export function PasswordSignIn({
         await onSignedIn(session, false);
       } else if (mode === "register") {
         const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) throw new Error(t("emailInvalid"));
+        // Optional while phone codes are off; checked only when given.
+        const typedEmail = email.trim();
+        if (typedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(typedEmail)) throw new Error(t("emailInvalid"));
         if (password !== confirm) throw new Error(t("passwordsDiffer"));
-        const session = await registerWithPassword({phone: e164, email: email.trim(), password});
+        const session = await registerWithPassword({phone: e164, password, ...(typedEmail ? {email: typedEmail} : {})});
         await onSignedIn(session, true);
       } else {
         if (!login.trim()) throw new Error(t("loginNeeded"));
@@ -215,7 +217,6 @@ export function PasswordSignIn({
             type="email"
             inputMode="email"
             autoComplete="email"
-            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"

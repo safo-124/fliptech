@@ -74,9 +74,9 @@ export function verifyAccountCode(body: {challenge_id: string; phone: string; co
   });
 }
 
-/** A new account: phone, email and a password (backend accounts/passwords.py).
- *  Signs in; a link to confirm the email is sent. */
-export function registerWithPassword(body: {phone: string; email: string; password: string; name?: string}) {
+/** A new account: phone and a password, and an email if they give one
+ *  (backend accounts/passwords.py). Signs in; an email gets a link to confirm it. */
+export function registerWithPassword(body: {phone: string; email?: string; password: string; name?: string}) {
   return sessionFetch<AccountSession & {joined: boolean}>("/api/account/register/", {
     method: "POST",
     body: JSON.stringify(body),

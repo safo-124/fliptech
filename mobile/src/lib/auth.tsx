@@ -42,7 +42,7 @@ type Auth = {
   verifyCode: (input: { phone: string; code: string; challenge_id: string; name?: string }) => Promise<void>;
   /** Phone number (however typed) or email, and the password. */
   signInWithPassword: (login: string, password: string) => Promise<void>;
-  register: (input: { phone: string; email: string; password: string; name?: string }) => Promise<void>;
+  register: (input: { phone: string; email?: string; password: string; name?: string }) => Promise<void>;
   /** Emails a link to set a new password; the answer says so, whoever asks. */
   forgotPassword: (login: string) => Promise<string>;
   /** False while SMS codes cannot be relied on: password only. */
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await keepToken(
           await postJson<AccountState & { token: string }>("/api/app/register/", {
             phone,
-            email,
+            email: email || undefined,
             password,
             name: name || undefined,
             device,

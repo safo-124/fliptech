@@ -67,6 +67,25 @@ def test_registering_makes_the_account_signs_in_and_sends_a_confirmation_link(cl
     assert "/account/confirm-email?uid=" in mail[0][2]
 
 
+@pytest.mark.django_db(transaction=True)
+def test_the_email_is_optional_when_registering(client, mail):
+    no_email = client.post(
+        reverse("account-register"),
+        {"phone": "024 111 5555", "password": PASSWORD},
+        content_type=JSON,
+    )
+    client.logout()
+    blank_email = register(client, phone="0244445555", email="")
+
+    assert no_email.status_code == 201, no_email.content
+    assert blank_email.status_code == 201, blank_email.content
+    # Two accounts without an email do not collide on the unique column.
+    assert list(CustomerAccount.objects.values_list("email", flat=True)) == [None, None]
+    assert mail == []  # nothing to confirm
+    client.logout()
+    assert password_sign_in(client, "0241115555").status_code == 200
+
+
 @pytest.mark.django_db
 def test_registering_refuses_a_taken_number_or_email_and_a_weak_password(client, mail):
     sign_in(client)  # this number already has an account (made with a code)

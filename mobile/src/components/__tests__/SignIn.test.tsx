@@ -66,7 +66,7 @@ describe("signing in with a password", () => {
     await fireEvent.press(screen.getByText("New here? Create an account"));
 
     await fireEvent.changeText(screen.getByLabelText("Phone number"), "24 111 5555");
-    await fireEvent.changeText(screen.getByLabelText("Email"), "esi@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Email (optional)"), "esi@example.com");
     await fireEvent.changeText(screen.getByLabelText("Choose a password"), "Kente-loom-2026");
     await fireEvent.changeText(screen.getByLabelText("Confirm password"), "Kente-loom-2026");
     await act(async () => {
@@ -81,12 +81,28 @@ describe("signing in with a password", () => {
     });
   });
 
-  it("asks for an email before creating the account", async () => {
+  it("creates an account without an email", async () => {
     await open();
     await fireEvent.press(screen.getByText("New here? Create an account"));
 
     await fireEvent.changeText(screen.getByLabelText("Phone number"), "24 111 5555");
     await fireEvent.changeText(screen.getByLabelText("Choose a password"), "Kente-loom-2026");
+    await fireEvent.changeText(screen.getByLabelText("Confirm password"), "Kente-loom-2026");
+    await act(async () => {
+      fireEvent.press(screen.getByText("Create my account"));
+    });
+
+    expect(mockRegister).toHaveBeenCalledWith({ phone: "+233241115555", email: "", password: "Kente-loom-2026", name: "" });
+  });
+
+  it("refuses an email that is not one", async () => {
+    await open();
+    await fireEvent.press(screen.getByText("New here? Create an account"));
+
+    await fireEvent.changeText(screen.getByLabelText("Phone number"), "24 111 5555");
+    await fireEvent.changeText(screen.getByLabelText("Email (optional)"), "esi@");
+    await fireEvent.changeText(screen.getByLabelText("Choose a password"), "Kente-loom-2026");
+    await fireEvent.changeText(screen.getByLabelText("Confirm password"), "Kente-loom-2026");
     await act(async () => {
       fireEvent.press(screen.getByText("Create my account"));
     });
@@ -120,7 +136,7 @@ describe("signing in with a password", () => {
     await fireEvent.press(screen.getByText("New here? Create an account"));
 
     await fireEvent.changeText(screen.getByLabelText("Phone number"), "24 111 5555");
-    await fireEvent.changeText(screen.getByLabelText("Email"), "esi@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Email (optional)"), "esi@example.com");
     await fireEvent.changeText(screen.getByLabelText("Choose a password"), "Kente-loom-2026");
     await fireEvent.changeText(screen.getByLabelText("Confirm password"), "Kente-loom-2027");
     await act(async () => {
