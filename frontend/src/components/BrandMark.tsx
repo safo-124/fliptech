@@ -1,14 +1,13 @@
 /**
- * The Fliiptech aperture mark.
+ * The Fliiptech mark: eight petals in a ring that opens on the right.
  *
  * Drawn rather than shipped as a file: it appears in the header on every page,
- * in the footer and at 512px in the PWA icon, and an SVG that inherits the
- * theme's own gradient tokens stays sharp at all three without three exports
- * to keep in sync. It is also about 700 bytes, against ~8KB for a PNG that
- * would still be soft on a 3x phone screen. The shape lives in
- * lib/brand-mark.ts, which the app icons draw from too.
+ * in the footer and at 512px in the PWA icon, and an SVG stays sharp at all
+ * three without three exports to keep in sync. The shape and colours live in
+ * lib/brand-mark.ts, traced from the logo artwork, which the app icons draw
+ * from too.
  *
- * The gradient runs violet at the lower left to pink at the upper right,
+ * The gradient runs blue-violet at the lower left to pink at the upper right,
  * matching the logo.
  *
  * Decorative by default: `aria-hidden` unless a `title` is passed, because in
@@ -16,7 +15,7 @@
  * would read the brand twice.
  */
 
-import { BLADE_ANGLES, BLADE_PATH, MARK_DOT } from "@/lib/brand-mark";
+import { MARK_COLOURS, MARK_GRADIENT, MARK_HIGHLIGHT, PETAL_PATHS } from "@/lib/brand-mark";
 
 /**
  * `motion` makes the aperture move, in CSS alone (globals.css):
@@ -41,6 +40,10 @@ export function BrandMark({
   // practice and a stable id keeps the markup identical between the server and
   // client renders — a generated one would hydrate-mismatch.
   const gradientId = "fliiptech-mark-gradient";
+  const highlightId = "fliiptech-mark-highlight";
+  const petalsId = "fliiptech-mark-petals";
+  const { x1, y1, x2, y2 } = MARK_GRADIENT;
+  const { cx, cy, r, from, opacity } = MARK_HIGHLIGHT;
 
   return (
     <svg
@@ -51,28 +54,29 @@ export function BrandMark({
       aria-label={title}
     >
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="var(--color-brand-violet)" />
-          <stop offset="55%" stopColor="oklch(0.66 0.19 325)" />
-          <stop offset="100%" stopColor="var(--color-brand-pink)" />
+        <linearGradient id={gradientId} x1={x1} y1={y1} x2={x2} y2={y2} gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor={MARK_COLOURS.start} />
+          <stop offset="0.5" stopColor={MARK_COLOURS.middle} />
+          <stop offset="1" stopColor={MARK_COLOURS.end} />
         </linearGradient>
+        {/* Each petal lighter towards the centre of the ring, as in the logo. */}
+        <radialGradient id={highlightId} cx={cx} cy={cy} r={r} gradientUnits="userSpaceOnUse">
+          <stop offset={from} stopColor="#fff" stopOpacity={opacity} />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
-      {/* The moving group wraps the translated one: a CSS transform on the
-          translated group itself would replace its translate. */}
       <g className={motion ? `mark-${motion}` : undefined}>
-        <g transform="translate(24 24)" fill={`url(#${gradientId})`} stroke={`url(#${gradientId})`}>
-          {BLADE_ANGLES.map((angle) => (
-            <path
-              key={angle}
-              d={BLADE_PATH}
-              transform={`rotate(${angle})`}
-              strokeWidth="1.6"
-              strokeLinejoin="round"
-            />
-          ))}
-          <circle cx={MARK_DOT.cx} cy="0" r={MARK_DOT.r} />
+        {/* The fill sits on the wrapper, not on the petals' own group, so the
+            copy below takes the highlight instead of the gradient. */}
+        <g fill={`url(#${gradientId})`}>
+          <g id={petalsId}>
+            {PETAL_PATHS.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </g>
         </g>
+        <use href={`#${petalsId}`} fill={`url(#${highlightId})`} />
       </g>
     </svg>
   );
