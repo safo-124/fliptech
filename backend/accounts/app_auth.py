@@ -62,6 +62,17 @@ def revoke(token):
         token.save(update_fields=["revoked_at"])
 
 
+def revoke_all_for(user, *, keep=None):
+    """Every app sign-in this person has, except `keep` (the phone making the
+    request). After a password change or reset: someone who changes a
+    password because it was stolen expects a phone signed in with the old
+    one to be signed out, as other browsers are. Returns how many."""
+    tokens = AppToken.objects.filter(user=user, revoked_at__isnull=True)
+    if keep is not None:
+        tokens = tokens.exclude(pk=keep.pk)
+    return tokens.update(revoked_at=timezone.now())
+
+
 class AppTokenMiddleware:
     """After AuthenticationMiddleware: a valid bearer token signs the request in."""
 

@@ -283,6 +283,8 @@ def test_trainer_login_rotates_to_httponly_revocable_session(csrf_client, monkey
         "email": None,
         "account_status": "pending",
         "account_note": "",
+        # The ID photo is taken on the first step, before there is a profile.
+        "has_id_document": False,
         "profile": None,
     }
     assert old_key != new_key

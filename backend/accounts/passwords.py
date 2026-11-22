@@ -562,6 +562,11 @@ class ResetPasswordView(APIView):
             return Response({"password": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(password)
         user.save(update_fields=["password"])
+        # Every phone signed in with the old password is signed out, as every
+        # browser is (the session hash changes with the password).
+        from .app_auth import revoke_all_for
+
+        revoke_all_for(user)
         account = customer_for(user)
         if account is not None and account.email and not account.email_verified_at:
             account.email_verified_at = timezone.now()
@@ -572,7 +577,9 @@ class ResetPasswordView(APIView):
 @method_decorator(csrf_protect, name="dispatch")
 class SetPasswordView(APIView):
     """Set a password (an account made with a phone code has none) or change
-    it. Changing one asks for the current one."""
+    it. Changing one asks for the current one. Afterwards the browser or
+    phone that made the change stays signed in, and every other one is
+    signed out."""
 
     authentication_classes = [SessionAuthentication]
     permission_classes = [AllowAny]
@@ -601,8 +608,12 @@ class SetPasswordView(APIView):
             return Response({"password": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(data["password"])
         user.save(update_fields=["password"])
-        # Signed in here still; other browsers are signed out.
+        # Signed in here still; other browsers are signed out, and so are
+        # other phones. A change made from the app keeps that phone's sign-in.
         update_session_auth_hash(request._request, user)
+        from .app_auth import revoke_all_for
+
+        revoke_all_for(user, keep=getattr(request._request, "app_token", None))
         from .views import account_payload
 
         return Response(account_payload(request))

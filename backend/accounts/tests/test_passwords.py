@@ -271,6 +271,87 @@ def test_the_app_registers_and_signs_in_with_a_password_for_a_token(client, mail
     assert me.json()["account"]["email"] == EMAIL
 
 
+def app_token(login=EMAIL, password=PASSWORD):
+    response = Client().post(
+        reverse("app-sign-in"), {"login": login, "password": password}, content_type=JSON
+    )
+    assert response.status_code == 200, response.content
+    return response.json()["token"]
+
+
+def app_signed_in(token):
+    me = Client().get(reverse("account"), HTTP_AUTHORIZATION=f"Bearer {token}")
+    return me.json()["authenticated"]
+
+
+@pytest.mark.django_db
+def test_changing_the_password_in_the_app_signs_out_the_other_phones_only(client, mail):
+    register(client)
+    this_phone, other_phone = app_token(), app_token()
+
+    changed = Client().post(
+        reverse("account-password"),
+        {"current_password": PASSWORD, "password": "New-loom-2027"},
+        content_type=JSON,
+        HTTP_AUTHORIZATION=f"Bearer {this_phone}",
+    )
+
+    assert changed.status_code == 200, changed.content
+    assert app_signed_in(this_phone) is True
+    assert app_signed_in(other_phone) is False
+    # The browser that registered is signed out too: the password changed.
+    assert client.get(reverse("account")).json()["authenticated"] is False
+
+
+@pytest.mark.django_db
+def test_changing_the_password_on_the_website_signs_out_every_phone(client, mail):
+    register(client)
+    phone = app_token()
+
+    changed = client.post(
+        reverse("account-password"),
+        {"current_password": PASSWORD, "password": "New-loom-2027"},
+        content_type=JSON,
+    )
+
+    assert changed.status_code == 200, changed.content
+    assert client.get(reverse("account")).json()["authenticated"] is True
+    assert app_signed_in(phone) is False
+
+
+@pytest.mark.django_db
+def test_a_wrong_current_password_signs_nobody_out(client, mail):
+    register(client)
+    phone = app_token()
+
+    refused = client.post(
+        reverse("account-password"),
+        {"current_password": "not-it", "password": "New-loom-2027"},
+        content_type=JSON,
+    )
+
+    assert refused.status_code == 400
+    assert app_signed_in(phone) is True
+
+
+@pytest.mark.django_db(transaction=True)
+def test_resetting_a_forgotten_password_signs_out_every_phone(client, mail):
+    register(client)
+    phone = app_token()
+    mail.clear()
+    Client().post(reverse("account-password-forgot"), {"login": EMAIL}, content_type=JSON)
+    uid, token = link_parts(mail[0][2])
+
+    reset = Client().post(
+        reverse("account-password-reset"),
+        {"uid": uid, "token": token, "password": "New-loom-2027"},
+        content_type=JSON,
+    )
+
+    assert reset.status_code == 200, reset.content
+    assert app_signed_in(phone) is False
+
+
 @pytest.mark.django_db
 def test_notices_go_to_a_confirmed_email_and_chats_at_most_hourly(client, mail):
     from django.core.cache import cache

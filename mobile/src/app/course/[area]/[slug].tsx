@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView, type VideoSource as PlayerSource } from "expo-video";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Award, CircleCheck, CirclePlay, CloudDownload, Lock, MapPin, ExternalLink, Trash } from "lucide-react-native";
+import { Award, CircleCheck, CirclePlay, CloudDownload, Flag, Lock, MapPin, ExternalLink, Trash } from "lucide-react-native";
 import { useMemo, useRef, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import { BackBar } from "@/components/BackBar";
 import { ProductCard } from "@/components/Cards";
 import { BundleCard } from "@/components/market/BundleCard";
 import { Button } from "@/components/Form";
+import { ReportVideoSheet } from "@/components/ReportVideoSheet";
 import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api, ApiError } from "@/lib/api";
@@ -56,6 +57,10 @@ export default function CourseScreen() {
   // what was saved or removed since.
   const [savedChanges, setSaved] = useState<Record<number, string | null>>({});
   const [saving, setSaving] = useState<Record<number, number>>({});
+  // The lesson being reported: the one on show when the sheet opened, even if
+  // the player moves on to the next while it is open.
+  const [reported, setReported] = useState<Lesson | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   const lessons = useMemo(() => course.data?.lessons ?? [], [course.data]);
   const onPhone = useMemo(() => {
@@ -171,7 +176,32 @@ export default function CourseScreen() {
         share={data ? { message: `${data.course.name} on Fliiptech:`, url: `${SITE_URL}/learn/${area}/${slug}` } : undefined}
       />
 
+      {reported ? (
+        <ReportVideoSheet
+          videoId={reported.id}
+          videoTitle={reported.title}
+          visible={reporting}
+          onClose={() => setReporting(false)}
+        />
+      ) : null}
+
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}>
+        {auth.signedIn && active && playable(active) ? (
+          // The video on show, reported to staff: trainers' videos can go
+          // live before staff have watched them.
+          <Pressable
+            onPress={() => {
+              setReported(active);
+              setReporting(true);
+            }}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={({ pressed }) => [styles.report, pressed ? { opacity: 0.6 } : null]}
+          >
+            <Flag size={14} color={colors.mutedForeground} />
+            <Text style={styles.reportText}>Report this video</Text>
+          </Pressable>
+        ) : null}
         {!data ? (
           <View style={{ padding: space.lg, gap: space.md }}>
             <Skeleton style={{ height: 28, width: "70%" }} />
@@ -613,6 +643,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   head: { padding: space.lg },
+  report: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 6,
+    minHeight: 32,
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+  },
+  reportText: { fontFamily: fonts.medium, fontSize: 13, color: colors.mutedForeground },
   progress: {
     marginTop: space.md,
     flexDirection: "row",

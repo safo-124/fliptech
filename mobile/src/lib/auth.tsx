@@ -45,6 +45,11 @@ type Auth = {
   register: (input: { phone: string; email?: string; password: string; name?: string }) => Promise<void>;
   /** Emails a link to set a new password; the answer says so, whoever asks. */
   forgotPassword: (login: string) => Promise<string>;
+  /**
+   * Set a first password (no `current_password`) or change it. This phone
+   * stays signed in; the server signs out every other phone and browser.
+   */
+  changePassword: (input: { current_password?: string; password: string }) => Promise<void>;
   /** False while SMS codes cannot be relied on: password only. */
   codeSignIn: boolean;
   /** Make this login a trainee too, for courses: once, and silently. */
@@ -148,6 +153,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async forgotPassword(login) {
         return (await postJson<{ detail: string }>("/api/account/password/forgot/", { login })).detail;
+      },
+      async changePassword(input) {
+        // The account as it now is: has_password is true from here on.
+        client.setQueryData(["account"], await postJson<AccountState>("/api/account/password/", input));
       },
       async ensureTrainee() {
         if (account.data?.roles?.trainee) return;

@@ -120,6 +120,7 @@ export default function RootLayout() {
               <Stack.Screen name="seller/orders" />
               <Stack.Screen name="seller/chats/index" />
               <Stack.Screen name="seller/chats/[id]" />
+              <Stack.Screen name="trainer/videos" />
               <Stack.Screen name="inbox/index" />
               <Stack.Screen name="inbox/[id]" />
               <Stack.Screen name="notices" />

@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { router, type Href } from "expo-router";
-import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Inbox, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, Trash2, UserRound, Wallet, type LucideIcon } from "lucide-react-native";
+import { Bell, BellRing, BookOpen, Camera, ChevronRight, FileText, Heart, Inbox, KeyRound, Languages, LogOut, MessageSquare, Package, Settings, ShieldCheck, Store, Trash2, UserRound, Video, Wallet, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 
@@ -18,15 +18,18 @@ import { showPhone } from "@/lib/phone";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /** A row opens an app screen (`to`) or, until the app has one, the website (`site`). */
-/** `sellerOnly`: shown only to (true) or only to anyone but (false) a seller. `businessOnly`: to a seller or a trainer. */
+/** `sellerOnly`: shown only to (true) or only to anyone but (false) a seller. `businessOnly`: to a seller or a trainer. `trainerOnly`: to a trainer. */
+/** `signedIn`: asks a signed-out person to sign in first. `accountOnly`: not shown at all until signed in. */
 type Row = {
   icon: LucideIcon;
   label: string;
   to?: Href;
   site?: string;
   signedIn?: boolean;
+  accountOnly?: boolean;
   sellerOnly?: boolean;
   businessOnly?: boolean;
+  trainerOnly?: boolean;
 };
 
 const GROUPS: { title: string; rows: Row[] }[] = [
@@ -47,6 +50,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
       { icon: UserRound, label: "Teach a course or list your workshop", site: "/join" },
       { icon: Store, label: "Sell on the marketplace", site: "/sell", sellerOnly: false },
       { icon: Inbox, label: "Business messages", to: "/inbox", signedIn: true, businessOnly: true },
+      { icon: Video, label: "My workshop: videos", to: "/trainer/videos", signedIn: true, trainerOnly: true },
       { icon: Wallet, label: "My shop: sales and stock", to: "/seller", signedIn: true, sellerOnly: true },
     ],
   },
@@ -54,6 +58,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     title: "About",
     rows: [
       { icon: Settings, label: "Settings and data saver", to: "/settings" },
+      { icon: KeyRound, label: "Password", to: "/change-password", signedIn: true, accountOnly: true },
       { icon: Languages, label: "Language", site: "/language" },
       { icon: ShieldCheck, label: "Privacy", site: "/privacy" },
       { icon: FileText, label: "Marketplace terms", site: "/marketplace/terms" },
@@ -179,7 +184,7 @@ export default function MeScreen() {
           </View>
           <View style={{ flex: 1, gap: space.sm }}>
             <Text variant="heading">Sign in with your phone</Text>
-            <Text variant="small">Your courses, orders and saved things, on any phone. No password.</Text>
+            <Text variant="small">Your courses, orders and saved things, on any phone.</Text>
             <Button
               label={auth.ready ? "Sign in" : "…"}
               disabled={!auth.ready}
@@ -198,7 +203,11 @@ export default function MeScreen() {
           <View style={styles.list}>
             {group.rows
               .filter((row) =>
-                row.businessOnly
+                row.accountOnly && !auth.signedIn
+                  ? false
+                  : row.trainerOnly
+                  ? Boolean(auth.roles?.trainer)
+                  : row.businessOnly
                   ? Boolean(auth.roles?.seller || auth.roles?.trainer)
                   : row.sellerOnly === undefined
                     ? true

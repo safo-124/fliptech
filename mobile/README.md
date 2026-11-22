@@ -41,8 +41,29 @@ React Native. It talks to the same Django API as the website, in
   Paystack returns to the website's `/app-return`, which opens
   `fliiptech://paid` and closes the sheet; the app then asks the API whether
   the money arrived. The website must be deployed with `/app-return` for this.
-- A few account rows (saved things, selling, teaching) still open the
-  website's page **inside the app** (`src/lib/open.ts`).
+- **Teaching videos** for trainers (Me, "My workshop: videos",
+  `src/app/trainer/videos.tsx`): the website's Videos tab, with its limits
+  and words, and a tick that the video follows the guidelines. The video
+  comes from the gallery (expo-image-picker, which copies it into the
+  app's cache first; the app deletes that copy once the upload is finished,
+  cancelled or removed) or from the phone's files (expo-file-system's
+  picker, no copy). It is sent 2 MB at a time with an `Upload-Offset`, as
+  the website does (`src/lib/video-upload.ts`). The app remembers which
+  file each unfinished upload came from, so one stopped by the app closing
+  carries on with a tap, and one stopped by the network carries on by
+  itself when the connection is back. The screen stays on while it sends;
+  leaving the screen pauses it. The trainer endpoints take the app's token
+  as they are (see `backend/accounts/app_auth.py`).
+- **Password** (Me, signed in; `src/app/change-password.tsx`): set one
+  (an account made with a phone code has none) or change it with the
+  current one, as on the website's account page. The server signs out the
+  person's other phones and browsers; this phone stays signed in.
+- **Reporting a lesson:** "Report this video" under the course player,
+  for anyone signed in (`src/components/ReportVideoSheet.tsx`). Trainers'
+  videos can go live before staff have watched them; this is how staff
+  hear about a bad one.
+- A few account rows (saved things, selling, joining as a trainer) still
+  open the website's page **inside the app** (`src/lib/open.ts`).
 
 ```
 src/

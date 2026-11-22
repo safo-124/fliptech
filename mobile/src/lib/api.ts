@@ -157,6 +157,9 @@ export const api = {
   lessonProgress: (lesson: number, position: number, completed = false) =>
     postJson<{ certificate: unknown }>(`/api/learn/lessons/${lesson}/progress/`, { position, completed }),
   myCourses: () => getJson<{ results: MyCourse[]; signed_in: boolean }>("/api/learn/mine/"),
+  /** Tell staff a lesson video breaks the guidelines. A second report from the same person replaces the first. */
+  reportVideo: (video: number, reason: string, note: string) =>
+    postJson<{ reported: boolean }>(`/api/videos/${video}/report/`, { reason, note }),
 
   product: (id: number | string) => getJson<ProductDetail>(`/api/products/${id}/`),
   priceBag: (seller: number, body: BagRequest) => postJson<BasketPrice>(`/api/sellers/${seller}/price/`, body),
