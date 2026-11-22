@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         libgeos-c1v5 \
         libproj25 \
         curl \
+        tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

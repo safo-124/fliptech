@@ -406,7 +406,8 @@ def submission_blockers(provider, account, *, declarations=True):
     those itself from missing_declarations, so each line goes the moment its
     box is ticked rather than only after a save.
     """
-    from .models import ProviderEvidence
+    from .id_numbers import id_number_problem
+    from .identity import has_id_on_file
 
     blockers = []
 
@@ -416,13 +417,13 @@ def submission_blockers(provider, account, *, declarations=True):
         blockers.append(_("Say whether you are the owner, the manager or the lead trainer."))
     if not account.id_document_type or not account.id_document_number.strip():
         blockers.append(_("Add your ID type and number."))
+    elif problem := id_number_problem(account.id_document_type, account.id_document_number):
+        # A number saved before the rules existed, which no save has corrected.
+        blockers.append(problem)
 
     # The document itself, not just the number. Section 10 keeps it in private
-    # storage; this only asks whether a row exists.
-    has_id = ProviderEvidence.objects.filter(
-        provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
-    ).exists()
-    if not has_id:
+    # storage; this only asks whether one is on file.
+    if not has_id_on_file(account, provider):
         blockers.append(_("Upload a photo of your ID."))
 
     from .models import ProviderPhoto
@@ -459,7 +460,7 @@ def _identity_payload(provider, account):
     to know whether the upload landed — a URL here would be one careless
     template away from rendering.
     """
-    from .models import ProviderEvidence
+    from .identity import has_id_on_file
 
     if account is None:
         return None
@@ -468,9 +469,7 @@ def _identity_payload(provider, account):
         "role": account.role,
         "id_document_type": account.id_document_type,
         "id_document_number": account.id_document_number,
-        "has_document": ProviderEvidence.objects.filter(
-            provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
-        ).exists(),
+        "has_document": has_id_on_file(account, provider),
         "data_consent_given": account.data_consent_at is not None,
     }
 

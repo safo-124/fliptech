@@ -9,12 +9,12 @@ a phone photograph of a workshop carries the GPS coordinates of the owner's
 yard and we are not publishing those.
 
 The identity document is not public content and never becomes public content.
-It is a ProviderEvidence row of kind ID_DOCUMENT, which writes to
-PRIVATE_MEDIA_ROOT: a directory mode 700, deliberately outside the tree Caddy
-serves, that Section 10 requires is never publicly served. Nothing in this
-module returns a URL for it. The reviewing admin opens it through a
-permission-checked view, and the trainer only ever learns whether one is on
-file.
+It is a TrainerIdPhoto on the person's account (a ProviderEvidence row of kind
+ID_DOCUMENT for sign-ups from before it moved to the first step), both of which
+write to private storage, deliberately outside the tree Caddy serves, that
+Section 10 requires is never publicly served. Nothing in this module returns a
+URL for it. The reviewing admin opens it through a permission-checked view, and
+the trainer only learns whether one is on file and what was read from it.
 """
 
 import logging
@@ -30,7 +30,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .admin_upload import validate_image_upload
-from .models import ProviderEvidence, ProviderPhoto
+from .models import ProviderEvidence, ProviderPhoto, TrainerAccount, TrainerIdPhoto
 from .trainer_serializers import (
     TrainerIdentityDocumentSerializer,
     TrainerIdentityStoredSerializer,
@@ -216,7 +216,12 @@ class TrainerPhotoDeleteView(APIView):
 
 
 class TrainerIdentityDocumentView(APIView):
-    """The owner's identity document. Private, and replace-only.
+    """The trainer's ID photo, and what could be read from it. Private, replace-only.
+
+    Taken on the first step of sign-up, before the workshop exists, so it is
+    kept on the person's account (TrainerIdPhoto) rather than on a workshop.
+    The card is read on our own server (id_reading.py) and what was found is
+    sent back, so the form can fill the name and number and ask for the rest.
 
     Replace rather than append: one person has one identity document on file,
     and a queue holding four half-legible attempts is worse for the reviewer
@@ -237,42 +242,83 @@ class TrainerIdentityDocumentView(APIView):
         if not IsActiveTrainer().has_permission(request, self):
             return Response({"detail": _("Not a trainer.")}, status=status.HTTP_403_FORBIDDEN)
 
+        from .id_reading import UNAVAILABLE, CardReading, read_card
+        from .trainer_profiles import EDITABLE_STATUSES, TrainerProfileConflict, get_owned_profile
+
         account = _account(request)
-        provider, error = _editable_provider_or_error(account)
-        if error is not None:
-            return error
+        # No workshop is needed any more: the photo comes first. A listing
+        # under review is still not changed under the person deciding on it.
+        try:
+            provider = get_owned_profile(account)
+        except TrainerProfileConflict as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        if provider is not None and provider.status not in EDITABLE_STATUSES:
+            return Response(
+                {"detail": _("This listing is locked while it is being reviewed.")},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         upload = request.FILES.get("document")
         refusal = validate_image_upload(upload)
         if refusal is not None:
             return Response({"detail": refusal}, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            existing = ProviderEvidence.objects.filter(
-                provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
-            )
-            for row in existing:
-                row.delete()
+        document_type = request.data.get("id_document_type") or account.id_document_type
+        if document_type not in TrainerAccount.IdentityDocument.values:
+            document_type = ""
+        # Without the ID type there is nothing to look for; the form asks for
+        # the type before the photo, so this is an older page still open.
+        reading = read_card(upload, document_type) if document_type else CardReading(UNAVAILABLE)
 
-            evidence = ProviderEvidence(
-                provider=provider,
-                kind=ProviderEvidence.Kind.ID_DOCUMENT,
-                uploaded_by=request.user,
-                note=f"Uploaded by the trainer during sign-up ({account.get_id_document_type_display() or 'unspecified'})",
+        replaced = []
+        with transaction.atomic():
+            replaced = [row.file for row in account.id_photos.all()]
+            account.id_photos.all().delete()
+            # One taken before the photo moved to the first step, if any.
+            if provider is not None:
+                legacy = ProviderEvidence.objects.filter(
+                    provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+                )
+                replaced += [row.file for row in legacy]
+                legacy.delete()
+
+            photo = TrainerIdPhoto(
+                account=account,
+                document_type=document_type,
+                reading=reading.status,
+                read_number=reading.number,
+                read_name=reading.name,
             )
-            evidence.file = upload
+            photo.file = upload
             try:
-                evidence.save()
+                photo.save()
             except Exception:
-                logger.exception("Trainer identity upload failed for provider %s", provider.pk)
+                logger.exception("Trainer ID photo upload failed for account %s", account.pk)
                 return Response(
                     {"detail": _("That file could not be read. Try another.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        # The replaced photos go from storage too, not just from the table:
+        # an old ID photo nobody can reach is still an ID photo we hold.
+        for old in replaced:
+            if old:
+                try:
+                    old.delete(save=False)
+                except OSError:
+                    logger.warning("Could not remove a replaced ID photo", exc_info=True)
+
         # Deliberately no URL in the response. The trainer needs to know it is
-        # on file; nobody outside the back office needs a link to it.
-        return Response({"stored": True}, status=status.HTTP_201_CREATED)
+        # on file and what was read; nobody outside the back office needs a
+        # link to it.
+        return Response(
+            {
+                "stored": True,
+                "reading": reading.status,
+                "read": {"number": reading.number, "name": reading.name},
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class TrainerLogoView(APIView):

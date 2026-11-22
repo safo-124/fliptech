@@ -243,7 +243,7 @@ test.describe("trainer self-registration on a phone", () => {
 
     // The workshop is saved on the way to the photos, before there is a
     // course to send. That save used to fail without a word on screen.
-    await expect(page.getByRole("heading", {name: "Photos and ID"})).toBeVisible();
+    await expect(page.getByRole("heading", {name: "Photos", exact: true})).toBeVisible();
     expect(api.saves[0]).toMatchObject({name: "Accra Welding Works", area_id: 7, programme: null});
     await page.getByRole("button", {name: "Continue to course"}).click();
 

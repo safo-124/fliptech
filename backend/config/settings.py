@@ -456,6 +456,11 @@ TRUSTED_PROXY_CIDRS = env("TRUSTED_PROXY_CIDRS")
 # arkesel     Arkesel SMS API v2 (needs SMS_API_KEY and an approved SMS_SENDER_ID)
 # twilio      Twilio Programmable Messaging (needs the TWILIO_ settings below)
 # hubtel      not implemented
+# The card reader for trainers' ID photos (providers/id_reading.py). Found on
+# the PATH by default once `apt install tesseract-ocr` has run; set a path only
+# if it lives elsewhere. Missing is fine: the photo is kept and nothing is read.
+TESSERACT_CMD = env("TESSERACT_CMD", default="tesseract")
+
 SMS_PROVIDER = env("SMS_PROVIDER", default="console")
 SMS_SENDER_ID = env("SMS_SENDER_ID", default="SkillsHub")
 # arkesel: the key from Arkesel > API > Main SMS API Info. Secret; .env only.

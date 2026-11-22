@@ -319,6 +319,24 @@ sudo systemctl reload caddy
 **Watching it work:** `journalctl -u fliptech-video -f`. A video that cannot
 be prepared shows the trainer why; the log has ffmpeg's own error.
 
+### Reading trainers' ID photos
+
+On the first step of trainer sign-up the trainer photographs their ID and the
+name and number boxes fill themselves. The card is read on this server by
+Tesseract (`backend/providers/id_reading.py`), so nobody's ID photo goes to
+another company. **Servers set up before this** need it once:
+
+```bash
+sudo apt-get install -y tesseract-ocr
+tesseract --version
+```
+
+Nothing breaks without it: the photo is still stored for staff and the trainer
+types the details. Staff see the photo on the trainer's page in the back
+office, beside what was typed and what was read, with anything worth a second
+look flagged. ID numbers someone tried on a second account are refused and
+listed under **ID numbers tried twice**.
+
 **Limits** are settings in `backend/.env`, placeholders until pricing is
 decided. Change them and `sudo systemctl restart fliptech-api fliptech-video`.
 

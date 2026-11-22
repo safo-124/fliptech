@@ -515,8 +515,21 @@ export type TrainerSession =
       /** Whether the super admin has confirmed this trainer sign-up. */
       account_status?: TrainerAccountStatus;
       account_note?: string;
+      /** Whether an ID photo is on file. Here as well as on the profile,
+       *  because the photo is taken on the first step, before a profile exists. */
+      has_id_document?: boolean;
       profile: TrainerProfile | null;
     };
+
+/** What the card reader made of an ID photo (backend/providers/id_reading.py).
+ *  "unavailable" means no reader on the server, not a bad photo. */
+export type TrainerCardReading = "read" | "unreadable" | "unavailable";
+
+export type TrainerIdUpload = {
+  stored: boolean;
+  reading: TrainerCardReading;
+  read: {number: string; name: string};
+};
 
 export type TraineeChannel = "whatsapp" | "telegram";
 

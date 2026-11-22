@@ -62,6 +62,7 @@ import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from
 import {insideGhana} from "@/lib/ghana-bounds";
 import {formatCedis, formatDate} from "@/lib/format";
 import {ProviderLocationMap} from "@/components/ProviderLocationMap";
+import {ID_NUMBER_HINTS, isIdDocumentType, tidyIdNumber} from "@/lib/id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {getWhoami} from "@/lib/session-api";
 import {
@@ -95,6 +96,7 @@ import type {
   ProviderPhotoKind,
   Trade,
   TrainerArea,
+  TrainerIdUpload,
   TrainerPhoto,
   TrainerProfile,
   TrainerSession,
@@ -125,11 +127,14 @@ const PROFILE_STEPS = ["you", "workshop", "photos", "course", "review"] as const
 // thing the confirming admin is actually deciding on; asking for it last, after
 // someone has typed out their whole course, is how you lose the submission at
 // the point it finally becomes clear that ID is required.
+//
+// In the order they are on the page: the ID type, then the photo of the card
+// (which fills the name and number), then the name, the number and the role.
 const IDENTITY_FIELDS: FieldPath<TrainerDraftForm>[] = [
-  "full_name",
-  "role",
   "id_document_type",
+  "full_name",
   "id_document_number",
+  "role",
 ];
 
 const WORKSHOP_FIELDS: FieldPath<TrainerDraftForm>[] = [
@@ -563,23 +568,15 @@ function SlotCard({
   );
 }
 
-/** What the step needs, ticked off as it arrives: the three a listing cannot
- *  go without, and how many of the optional three are in. */
-function PhotoChecklist({
-  photos,
-  hasId,
-  hasLogo,
-}: {
-  photos: TrainerPhoto[];
-  hasId: boolean;
-  hasLogo: boolean;
-}) {
+/** What the step needs, ticked off as it arrives: the two a listing cannot
+ *  go without, and how many of the optional three are in. The ID photo is
+ *  not here: it is taken on the first step, where it fills the ID boxes. */
+function PhotoChecklist({photos, hasLogo}: {photos: TrainerPhoto[]; hasLogo: boolean}) {
   const t = useTranslations("TrainerJoinWizard");
   const has = (kind: ProviderPhotoKind) => photos.some((photo) => photo.kind === kind);
   const needed = [
     {key: "workshop", done: has("workshop"), label: t("checkWorkshop")},
     {key: "work", done: has("work"), label: t("checkWork")},
-    {key: "id", done: hasId, label: t("checkId")},
   ];
   const optionalDone = [hasLogo, has("entrance"), has("portrait")].filter(Boolean).length;
   return (
@@ -668,12 +665,86 @@ function ReviewRow({label, children}: {label: string; children: React.ReactNode}
 }
 
 /** Above the buttons: what is still missing, by name, or that nothing is. */
-function StillNeeded({photos, hasId}: {photos: TrainerPhoto[]; hasId: boolean}) {
+/** What came of reading the ID photo, said once under the photo button. */
+function CardReadSummary({reading}: {reading: TrainerIdUpload}) {
+  const t = useTranslations("TrainerJoinWizard");
+  const {name, number} = reading.read;
+  // "unavailable" is the server without its card reader, not a bad photo:
+  // the person is not asked to retake anything.
+  const [tone, text] =
+    reading.reading === "unavailable"
+      ? (["plain", t("cardReaderOff")] as const)
+      : reading.reading === "unreadable"
+        ? (["warn", t("cardUnreadable")] as const)
+        : name && number
+          ? (["good", t("cardReadAll")] as const)
+          : (["warn", t("cardReadSome")] as const);
+  const colour = {
+    good: "text-[var(--color-visit)]",
+    warn: "text-[var(--color-warn)]",
+    plain: "text-[var(--color-foreground)]",
+  }[tone];
+  const Icon = tone === "good" ? CheckCircle2 : tone === "warn" ? AlertCircle : Check;
+  return (
+    <p role="status" className={`mt-2 flex items-start gap-1.5 text-sm font-semibold ${colour}`}>
+      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      {text}
+    </p>
+  );
+}
+
+/**
+ * Under a box the ID photo can fill: that it was filled from the card, what
+ * the card says when the box holds something else (with a button to use it),
+ * or that nothing could be read for it and it needs typing or a retake.
+ */
+function CardNote({
+  read,
+  matches,
+  notRead,
+  onUse,
+}: {
+  read: string;
+  matches: boolean;
+  notRead: string;
+  onUse: () => void;
+}) {
+  const t = useTranslations("TrainerJoinWizard");
+  if (!read) {
+    return (
+      <p className="flex items-start gap-1.5 text-xs leading-5 text-[var(--color-warn)]">
+        <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+        {notRead}
+      </p>
+    );
+  }
+  if (matches) {
+    return (
+      <p className="flex items-start gap-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+        <Camera aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+        {t("readFromCard")}
+      </p>
+    );
+  }
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
+      <span>{t("cardReads", {value: read})}</span>
+      <button
+        type="button"
+        onClick={onUse}
+        className="min-h-8 font-semibold text-[var(--color-brand-strong)] underline underline-offset-2"
+      >
+        {t("useCardValue")}
+      </button>
+    </p>
+  );
+}
+
+function StillNeeded({photos}: {photos: TrainerPhoto[]}) {
   const t = useTranslations("TrainerJoinWizard");
   const missing = [
     photos.some((photo) => photo.kind === "workshop") ? null : t("missingWorkshop"),
     photos.some((photo) => photo.kind === "work") ? null : t("missingWork"),
-    hasId ? null : t("missingId"),
   ].filter((item): item is string => item !== null);
   return missing.length ? (
     <p className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
@@ -889,6 +960,10 @@ function TrainerJoinWizardForm() {
   const [authEmail, setAuthEmail] = useState("");
   const [photos, setPhotos] = useState<TrainerPhoto[]>([]);
   const [hasIdDocument, setHasIdDocument] = useState(false);
+  // What the server read from the ID photo just taken, so each box can say
+  // whether it was filled from the card or still needs typing.
+  const [cardRead, setCardRead] = useState<TrainerIdUpload | null>(null);
+  const [idPhotoError, setIdPhotoError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   // What the server still needs, other than the three ticks, and which ticks
   // it has not had yet. The review list is these plus any tick not given in
@@ -986,6 +1061,7 @@ function TrainerJoinWizardForm() {
 
         if (nextSession.authenticated) {
           setPhone(nextSession.phone);
+          setHasIdDocument(nextSession.has_id_document ?? false);
           if (nextSession.profile) {
             setProfile(nextSession.profile);
             reset(draftFromTrainerProfile(nextSession.profile));
@@ -1157,6 +1233,7 @@ function TrainerJoinWizardForm() {
       if (!nextSession.authenticated) throw new Error(t("sessionNotCreated"));
       setSession(nextSession);
       setProfile(nextSession.profile);
+      setHasIdDocument(nextSession.has_id_document ?? false);
       if (nextSession.profile) {
         reset(draftFromTrainerProfile(nextSession.profile));
         setStep(nextSession.profile.editable ? "you" : "submitted");
@@ -1279,19 +1356,40 @@ function TrainerJoinWizardForm() {
     }
   }
 
+  /**
+   * Send the ID photo and fill what the server read from it.
+   *
+   * A box is filled only while it is empty or still holds what the last photo
+   * gave: a name or number the person typed themselves is theirs, and the box
+   * offers the card's version beside it instead (CardNote).
+   */
   async function addIdDocument(file: File) {
-    setUploadError(null);
+    setIdPhotoError(null);
     setUploading(true);
     setUploadingKind("id");
     try {
-      await uploadTrainerIdentityDocument(file);
+      const result = await uploadTrainerIdentityDocument(file, getValues("id_document_type"));
+      const fill = (field: "full_name" | "id_document_number", value: string, before = "") => {
+        const current = getValues(field).trim();
+        if (value && (current === "" || current === before)) {
+          setValue(field, value, {shouldDirty: true, shouldValidate: true});
+        }
+      };
+      fill("full_name", result.read.name, cardRead?.read.name);
+      fill("id_document_number", result.read.number, cardRead?.read.number);
+      setCardRead(result);
       setHasIdDocument(true);
     } catch (reason) {
-      setUploadError(reason instanceof Error ? reason.message : t("documentUploadFailed"));
+      setIdPhotoError(reason instanceof Error ? reason.message : t("documentUploadFailed"));
     } finally {
       setUploading(false);
       setUploadingKind(null);
     }
+  }
+
+  /** Put the card's reading into a box the person had typed something else in. */
+  function applyCardValue(field: "full_name" | "id_document_number", value: string) {
+    setValue(field, value, {shouldDirty: true, shouldValidate: true});
   }
 
   /** Single writer for the pin: the map, the GPS button and the inputs agree. */
@@ -1703,6 +1801,10 @@ function TrainerJoinWizardForm() {
     selectedArea && selectedArea.centroid_lat !== null && selectedArea.centroid_lng !== null
       ? {lat: selectedArea.centroid_lat, lng: selectedArea.centroid_lng}
       : null;
+  const idType = watch("id_document_type");
+  const idHint = isIdDocumentType(idType) ? ID_NUMBER_HINTS[idType] : null;
+  const typedName = watch("full_name");
+  const typedIdNumber = watch("id_document_number");
   const selectedTrade = trades.find((trade) => String(trade.id) === watch("trade_id"));
   const instalmentsAllowed = watch("instalments_allowed");
   const feeIncludesCertificate = watch("fee_includes_certificate");
@@ -1758,6 +1860,90 @@ function TrainerJoinWizardForm() {
             </CardHeader>
             <CardContent className="sm:px-6">
               <fieldset disabled={busy} className="space-y-5">
+                {/* The ID first. The type says what to look for on the card,
+                    and the photo fills the name and number below it, so
+                    there is less to type and fewer typing mistakes. */}
+                <div className="space-y-2">
+                  <Label htmlFor="id_document_type">
+                    {t("idTypeLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                  </Label>
+                  <NativeSelect
+                    id="id_document_type"
+                    {...register("id_document_type", {
+                      // Each type has its own rule: a number already typed is
+                      // checked again against the new one, and kept.
+                      onChange: () => {
+                        if (getValues("id_document_number").trim()) void trigger("id_document_number");
+                      },
+                    })}
+                    aria-invalid={errors.id_document_type ? true : undefined}
+                  >
+                    <option value="">{t("chooseOne")}</option>
+                    <option value="ghana_card">{t("idTypes.ghana_card")}</option>
+                    <option value="passport">{t("idTypes.passport")}</option>
+                    <option value="voter_id">{t("idTypes.voter_id")}</option>
+                  </NativeSelect>
+                  <FieldError id="id-type-error" message={errors.id_document_type?.message} />
+                </div>
+
+                <section aria-labelledby="id-photo-title" className="rounded-2xl bg-[var(--color-muted)] p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-card)] text-[var(--color-muted-foreground)]">
+                      <Camera aria-hidden="true" className="size-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 id="id-photo-title" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                        {t("idPhotoLegend")}
+                        <NeededBadge done={hasIdDocument} />
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{t("idPhotoLead")}</p>
+                      <div className="mt-3">
+                        {uploadingKind === "id" ? (
+                          <p role="status" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
+                            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                            {t("idReading")}
+                          </p>
+                        ) : idType ? (
+                          <label
+                            htmlFor="id-input"
+                            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-card)] px-4 text-sm font-semibold hover:border-[var(--color-brand)] focus-within:ring-3 focus-within:ring-[var(--color-brand)]/20"
+                          >
+                            <Camera aria-hidden="true" className="size-4" />
+                            {hasIdDocument ? t("idRetake") : t("idTakeOrChoose")}
+                            <input
+                              id="id-input"
+                              type="file"
+                              accept="image/*"
+                              disabled={uploading}
+                              className="sr-only"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = "";
+                                if (file) void addIdDocument(file);
+                              }}
+                            />
+                          </label>
+                        ) : (
+                          <p className="text-sm text-[var(--color-muted-foreground)]">{t("idChooseTypeFirst")}</p>
+                        )}
+                      </div>
+                      {idPhotoError ? <FormError id="id-photo-error" message={idPhotoError} /> : null}
+                      {uploadingKind === "id" ? null : cardRead ? (
+                        <CardReadSummary reading={cardRead} />
+                      ) : hasIdDocument ? (
+                        <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-visit)]">
+                          <CheckCircle2 aria-hidden="true" className="size-4" />
+                          {t("idOnFileShort")}
+                        </p>
+                      ) : null}
+                      <p className="mt-3 flex items-start gap-1.5 text-xs leading-5 text-[var(--color-muted-foreground)]">
+                        <LockKeyhole aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                        {t("idPrivate")}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
                 <div className="space-y-2">
                   <Label htmlFor="full_name">
                     {t("fullNameLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
@@ -1769,6 +1955,50 @@ function TrainerJoinWizardForm() {
                     aria-invalid={errors.full_name ? true : undefined}
                   />
                   <FieldError id="full-name-error" message={errors.full_name?.message} />
+                  {cardRead && cardRead.reading !== "unavailable" ? (
+                    <CardNote
+                      read={cardRead.read.name}
+                      matches={typedName.trim().toLowerCase() === cardRead.read.name.toLowerCase()}
+                      notRead={t("cardNameNotRead")}
+                      onUse={() => applyCardValue("full_name", cardRead.read.name)}
+                    />
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id_document_number">
+                    {t("idNumberLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
+                  </Label>
+                  <Input
+                    id="id_document_number"
+                    // The example for the type chosen, and on a phone the
+                    // number pad for a voter ID, which is digits only.
+                    placeholder={idHint?.example}
+                    inputMode={idHint?.inputMode ?? "text"}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    spellCheck={false}
+                    {...register("id_document_number", {
+                      // Written the way it is stored as soon as they leave the
+                      // box: "gha 123456789 0" becomes "GHA-123456789-0".
+                      onBlur: (event) => {
+                        const tidied = tidyIdNumber(getValues("id_document_type"), event.target.value);
+                        if (tidied !== event.target.value) {
+                          setValue("id_document_number", tidied, {shouldValidate: true});
+                        }
+                      },
+                    })}
+                    aria-invalid={errors.id_document_number ? true : undefined}
+                  />
+                  <FieldError id="id-number-error" message={errors.id_document_number?.message} />
+                  {cardRead && cardRead.reading !== "unavailable" ? (
+                    <CardNote
+                      read={cardRead.read.number}
+                      matches={tidyIdNumber(idType, typedIdNumber) === cardRead.read.number}
+                      notRead={t("cardNumberNotRead")}
+                      onUse={() => applyCardValue("id_document_number", cardRead.read.number)}
+                    />
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -1783,43 +2013,6 @@ function TrainerJoinWizardForm() {
                   </NativeSelect>
                   <FieldError id="role-error" message={errors.role?.message} />
                 </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="id_document_type">
-                      {t("idTypeLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
-                    </Label>
-                    <NativeSelect
-                      id="id_document_type"
-                      {...register("id_document_type")}
-                      aria-invalid={errors.id_document_type ? true : undefined}
-                    >
-                      <option value="">{t("chooseOne")}</option>
-                      <option value="ghana_card">{t("idTypes.ghana_card")}</option>
-                      <option value="passport">{t("idTypes.passport")}</option>
-                      <option value="voter_id">{t("idTypes.voter_id")}</option>
-                    </NativeSelect>
-                    <FieldError id="id-type-error" message={errors.id_document_type?.message} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="id_document_number">
-                      {t("idNumberLabel")} <span aria-hidden="true" className="text-[var(--color-brand)]">*</span>
-                    </Label>
-                    <Input
-                      id="id_document_number"
-                      {...register("id_document_number")}
-                      aria-invalid={errors.id_document_number ? true : undefined}
-                    />
-                    <FieldError id="id-number-error" message={errors.id_document_number?.message} />
-                  </div>
-                </div>
-
-                <Alert>
-                  <LockKeyhole aria-hidden="true" className="size-4" />
-                  <AlertDescription>
-                    {t("idPhotoNote", {brand: BRAND})}
-                  </AlertDescription>
-                </Alert>
               </fieldset>
             </CardContent>
             <CardFooter className="sm:px-6">
@@ -2295,7 +2488,7 @@ function TrainerJoinWizardForm() {
             <CardContent className="space-y-6 sm:px-6">
               {uploadError ? <FormError id="upload-error" message={uploadError} /> : null}
 
-              <PhotoChecklist photos={photos} hasId={hasIdDocument} hasLogo={Boolean(logoUrl)} />
+              <PhotoChecklist photos={photos} hasLogo={Boolean(logoUrl)} />
 
               <Separator />
 
@@ -2325,59 +2518,6 @@ function TrainerJoinWizardForm() {
                 onRemove={removePhoto}
                 idea={{text: t("ideaWork"), icon: Hammer}}
               />
-
-              <Separator />
-
-              {/* The ID on its own, in grey and behind a padlock: it is never
-                  published, and it should not look like one more photo. */}
-              <section aria-labelledby="id-photo-title" className="rounded-2xl bg-[var(--color-muted)] p-4">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-card)] text-[var(--color-muted-foreground)]">
-                    <LockKeyhole aria-hidden="true" className="size-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <h3 id="id-photo-title" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                      {t("idPhotoLegend")}
-                      <NeededBadge done={hasIdDocument} />
-                    </h3>
-                    <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{t("idPrivate")}</p>
-                    {hasIdDocument ? (
-                      <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-visit)]">
-                        <CheckCircle2 aria-hidden="true" className="size-4" />
-                        {t("idOnFileShort")}
-                      </p>
-                    ) : null}
-                    <div className="mt-3">
-                      {uploadingKind === "id" ? (
-                        <p className="inline-flex items-center gap-2 text-sm">
-                          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                          {t("uploadingShort")}
-                        </p>
-                      ) : (
-                        <label
-                          htmlFor="id-input"
-                          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-card)] px-4 text-sm font-semibold hover:border-[var(--color-brand)] focus-within:ring-3 focus-within:ring-[var(--color-brand)]/20"
-                        >
-                          <Camera aria-hidden="true" className="size-4" />
-                          {hasIdDocument ? t("idReplace") : t("idTake")}
-                          <input
-                            id="id-input"
-                            type="file"
-                            accept="image/*"
-                            disabled={uploading}
-                            className="sr-only"
-                            onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              event.target.value = "";
-                              if (file) void addIdDocument(file);
-                            }}
-                          />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </section>
 
               <Separator />
 
@@ -2439,7 +2579,7 @@ function TrainerJoinWizardForm() {
 
               <Separator />
 
-              <StillNeeded photos={photos} hasId={hasIdDocument} />
+              <StillNeeded photos={photos} />
 
               {uploading ? (
                 <p role="status" className="sr-only">
@@ -2467,8 +2607,7 @@ function TrainerJoinWizardForm() {
                     can follow later; the button says so while any is missing.
                     Sending for review still waits for them. */}
                 {photos.some((photo) => photo.kind === "workshop") &&
-                photos.some((photo) => photo.kind === "work") &&
-                hasIdDocument
+                photos.some((photo) => photo.kind === "work")
                   ? t("continueToCourseDone")
                   : t("continueToCourse")}
                 <ArrowRight aria-hidden="true" />

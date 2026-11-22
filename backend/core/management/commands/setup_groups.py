@@ -57,6 +57,9 @@ OPERATIONS_LEAD_EXTRA = [
     ("trainees", "supportsession", ["view"]),
     ("trainees", "supportsessionevent", ["view"]),
     ("providers", "traineraccount", ["view", "change"]),
+    # ID numbers tried on a second account, refused. Read beside the accounts
+    # above, whose ID photos are what tells the two cases apart.
+    ("providers", "idnumberclash", ["view"]),
     ("enquiries", "phoneverification", ["view"]),
     ("providers", "provider", ["delete"]),
     ("providers", "suspension", ["add", "change", "view"]),

@@ -407,6 +407,89 @@ class TrainerAccount(TimeStampedModel):
         return str(self.phone)
 
 
+class TrainerIdPhoto(TimeStampedModel):
+    """The photo of a trainer's ID, and what could be read from it. Never publicly served.
+
+    On the person's account rather than on the workshop: it is their ID, and it
+    is taken on the first step of sign-up, before any workshop exists. Earlier
+    sign-ups have theirs as a ProviderEvidence row of kind ID_DOCUMENT instead;
+    providers/identity.py looks in both.
+
+    Private storage for the same reason as ProviderEvidence: Section 10
+    requires identity documents are never publicly served. Staff open it
+    through a permission-checked view on the trainer's back-office page.
+
+    What was read is kept beside the photo so the back office can show it next
+    to what the person typed. The reading is a help for the person filling the
+    form, never a check: a fake card reads as well as a real one.
+    """
+
+    class Reading(models.TextChoices):
+        READ = "read", "Read"
+        UNREADABLE = "unreadable", "Could not be read"
+        UNAVAILABLE = "unavailable", "Card reader not available"
+
+    account = models.ForeignKey(TrainerAccount, on_delete=models.CASCADE, related_name="id_photos")
+    document_type = models.CharField(
+        max_length=20, choices=TrainerAccount.IdentityDocument.choices, blank=True
+    )
+    file = models.FileField(upload_to="identity/%Y/%m/", storage=private_storage)
+    exif_stripped = models.BooleanField(default=False)
+    reading = models.CharField(max_length=20, choices=Reading.choices, default=Reading.UNAVAILABLE)
+    read_number = models.CharField(max_length=60, blank=True)
+    read_name = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "trainer ID photo"
+
+    def __str__(self):
+        return f"ID photo for {self.account}"
+
+    def save(self, *args, **kwargs):
+        # A phone photo carries the GPS of wherever it was taken, which for an
+        # ID photographed at home is the person's home.
+        if self.file and not self.file._committed and not self.exif_stripped:
+            cleaned = strip_exif(self.file)
+            if cleaned is not None:
+                self.file.save(stripped_name(self.file.name), cleaned, save=False)
+                self.exif_stripped = True
+        super().save(*args, **kwargs)
+
+
+class IdNumberClash(TimeStampedModel):
+    """A save refused because its ID number is already on another account.
+
+    One card, one account: the second account is refused, and this row tells
+    staff it happened. It may be the same person who lost the phone they signed
+    up with, or someone using another person's card. Both accounts' back-office
+    pages show it.
+    """
+
+    account = models.ForeignKey(
+        TrainerAccount,
+        on_delete=models.CASCADE,
+        related_name="id_clashes",
+        help_text="The account that tried to use the number.",
+    )
+    other_account = models.ForeignKey(
+        TrainerAccount,
+        on_delete=models.CASCADE,
+        related_name="id_clashes_against",
+        help_text="The account the number is already on.",
+    )
+    document_type = models.CharField(max_length=20, choices=TrainerAccount.IdentityDocument.choices)
+    number = models.CharField(max_length=60)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "ID number tried twice"
+        verbose_name_plural = "ID numbers tried twice"
+
+    def __str__(self):
+        return f"{self.number} tried by {self.account}, already on {self.other_account}"
+
+
 class ProviderMembership(TimeStampedModel):
     """Structural ownership used to scope every trainer-facing provider query."""
 

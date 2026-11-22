@@ -21,6 +21,7 @@ from enquiries.models import PhoneVerification
 from enquiries.otp import OTPError, request_code, verify_code
 from enquiries.serializers import OTPRequestSerializer
 
+from .identity import has_id_on_file, repeat_id_refusal
 from .lifecycle import ProviderTransitionError, submit_provider
 from .models import TrainerAccount
 from .trainer_auth import (
@@ -79,6 +80,7 @@ def _session_payload(request):
         return {"authenticated": False, "profile": None}
     if not account.is_active:
         return {"authenticated": False, "profile": None}
+    provider = _profile_for(account)
     return {
         "authenticated": True,
         "phone": str(account.phone),
@@ -87,7 +89,10 @@ def _session_payload(request):
         "email": account.email or None,
         "account_status": account.approval_status,
         "account_note": account.approval_note,
-        "profile": serialize_profile(_profile_for(account), account),
+        # Here as well as in the profile, because the ID photo is taken on the
+        # first step, before there is a profile to carry it.
+        "has_id_document": has_id_on_file(account, provider),
+        "profile": serialize_profile(provider, account),
     }
 
 
@@ -247,6 +252,16 @@ class TrainerProfileView(APIView):
             context={"current_intake_start_date": current_intake_start_date(_profile_for(account))},
         )
         serializer.is_valid(raise_exception=True)
+        # One card, one account. Answered here rather than in the serializer so
+        # the record of the attempt is kept: a refusal raised as an exception
+        # would roll back the transaction it was written in.
+        refusal = repeat_id_refusal(
+            account,
+            serializer.validated_data.get("id_document_type", ""),
+            serializer.validated_data.get("id_document_number", ""),
+        )
+        if refusal:
+            return Response({"id_document_number": [refusal]}, status=status.HTTP_400_BAD_REQUEST)
         try:
             profile = save_owned_profile(
                 account=account,

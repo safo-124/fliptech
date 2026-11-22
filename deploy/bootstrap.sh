@@ -35,6 +35,9 @@ apt-get install -y -qq \
 # ffmpeg prepares uploaded teaching videos for phones on 3G. A program on this
 # server, not a video service: see backend/providers/video_encoding.py.
 apt-get install -y -qq ffmpeg
+# Tesseract reads a trainer's ID photo so the sign-up form fills itself, here
+# rather than at another company: see backend/providers/id_reading.py.
+apt-get install -y -qq tesseract-ocr
 
 echo "==> Node ${NODE_MAJOR}"
 if ! command -v node >/dev/null || [ "$(node -v | cut -c2- | cut -d. -f1)" -lt "$NODE_MAJOR" ]; then

@@ -2,6 +2,7 @@ import {z} from "zod";
 
 import {v, type ValidationKey} from "../i18n/validation";
 
+import {idNumberIssue, tidyIdNumber} from "./id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "./phone";
 import type {TrainerProfile} from "./types";
 
@@ -195,6 +196,13 @@ function courseIssues(values: CourseRuleValues) {
 }
 
 export const trainerDraftSchema = trainerDraftShape.superRefine((values, context) => {
+  // The number must have the shape of the ID type chosen (lib/id-numbers.ts).
+  // Checked on the tidied number, so spaces and small letters are not errors.
+  const idIssue = idNumberIssue(
+    values.id_document_type,
+    tidyIdNumber(values.id_document_type, values.id_document_number),
+  );
+  if (idIssue) context.addIssue({code: "custom", path: ["id_document_number"], message: idIssue});
   for (const issue of courseIssues(values)) {
     context.addIssue({code: "custom", path: [issue.path], message: issue.message});
   }
@@ -378,7 +386,7 @@ export function trainerProfilePayload(raw: TrainerDraftForm) {
     full_name: raw.full_name.trim(),
     role: raw.role,
     id_document_type: raw.id_document_type,
-    id_document_number: raw.id_document_number.trim(),
+    id_document_number: tidyIdNumber(raw.id_document_type, raw.id_document_number),
     name: raw.name.trim(),
     owner_name: raw.owner_name.trim(),
     contact_phone: toGhanaE164(raw.contact_phone),

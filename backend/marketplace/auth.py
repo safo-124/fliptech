@@ -192,7 +192,7 @@ def adopt_workshop(account, provider):
     from django.core.files.base import ContentFile
     from django.utils import timezone
 
-    from providers.models import ProviderEvidence
+    from providers.identity import id_file
 
     changed = []
     if account.provider_id != provider.pk:
@@ -205,17 +205,14 @@ def adopt_workshop(account, provider):
         account.area_id = provider.area_id
         changed.append("area")
     if account.id_status == SellerAccount.IdStatus.NONE and not account.id_document:
-        evidence = (
-            ProviderEvidence.objects.filter(
-                provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
-            )
-            .order_by("-pk")
-            .first()
-        )
-        if evidence is not None and evidence.file:
+        # On the trainer's account since the photo moved to the first step of
+        # sign-up; on the workshop for those who signed up before.
+        owner = provider.trainer_memberships.select_related("trainer").first()
+        id_photo = id_file(owner.trainer if owner else None, provider)
+        if id_photo:
             try:
-                with evidence.file.open("rb") as handle:
-                    name = evidence.file.name.rsplit("/", 1)[-1]
+                with id_photo.open("rb") as handle:
+                    name = id_photo.name.rsplit("/", 1)[-1]
                     account.id_document.save(name, ContentFile(handle.read()), save=False)
             except OSError:
                 pass

@@ -11,6 +11,7 @@ import type {
   TrainerArea,
   TrainerDashboard,
   TrainerEnquiry,
+  TrainerIdUpload,
   TrainerPhoto,
   TrainerProfile,
   TrainerSession,
@@ -249,10 +250,15 @@ export function deleteTrainerVideo(videoId: number) {
  * response: Section 10 requires identity documents are never publicly served,
  * so the only place one can be opened is the back office.
  */
-export async function uploadTrainerIdentityDocument(file: File) {
+/**
+ * The ID photo, and what the server could read from it. The ID type says what
+ * to look for on the card; the photo needs no saved workshop.
+ */
+export async function uploadTrainerIdentityDocument(file: File, idDocumentType: string) {
   const form = new FormData();
   form.append("document", file);
-  return trainerFetch<{stored: boolean}>("/api/trainer/profile/identity/", {
+  if (idDocumentType) form.append("id_document_type", idDocumentType);
+  return trainerFetch<TrainerIdUpload>("/api/trainer/profile/identity/", {
     method: "POST",
     body: form,
   });

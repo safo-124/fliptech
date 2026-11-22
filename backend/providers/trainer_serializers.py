@@ -270,17 +270,35 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
     programme = TrainerProgrammeInputSerializer(required=False, allow_null=True, default=None)
 
     def validate(self, attrs):
-        # The pin must be in Ghana and near the area the listing names. A
-        # listing went live headed "Accra Central" with its pin in Finland.
         from django.contrib.gis.geos import Point
 
         from geography.bounds import location_problem
 
+        from .id_numbers import id_number_problem, tidy_id_number
+
+        errors = {}
+
+        # The number must have the shape of the ID type chosen, and is stored
+        # one way so the same card typed twice is recognised (one card, one
+        # account: see TrainerProfileView.put).
+        document_type = attrs.get("id_document_type", "")
+        number = tidy_id_number(document_type, attrs.get("id_document_number", ""))
+        problem = id_number_problem(document_type, number)
+        if problem:
+            errors["id_document_number"] = problem
+        attrs["id_document_number"] = number
+
+        # The pin must be in Ghana and near the area the listing names. A
+        # listing went live headed "Accra Central" with its pin in Finland.
         problem = location_problem(
             Point(attrs["longitude"], attrs["latitude"], srid=4326), attrs.get("area")
         )
         if problem:
-            raise serializers.ValidationError({"latitude": problem, "longitude": problem})
+            errors["latitude"] = problem
+            errors["longitude"] = problem
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
 
@@ -410,13 +428,24 @@ class TrainerLogoSerializer(serializers.Serializer):
 
 class TrainerIdentityDocumentSerializer(serializers.Serializer):
     document = serializers.ImageField()
+    id_document_type = serializers.ChoiceField(
+        choices=TrainerAccount.IdentityDocument.choices, required=False, allow_blank=True
+    )
+
+
+class TrainerCardReadingSerializer(serializers.Serializer):
+    number = serializers.CharField(allow_blank=True)
+    name = serializers.CharField(allow_blank=True)
 
 
 class TrainerIdentityStoredSerializer(serializers.Serializer):
     """Deliberately carries no URL.
 
     Section 10 requires identity documents are never publicly served, so the
-    only thing the trainer is told is whether the upload landed.
+    trainer is told whether the upload landed and what could be read from it,
+    which is only what they are about to see on their own card anyway.
     """
 
     stored = serializers.BooleanField()
+    reading = serializers.ChoiceField(choices=["read", "unreadable", "unavailable"])
+    read = TrainerCardReadingSerializer()

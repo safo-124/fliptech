@@ -48,6 +48,7 @@ from .lifecycle import (
 from .models import (
     Complaint,
     GovernmentStatus,
+    IdNumberClash,
     ListingConfirmation,
     OwnerNotice,
     Provider,
@@ -57,6 +58,7 @@ from .models import (
     ProviderVideo,
     Suspension,
     TrainerAccount,
+    TrainerIdPhoto,
     Verification,
 )
 from .videos import decide
@@ -1434,8 +1436,33 @@ class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
                 self.admin_site.admin_view(self.confirm_one),
                 name="providers_traineraccount_confirm",
             ),
+            path(
+                "<int:pk>/id-photo/",
+                self.admin_site.admin_view(self.id_photo),
+                name="providers_traineraccount_id_photo",
+            ),
             *super().get_urls(),
         ]
+
+    def id_photo(self, request, pk):
+        """The trainer's ID photo, for staff who can see this account, and nobody else.
+
+        Private storage has no address of its own (Section 10: identity
+        documents are never publicly served), so the picture on the page is
+        fetched through here, behind the admin's login and this permission.
+        """
+        from .identity import id_file
+
+        account = get_object_or_404(TrainerAccount, pk=pk)
+        if not self.has_view_permission(request, account):
+            raise PermissionDenied
+        file = id_file(account, self._owned_provider_object(account))
+        if not file:
+            raise Http404
+        response = serve_private_file(request, file)
+        # Not kept in the browser's cache, which outlives the admin session.
+        response["Cache-Control"] = "private, no-store"
+        return response
 
     @method_decorator(require_POST)
     def confirm_one(self, request, pk):
@@ -1467,13 +1494,9 @@ class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
         renders for every row and invites a careless click. The link lives on
         the detail page, behind the same view.
         """
-        provider = self._owned_provider_object(obj)
-        if provider is None:
-            return "—"
-        has_id = ProviderEvidence.objects.filter(
-            provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
-        ).exists()
-        if not has_id:
+        from .identity import has_id_on_file
+
+        if not has_id_on_file(obj, self._owned_provider_object(obj)):
             return format_html('<span style="color:#b45309">Not uploaded</span>')
         label = obj.get_id_document_type_display() or "Document"
         return format_html('<span style="color:#15803d">{}</span>', label)
@@ -1569,33 +1592,136 @@ class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
             ),
         )
 
-    @admin.display(description="Identity document")
+    @admin.display(description="ID check")
     def identity_document_link(self, obj):
-        """A link to the private file, or a plain statement that there is none.
+        """The ID photo beside what was typed and what was read, and what to look at twice.
 
-        Section 10 requires identity documents are never publicly served, so
-        this points at the permission-checked evidence view rather than at
-        storage. PRIVATE_MEDIA_ROOT is not under the directory the web server
-        is pointed at, so there is no public URL to link to even by accident.
+        Confirming asks whether this is a real person who is who they say. That
+        used to mean opening the photo on another page and holding the typed
+        name and number in your head; now they sit side by side, with the card
+        reader's result (TrainerIdPhoto) between them.
+
+        The reading is the trainer's help, not evidence: a fake card reads as
+        well as a real one. The flags say where to look, not what to decide.
+
+        The picture comes through id_photo, behind this admin's permission.
+        Section 10 requires identity documents are never publicly served, and
+        private storage has no address of its own.
         """
+        from .id_numbers import id_number_problem
+        from .id_reading import names_match
+        from .identity import id_file, latest_id_photo
+
         provider = self._owned_provider_object(obj)
-        if provider is None:
-            return "No listing yet."
-        evidence = (
-            ProviderEvidence.objects.filter(
-                provider=provider, kind=ProviderEvidence.Kind.ID_DOCUMENT
+        if id_file(obj, provider) is None:
+            return "No ID photo yet. The trainer cannot send for review without one."
+        scan = latest_id_photo(obj)
+        src = reverse("admin:providers_traineraccount_id_photo", args=[obj.pk])
+        picture = format_html(
+            '<a href="{}" target="_blank" rel="noopener">'
+            '<img src="{}" alt="Photo of the trainer\'s ID" '
+            'style="max-width:440px;width:100%;border:1px solid #ccc;border-radius:6px"></a>'
+            "<br><small>Click to open it full size.</small>",
+            src,
+            src,
+        )
+
+        def verdict(same):
+            if same is None:
+                return ""
+            return format_html(
+                '<strong style="color:{}">{}</strong>',
+                "#15803d" if same else "#b91c1c",
+                "Same" if same else "Different",
             )
-            .order_by("-created_at")
-            .first()
+
+        nothing_read = (
+            "Not read: the card reader is not installed"
+            if scan and scan.reading == TrainerIdPhoto.Reading.UNAVAILABLE
+            else "Nothing read"
         )
-        if evidence is None:
-            return "Not uploaded yet. The trainer cannot submit for review without one."
-        return format_html(
-            '<a href="{}" target="_blank" rel="noopener">Open identity document</a>'
-            "<br><small>Uploaded {}</small>",
-            reverse("admin:providers_providerevidence_change", args=[evidence.pk]),
-            evidence.created_at.strftime("%d %b %Y"),
+        rows = []
+        if scan is not None:
+            typed_number, read_number = obj.id_document_number, scan.read_number
+            name_same = names_match(obj.full_name, scan.read_name)
+            rows = [
+                (
+                    "ID type",
+                    obj.get_id_document_type_display() or "—",
+                    scan.get_document_type_display() or "—",
+                    verdict(
+                        obj.id_document_type == scan.document_type
+                        if obj.id_document_type and scan.document_type
+                        else None
+                    ),
+                ),
+                (
+                    "Number",
+                    typed_number or "—",
+                    read_number or nothing_read,
+                    verdict(typed_number == read_number if typed_number and read_number else None),
+                ),
+                ("Name", obj.full_name or "—", scan.read_name or nothing_read, verdict(name_same)),
+            ]
+        table = (
+            format_html(
+                '<table style="margin-top:12px;max-width:640px"><thead><tr><th></th>'
+                "<th>Typed by them</th><th>Read from the card</th><th></th></tr></thead>"
+                "<tbody>{}</tbody></table>",
+                format_html_join(
+                    "",
+                    "<tr><th>{}</th><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    rows,
+                ),
+            )
+            if rows
+            else format_html(
+                "<p><small>{}</small></p>",
+                "Photo sent before the card reader existed: compare it with the name and "
+                "number above by eye.",
+            )
         )
+
+        flags = []
+        for clash in obj.id_clashes_against.select_related("account"):
+            flags.append(
+                format_html(
+                    'The account <a href="{}">{}</a> tried to use this ID number ({}).',
+                    reverse("admin:providers_traineraccount_change", args=[clash.account_id]),
+                    clash.account.phone,
+                    timezone.localtime(clash.updated_at).strftime("%d %b %Y"),
+                )
+            )
+        for clash in obj.id_clashes.select_related("other_account"):
+            flags.append(
+                format_html(
+                    'This account tried {}, which is on <a href="{}">{}</a> ({}). It was refused.',
+                    clash.number,
+                    reverse("admin:providers_traineraccount_change", args=[clash.other_account_id]),
+                    clash.other_account.phone,
+                    timezone.localtime(clash.updated_at).strftime("%d %b %Y"),
+                )
+            )
+        problem = id_number_problem(obj.id_document_type, obj.id_document_number)
+        if obj.id_document_number and problem:
+            flags.append(format_html("The number does not fit the rules: {}", problem))
+        if scan is not None:
+            if obj.id_document_number and scan.read_number:
+                if obj.id_document_number != scan.read_number:
+                    flags.append("The number typed is not the number read from the card.")
+            elif obj.id_document_number:
+                flags.append("The number was typed by hand, not read from the photo.")
+            if names_match(obj.full_name, scan.read_name) is False:
+                flags.append("The name typed is not the name read from the card.")
+        flag_list = (
+            format_html(
+                '<ul style="margin:12px 0 0;padding-left:18px;color:#b45309">{}</ul>',
+                format_html_join("", "<li>{}</li>", ((flag,) for flag in flags)),
+            )
+            if flags
+            else ""
+        )
+        return format_html("{}{}{}", picture, table, flag_list)
 
     def _owned_provider_object(self, obj):
         membership = obj.memberships.select_related("provider").first()
@@ -1720,3 +1846,49 @@ class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
     @admin.action(description="Restore trainer access")
     def restore_trainer_access(self, request, queryset):
         self._set_active(request, queryset, active=True, verb="restored")
+
+
+@admin.register(IdNumberClash)
+class IdNumberClashAdmin(admin.ModelAdmin):
+    """ID numbers someone tried on a second account. Each was refused.
+
+    One card, one account. A row here is either the same person who lost the
+    phone they signed up with, or someone using another person's card, and
+    only a person can tell which: open both accounts and compare their ID
+    photos. Read-only, because it is a record of what happened.
+    """
+
+    list_display = ("number", "document_type", "tried_by", "already_on", "updated_at")
+    list_filter = ("document_type",)
+    search_fields = ("number", "account__phone", "other_account__phone")
+    ordering = ("-updated_at",)
+    readonly_fields = (
+        "number",
+        "document_type",
+        "tried_by",
+        "already_on",
+        "created_at",
+        "updated_at",
+    )
+    fields = readonly_fields
+
+    def _trainer_link(self, account):
+        return format_html(
+            '<a href="{}">{}</a>',
+            reverse("admin:providers_traineraccount_change", args=[account.pk]),
+            account.full_name or account.phone,
+        )
+
+    @admin.display(description="Tried by", ordering="account__phone")
+    def tried_by(self, obj):
+        return self._trainer_link(obj.account)
+
+    @admin.display(description="Already on", ordering="other_account__phone")
+    def already_on(self, obj):
+        return self._trainer_link(obj.other_account)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
