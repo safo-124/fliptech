@@ -66,8 +66,10 @@ OPERATIONS_LEAD_EXTRA = [
     # Reports from the public. A report can carry the reporter's number, and
     # the decision it leads to is a suspension, which is the lead's to make.
     ("providers", "complaint", ["view", "change"]),
-    # Approving a teaching video puts it on a public listing, like publishing.
+    # Approving a teaching video puts it on a public listing, like publishing,
+    # and blocking one takes it off. Viewers' reports are read beside them.
     ("providers", "providervideo", ["change"]),
+    ("providers", "videoreport", ["view"]),
     # Reported chats; reading the messages themselves is read_chats, below.
     ("marketplace", "chatreport", ["view", "change"]),
     ("providers", "providerevidence", ["delete"]),

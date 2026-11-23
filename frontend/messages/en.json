@@ -1979,7 +1979,12 @@
     "lessonHair": "For example: Cornrows for beginners",
     "lessonElectrical": "For example: Wiring a socket",
     "title": "Teaching videos",
-    "lead": "A few minutes of you teaching shows a trainee what they will learn better than any photograph, and a whole course can go up lesson by lesson. Choose a video from your phone and it is sent from here. {brand} watches every video before it appears on your listing.",
+    "lead": "A few minutes of you teaching shows a trainee what they will learn better than any photograph, and a whole course can go up lesson by lesson. Choose a video from your gallery or files and it is sent from here.",
+    "publishNow": "Your videos go on your listing as soon as they are ready. {brand} watches them afterwards and removes any that break the guidelines.",
+    "reviewFirstBlocked": "Two of your videos were removed, so {brand} now watches each new video before it shows.",
+    "reviewFirst": "{brand} watches each video before it shows on your listing.",
+    "agreeLabel": "This is my own video, everyone in it agreed to be filmed, and no child appears without a guardian.",
+    "agreeRequired": "Tick the box to confirm this video follows the guidelines.",
     "tipsTitle": "Before you film",
     "tips": {
       "short": "One lesson per video, up to {minutes} minutes. Split a longer course into lessons.",
@@ -1990,7 +1995,7 @@
       "wifi": "A long lesson uses a lot of data to send. Use Wi-Fi if you can, and keep this page open until it finishes."
     },
     "fileLabel": "Video",
-    "fileHelp": "Up to {size} per lesson.",
+    "fileHelp": "From your gallery or files. Up to {size} per lesson.",
     "titleLabel": "What it shows",
     "titlePlaceholder": "Lesson 1: Cornrows for beginners",
     "add": "Send video",
@@ -2003,9 +2008,9 @@
     "loadFailed": "Your videos could not be loaded. Check your connection and try again.",
     "loading": "Loading your videos…",
     "full": "Your listing has as many videos as it can hold. Remove one to add another.",
-    "empty": "No videos yet. Once {brand} has watched one you send, trainees can play it on your listing.",
+    "empty": "No videos yet. Send your first lesson, and trainees can play it on your listing once {brand} has prepared it.",
     "count": "{count, plural, one {# video} other {# videos}} of {max} · {used} of {hours} hours used.",
-    "notLive": "Approved videos show once your listing is live.",
+    "notLive": "Your videos show once your listing is live.",
     "status": {
       "uploading": "Sending",
       "queued": "Waiting to be prepared",
@@ -2013,7 +2018,7 @@
       "failed": "Could not be prepared",
       "pending": "Waiting for review",
       "approved": "On your listing",
-      "rejected": "Not approved"
+      "rejected": "Removed"
     },
     "statusNote": {
       "uploading": "Keep this page open while it sends.",
@@ -2022,7 +2027,7 @@
       "failed": "{brand} could not prepare this video. Remove it, and send it again.",
       "pending": "It appears on your listing once {brand} has watched it.",
       "approved": "Trainees can play it on your listing.",
-      "rejected": "{brand} did not approve this video. Remove it, and send another."
+      "rejected": "{brand} removed this video because it breaks the video guidelines. Remove it, and send another."
     },
     "progress": "{sent} of {total} sent ({percent}%)",
     "paused": "Sending stopped: the connection dropped. Everything sent so far is kept.",
@@ -2032,11 +2037,31 @@
     "wrongFile": "That is not the same video. Choose “{name}”, or remove this one and start again.",
     "pause": "Pause",
     "length": "{minutes, plural, one {# minute} other {# minutes}}",
-    "reviewNote": "What to change: {note}",
+    "reviewNote": "Removed by our team. Why: {note}",
     "failureNote": "What went wrong: {reason}",
     "remove": "Remove",
     "cancel": "Cancel sending",
     "removeLabel": "Remove “{title}”"
+  },
+  "VideoReport": {
+    "open": "Report this video",
+    "signIn": "Sign in to report this video",
+    "title": "What is wrong with this video?",
+    "reasons": {
+      "not_theirs": "It is not their own video",
+      "no_consent": "Someone in it did not agree to be filmed",
+      "child": "A child appears without a guardian",
+      "unsafe": "Unsafe use of chemicals, heat or tools",
+      "offensive": "Sexual, violent or abusive",
+      "advertising": "It only advertises, it does not teach",
+      "other": "Something else"
+    },
+    "reasonRequired": "Choose what is wrong.",
+    "noteLabel": "Anything else our team should know (optional)",
+    "send": "Send report",
+    "cancel": "Cancel",
+    "thanks": "Thanks. Our team will look at it.",
+    "failed": "The report could not be sent. Check your connection and try again."
   },
   "ShareCard": {
     "siteTitle": "Find practical skills training in Ghana",

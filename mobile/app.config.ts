@@ -6,7 +6,9 @@
  * - App Links: https links to the site (shared on WhatsApp, in an SMS) open
  *   the app on that page instead of the browser, once Android has checked
  *   the site's /.well-known/assetlinks.json (frontend, from the
- *   ANDROID_CERT_SHA256 setting on the server).
+ *   ANDROID_CERT_SHA256 setting on the server). On an iPhone the same are
+ *   Universal Links, checked against /.well-known/apple-app-site-association
+ *   (frontend, from the APPLE_TEAM_ID setting).
  * - Updates: the app asks our own server for new versions of its JavaScript
  *   (backend appsupport/updates.py), not Expo's cloud. Published with
  *   scripts/publish-update.sh.
@@ -59,6 +61,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             },
           ]
         : [],
+    },
+    ios: {
+      ...config.ios,
+      associatedDomains: linkHost ? [`applinks:${linkHost}`] : [],
     },
     plugins: [
       ...(config.plugins ?? []),

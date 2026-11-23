@@ -12,6 +12,7 @@ import { StackHeader } from "@/components/StackHeader";
 import { Text } from "@/components/Text";
 import { ApiError, api, uploadPendingPhoto } from "@/lib/api";
 import { blankDraft, likeThis, nameExample, toInput, wasPriceTooLow, type QuickItemDraft } from "@/lib/quick-item";
+import { mayOpenGallery } from "@/lib/store-rules";
 import type { CreatedProduct } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
@@ -83,11 +84,8 @@ export default function AddItemScreen() {
   async function take(from: "camera" | "library") {
     const room = MAX_PHOTOS - count.current;
     if (room <= 0) return;
-    const permission =
-      from === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
+    const allowed = from === "camera" ? (await ImagePicker.requestCameraPermissionsAsync()).granted : await mayOpenGallery();
+    if (!allowed) {
       Alert.alert("Allow access", "Fliiptech needs permission to use the camera or your photos for this. You can allow it in your phone's settings.");
       return;
     }

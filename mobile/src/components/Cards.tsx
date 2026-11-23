@@ -4,12 +4,15 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { cedis, courseLength } from "@/lib/format";
 import { photoUrl } from "@/lib/media";
+import { sellsCourses } from "@/lib/store-rules";
 import { QuickAdd } from "@/components/market/QuickAdd";
 import type { CourseCard as Course, ProductCard as Product, ProviderCard as Workshop } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 import { Heart } from "./market/Heart";
 import { Text } from "./Text";
+
+const SELLS_COURSES = sellsCourses();
 
 const LEVELS: Record<string, string> = {
   beginner: "Beginner",
@@ -28,12 +31,15 @@ export function CourseCard({
   /** Full width, for a list, rather than a shelf's fixed width. */
   fill?: boolean;
 }) {
+  // A paid course shows no price on an iPhone, where the app does not sell
+  // courses (lib/store-rules.ts). Free is free everywhere.
+  const price = !course.price ? "Free" : SELLS_COURSES ? cedis(course.price) : null;
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, fill ? null : { width: 260 }, pressed ? styles.pressed : null]}
       accessibilityRole="button"
-      accessibilityLabel={`${course.name}, ${course.price ? cedis(course.price) : "free"}`}
+      accessibilityLabel={price ? `${course.name}, ${price}` : course.name}
     >
       <View style={styles.media}>
         <Image source={photoUrl(course.poster)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
@@ -64,10 +70,12 @@ export function CourseCard({
             <Text variant="small">({course.reviews})</Text>
           </View>
         ) : null}
-        <View style={styles.row}>
-          <Text style={styles.price}>{course.price ? cedis(course.price) : "Free"}</Text>
-          {course.full_price ? <Text style={styles.was}>{cedis(course.full_price)}</Text> : null}
-        </View>
+        {price ? (
+          <View style={styles.row}>
+            <Text style={styles.price}>{price}</Text>
+            {SELLS_COURSES && course.full_price ? <Text style={styles.was}>{cedis(course.full_price)}</Text> : null}
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );

@@ -8,12 +8,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Field, FormError } from "@/components/Form";
 import { BundleCard } from "@/components/market/BundleCard";
 import { StackHeader } from "@/components/StackHeader";
-import { ErrorState, Skeleton } from "@/components/States";
+import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cedis } from "@/lib/format";
 import { payOnPaystack } from "@/lib/pay";
+import { sellsBundle } from "@/lib/store-rules";
 import { colors, radius, space } from "@/theme/tokens";
 
 /**
@@ -86,6 +87,10 @@ export default function BundleScreen() {
         <View style={{ padding: space.lg }}>
           <Skeleton style={{ height: 240 }} />
         </View>
+      ) : !sellsBundle(data) ? (
+        // A bundle that opens a course, on an iPhone: not sold in this app
+        // (lib/store-rules.ts). Reached only by a link to it.
+        <EmptyState title="Not available in this app" body="This bundle cannot be bought on this phone." />
       ) : (
         <>
           <ScrollView

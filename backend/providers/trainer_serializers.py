@@ -348,6 +348,10 @@ class TrainerVideoInputSerializer(RejectUnknownFieldsMixin, serializers.Serializ
     content_type = serializers.CharField(
         max_length=100, required=False, allow_blank=True, default=""
     )
+    # The trainer's tick: their own video, everyone in it agreed to be
+    # filmed, no child without a guardian. Videos go live before staff watch
+    # them, so this is asked every time rather than once at sign-up.
+    agreed_to_guidelines = serializers.BooleanField(required=False, default=False)
 
     VIDEO_EXTENSIONS = {
         "mp4",
@@ -365,14 +369,24 @@ class TrainerVideoInputSerializer(RejectUnknownFieldsMixin, serializers.Serializ
     }
 
     def validate(self, attrs):
+        errors = {}
         not_a_video = _("That file is not a video. Choose a video from your phone or camera.")
         content_type = (attrs.get("content_type") or "").strip().lower()
-        if content_type and not content_type.startswith("video/"):
-            raise serializers.ValidationError({"name": not_a_video})
         name = attrs.get("name") or ""
         extension = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-        if extension and extension not in self.VIDEO_EXTENSIONS:
-            raise serializers.ValidationError({"name": not_a_video})
+        if (
+            content_type
+            and not content_type.startswith("video/")
+            or extension
+            and extension not in self.VIDEO_EXTENSIONS
+        ):
+            errors["name"] = not_a_video
+        if not attrs.get("agreed_to_guidelines"):
+            errors["agreed_to_guidelines"] = _(
+                "Tick the box to confirm this video follows the guidelines."
+            )
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
 

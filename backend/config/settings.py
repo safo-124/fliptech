@@ -563,9 +563,16 @@ VIDEO_MAX_MINUTES = env.int("VIDEO_MAX_MINUTES", default=60)
 # Teaching a listing may hold in total, and how many lessons.
 VIDEO_MAX_HOURS_PER_PROVIDER = env.int("VIDEO_MAX_HOURS_PER_PROVIDER", default=24)
 VIDEO_MAX_PER_PROVIDER = env.int("VIDEO_MAX_PER_PROVIDER", default=40)
-# Uploads are refused while the disk holding VIDEO_WORK_DIR has less free than
-# this, whatever any listing's allowance. The database is on the same disk.
-VIDEO_MIN_FREE_BYTES = env.int("VIDEO_MIN_FREE_BYTES", default=10 * 1024**3)
+# Free space to keep on the disk holding VIDEO_WORK_DIR, on top of the video
+# being sent. 0 (the default) only refuses a video that would not fit at all;
+# raise it to keep room for the database when it shares that disk.
+VIDEO_MIN_FREE_BYTES = env.int("VIDEO_MIN_FREE_BYTES", default=0)
+# A video goes on its listing as soon as it is prepared, and staff watch it
+# afterwards and block it if it breaks the guidelines. False: every video
+# waits for staff before it shows.
+VIDEO_PUBLISH_WITHOUT_REVIEW = env.bool("VIDEO_PUBLISH_WITHOUT_REVIEW", default=True)
+# A listing with this many videos blocked goes back to waiting for review.
+VIDEO_BLOCKS_BEFORE_REVIEW = env.int("VIDEO_BLOCKS_BEFORE_REVIEW", default=2)
 # An upload nobody has added to for this long is abandoned and removed.
 VIDEO_ABANDONED_UPLOAD_HOURS = 48
 # An encoding still marked running after this long is assumed to have died

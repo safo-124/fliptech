@@ -42,7 +42,7 @@ const STATUS_BADGE = {
 const MOVING: TrainerVideoStatus[] = ["queued", "processing"];
 const POLL_MS = 15_000;
 
-type FieldErrors = {file?: string; title?: string};
+type FieldErrors = {file?: string; title?: string; agreed?: string};
 
 /** The upload this page is sending right now, if any. */
 type Sending = {videoId: number; file: File; controller: AbortController};
@@ -77,9 +77,11 @@ async function keepAwake(): Promise<{release: () => Promise<void>} | null> {
  *
  * The video is chosen from the phone and sent from here, a piece at a time
  * (lib/video-upload.ts), so a dropped connection loses one piece rather than
- * the whole file. The server then prepares it for phones on 3G, and staff
- * watch it before it shows, separately from the listing: a live listing
- * stays live while a new video waits.
+ * the whole file. The server then prepares it for phones on 3G and puts it
+ * on the listing; staff watch it afterwards and remove it if it breaks the
+ * guidelines. A workshop with videos removed before waits for review
+ * instead (limits.review_first_because_blocked). The trainer ticks that it
+ * follows the guidelines for every video.
  */
 /** A video by its type, or by its name when the phone gives no type. */
 function isVideoFile(file: File) {
@@ -109,6 +111,7 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
   const [loadError, setLoadError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -202,6 +205,7 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
     const missing: FieldErrors = {
       file: file ? undefined : t("fileRequired"),
       title: title.trim() ? undefined : t("titleRequired"),
+      agreed: agreed ? undefined : t("agreeRequired"),
     };
     if (file && !isVideoFile(file)) {
       // accept="video/*" is a hint some phones ignore: a .jpg got through.
@@ -213,16 +217,22 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
       });
     }
     setFieldErrors(missing);
-    if (missing.file || missing.title || !file) return;
+    if (missing.file || missing.title || missing.agreed || !file) return;
 
     setStarting(true);
     setError(null);
     let video: TrainerVideo;
     try {
-      video = await startTrainerVideo(title.trim(), file);
+      video = await startTrainerVideo(title.trim(), file, agreed);
     } catch (reason) {
-      if (reason instanceof TrainerApiError && reason.fields.title) {
-        setFieldErrors({title: reason.fields.title});
+      if (
+        reason instanceof TrainerApiError &&
+        (reason.fields.title || reason.fields.agreed_to_guidelines)
+      ) {
+        setFieldErrors({
+          title: reason.fields.title,
+          agreed: reason.fields.agreed_to_guidelines,
+        });
       } else {
         setError(reason instanceof Error ? reason.message : t("addFailed"));
       }
@@ -233,6 +243,8 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
     replace(video);
     setFile(null);
     setTitle("");
+    // Ticked again for the next one: it is about that video.
+    setAgreed(false);
     if (fileInput.current) fileInput.current.value = "";
     await send(video, file);
   }
@@ -311,6 +323,13 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
             <p className="text-sm text-[var(--color-muted-foreground)]">{t("full")}</p>
           ) : (
             <form noValidate onSubmit={add} className="grid gap-4 sm:grid-cols-2">
+              <p className="rounded-xl bg-[var(--color-brand-soft)] p-3 text-sm leading-6 text-[var(--color-brand-deep)] sm:col-span-2">
+                {limits.publishes_straight_away
+                  ? t("publishNow", {brand: BRAND})
+                  : limits.review_first_because_blocked
+                    ? t("reviewFirstBlocked", {brand: BRAND})
+                    : t("reviewFirst", {brand: BRAND})}
+              </p>
               <div className="space-y-1.5">
                 <Label htmlFor="video-file">{t("fileLabel")}</Label>
                 <Input
@@ -359,6 +378,30 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
                 {fieldErrors.title ? (
                   <p id="video-title-error" className="text-sm text-[var(--color-destructive)]">
                     {fieldErrors.title}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="flex items-start gap-2.5 rounded-xl border border-[var(--color-border)] p-3 text-sm leading-6">
+                  <input
+                    id="video-agree"
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(event) => {
+                      setAgreed(event.target.checked);
+                      if (event.target.checked) {
+                        setFieldErrors((current) => ({...current, agreed: undefined}));
+                      }
+                    }}
+                    aria-invalid={fieldErrors.agreed ? true : undefined}
+                    aria-describedby={fieldErrors.agreed ? "video-agree-error" : undefined}
+                    className="mt-1 size-5 shrink-0 accent-[var(--color-brand)]"
+                  />
+                  <span>{t("agreeLabel")}</span>
+                </label>
+                {fieldErrors.agreed ? (
+                  <p id="video-agree-error" className="text-sm text-[var(--color-destructive)]">
+                    {fieldErrors.agreed}
                   </p>
                 ) : null}
               </div>

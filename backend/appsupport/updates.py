@@ -6,7 +6,8 @@ in the Expo Updates protocol (version 1): a multipart response whose
 "manifest" part lists the JavaScript bundle and the assets, each with the
 SHA-256 the app checks it against.
 
-An update is the output of `npx expo export --platform android`, copied by
+An update is the output of `npx expo export --platform android --platform ios`
+(one folder, with each platform's files listed in metadata.json), copied by
 mobile/scripts/publish-update.sh to
 
     APP_UPDATES_ROOT/<runtime version>/<timestamp>/

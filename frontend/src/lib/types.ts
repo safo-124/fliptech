@@ -481,8 +481,12 @@ export type TrainerVideoLimits = {
   max_upload_bytes: number;
   chunk_bytes: number;
   seconds_used: number;
-  /** False while the server cannot take uploads (its video disk is nearly full). */
+  /** False while the server cannot take uploads (its disk is full, or it cannot write). */
   accepting?: boolean;
+  /** True when a video goes on the listing as soon as it is prepared. */
+  publishes_straight_away?: boolean;
+  /** True when this workshop's videos wait for review because staff removed some. */
+  review_first_because_blocked?: boolean;
 };
 
 export type TrainerVideoList = { videos: TrainerVideo[]; limits: TrainerVideoLimits };

@@ -223,10 +223,16 @@ export function getTrainerVideos() {
  * Say what is about to be sent. The server refuses it now, before any data
  * is spent, if it would not fit. The file follows with sendVideoPiece.
  */
-export function startTrainerVideo(title: string, file: File) {
+export function startTrainerVideo(title: string, file: File, agreedToGuidelines: boolean) {
   return trainerFetch<TrainerVideo>("/api/trainer/profile/videos/", {
     method: "POST",
-    body: JSON.stringify({title, name: file.name, size: file.size, content_type: file.type}),
+    body: JSON.stringify({
+      title,
+      name: file.name,
+      size: file.size,
+      content_type: file.type,
+      agreed_to_guidelines: agreedToGuidelines,
+    }),
   });
 }
 

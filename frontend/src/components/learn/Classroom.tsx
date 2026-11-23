@@ -38,6 +38,7 @@ import { CourseReviews } from "./CourseReviews";
 import { clock, LessonPlayer, type PlayerReport } from "./LessonPlayer";
 import { LessonQuestions } from "./LessonQuestions";
 import { ProgressRing } from "./ProgressRing";
+import { ReportVideo } from "./ReportVideo";
 import { SaveOffline } from "./SaveOffline";
 
 type Tab = "overview" | "questions" | "reviews";
@@ -323,6 +324,16 @@ export function Classroom({ data }: { data: CourseDetail }) {
             </div>
           </div>
         </div>
+        {locked ? null : (
+          <div className="mt-2">
+            <ReportVideo
+              key={current.id}
+              videoId={current.id}
+              signedIn={signedIn}
+              signInHref={signInHref}
+            />
+          </div>
+        )}
         {!signedIn && access && finishedCount > 0 ? (
           <a
             href={signInHref}

@@ -1,8 +1,9 @@
 import { router } from "expo-router";
 import { Navigation, Store } from "lucide-react-native";
-import { Linking, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/Text";
+import { openDirections } from "@/lib/directions";
 import { withArea } from "@/lib/format";
 import type { PickupPoint } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
@@ -11,14 +12,7 @@ import { colors, fonts, radius, space } from "@/theme/tokens";
 export function PickupCard({ pickup }: { pickup: PickupPoint }) {
   function directions() {
     if (pickup.lat === null || pickup.lng === null) return;
-    const label = encodeURIComponent(pickup.name);
-    const native =
-      Platform.OS === "ios"
-        ? `maps:0,0?q=${label}@${pickup.lat},${pickup.lng}`
-        : `geo:${pickup.lat},${pickup.lng}?q=${pickup.lat},${pickup.lng}(${label})`;
-    Linking.openURL(native).catch(() =>
-      Linking.openURL(`https://www.openstreetmap.org/?mlat=${pickup.lat}&mlon=${pickup.lng}#map=17/${pickup.lat}/${pickup.lng}`),
-    );
+    openDirections({ lat: pickup.lat, lng: pickup.lng, name: pickup.name });
   }
   const [, area, slug] = pickup.workshop_path.split("/");
   return (

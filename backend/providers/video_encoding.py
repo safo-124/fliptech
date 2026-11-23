@@ -40,7 +40,7 @@ from django.utils.translation import gettext as _
 
 from . import video_uploads
 from .models import ProviderVideo
-from .videos import seconds_used
+from .videos import after_preparing, seconds_used
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,8 @@ def _poster(source, target, *, at_seconds, timeout):
 
 
 def encode(video):
-    """Prepare one queued video for review. Raises EncodingFailed."""
+    """Prepare one queued video, then publish it or leave it for review
+    (videos.after_preparing). Raises EncodingFailed."""
     source = str(video_uploads.work_path(video))
     if not Path(source).exists():
         raise EncodingFailed(_("The video did not arrive in full. Send it again."))
@@ -245,6 +246,8 @@ def encode(video):
             video.processing_started_at = None
             video.save()
 
+    # Straight on the listing, unless this workshop's videos wait for review.
+    after_preparing(video)
     video_uploads.remove_work_file(video)
 
 

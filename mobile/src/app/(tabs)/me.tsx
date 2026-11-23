@@ -15,6 +15,7 @@ import { ApiError, request, uploadAccountPhoto } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { openOnSite } from "@/lib/open";
 import { showPhone } from "@/lib/phone";
+import { mayOpenGallery } from "@/lib/store-rules";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /** A row opens an app screen (`to`) or, until the app has one, the website (`site`). */
@@ -94,11 +95,8 @@ export default function MeScreen() {
   }
 
   async function pick(from: "library" | "camera") {
-    const permission =
-      from === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
+    const allowed = from === "camera" ? (await ImagePicker.requestCameraPermissionsAsync()).granted : await mayOpenGallery();
+    if (!allowed) {
       Alert.alert("Allow access", "Fliiptech needs permission to use your photos for this. You can allow it in your phone's settings.");
       return;
     }

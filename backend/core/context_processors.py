@@ -81,7 +81,7 @@ def _snapshot():
 
     check_ins_due = check_ins.summary().due
     complaints_new = Complaint.objects.filter(status=Complaint.Status.NEW).count()
-    videos_waiting = ProviderVideo.objects.filter(status=ProviderVideo.Status.PENDING).count()
+    videos_waiting = ProviderVideo.objects.needing_staff().count()
 
     return {
         "check_ins_due": check_ins_due,
@@ -221,15 +221,16 @@ def _complaints_queue(count):
 
 
 def _videos_queue(count):
-    """Teaching videos waiting to be watched before they show. See ProviderVideo."""
+    """Teaching videos for staff to watch: live and not yet watched, reported,
+    or waiting for review. See ProviderVideoQuerySet.needing_staff."""
     if not count:
         return []
     return [
         {
             "key": "videos_waiting",
-            "label": "Videos to review",
+            "label": "Videos to watch",
             "count": count,
-            "url": f"{reverse('admin:providers_providervideo_changelist')}?status__exact=pending",
+            "url": f"{reverse('admin:providers_providervideo_changelist')}?needs=all",
         }
     ]
 

@@ -20,9 +20,9 @@ from django.utils import timezone
 
 from geography.models import Area, Region
 from providers import video_encoding, video_uploads
-from providers.models import Provider, ProviderMembership, ProviderVideo
+from providers.models import Provider, ProviderMembership, ProviderVideo, VideoReport
 from providers.trainer_auth import account_for_verified_phone
-from providers.videos import decide
+from providers.videos import after_preparing, decide
 
 ACCRA = Point(-0.1870, 5.6037, srid=4326)
 CHUNK = 1024
@@ -81,7 +81,13 @@ def owner(client, listing):
 def start(client, size=CHUNK * 2 + 10, title="Cornrows in five minutes", **extra):
     return client.post(
         reverse("trainer-videos"),
-        {"title": title, "name": "IMG_0001.mp4", "size": size, **extra},
+        {
+            "title": title,
+            "name": "IMG_0001.mp4",
+            "size": size,
+            "agreed_to_guidelines": True,
+            **extra,
+        },
         content_type="application/json",
     )
 
@@ -285,6 +291,74 @@ def test_pieces_sent_in_order_make_the_file_and_queue_it(owner, video_dirs):
 
 
 @pytest.mark.django_db
+def test_the_app_sends_a_video_with_its_sign_in_token(listing, video_dirs):
+    """The mobile app has no cookie and no CSRF token, only its bearer token.
+
+    These endpoints authenticate with SessionAuthentication, which works for
+    the app because AppTokenMiddleware signs the request in first (see
+    accounts/app_auth.py). This is what mobile/src/app/trainer/videos.tsx
+    relies on.
+    """
+    from django.test import Client
+
+    from accounts.app_auth import issue_token
+
+    _, trainer = listing
+    app = Client(enforce_csrf_checks=True)
+    auth = {"HTTP_AUTHORIZATION": f"Bearer {issue_token(trainer.user, device='Tecno Spark 20')}"}
+
+    listed = app.get(reverse("trainer-videos"), **auth)
+    assert listed.status_code == 200
+    assert listed.json()["limits"]["accepting"] is True
+
+    # The app's picker gives no file name, only the type.
+    data = bytes(range(256)) * 5  # 1280 bytes: a full piece and a short one
+    started = app.post(
+        reverse("trainer-videos"),
+        {
+            "title": "Cornrows",
+            "name": "",
+            "size": len(data),
+            "content_type": "video/mp4",
+            "agreed_to_guidelines": True,
+        },
+        content_type="application/json",
+        **auth,
+    )
+    assert started.status_code == 201, started.content
+    video_id = started.json()["id"]
+    for offset in range(0, len(data), CHUNK):
+        sent = app.put(
+            reverse("trainer-video-upload", args=[video_id]),
+            data=data[offset : offset + CHUNK],
+            content_type="application/octet-stream",
+            HTTP_UPLOAD_OFFSET=str(offset),
+            **auth,
+        )
+        assert sent.status_code == 200, sent.content
+    assert sent.json()["status"] == "queued"
+    assert video_uploads.work_path(ProviderVideo.objects.get(pk=video_id)).read_bytes() == data
+
+    # "Cancel sending" from the app.
+    second = app.post(
+        reverse("trainer-videos"),
+        {
+            "title": "Braids",
+            "name": "",
+            "size": 10,
+            "content_type": "video/mp4",
+            "agreed_to_guidelines": True,
+        },
+        content_type="application/json",
+        **auth,
+    ).json()["id"]
+    assert app.delete(reverse("trainer-video-delete", args=[second]), **auth).status_code == 204
+
+    # Without the token the same phone is nobody.
+    assert Client(enforce_csrf_checks=True).get(reverse("trainer-videos")).status_code in (401, 403)
+
+
+@pytest.mark.django_db
 def test_a_piece_out_of_place_is_refused_with_where_to_carry_on(owner):
     video_id = start(owner).json()["id"]
     send(owner, video_id, b"a" * CHUNK, 0)
@@ -403,7 +477,9 @@ def test_removing_an_upload_takes_its_file_with_it(owner, django_capture_on_comm
 
 @needs_ffmpeg
 @pytest.mark.django_db
-def test_an_upload_is_encoded_for_phones_and_waits_for_review(owner, listing, video_dirs):
+def test_an_upload_is_encoded_for_phones_and_waits_for_review(owner, listing, video_dirs, settings):
+    # With publishing straight away off, so the encoded files stay private.
+    settings.VIDEO_PUBLISH_WITHOUT_REVIEW = False
     data = clip(video_dirs / "phone.mp4", size="640x360", seconds=2)
     video = upload(owner, data)
 
@@ -427,7 +503,8 @@ def test_an_upload_is_encoded_for_phones_and_waits_for_review(owner, listing, vi
 
 @needs_ffmpeg
 @pytest.mark.django_db
-def test_a_sharp_upload_also_gets_a_720p_copy(owner, video_dirs):
+def test_a_sharp_upload_also_gets_a_720p_copy(owner, video_dirs, settings):
+    settings.VIDEO_PUBLISH_WITHOUT_REVIEW = False
     data = clip(video_dirs / "phone.mp4", size="1280x720", seconds=1, audio=False)
     video = upload(owner, data)
 
@@ -436,6 +513,24 @@ def test_a_sharp_upload_also_gets_a_720p_copy(owner, video_dirs):
     video.refresh_from_db()
     assert video.status == ProviderVideo.Status.PENDING, video.failure_reason
     assert video.review_720 and video.size_720
+
+
+@needs_ffmpeg
+@pytest.mark.django_db
+def test_an_encoded_upload_goes_straight_on_the_listing(owner, listing, video_dirs):
+    data = clip(video_dirs / "phone.mp4", size="640x360", seconds=2)
+    video = upload(owner, data)
+
+    call_command("process_videos", "--once", verbosity=0)
+
+    video.refresh_from_db()
+    assert video.status == ProviderVideo.Status.APPROVED, video.failure_reason
+    assert video.public_360 and video.public_poster
+    assert not (video.review_360 or video.review_poster)
+    # Live, but no member of staff has watched it yet.
+    assert video.reviewed_at is None
+    assert list(ProviderVideo.objects.unwatched()) == [video]
+    assert [v["id"] for v in public_videos(owner, listing[0])] == [video.pk]
 
 
 @needs_ffmpeg
@@ -690,10 +785,10 @@ def test_videos_waiting_show_in_the_sidebar_for_whoever_can_approve_them(client,
     ready_video(listing[0])
 
     client.force_login(staff["lead"])
-    assert "Videos to review" in client.get(reverse("admin:index")).content.decode()
+    assert "Videos to watch" in client.get(reverse("admin:index")).content.decode()
 
     client.force_login(staff["officer"])
-    assert "Videos to review" not in client.get(reverse("admin:index")).content.decode()
+    assert "Videos to watch" not in client.get(reverse("admin:index")).content.decode()
 
 
 # --------------------------------------------------------------------------
@@ -786,3 +881,219 @@ def test_approved_videos_survive_the_media_pruner(listing, staff, settings):
     names = referenced_names()
 
     assert {video.public_360.name, video.public_poster.name} <= names
+
+
+# --------------------------------------------------------------------------
+# Published straight away, watched afterwards, blocked if it breaks the rules
+
+
+@pytest.mark.django_db
+def test_a_prepared_video_goes_on_the_listing_before_staff_watch_it(owner, listing):
+    video = ready_video(listing[0])
+
+    after_preparing(video)
+
+    video.refresh_from_db()
+    assert video.status == ProviderVideo.Status.APPROVED
+    assert video.public_360 and not video.review_360
+    assert video.reviewed_at is None and video.reviewed_by is None
+    assert list(ProviderVideo.objects.unwatched()) == [video]
+    assert list(ProviderVideo.objects.needing_staff()) == [video]
+    assert [v["id"] for v in public_videos(owner, listing[0])] == [video.pk]
+
+
+@pytest.mark.django_db
+def test_with_the_switch_off_a_prepared_video_waits_for_review(owner, listing, settings):
+    settings.VIDEO_PUBLISH_WITHOUT_REVIEW = False
+    video = ready_video(listing[0])
+
+    after_preparing(video)
+
+    video.refresh_from_db()
+    assert video.status == ProviderVideo.Status.PENDING
+    assert video.review_360 and not video.public_360
+    assert public_videos(owner, listing[0]) == []
+    limits = owner.get(reverse("trainer-videos")).json()["limits"]
+    assert limits["publishes_straight_away"] is False
+    assert limits["review_first_because_blocked"] is False
+
+
+@pytest.mark.django_db
+def test_the_trainer_is_told_videos_publish_straight_away(owner):
+    limits = owner.get(reverse("trainer-videos")).json()["limits"]
+
+    assert limits["publishes_straight_away"] is True
+    assert limits["review_first_because_blocked"] is False
+
+
+@pytest.mark.django_db
+def test_the_trainer_must_tick_the_guidelines_box(owner):
+    refused = start(owner, agreed_to_guidelines=False)
+
+    assert refused.status_code == 400
+    assert "agreed_to_guidelines" in refused.json()
+    assert not ProviderVideo.objects.exists()
+
+    accepted = start(owner)
+
+    assert accepted.status_code == 201, accepted.content
+    assert ProviderVideo.objects.get().guidelines_agreed_at is not None
+
+
+@pytest.mark.django_db
+def test_a_video_that_fits_is_taken_however_little_room_is_left(owner, monkeypatch):
+    usage = namedtuple("usage", "total used free")
+    monkeypatch.setattr(shutil, "disk_usage", lambda path: usage(0, 0, 3 * 1024**3))
+
+    assert owner.get(reverse("trainer-videos")).json()["limits"]["accepting"] is True
+    assert start(owner, size=2 * 1024**3).status_code == 201
+    assert start(owner, size=3 * 1024**3 + 1).status_code == 400
+
+
+@pytest.mark.django_db
+def test_blocking_takes_it_off_the_listing_and_tells_the_trainer(
+    client, owner, listing, staff, monkeypatch, django_capture_on_commit_callbacks
+):
+    told = []
+    monkeypatch.setattr(
+        "appsupport.notify.notify", lambda phone, message, **kwargs: told.append((phone, message))
+    )
+    video = ready_video(listing[0])
+    after_preparing(video)
+
+    client.force_login(staff["lead"])
+    url = reverse("admin:providers_providervideo_change", args=[video.pk])
+    with django_capture_on_commit_callbacks(execute=True):
+        response = client.post(
+            url,
+            {"title": "Cornrows", "status": "rejected", "review_note": "It is not your video."},
+        )
+
+    assert response.status_code == 302
+    video.refresh_from_db()
+    assert video.status == ProviderVideo.Status.REJECTED
+    assert video.review_360 and not video.public_360
+    listing[0].refresh_from_db()
+    assert listing[0].videos_blocked == 1
+    [(phone, message)] = told
+    assert phone == "+233240000601"
+    assert "It is not your video." in message
+    assert public_videos(owner, listing[0]) == []
+
+
+@pytest.mark.django_db
+def test_two_blocks_send_a_workshop_back_to_review_first(owner, listing, staff):
+    provider = listing[0]
+    for title in ("One", "Two"):
+        video = ready_video(provider, title=title)
+        after_preparing(video)
+        decide(video, ProviderVideo.Status.REJECTED, by=staff["lead"], note="Not theirs.")
+    # Deleting a blocked video does not wipe the slate.
+    provider.videos.filter(title="One").delete()
+
+    provider.refresh_from_db()
+    assert provider.videos_blocked == 2
+    limits = owner.get(reverse("trainer-videos")).json()["limits"]
+    assert limits["publishes_straight_away"] is False
+    assert limits["review_first_because_blocked"] is True
+
+    third = ready_video(provider, title="Three")
+    after_preparing(third)
+
+    third.refresh_from_db()
+    assert third.status == ProviderVideo.Status.PENDING
+    assert not third.public_360
+
+
+@pytest.mark.django_db
+def test_unblocking_a_video_takes_its_block_back(listing, staff):
+    video = ready_video(listing[0])
+    decide(video, ProviderVideo.Status.REJECTED, by=staff["lead"], note="Too dark.")
+    decide(video, ProviderVideo.Status.APPROVED, by=staff["lead"])
+
+    listing[0].refresh_from_db()
+    assert listing[0].videos_blocked == 0
+
+
+@pytest.mark.django_db
+def test_only_whoever_can_block_videos_can_reset_the_count(rf, staff):
+    from django.contrib import admin
+
+    from providers.admin import ProviderAdmin
+
+    model_admin = ProviderAdmin(Provider, admin.site)
+    request = rf.get("/")
+
+    request.user = staff["officer"]
+    assert "videos_blocked" in model_admin.get_readonly_fields(request)
+    request.user = staff["lead"]
+    assert "videos_blocked" not in model_admin.get_readonly_fields(request)
+
+
+# --------------------------------------------------------------------------
+# Reports from viewers
+
+
+@pytest.fixture
+def viewer(client, django_user_model):
+    client.force_login(django_user_model.objects.create_user("viewer", password="pw"))
+    return client
+
+
+def report(client, video, reason="not_theirs", note=""):
+    return client.post(
+        reverse("video-report", args=[video.pk]),
+        {"reason": reason, "note": note},
+        content_type="application/json",
+    )
+
+
+@pytest.mark.django_db
+def test_a_viewer_reports_a_live_video_once(viewer, listing, staff):
+    video = ready_video(listing[0])
+    decide(video, ProviderVideo.Status.APPROVED, by=staff["lead"])
+    assert not ProviderVideo.objects.needing_staff().exists()
+
+    first = report(viewer, video, note="I filmed this, not them.")
+    again = report(viewer, video, reason="no_consent")
+
+    assert first.status_code == 201 and again.status_code == 200
+    [only] = VideoReport.objects.all()
+    assert only.reason == "no_consent"
+    # Watched already, but reported: back in front of staff.
+    assert list(ProviderVideo.objects.reported()) == [video]
+    assert list(ProviderVideo.objects.needing_staff()) == [video]
+
+
+@pytest.mark.django_db
+def test_reporting_needs_a_sign_in_a_shown_video_and_a_reason(client, viewer, listing):
+    waiting = ready_video(listing[0], title="Waiting")
+    live = ready_video(listing[0], title="Live")
+    after_preparing(live)
+
+    assert report(viewer, waiting).status_code == 404
+    assert report(viewer, live, reason="boring").status_code == 400
+    viewer.logout()
+    assert report(client, live).status_code in (401, 403)
+    assert not VideoReport.objects.exists()
+
+
+@pytest.mark.django_db
+def test_keeping_a_video_marks_it_watched_and_closes_its_reports(client, viewer, listing, staff):
+    video = ready_video(listing[0])
+    after_preparing(video)
+    assert report(viewer, video).status_code == 201
+
+    client.force_login(staff["lead"])
+    page = client.get(reverse("admin:providers_providervideo_change", args=[video.pk]))
+    assert "It is not their own video" in page.content.decode()
+    queue = client.get(reverse("admin:providers_providervideo_changelist") + "?needs=all")
+    assert queue.status_code == 200 and "Cornrows" in queue.content.decode()
+
+    approve(client, video)
+
+    video.refresh_from_db()
+    assert video.status == ProviderVideo.Status.APPROVED
+    assert video.reviewed_by == staff["lead"] and video.reviewed_at is not None
+    assert not VideoReport.objects.filter(resolved_at__isnull=True).exists()
+    assert not ProviderVideo.objects.needing_staff().exists()

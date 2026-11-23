@@ -254,6 +254,17 @@ class Provider(TimeStampedModel):
     # without a reply, and the date last checked is shown on the listing.
     last_confirmed_at = models.DateTimeField(null=True, blank=True)
 
+    # Teaching videos staff have blocked on this listing, deleted ones
+    # included. At settings.VIDEO_BLOCKS_BEFORE_REVIEW its new videos wait for
+    # staff instead of going straight on (providers/videos.py). Staff can set
+    # it back to 0 to give the workshop another chance.
+    videos_blocked = models.PositiveIntegerField(
+        "videos blocked",
+        default=0,
+        help_text="Videos staff have blocked. At 2, new videos wait for review "
+        "before they show. Set to 0 to let them publish straight away again.",
+    )
+
     history = HistoricalRecords()
 
     class Meta:
@@ -654,6 +665,29 @@ class ProviderVideoQuerySet(models.QuerySet):
     def shown(self):
         return self.filter(status=ProviderVideo.Status.APPROVED)
 
+    def unwatched(self):
+        """On a listing, but no member of staff has watched it yet."""
+        return self.shown().filter(reviewed_at__isnull=True, youtube_id="")
+
+    def _open_reports(self):
+        return models.Exists(
+            VideoReport.objects.filter(video=models.OuterRef("pk"), resolved_at__isnull=True)
+        )
+
+    def reported(self):
+        """With a viewer's report staff have not dealt with yet."""
+        return self.filter(self._open_reports())
+
+    def needing_staff(self):
+        """Waiting for review, live and not yet watched, or reported."""
+        return self.filter(
+            models.Q(status=ProviderVideo.Status.PENDING)
+            | models.Q(
+                status=ProviderVideo.Status.APPROVED, reviewed_at__isnull=True, youtube_id=""
+            )
+            | self._open_reports()
+        )
+
     def in_course_order(self):
         return self.order_by(*LESSON_ORDER)
 
@@ -689,17 +723,21 @@ class ProviderVideo(TimeStampedModel):
     up as lessons, one upload each, and each lesson is reviewed on its own.
 
     The trainer uploads the file from their phone in small pieces (see
-    providers/video_uploads.py), ffmpeg makes it small enough for 3G (see
-    providers/video_encoding.py), and only then does it wait for review.
+    providers/video_uploads.py) and ffmpeg makes it small enough for 3G (see
+    providers/video_encoding.py). Then it goes straight on the listing, and
+    staff watch it afterwards and block it if it breaks the guidelines; with
+    settings.VIDEO_PUBLISH_WITHOUT_REVIEW off, or for a workshop with videos
+    blocked before, it waits for review instead. See providers/videos.py.
 
     Two sets of file fields, bound to two storages, for the reason
-    ProviderEvidence and ProviderPhoto are two models: until staff have watched
-    a video it is unreviewed content of any kind, and it must not be reachable
-    at a public address. The `review_*` files live in private storage and are
-    shown to staff through a permission-checked view. Approving copies them to
-    the `public_*` fields and deletes the private copies; taking an approved
-    video back down does the reverse. At no point does one field hold a file
-    in the wrong bucket.
+    ProviderEvidence and ProviderPhoto are two models: a video that is not
+    shown must not be reachable at a public address. The `review_*` files live
+    in private storage and are shown to staff through a permission-checked
+    view. Publishing copies them to the `public_*` fields and deletes the
+    private copies; blocking a video does the reverse. At no point does one
+    field hold a file in the wrong bucket.
+
+    Shown and `reviewed_at` empty means live but not yet watched by staff.
 
     Older rows carry a `youtube_id` instead, from when videos were YouTube
     links. Nothing new is added that way, but those already approved keep
@@ -713,7 +751,7 @@ class ProviderVideo(TimeStampedModel):
         FAILED = "failed", "Could not be prepared"
         PENDING = "pending", "Waiting for review"
         APPROVED = "approved", "Shown on the listing"
-        REJECTED = "rejected", "Not approved"
+        REJECTED = "rejected", "Blocked"
 
     class HlsState(models.TextChoices):
         NONE = "", "Not made"
@@ -776,7 +814,11 @@ class ProviderVideo(TimeStampedModel):
     hls_state = models.CharField(max_length=12, choices=HlsState.choices, blank=True, default="")
     hls_dir = models.CharField(max_length=200, blank=True)
 
-    # Shown to the trainer when a video is not approved, so it says what to fix.
+    # When the trainer ticked that it is their own video, everyone in it
+    # agreed to be filmed, and no child is in it without a guardian.
+    guidelines_agreed_at = models.DateTimeField(null=True, blank=True)
+
+    # Shown to the trainer when a video is blocked, so it says what to fix.
     review_note = models.CharField(max_length=300, blank=True)
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -830,6 +872,43 @@ class ProviderVideo(TimeStampedModel):
     @property
     def thumbnail_url(self):
         return f"https://i.ytimg.com/vi/{self.youtube_id}/hqdefault.jpg"
+
+
+class VideoReport(TimeStampedModel):
+    """Someone watching a lesson says it breaks the guidelines.
+
+    Videos go live before staff have watched them, so the people watching
+    are the other pair of eyes. A report puts the video in front of staff
+    (ProviderVideoQuerySet.needing_staff) until they keep or block it, which
+    resolves every open report on it. One per person per video: reporting
+    again updates the reason rather than adding weight.
+    """
+
+    class Reason(models.TextChoices):
+        NOT_THEIRS = "not_theirs", "It is not their own video"
+        NO_CONSENT = "no_consent", "Someone in it did not agree to be filmed"
+        CHILD = "child", "A child appears without a guardian"
+        UNSAFE = "unsafe", "Unsafe use of chemicals, heat or tools"
+        OFFENSIVE = "offensive", "Sexual, violent or abusive"
+        ADVERTISING = "advertising", "It only advertises, it does not teach"
+        OTHER = "other", "Something else"
+
+    video = models.ForeignKey(ProviderVideo, on_delete=models.CASCADE, related_name="reports")
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="video_reports"
+    )
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    note = models.CharField(max_length=500, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["video", "reporter"], name="one_report_per_person"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_reason_display()}: {self.video.title}"
 
 
 class ProviderEvidence(TimeStampedModel):

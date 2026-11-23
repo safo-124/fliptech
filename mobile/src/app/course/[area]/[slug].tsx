@@ -25,16 +25,24 @@ import { forgetLesson, saveLesson, savedLesson } from "@/lib/offline";
 import { openOnSite } from "@/lib/open";
 import { payOnPaystack } from "@/lib/pay";
 import { token } from "@/lib/session";
+import { sellsBundle, sellsCourses } from "@/lib/store-rules";
 import type { CourseAccess, Lesson } from "@/lib/types";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /** How often the player reports where the trainee is, in seconds. */
 const PROGRESS_EVERY = 10;
 
+/** Whether this app may sell a course: not on an iPhone (lib/store-rules.ts). */
+const SELLS_COURSES = sellsCourses();
+
 /**
  * A course: watch its lessons, keep your place, save lessons for no-data
  * days, buy a paid course with Paystack, and get the certificate at the end.
  * The same API as the website's player, signed in with the app's token.
+ *
+ * On an iPhone the course is not sold here (Apple's rule, lib/store-rules.ts):
+ * no price, no buy card, no learn-and-buy bundles. Free lessons play, and a
+ * course the person owns opens in full once they sign in.
  */
 export default function CourseScreen() {
   const { area, slug, lesson: startAt } = useLocalSearchParams<{ area: string; slug: string; lesson?: string }>();
@@ -50,7 +58,11 @@ export default function CourseScreen() {
     queryFn: () => api.courseAccess(area, slug),
   });
   const tools = useQuery({ queryKey: ["course-tools", area, slug], queryFn: () => api.courseTools(area, slug) });
-  const bundles = useQuery({ queryKey: ["course-bundles", area, slug], queryFn: () => api.courseBundles(area, slug) });
+  const bundles = useQuery({
+    queryKey: ["course-bundles", area, slug],
+    queryFn: () => api.courseBundles(area, slug),
+    enabled: SELLS_COURSES,
+  });
   const [current, setCurrent] = useState<number | null>(startAt ? Number(startAt) : null);
   const [buying, setBuying] = useState(false);
   // Lessons saved on this phone: what was there when the course opened, and
@@ -112,6 +124,21 @@ export default function CourseScreen() {
     }
   }
 
+  /**
+   * A tap on a locked lesson: buying it, where this app sells courses. On an
+   * iPhone, signing in (a course the person owns then opens), or a plain
+   * note, with no pointer to buying it elsewhere.
+   */
+  function lockedLesson() {
+    if (SELLS_COURSES) {
+      void buy();
+    } else if (!auth.signedIn) {
+      router.push({ pathname: "/sign-in", params: { why: "to open your courses" } });
+    } else {
+      Alert.alert("Locked lesson", "This lesson is not open on this account.");
+    }
+  }
+
   async function save(lesson: Lesson) {
     const sources = access.data?.sources[lesson.id] ?? [];
     setSaving((now) => ({ ...now, [lesson.id]: 0 }));
@@ -151,6 +178,7 @@ export default function CourseScreen() {
   const owned = access.data?.owned ?? false;
   const locked = lessons.some((lesson) => lesson.kind === "upload" && !canStream(lesson, access.data));
   const sections = groupBySection(lessons);
+  const offered = (bundles.data?.results ?? []).filter((bundle) => bundle.buy_online && sellsBundle(bundle));
 
   return (
     <View style={styles.screen}>
@@ -244,7 +272,7 @@ export default function CourseScreen() {
               </Pressable>
             ) : null}
 
-            {price && !owned && locked ? (
+            {SELLS_COURSES && price && !owned && locked ? (
               <View style={[styles.card, styles.buy]}>
                 <View
                   style={{
@@ -301,7 +329,7 @@ export default function CourseScreen() {
                             ? void Linking.openURL(`https://www.youtube.com/watch?v=${lesson.youtube_id}`)
                             : playable(lesson)
                               ? setCurrent(lesson.id)
-                              : void buy()
+                              : lockedLesson()
                         }
                         onSave={() => void save(lesson)}
                         onUnsave={() => unsave(lesson)}
@@ -344,16 +372,14 @@ export default function CourseScreen() {
               </View>
             ) : null}
 
-            {(bundles.data?.results ?? []).some((bundle) => bundle.buy_online) ? (
+            {offered.length ? (
               <View style={styles.section}>
                 <Text variant="heading">Learn and buy</Text>
                 <Text variant="small">The course and the tools for it, together for less.</Text>
                 <View style={{ gap: space.md, marginTop: space.md }}>
-                  {bundles.data!.results
-                    .filter((bundle) => bundle.buy_online)
-                    .map((bundle) => (
-                      <BundleCard key={bundle.id} bundle={bundle} />
-                    ))}
+                  {offered.map((bundle) => (
+                    <BundleCard key={bundle.id} bundle={bundle} />
+                  ))}
                 </View>
               </View>
             ) : null}

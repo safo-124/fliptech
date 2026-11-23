@@ -8,8 +8,11 @@ A video arrives in three steps, each in its own module:
 2. providers/video_uploads.py takes the file a piece at a time.
 3. providers/video_encoding.py turns it into something a 3G phone can play.
 
-Then it waits for review like everything else on a listing, and decide()
-below is the only thing that moves its files between private and public
+Then after_preparing() puts it straight on the listing, and staff watch it
+afterwards and block it with decide() if it breaks the guidelines. It waits
+for review first instead when settings.VIDEO_PUBLISH_WITHOUT_REVIEW is off,
+or when the workshop has had settings.VIDEO_BLOCKS_BEFORE_REVIEW videos
+blocked. Only this module moves a video's files between private and public
 storage. See ProviderVideo for why there are two.
 """
 
@@ -18,12 +21,13 @@ import shutil
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max, Sum
+from django.db.models import F, Max, Sum
+from django.db.models.functions import Greatest
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from . import video_hls, video_uploads
-from .models import ProviderVideo
+from .models import Provider, ProviderVideo
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +81,17 @@ def accepting_uploads():
         return False
 
 
-def start_upload(provider, *, title, name, size, actor):
+def review_first_because_blocked(provider):
+    """Whether this workshop's videos wait for staff because of past blocks."""
+    return provider.videos_blocked >= settings.VIDEO_BLOCKS_BEFORE_REVIEW
+
+
+def publishes_straight_away(provider):
+    """Whether a video, once prepared, goes on the listing without waiting."""
+    return settings.VIDEO_PUBLISH_WITHOUT_REVIEW and not review_first_because_blocked(provider)
+
+
+def start_upload(provider, *, title, name, size, actor, agreed_to_guidelines=False):
     """A new video, ready to receive its file. Raises VideoRefused.
 
     Every check that can be made before a byte is sent is made here. Length
@@ -123,11 +137,12 @@ def start_upload(provider, *, title, name, size, actor):
         upload_name=name[:255],
         upload_size=size,
         added_by=actor,
+        guidelines_agreed_at=timezone.now() if agreed_to_guidelines else None,
     )
 
 
 # --------------------------------------------------------------------------
-# The review
+# Publishing, and the review
 
 
 def _move(video, source_field, target_field):
@@ -144,36 +159,102 @@ def _move(video, source_field, target_field):
     source.delete(save=False)
 
 
+def _to_public(video):
+    for review_field, public_field in FILE_PAIRS:
+        _move(video, review_field, public_field)
+    # The worker cuts a streaming copy from the public files next.
+    if video.status != ProviderVideo.Status.APPROVED:
+        video.hls_state = ProviderVideo.HlsState.NONE
+
+
+def _to_private(video):
+    for review_field, public_field in FILE_PAIRS:
+        _move(video, public_field, review_field)
+    # Its pieces are at a public address too; they go with it.
+    video_hls.delete_stream(video, save=False)
+
+
+def after_preparing(video):
+    """A video the encoder has just finished: on the listing now, or left
+    waiting for review. Live without a reviewer is what "not yet watched"
+    means (ProviderVideoQuerySet.unwatched)."""
+    if video.status != ProviderVideo.Status.PENDING:
+        return
+    if not publishes_straight_away(video.provider):
+        return
+    with transaction.atomic():
+        _to_public(video)
+        video.status = ProviderVideo.Status.APPROVED
+        video.review_note = ""
+        video.reviewed_by = None
+        video.reviewed_at = None
+        video.save()
+
+
 def decide(video, status, *, by, note=""):
     """Record a reviewer's decision and put the files where it says.
 
-    Approved: the encoded files move to public storage. Anything else: they
+    Approved: the encoded files move to public storage; for a video already
+    live, it is marked as watched. Blocked (REJECTED) or back to pending: they
     move back, so a video taken down is no longer at its public address.
     YouTube videos have no files and only change status.
+
+    Keeping or blocking a video resolves its open reports, and each block
+    counts towards the workshop going back to review-first.
     """
     if status not in ProviderVideo.REVIEWABLE:
         raise ValueError(f"{status!r} is not a review decision")
     if video.status not in ProviderVideo.REVIEWABLE:
         raise ValueError("This video has not been prepared yet, so there is nothing to review.")
 
+    blocked = ProviderVideo.Status.REJECTED
+    newly_blocked = status == blocked and video.status != blocked
+    unblocked = video.status == blocked and status != blocked
+
     with transaction.atomic():
         if status == ProviderVideo.Status.APPROVED:
-            for review_field, public_field in FILE_PAIRS:
-                _move(video, review_field, public_field)
-            # The worker cuts a streaming copy from the public files next.
-            if video.status != ProviderVideo.Status.APPROVED:
-                video.hls_state = ProviderVideo.HlsState.NONE
+            _to_public(video)
         else:
-            for review_field, public_field in FILE_PAIRS:
-                _move(video, public_field, review_field)
-            # Its pieces are at a public address too; they go with it.
-            video_hls.delete_stream(video, save=False)
+            _to_private(video)
         video.status = status
         video.review_note = "" if status == ProviderVideo.Status.APPROVED else note
         decided = status != ProviderVideo.Status.PENDING
         video.reviewed_by = by if decided else None
         video.reviewed_at = timezone.now() if decided else None
         video.save()
+
+        if newly_blocked:
+            Provider.objects.filter(pk=video.provider_id).update(
+                videos_blocked=F("videos_blocked") + 1
+            )
+        elif unblocked:
+            Provider.objects.filter(pk=video.provider_id).update(
+                videos_blocked=Greatest(F("videos_blocked") - 1, 0)
+            )
+        if decided:
+            video.reports.filter(resolved_at__isnull=True).update(resolved_at=timezone.now())
+        if newly_blocked:
+            transaction.on_commit(lambda: _tell_trainer_blocked(video))
+
+
+def _tell_trainer_blocked(video):
+    """The workshop hears why, by app notice, email or text. Never raises:
+    the block stands whether or not the message gets through."""
+    from appsupport.notify import notify
+    from courses.learner import trainer_phones
+
+    provider = Provider.objects.get(pk=video.provider_id)
+    message = _(
+        '%(brand)s: your video "%(title)s" was removed from your listing because it '
+        "breaks our video guidelines. Why: %(note)s"
+    ) % {"brand": settings.BRAND_NAME, "title": video.title, "note": video.review_note}
+    if review_first_because_blocked(provider) and settings.VIDEO_PUBLISH_WITHOUT_REVIEW:
+        message += " " + _("From now on, our team watches each new video before it shows.")
+    for phone in trainer_phones(provider):
+        try:
+            notify(phone, message, link="/trainer/dashboard")
+        except Exception:
+            logger.exception("Could not tell the trainer video %s was blocked", video.pk)
 
 
 def discard_files(video, *, video_id=None):

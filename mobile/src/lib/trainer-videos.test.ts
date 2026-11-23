@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import { Platform } from "react-native";
 
 import {
   discardCopiesExcept,
@@ -81,6 +82,12 @@ describe("gallery copies", () => {
     expect(isGalleryCopy("file:///data/user/0/app/cache/other/a1.mp4")).toBe(false);
   });
 
+  it("knows an iPhone's copies too, which keep the original's .MOV", () => {
+    expect(isGalleryCopy(`${CACHE}/B7C1.MOV`)).toBe(true);
+    expect(isGalleryCopy(`${CACHE}/b7c1.m4v`)).toBe(true);
+    expect(isGalleryCopy(`${CACHE}/IMG_0001.HEIC`)).toBe(false);
+  });
+
   it("deletes an upload's gallery copy once the upload is forgotten, and never the trainer's own file", async () => {
     mockDisk.add(`${CACHE}/a1.mp4`).add(OWN_FILE);
     await rememberFile(1, `${CACHE}/a1.mp4`, 10);
@@ -125,11 +132,23 @@ describe("choosing from the gallery", () => {
   const permission = ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock;
   const library = ImagePicker.launchImageLibraryAsync as jest.Mock;
 
-  it("says so when the phone will not show the gallery", async () => {
+  it("says so when an Android phone will not show the gallery", async () => {
+    const os = jest.replaceProperty(Platform, "OS", "android");
     permission.mockResolvedValue({ granted: false });
 
     expect(await pickFromGallery()).toBe("denied");
     expect(library).not.toHaveBeenCalled();
+    os.restore();
+  });
+
+  it("opens an iPhone's gallery without asking for the photo library", async () => {
+    const os = jest.replaceProperty(Platform, "OS", "ios");
+    library.mockResolvedValue({ canceled: true, assets: null });
+
+    expect(await pickFromGallery()).toBeNull();
+    expect(permission).not.toHaveBeenCalled();
+    expect(library).toHaveBeenCalled();
+    os.restore();
   });
 
   it("asks for videos only, unedited, and hands back the copy with its name", async () => {

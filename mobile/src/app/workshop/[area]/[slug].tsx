@@ -13,7 +13,7 @@ import {
   Shield,
   ShieldCheck,
 } from "lucide-react-native";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackBar } from "@/components/BackBar";
@@ -24,9 +24,10 @@ import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
 import { SITE_URL } from "@/lib/config";
+import { openDirections } from "@/lib/directions";
 import { cedis, shortDate } from "@/lib/format";
 import { photoUrl } from "@/lib/media";
-import type { Programme, WorkshopDetail } from "@/lib/types";
+import type { Programme } from "@/lib/types";
 import { tradeHex } from "@/theme/trades";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
@@ -248,13 +249,6 @@ export default function WorkshopScreen() {
         <Button label="Enquire" onPress={() => enquire()} disabled={!w.programmes.length} style={{ minWidth: 140 }} />
       </View>
     </View>
-  );
-}
-
-function openDirections(w: WorkshopDetail) {
-  const label = encodeURIComponent(w.name);
-  Linking.openURL(`geo:${w.lat},${w.lng}?q=${w.lat},${w.lng}(${label})`).catch(() =>
-    Linking.openURL(`https://www.openstreetmap.org/?mlat=${w.lat}&mlon=${w.lng}#map=17/${w.lat}/${w.lng}`),
   );
 }
 

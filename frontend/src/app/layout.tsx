@@ -8,6 +8,7 @@ import {SignInSheet} from "@/components/auth/SignInSheet";
 import {ClientMessages} from "@/i18n/ClientMessages";
 import {SIGN_IN_CLIENT_NAMESPACES} from "@/i18n/namespaces";
 import {BRAND, BRAND_COLOURS} from "@/lib/brand";
+import {iconUrl} from "@/lib/brand-mark";
 
 import "@fontsource-variable/inter";
 import "./globals.css";
@@ -28,9 +29,11 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"),
     // Drawn from the header's mark; see app/icons. The manifest that makes the
     // site installable is app/manifest.ts, which Next links by itself.
+    // The addresses carry the mark's fingerprint, so a new mark reaches tabs
+    // that kept the old icon (lib/brand-mark.ts, iconUrl).
     icons: {
-      icon: [{url: "/icons/mark.svg", type: "image/svg+xml"}],
-      apple: [{url: "/icons/apple-touch-icon.png", sizes: "180x180"}],
+      icon: [{url: iconUrl("mark.svg"), type: "image/svg+xml"}],
+      apple: [{url: iconUrl("apple-touch-icon.png"), sizes: "180x180"}],
     },
     // What an iPhone uses when the site is added to its home screen.
     appleWebApp: {capable: true, title: tHeader("productName"), statusBarStyle: "default"},

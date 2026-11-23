@@ -67,3 +67,25 @@ export function markSvg({ colour }: { colour?: string } = {}) {
     `</svg>`
   );
 }
+
+/** A short fingerprint of a text (djb2), the same on the server and in a build. */
+function fingerprint(text: string) {
+  let hash = 5381;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash * 33) ^ text.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+/**
+ * Changes whenever the mark does. Browsers keep a tab icon by its address for
+ * months, whatever the server says, so when the mark changed from the ring to
+ * the petals, tabs kept showing the ring. With this in every icon address
+ * (iconUrl), a new mark is a new address, fetched on the next visit.
+ */
+export const MARK_VERSION = fingerprint(markSvg());
+
+/** An icon from app/icons, at an address that changes with the mark. */
+export function iconUrl(name: string) {
+  return `/icons/${name}?v=${MARK_VERSION}`;
+}

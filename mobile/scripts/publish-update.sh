@@ -3,7 +3,7 @@
 #
 #   ./scripts/publish-update.sh safo@your-server
 #
-# Builds the app's JavaScript and assets for Android, then copies them to
+# Builds the app's JavaScript and assets for Android and iPhone, then copies them to
 # /var/lib/fliptech/app-updates/<app version>/<timestamp>/ on the server,
 # where backend appsupport/updates.py serves them. Phones running a build
 # of the same app version pick it up the next time the app opens.
@@ -28,7 +28,7 @@ STAMP="$(date -u +%Y%m%d-%H%M%S)"
 OUT="dist-update"
 
 rm -rf "$OUT"
-npx expo export --platform android --output-dir "$OUT"
+npx expo export --platform android --platform ios --output-dir "$OUT"
 npx expo config --type public --json > "$OUT/expoConfig.json"
 
 REMOTE="/var/lib/fliptech/app-updates/$VERSION/$STAMP"

@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
 import { cedis, shortDate } from "@/lib/format";
 import { photoUrl } from "@/lib/media";
+import { sellsBundle } from "@/lib/store-rules";
 import { colors, fonts, radius, shadow, space } from "@/theme/tokens";
 
 /**
@@ -49,7 +50,8 @@ export default function ShopScreen() {
 
   const data = shop.data;
   const seller = data?.seller;
-  const offered = (bundles.data?.results ?? []).filter((bundle) => bundle.buy_online);
+  // Not a bundle that opens a course, on an iPhone (lib/store-rules.ts).
+  const offered = (bundles.data?.results ?? []).filter((bundle) => bundle.buy_online && sellsBundle(bundle));
   const rows = data
     ? Array.from({ length: Math.ceil(data.products.length / 2) }, (_, n) => data.products.slice(n * 2, n * 2 + 2))
     : [];

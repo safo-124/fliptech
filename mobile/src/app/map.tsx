@@ -3,7 +3,7 @@ import * as Location from "expo-location";
 import { router } from "expo-router";
 import { LocateFixed, RefreshCw, Search } from "lucide-react-native";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MapButton } from "@/components/MapButton";
@@ -11,6 +11,7 @@ import { WorkshopMap } from "@/components/map/WorkshopMap";
 import { WorkshopSheet } from "@/components/map/WorkshopSheet";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
+import { openDirections } from "@/lib/directions";
 import { bboxParam, boundsOf, type Bounds } from "@/lib/map";
 import type { ProviderCard } from "@/lib/types";
 import { tradeHex } from "@/theme/trades";
@@ -81,13 +82,9 @@ export default function MapScreen() {
   }
 
   function directions(workshop: ProviderCard) {
-    const label = encodeURIComponent(workshop.name);
-    // geo: opens whichever maps app the phone has; the web map otherwise.
-    Linking.openURL(`geo:${workshop.lat},${workshop.lng}?q=${workshop.lat},${workshop.lng}(${label})`).catch(() =>
-      Linking.openURL(
-        `https://www.openstreetmap.org/?mlat=${workshop.lat}&mlon=${workshop.lng}#map=17/${workshop.lat}/${workshop.lng}`,
-      ),
-    );
+    // The phone's maps app (geo: on Android, Apple Maps on an iPhone); the
+    // web map otherwise.
+    openDirections(workshop);
   }
 
   const count = workshops.data?.length ?? 0;

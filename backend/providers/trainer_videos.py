@@ -2,11 +2,13 @@
 
 See providers/videos.py for the order a video goes through. Unlike
 photographs, a video can be added to a listing that is live or under review.
-Each one is reviewed on its own, so adding one changes nothing anybody is in
-the middle of deciding, and nothing reaches the public listing until a member
-of staff has watched it.
+Each one is decided on its own, so adding one changes nothing anybody is in
+the middle of deciding. Once prepared it goes on the listing, and staff watch
+it afterwards; for a workshop whose videos wait for review, it shows only
+once a member of staff has watched it.
 """
 
+from django.conf import settings
 from django.utils.translation import gettext as _
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -20,7 +22,15 @@ from .models import Provider
 from .trainer_serializers import TrainerVideoInputSerializer, TrainerVideoSerializer
 from .trainer_views import IsActiveTrainer, _account, _profile_for
 from .video_uploads import ChunkRefused, read_chunk, receive_chunk
-from .videos import VideoRefused, accepting_uploads, limits, seconds_used, start_upload
+from .videos import (
+    VideoRefused,
+    accepting_uploads,
+    limits,
+    publishes_straight_away,
+    review_first_because_blocked,
+    seconds_used,
+    start_upload,
+)
 
 
 def _own_video(request, video_id):
@@ -51,9 +61,21 @@ class TrainerVideosView(APIView):
                     **limits(),
                     "seconds_used": seconds_used(provider) if provider is not None else 0,
                     # False when the server cannot take uploads now (its video
-                    # disk is nearly full): the dashboard says so up front
-                    # instead of offering a form that will refuse.
+                    # disk is full, or its work folder cannot be written): the
+                    # dashboard says so up front instead of offering a form
+                    # that will refuse.
                     "accepting": accepting_uploads(),
+                    # Whether a video goes on the listing once prepared, or
+                    # waits for staff; and if it waits, whether that is
+                    # because staff blocked this workshop's videos before.
+                    "publishes_straight_away": (
+                        publishes_straight_away(provider) if provider is not None else False
+                    ),
+                    "review_first_because_blocked": (
+                        provider is not None
+                        and settings.VIDEO_PUBLISH_WITHOUT_REVIEW
+                        and review_first_because_blocked(provider)
+                    ),
                 },
             }
         )
@@ -89,6 +111,7 @@ class TrainerVideosView(APIView):
                 name=serializer.validated_data["name"],
                 size=serializer.validated_data["size"],
                 actor=request.user,
+                agreed_to_guidelines=serializer.validated_data["agreed_to_guidelines"],
             )
         except VideoRefused as refusal:
             return Response({"detail": str(refusal)}, status=status.HTTP_400_BAD_REQUEST)

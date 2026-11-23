@@ -150,6 +150,7 @@ from providers.trainer_views import (
     TrainerProfileView,
     TrainerSessionView,
 )
+from providers.video_reports import VideoReportView
 from providers.views import (
     ProfileViewedView,
     ProviderBySlugView,
@@ -390,6 +391,7 @@ urlpatterns = [
         learner.LessonQuestionsView.as_view(),
         name="lesson-questions",
     ),
+    path("videos/<int:video_id>/report/", VideoReportView.as_view(), name="video-report"),
     path(
         "learn/lessons/<int:video_id>/captions/<str:language>.vtt",
         learner.LessonCaptionsView.as_view(),

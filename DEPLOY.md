@@ -272,9 +272,9 @@ first, so a broken release leaves the previous one serving.
 | `/var/lib/fliptech/static` | collected static files, served by Caddy |
 | `/var/lib/fliptech/media` | **public** workshop photographs, served by Caddy |
 | `/var/lib/fliptech/private-media` | **private** verification evidence and owner ID — mode 700, never served |
-| `/var/lib/fliptech/private-media/videos/review` | **private** encoded videos waiting for review |
+| `/var/lib/fliptech/private-media/videos/review` | **private** encoded videos not shown (waiting for review, or blocked) |
 | `/var/lib/fliptech/private-media/video-work` | uploads as they arrive, deleted once encoded |
-| `/var/lib/fliptech/media/videos/public` | **public** approved videos, served by Caddy |
+| `/var/lib/fliptech/media/videos/public` | **public** videos on listings, served by Caddy |
 
 Private evidence is deliberately outside the directory Caddy is pointed at.
 Section 10 requires it is never publicly served, and widening that `root` or
@@ -299,11 +299,15 @@ hold a gunicorn thread. The pieces collect in `private-media/video-work/`.
 When the last one arrives, `fliptech-video` encodes the file to a 360p copy
 (about 3.5 MB a minute), a 720p copy if the original is sharp enough, and a
 poster still, strips the location the phone recorded, and deletes the
-original. The video then waits in **Videos to review** in the back office.
-Approving it moves its files to `media/videos/public/`, where Caddy serves
-them. Taking it down moves them back. Approved lessons appear on the
-workshop's listing and in **Online learning** (`/learn`), one course per
-workshop, in the order they were sent.
+original. The video then goes straight on the listing: its files move to
+`media/videos/public/`, where Caddy serves them, and it shows in **Videos to
+watch** in the back office until a member of staff has watched it. Blocking
+it (status Blocked, with a note) moves the files back and tells the
+workshop. A workshop with two videos blocked, or every workshop when
+`VIDEO_PUBLISH_WITHOUT_REVIEW=False`, waits for review instead. Viewers can
+report a lesson, which puts it back in **Videos to watch**. Live lessons
+appear on the workshop's listing and in **Online learning** (`/learn`), one
+course per workshop, in the order they were sent.
 
 **Servers set up before videos existed** need ffmpeg and the worker, once:
 
@@ -346,7 +350,9 @@ decided. Change them and `sudo systemctl restart fliptech-api fliptech-video`.
 | `VIDEO_MAX_HOURS_PER_PROVIDER` | 24 | Total video on one listing |
 | `VIDEO_MAX_PER_PROVIDER` | 40 | Lessons on one listing |
 | `VIDEO_MAX_UPLOAD_BYTES` | 4 GB | Largest single upload |
-| `VIDEO_MIN_FREE_BYTES` | 10 GB | Uploads stop when the disk has less free than this |
+| `VIDEO_MIN_FREE_BYTES` | 0 | Free space kept on top of each upload; 0 only refuses a video that would not fit |
+| `VIDEO_PUBLISH_WITHOUT_REVIEW` | True | Videos go on the listing once prepared and staff watch them afterwards; `False` makes every video wait for review |
+| `VIDEO_BLOCKS_BEFORE_REVIEW` | 2 | Blocked videos after which a workshop's new videos wait for review |
 | `VIDEO_FFMPEG_THREADS` | 1 | Raise on a server that only encodes |
 
 **Disk.** A 24-hour course is about 5 GB at 360p and 19 GB with the 720p copy,
@@ -709,6 +715,20 @@ ANDROID_CERT_SHA256=AB:CD:EF:...
 Restart the website (`sudo systemctl restart fliptech-web`). Once the app is
 on the Play Store, add Google's app signing fingerprint too, separated by a
 comma. You'll find it under Play Console → Setup → App signing.
+
+On an iPhone the same links are Universal Links. The iPhone checks
+`https://your-domain.com/.well-known/apple-app-site-association`, which
+names the app by your Apple Developer team ID (ten letters and digits, on
+developer.apple.com under Membership details). Add it to the same file:
+
+```
+APPLE_TEAM_ID=ABCDE12345
+```
+
+Restart the website. Apple fetches the file through its own cache, so new
+installs can take a day to pick it up. Every page opens the app except the
+payment return (`/app-return`) and what Django serves (`/api`,
+`/back-office`, `/media`, `/static`).
 
 The app builds its link and update addresses from `EXPO_PUBLIC_SITE_URL` and
 `EXPO_PUBLIC_API_URL`, which are set in `mobile/eas.json`.

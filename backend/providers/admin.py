@@ -60,6 +60,7 @@ from .models import (
     TrainerAccount,
     TrainerIdPhoto,
     Verification,
+    VideoReport,
 )
 from .videos import decide
 
@@ -309,6 +310,7 @@ class ProviderAdmin(
                     "published_at",
                     "last_confirmed_at",
                     "review_note",
+                    "videos_blocked",
                 ),
                 "description": (
                     "Status is changed with the publish and suspend actions, not by hand, "
@@ -326,6 +328,15 @@ class ProviderAdmin(
         "declared_accurate_at",
         "site_visit_consent_at",
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        # Setting it back to 0 lets the workshop's videos go live unwatched
+        # again: a decision for whoever can block and approve videos.
+        if not request.user.has_perm("providers.change_providervideo"):
+            readonly.append("videos_blocked")
+        return readonly
+
     actions = [
         "submit_for_approval",
         "publish_listings",
@@ -1057,7 +1068,8 @@ class ProviderVideoForm(forms.ModelForm):
 
     file = forms.FileField(
         required=False,
-        help_text="The video as filmed. It is prepared for phones before it can be reviewed.",
+        help_text="The video as filmed. It is prepared for phones, then goes on the listing "
+        "(or waits for review, if this workshop's videos do).",
     )
 
     class Meta:
@@ -1092,18 +1104,50 @@ class ProviderVideoForm(forms.ModelForm):
         ):
             self.add_error(
                 "review_note",
-                "Say what would need to change. The workshop sees this note, and "
-                '"not approved" on its own gives them nothing to fix.',
+                "Say which guideline it breaks. The workshop sees this note, and "
+                '"blocked" on its own gives them nothing to fix.',
             )
         return cleaned
 
 
+class VideoNeedsStaffFilter(admin.SimpleListFilter):
+    """What is left to do: the back office's video queue links here."""
+
+    title = "needs staff"
+    parameter_name = "needs"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("all", "Anything to do"),
+            ("unwatched", "Live, not yet watched"),
+            ("reported", "Reported"),
+            ("pending", "Waiting for review"),
+        )
+
+    def queryset(self, request, queryset):
+        match self.value():
+            case "all":
+                return queryset.needing_staff()
+            case "unwatched":
+                return queryset.unwatched()
+            case "reported":
+                return queryset.reported()
+            case "pending":
+                return queryset.filter(status=ProviderVideo.Status.PENDING)
+        return queryset
+
+
 @admin.register(ProviderVideo)
 class ProviderVideoAdmin(admin.ModelAdmin):
-    """Teaching videos, each watched before it is shown.
+    """Teaching videos. Each goes on its listing once prepared, and staff
+    watch it afterwards (settings.VIDEO_PUBLISH_WITHOUT_REVIEW).
 
-    Approve from the list once watched. Turning one down is done on its page,
-    with a note the workshop will read. What to check: it is the workshop's own
+    "Needs staff: anything to do" lists the videos live but not yet watched,
+    the ones viewers reported, and the ones waiting for review (a workshop
+    with two videos blocked waits again). Once watched, keep it with the
+    "Watched: keep on the listing" action. Block one on its page: set the
+    status to Blocked and write a note the workshop will read; it comes off
+    the listing at once, and the workshop is told. What to check: it is the workshop's own
     video rather than someone else's reposted; anyone on camera, such as the
     client whose hair is being done, can be seen to be taking part willingly; no
     child appears without a guardian; chemicals, heat and tools are handled
@@ -1114,31 +1158,52 @@ class ProviderVideoAdmin(admin.ModelAdmin):
     """
 
     form = ProviderVideoForm
-    list_display = ("thumbnail", "title", "provider", "status", "length", "created_at")
+    list_display = (
+        "thumbnail",
+        "title",
+        "provider",
+        "status",
+        "watched",
+        "open_reports",
+        "length",
+        "created_at",
+    )
     list_display_links = ("thumbnail", "title")
-    list_filter = ("status",)
+    list_filter = (VideoNeedsStaffFilter, "status")
     search_fields = ("title", "provider__name")
     list_select_related = ("provider",)
     autocomplete_fields = ("provider",)
     actions = ("approve_videos",)
 
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                open_report_count=Count("reports", filter=Q(reports__resolved_at__isnull=True))
+            )
+        )
+
     def get_fields(self, request, obj=None):
         if obj is None:
             return ["provider", "file", "title"]
-        fields = ["player", "provider", "title"]
+        fields = ["player", "provider", "title", "reports_list"]
         fields += ["youtube_link"] if obj.is_youtube else ["length", "sizes", "failure_reason"]
-        fields += ["added_by", "created_at", "status", "review_note", "reviewed_by", "reviewed_at"]
+        fields += ["added_by", "created_at", "guidelines_agreed_at"]
+        fields += ["status", "review_note", "reviewed_by", "reviewed_at"]
         return fields
 
     def get_readonly_fields(self, request, obj=None):
         readonly = [
             "player",
+            "reports_list",
             "youtube_link",
             "length",
             "sizes",
             "failure_reason",
             "added_by",
             "created_at",
+            "guidelines_agreed_at",
             "reviewed_by",
             "reviewed_at",
         ]
@@ -1218,6 +1283,41 @@ class ProviderVideoAdmin(admin.ModelAdmin):
             self._file_url(obj, "poster") or "",
         )
 
+    @admin.display(description="Watched by staff")
+    def watched(self, obj):
+        if obj.status != ProviderVideo.Status.APPROVED or obj.is_youtube:
+            return "—"
+        return "Yes" if obj.reviewed_at else "Not yet"
+
+    @admin.display(description="Reports", ordering="open_report_count")
+    def open_reports(self, obj):
+        count = getattr(obj, "open_report_count", None)
+        if count is None:
+            count = obj.reports.filter(resolved_at__isnull=True).count()
+        return count or "—"
+
+    @admin.display(description="Reports from viewers")
+    def reports_list(self, obj):
+        reports = list(obj.reports.select_related("reporter")[:20])
+        if not reports:
+            return "None."
+        return format_html(
+            '<ul style="margin:0;padding-left:1.2em">{}</ul>',
+            format_html_join(
+                "",
+                "<li><strong>{}</strong>{} <small>({}{})</small></li>",
+                (
+                    (
+                        report.get_reason_display(),
+                        f": {report.note}" if report.note else "",
+                        timezone.localtime(report.created_at).strftime("%d %b %Y"),
+                        ", dealt with" if report.resolved_at else "",
+                    )
+                    for report in reports
+                ),
+            ),
+        )
+
     @admin.display(description="Length")
     def length(self, obj):
         if obj.duration_seconds is None:
@@ -1268,20 +1368,39 @@ class ProviderVideoAdmin(admin.ModelAdmin):
             return
         super().save_model(request, obj, form, change)
 
-    @admin.action(description="Approve selected videos", permissions=["change"])
+    @admin.action(description="Watched: keep on the listing", permissions=["change"])
     def approve_videos(self, request, queryset):
-        approved = 0
-        for video in queryset.filter(
-            status__in=[ProviderVideo.Status.PENDING, ProviderVideo.Status.REJECTED]
-        ):
+        """Approve the ones waiting, mark the live ones as watched, and close
+        any reports on them. A blocked one selected here is unblocked."""
+        kept = 0
+        for video in queryset.filter(status__in=ProviderVideo.REVIEWABLE):
             decide(video, ProviderVideo.Status.APPROVED, by=request.user)
-            approved += 1
+            kept += 1
         self.message_user(
             request,
-            f"{approved} video(s) approved. They show on their listings now, "
+            f"{kept} video(s) marked as watched and kept. They show on their listings, "
             "if the listing itself is published. Videos still uploading or being "
             "prepared are left as they are.",
         )
+
+
+@admin.register(VideoReport)
+class VideoReportAdmin(admin.ModelAdmin):
+    """Viewers' reports, read-only. They are dealt with on the video itself:
+    keeping or blocking it closes every open report on it."""
+
+    list_display = ("video", "reason", "note", "reporter", "created_at", "resolved_at")
+    list_filter = ("reason", ("resolved_at", admin.EmptyFieldListFilter))
+    search_fields = ("video__title", "video__provider__name", "note")
+    list_select_related = ("video", "video__provider", "reporter")
+    readonly_fields = ("video", "reporter", "reason", "note", "created_at", "resolved_at")
+    fields = readonly_fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ProviderEvidence)

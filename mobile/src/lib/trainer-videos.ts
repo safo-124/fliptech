@@ -25,6 +25,7 @@ import * as ImagePicker from "expo-image-picker";
 import { ApiError, getJson, postJson, request } from "./api";
 import { API_URL } from "./config";
 import { token } from "./session";
+import { mayOpenGallery } from "./store-rules";
 import { videoNameFrom, type PieceSource } from "./video-upload";
 
 export type TrainerVideoStatus =
@@ -156,11 +157,12 @@ export type PickedVideo = { uri: string; name: string; size: number; type: strin
  *
  * On Android 13 and later the gallery needs no permission (the permission
  * call answers yes at once); before that it asks for the storage access the
- * image picker already declares.
+ * image picker already declares. An iPhone asks nothing (lib/store-rules.ts,
+ * mayOpenGallery), and hands over the video as it was filmed, often a .MOV,
+ * without converting it first: the server takes .mov.
  */
 export async function pickFromGallery(): Promise<PickedVideo | "denied" | null> {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) return "denied";
+  if (!(await mayOpenGallery())) return "denied";
   const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos"], allowsEditing: false });
   const asset = picked.canceled ? null : picked.assets[0];
   if (!asset) return null;
@@ -194,10 +196,17 @@ function pathOf(uri: string) {
   return path.replace(/\/+$/, "");
 }
 
-/** Where the image picker puts its copies: the app's cache, in "ImagePicker". */
+/** Where the image picker puts its copies: the app's cache, in "ImagePicker" (Android and iPhone alike). */
 function galleryCopies() {
   return new Directory(Paths.cache, "ImagePicker");
 }
+
+/**
+ * Videos, by file ending: Android's copies are .mp4; an iPhone keeps the
+ * original's ending, usually .MOV. Pictures pass through the same folder and
+ * are never touched.
+ */
+const VIDEO_ENDING = /\.(mp4|mov|m4v|3gp|webm|mkv)$/i;
 
 /**
  * Whether `uri` is the image picker's copy of a gallery video, which the app
@@ -205,7 +214,7 @@ function galleryCopies() {
  * address) is never deleted.
  */
 export function isGalleryCopy(uri: string) {
-  if (!uri.startsWith("file:") || !uri.toLowerCase().endsWith(".mp4")) return false;
+  if (!uri.startsWith("file:") || !VIDEO_ENDING.test(uri)) return false;
   try {
     return pathOf(uri).startsWith(`${pathOf(galleryCopies().uri)}/`);
   } catch {

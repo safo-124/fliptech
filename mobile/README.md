@@ -1,8 +1,9 @@
 # Fliiptech mobile app
 
-The Android app (iOS comes later from the same code), built with Expo and
-React Native. It talks to the same Django API as the website, in
-`../backend`.
+The Android and iPhone app, one codebase, built with Expo and React Native.
+It talks to the same Django API as the website, in `../backend`. What is
+different on an iPhone, and how to build and release it, is under
+[The iPhone app](#the-iphone-app).
 
 ## What is here
 
@@ -110,6 +111,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run export:android   # bundles for Android, as a build would
+npx expo export --platform ios   # the same for iPhone (works on Windows)
 ```
 
 ## Building an installable app
@@ -123,8 +125,63 @@ npx eas-cli@latest build --platform android --profile production   # an AAB for 
 ```
 
 The profiles are in `eas.json`; `preview` and `production` point at the
-staging server. Change the address there when the site moves to its real
-domain.
+live site, https://fliiptech.com.
+
+## The iPhone app
+
+The same screens as Android, from the same code. What is different:
+
+- **Courses are not sold on an iPhone.** Apple's rule (App Store Review
+  Guideline 3.1.1) is that an iPhone app selling digital content, an online
+  course included, must use Apple's in-app purchase. So on an iPhone a paid
+  course shows no price and no buy button, learn-and-buy bundles that open
+  a course are left out, and nothing points to buying elsewhere (the same
+  rule forbids that). Free lessons play, and a course the person owns opens
+  in full once they sign in. Workshop training, the shop and its checkout
+  are paid with Paystack as on Android: Apple allows any payment for things
+  used outside the app. All of it is in `src/lib/store-rules.ts`.
+- **Directions** open Apple Maps (`src/lib/directions.ts`); Android uses
+  `geo:`, which an iPhone does not have.
+- **The gallery** is Apple's own picker, so the app asks for no access to
+  the photo library. Videos arrive as filmed, often `.MOV`, which the
+  server takes.
+- **Saved lessons** go in the app's Caches folder, not Documents (Apple
+  rejects apps that back videos up to iCloud). An iPhone very short of
+  space may clear them; they then show as not saved.
+- **Notices** arrive less promptly: iOS runs the background check when it
+  chooses, often only a few times a day, where Android runs it as often as
+  every 15 minutes (`src/lib/notices.ts`). They are always there when the
+  app opens.
+- **Links to the site** open the app once the website serves
+  `/.well-known/apple-app-site-association` with the team ID (see
+  `../DEPLOY.md`, "Links open the app").
+
+### Building and releasing
+
+You need the Apple Developer Program (US$99 a year, developer.apple.com),
+signed up with the Apple ID you will use below. No Mac is needed: EAS builds
+in the cloud, and asks for that Apple ID the first time, to make the
+certificates and profiles itself.
+
+```bash
+cd mobile
+npx eas-cli@latest build --platform ios --profile production   # for TestFlight and the App Store
+npx eas-cli@latest submit --platform ios --latest              # sends it to App Store Connect
+```
+
+The first submit creates the app in App Store Connect. The build appears in
+TestFlight about 15 minutes later: add yourself and your testers there, and
+install it with the TestFlight app. When it is ready for everyone, fill in
+the store listing (screenshots from a 6.9-inch iPhone, a privacy policy
+address, the privacy answers) and send it for review.
+
+For the review, give Apple a demo account that signs in with a phone number
+and a **password** (Apple's reviewers cannot receive a Ghanaian text). A
+trainer account too, if you want them to see the trainer screens.
+
+To put a build on particular iPhones without TestFlight, register each one
+(`npx eas-cli@latest device:create`, which gives a link to open on the
+phone), then build the `preview` profile.
 
 ## Notes
 

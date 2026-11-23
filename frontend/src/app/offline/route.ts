@@ -1,5 +1,5 @@
 import { BRAND, BRAND_COLOURS } from "@/lib/brand";
-import { markSvg } from "@/lib/brand-mark";
+import { iconUrl, markSvg } from "@/lib/brand-mark";
 
 /**
  * What a phone with no signal sees instead of the browser's own error page.
@@ -28,7 +28,7 @@ export function GET() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="${deep}">
 <title>You're offline | ${escape(BRAND)} Skills Hub</title>
-<link rel="icon" href="/icons/mark.svg" type="image/svg+xml">
+<link rel="icon" href="${iconUrl("mark.svg")}" type="image/svg+xml">
 <style>
 *{box-sizing:border-box}
 body{margin:0;min-height:100dvh;display:flex;flex-direction:column;background:${canvas};color:#171426;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}

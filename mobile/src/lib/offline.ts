@@ -1,4 +1,5 @@
 import { Directory, File, Paths } from "expo-file-system";
+import { Platform } from "react-native";
 
 import { token } from "./session";
 import type { VideoSource } from "./types";
@@ -7,8 +8,13 @@ import type { VideoSource } from "./types";
  * Lessons saved to the phone, to watch with no data. The smallest copy is
  * saved (360p, a few MB a minute), into the app's own folder: deleted with
  * the app, and not visible to other apps.
+ *
+ * On an iPhone the folder is the app's Caches, not Documents: Apple backs up
+ * Documents to iCloud and rejects apps that put videos there which can be
+ * downloaded again. An iPhone very short of space may clear Caches; a lesson
+ * cleared that way shows as not saved, and can be saved again.
  */
-const folder = () => new Directory(Paths.document, "lessons");
+const folder = () => new Directory(Platform.OS === "ios" ? Paths.cache : Paths.document, "lessons");
 const fileFor = (lesson: number) => new File(folder(), `${lesson}.mp4`);
 
 export function savedLesson(lesson: number): string | null {

@@ -125,6 +125,23 @@ export function getLessonQuestions(videoId: number) {
   );
 }
 
+export type VideoReportReason =
+  | "not_theirs"
+  | "no_consent"
+  | "child"
+  | "unsafe"
+  | "offensive"
+  | "advertising"
+  | "other";
+
+/** Tell staff a lesson breaks the video guidelines. Signed in only. */
+export function reportVideo(videoId: number, reason: VideoReportReason, note: string) {
+  return trainerFetch<{reported: true}>(`/api/videos/${videoId}/report/`, {
+    method: "POST",
+    body: JSON.stringify({reason, note}),
+  });
+}
+
 export function askLessonQuestion(videoId: number, body: string, atSeconds?: number) {
   return trainerFetch<LessonQuestion>(`/api/learn/lessons/${videoId}/questions/`, {
     method: "POST",
