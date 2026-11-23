@@ -216,7 +216,8 @@ class CourseCardSerializer(serializers.ModelSerializer):
 
 
 class CourseListView(ListAPIView):
-    """Every course, optionally for one trade (?trade=<slug>)."""
+    """Every course, optionally for one trade (?trade=<slug>) or one category
+    of trades (?category=<slug>)."""
 
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -254,6 +255,12 @@ def browse_courses(params):
     if trade:
         teaching = Programme.objects.filter(
             is_active=True, trade__is_active=True, trade__slug=trade
+        ).values("provider_id")
+        courses = courses.filter(pk__in=teaching)
+    category = params.get("category")
+    if category:
+        teaching = Programme.objects.filter(
+            is_active=True, trade__is_active=True, trade__category__slug=category
         ).values("provider_id")
         courses = courses.filter(pk__in=teaching)
     words = " ".join(str(params.get("q") or "").split())[:80]

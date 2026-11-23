@@ -908,6 +908,11 @@ def browse(params):
     if trade:
         products = products.filter(trade__slug=trade)
 
+    # A whole group of trades (catalog TradeCategory).
+    category = params.get("category")
+    if category:
+        products = products.filter(trade__category__slug=category)
+
     area = params.get("area")
     if area:
         products = products.filter(seller__area__slug=area)

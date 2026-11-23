@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TradeOptions } from "@/components/TradeOptions";
 import type { SearchParams } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { formatFee, titleCase } from "@/lib/format";
@@ -126,11 +127,7 @@ export function FilterBar({
                   colour={chosenTrade?.colour}
                 >
                   <option value="">{t("anyTrade")}</option>
-                  {trades.map((trade) => (
-                    <option key={trade.slug} value={trade.slug}>
-                      {trade.name}
-                    </option>
-                  ))}
+                  <TradeOptions trades={trades} />
                 </Blank>
               ),
               area: () => (

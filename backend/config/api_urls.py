@@ -29,7 +29,7 @@ from appsupport.views import (
     update_asset,
     update_manifest,
 )
-from catalog.views import TradeViewSet
+from catalog.views import TradeCategoryViewSet, TradeViewSet
 from core.home_pictures import HomePicturesView
 from core.site_stats import SiteStatsView
 from core.whoami import WhoAmIView
@@ -169,6 +169,7 @@ from search.views import (
 router = DefaultRouter()
 router.register("providers", ProviderViewSet, basename="provider")
 router.register("trades", TradeViewSet, basename="trade")
+router.register("trade-categories", TradeCategoryViewSet, basename="trade-category")
 router.register("areas", AreaViewSet, basename="area")
 router.register("regions", RegionViewSet, basename="region")
 

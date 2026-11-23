@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { WorkshopRow } from "@/components/Cards";
+import { CategoryRow } from "@/components/CategoryRow";
 import { MapButton } from "@/components/MapButton";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
@@ -26,6 +27,7 @@ const SORTS = [
 export default function ExploreScreen() {
   const params = useLocalSearchParams<{ q?: string; trade?: string; area?: string }>();
   const [q, setQ] = useState(params.q ?? "");
+  const [category, setCategory] = useState<string | undefined>(undefined);
   const [sort, setSort] = useState("");
   const [here, setHere] = useState<{ lat: string; lng: string } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -35,6 +37,7 @@ export default function ExploreScreen() {
   const query = {
     q: q || undefined,
     trade: params.trade || undefined,
+    category,
     area: params.area || undefined,
     sort: sort || undefined,
     ...(sort === "nearest" && here ? { ...here, radius_km: "100" } : {}),
@@ -81,6 +84,7 @@ export default function ExploreScreen() {
         initial={params.q ?? ""}
         action={<MapButton onPress={() => router.push("/map")} />}
       />
+      <CategoryRow list="training" selected={category} onSelect={setCategory} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sorts}>
         {SORTS.map((option) => {
           const on = sort === option.value;

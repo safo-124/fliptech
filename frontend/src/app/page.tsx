@@ -33,6 +33,7 @@ import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
 import { IntakesBoard } from "@/components/IntakesBoard";
+import { CategoryIcon } from "@/components/CategoryIcon";
 import { TradeIcon } from "@/components/TradeArt";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { SuggestInput } from "@/components/search/SuggestInput";
@@ -42,6 +43,7 @@ import {
   getAllTrades,
   getHomePictures,
   getSiteStats,
+  getTradeCategories,
   getUpcomingIntakes,
   listCourses,
   searchProducts,
@@ -92,8 +94,8 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, areas, pictures, workshops, courses, products, stats, upcoming, t, shops] = await Promise.all([
-    // getAllTrades, not getTrades: categories are created by staff in the
+  const [trades, areas, pictures, workshops, courses, products, stats, upcoming, t, shops, categories] = await Promise.all([
+    // getAllTrades, not getTrades: trades are created by staff in the
     // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
     getAllAreas().catch(() => []),
@@ -105,8 +107,12 @@ export default async function Home({
     getUpcomingIntakes(3).catch(() => []),
     getTranslations("LandingPage"),
     getFeaturedShops().catch(() => null),
+    getTradeCategories().catch(() => []),
   ]);
   const featuredShops = shops?.results ?? [];
+  // Categories with something in them. Until there is one, the trades
+  // themselves stand in, as they did before there were categories.
+  const liveCategories = categories.filter((category) => category.live);
   // The same rule as /training's area choice: only places with a workshop,
   // so every choice in "Where are you looking?" leads to results.
   const placesWithWorkshops = areas
@@ -282,8 +288,38 @@ export default async function Home({
       </section>
 
       {/* ------------------------------------------------------ categories */}
-      {trades.length ? (
-        <section className="app-shell mt-12 sm:mt-14">
+      {liveCategories.length ? (
+        <section id="categories" className="app-shell mt-12 scroll-mt-24 sm:mt-14">
+          <SectionHead
+            title={t("categoriesTitle")}
+            body={t("categoriesBody")}
+            linkHref="/training"
+            linkLabel={t("viewAll")}
+          />
+          {/* The same quiet tiles as the trades, in brand violet: a category
+              is a group of trades with their own colours, so it has none. */}
+          <ul className={styles.skills}>
+            {liveCategories.map((category) => (
+              <li key={category.slug}>
+                <Link href={`/categories/${category.slug}`} className={`${tradeClass("violet")} ${styles.skill}`}>
+                  <span className={styles.skillIcon}>
+                    <CategoryIcon icon={category.icon} className="size-6" />
+                  </span>
+                  <ArrowUpRight aria-hidden="true" className={styles.skillArrow} />
+                  <span className={styles.skillName}>{category.name}</span>
+                  <span className={styles.skillCount}>
+                    {category.trades
+                      .filter((trade) => trade.provider_count > 0)
+                      .map((trade) => trade.name)
+                      .join(", ") || t("skillCount", { count: category.provider_count })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : trades.length ? (
+        <section id="categories" className="app-shell mt-12 scroll-mt-24 sm:mt-14">
           <SectionHead
             title={t("skillsTitle")}
             body={t("skillsBody")}

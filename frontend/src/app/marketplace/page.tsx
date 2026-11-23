@@ -31,9 +31,12 @@ import { ClientMessages } from "@/i18n/ClientMessages";
 import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { CategoryPill } from "@/components/CategoryPill";
 import {
+  buildQuery,
   getAllAreas,
   getAllTrades,
+  getTradeCategory,
   getTrainerShops,
   searchProducts,
   type MarketplaceParams,
@@ -66,7 +69,12 @@ export default async function MarketplacePage({
   );
 
   const filterCount = activeFilterCount(params);
-  const filtered = Boolean(params.trade || params.area || params.q || filterCount);
+  const filtered = Boolean(params.trade || params.category || params.area || params.q || filterCount);
+  // Opened from a category page (?category=): named, with a way to undo it.
+  const [chosenCategory, tCategory] = await Promise.all([
+    params.category ? getTradeCategory(params.category).catch(() => null) : null,
+    getTranslations("CategoryFilter"),
+  ]);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const [products, trades, areas, trainerShops, t, payable] = await Promise.all([
@@ -258,6 +266,15 @@ export default async function MarketplacePage({
             <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">
               {t("count", { count: products.count })}
             </p>
+            {chosenCategory ? (
+              <div className="-mt-2 mb-4">
+                <CategoryPill
+                  label={tCategory("showing", { category: chosenCategory.name })}
+                  clearLabel={tCategory("clear")}
+                  href={`/marketplace${buildQuery({ ...params, category: undefined, page: undefined })}`}
+                />
+              </div>
+            ) : null}
             <div className="grid grid-cols-2 gap-3.5 sm:gap-4 lg:grid-cols-4">
               {results.map((product) => (
                 <ProductTile key={product.id} product={product} />

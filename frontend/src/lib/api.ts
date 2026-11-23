@@ -29,6 +29,7 @@ import type {
   FeaturedShop,
   TrainerShop,
   Trade,
+  TradeCategory,
   UpcomingIntake,
 } from "./types";
 
@@ -130,6 +131,8 @@ async function fetchJson<T>(
 
 export type SearchParams = {
   trade?: string;
+  /** A whole group of trades (TradeCategory), by its slug. */
+  category?: string;
   area?: string;
   region?: string;
   max_fee?: string;
@@ -247,6 +250,15 @@ export function getTrade(slug: string) {
   return fetchJson<Trade>(`/api/trades/${slug}/`);
 }
 
+/** Every active category, live or not; callers show the live ones. */
+export function getTradeCategories() {
+  return fetchJson<TradeCategory[]>("/api/trade-categories/");
+}
+
+export function getTradeCategory(slug: string) {
+  return fetchJson<TradeCategory>(`/api/trade-categories/${slug}/`);
+}
+
 export function getRegions() {
   return fetchJson<Paginated<Region>>("/api/regions/");
 }
@@ -315,6 +327,8 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 export type MarketplaceParams = {
   trade?: string;
+  /** A whole group of trades (TradeCategory), by its slug. */
+  category?: string;
   area?: string;
   region?: string;
   availability?: string;
@@ -408,6 +422,8 @@ export function getSellerShop(id: string | number) {
 
 export type CourseQuery = {
   trade?: string;
+  /** A whole group of trades (TradeCategory), by its slug. */
+  category?: string;
   page?: string;
   /** Words to look for in names, areas, trades and lesson titles. */
   q?: string;

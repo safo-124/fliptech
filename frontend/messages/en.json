@@ -38,6 +38,8 @@
     "pillarLearningAction": "Browse courses",
     "pillarMarketTitle": "Marketplace",
     "pillarMarketBody": "Shop products made by trainers and skilled professionals.",
+    "categoriesTitle": "Browse by category",
+    "categoriesBody": "Not sure what the trade is called? Start with the kind of work.",
     "skillsTitle": "Explore popular skills",
     "skillsBody": "Discover something you can learn, practise or turn into a business.",
     "skillCount": "{count, plural, =0 {No workshops yet} one {# workshop} other {# workshops}}",
@@ -802,6 +804,27 @@
     "noLocalTitle": "No local listings yet",
     "noLocalBody": "No {trade} providers are listed in {place} yet. Widen your search to compare training options in other areas.",
     "seeElsewhere": "See providers elsewhere"
+  },
+  "CategoryPage": {
+    "notFound": "Category not found",
+    "metaTitle": "{category}: training, courses and tools in Ghana",
+    "metaDescription": "Workshops, online courses and tools for {category}, in one place.",
+    "eyebrow": "Category",
+    "allCategories": "All categories",
+    "tradesTitle": "Trades in this category",
+    "trainingTitle": "Training workshops",
+    "coursesTitle": "Online courses",
+    "shopTitle": "From the shop",
+    "seeAll": "See all",
+    "workshops": "{count, plural, =0 {No workshops yet} one {# workshop} other {# workshops}}",
+    "courses": "{count, plural, =0 {No online courses yet} one {# online course} other {# online courses}}",
+    "products": "{count, plural, =0 {Nothing in the shop yet} one {# item in the shop} other {# items in the shop}}",
+    "emptyTitle": "Nothing here yet",
+    "emptyBody": "Workshops, courses and tools in this category show here as soon as they join."
+  },
+  "CategoryFilter": {
+    "showing": "Category: {category}",
+    "clear": "Show every category"
   },
   "TradePage": {
     "notFound": "Not found",

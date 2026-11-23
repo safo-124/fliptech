@@ -21,6 +21,8 @@ from providers.models import Provider
 
 class ProviderFilter(django_filters.FilterSet):
     trade = django_filters.CharFilter(method="filter_trade")
+    # A whole group of trades (catalog TradeCategory), by its slug.
+    category = django_filters.CharFilter(method="filter_category")
     area = django_filters.CharFilter(field_name="area__slug", lookup_expr="iexact")
     region = django_filters.CharFilter(field_name="area__region__slug", lookup_expr="iexact")
 
@@ -42,6 +44,14 @@ class ProviderFilter(django_filters.FilterSet):
             Q(programmes__trade__slug__iexact=value)
             | Q(programmes__trade__name__iexact=value)
             | Q(programmes__trade__synonyms__contains=[value.lower()]),
+            programmes__is_active=True,
+            programmes__trade__is_active=True,
+        ).distinct()
+
+    def filter_category(self, queryset, name, value):
+        """Workshops with an active course in any trade of the category."""
+        return queryset.filter(
+            programmes__trade__category__slug__iexact=value,
             programmes__is_active=True,
             programmes__trade__is_active=True,
         ).distinct()
@@ -164,10 +174,17 @@ class ProviderFilter(django_filters.FilterSet):
             narrowed = narrowed.filter(
                 Exists(_teaching().filter(provider=OuterRef("pk"), trade=understood.trade))
             )
+        elif understood.category is not None:
+            # "beauty", "building": any trade of the category.
+            narrowed = narrowed.filter(
+                Exists(
+                    _teaching().filter(provider=OuterRef("pk"), trade__category=understood.category)
+                )
+            )
         if understood.area is not None and not self.data.get("area"):
             narrowed = narrowed.filter(area=understood.area)
 
-        if understood.trade is None and understood.area is None:
+        if understood.trade is None and understood.category is None and understood.area is None:
             return _name_match(queryset, value)
         if understood.words:
             named = _name_match(narrowed, understood.words)

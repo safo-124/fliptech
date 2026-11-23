@@ -4,6 +4,7 @@ import { useState } from "react";
 import { View } from "react-native";
 
 import { CourseCard } from "@/components/Cards";
+import { CategoryRow } from "@/components/CategoryRow";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
@@ -17,7 +18,8 @@ import { space } from "@/theme/tokens";
  */
 export default function LearnScreen() {
   const [q, setQ] = useState("");
-  const courses = useQuery({ queryKey: ["courses", q], queryFn: () => api.courses({ q }) });
+  const [category, setCategory] = useState<string | undefined>(undefined);
+  const courses = useQuery({ queryKey: ["courses", q, category], queryFn: () => api.courses({ q, category }) });
 
   return (
     <Screen refreshing={courses.isRefetching} onRefresh={() => void courses.refetch()}>
@@ -27,6 +29,7 @@ export default function LearnScreen() {
         placeholder="Search courses"
         onSearch={setQ}
       />
+      <CategoryRow list="courses" selected={category} onSelect={setCategory} />
       <View style={{ marginTop: space.xl, gap: space.lg, paddingHorizontal: space.lg }}>
         {courses.isPending ? (
           [0, 1].map((n) => <Skeleton key={n} style={{ height: 280 }} />)

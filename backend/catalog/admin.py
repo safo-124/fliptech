@@ -32,7 +32,7 @@ from core.site_links import provider_page_url, public_site_url
 from providers.models import Provider
 
 from . import queues
-from .models import Intake, Programme, Trade
+from .models import Intake, Programme, Trade, TradeCategory
 
 QUEUE_PARAMETER = "queue"
 
@@ -312,10 +312,45 @@ class CatalogWorkspaceMixin:
         return response
 
 
+class CategoryTradesInline(admin.TabularInline):
+    """The trades in a category, read here and moved on each trade's page."""
+
+    model = Trade
+    fields = ("name", "is_active")
+    readonly_fields = ("name", "is_active")
+    extra = 0
+    can_delete = False
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TradeCategory)
+class TradeCategoryAdmin(admin.ModelAdmin):
+    """The groups people browse by. A category shows on the site only once
+    a trade in it has something live."""
+
+    list_display = ("name", "icon", "trade_count", "display_order", "is_active")
+    list_editable = ("display_order", "is_active")
+    prepopulated_fields = {"slug": ("name",)}
+    search_fields = ("name", "slug", "synonyms")
+    inlines = [CategoryTradesInline]
+    fields = ("name", "slug", "description", "icon", "synonyms", "display_order", "is_active")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(admin_trade_count=Count("trades"))
+
+    @admin.display(description="Trades", ordering="admin_trade_count")
+    def trade_count(self, obj):
+        return obj.admin_trade_count
+
+
 @admin.register(Trade)
 class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
     list_display = (
         "name",
+        "category",
         "look",
         "inventory_summary",
         "search_readiness",
@@ -323,7 +358,7 @@ class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
         "is_active",
     )
     list_editable = ("display_order", "is_active")
-    list_filter = (TradeQueueFilter, "is_active")
+    list_filter = (TradeQueueFilter, "category", "is_active")
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name", "slug", "synonyms")
     search_help_text = "Search by trade name, public slug, or alternative search word."
@@ -333,7 +368,17 @@ class TradeAdmin(CatalogWorkspaceMixin, admin.ModelAdmin):
     change_form_template = "admin/catalog/trade/change_form.html"
     workspace_metrics = staticmethod(_trade_metrics)
     fieldsets = (
-        ("Trade identity", {"fields": ("name", "slug")}),
+        (
+            "Trade identity",
+            {
+                "fields": ("name", "slug", "category"),
+                "description": (
+                    "The category is the group people browse by. Each says on its own page "
+                    "what belongs in it; a trade with none shows in the trade lists but in no "
+                    "category."
+                ),
+            },
+        ),
         (
             "Search language",
             {

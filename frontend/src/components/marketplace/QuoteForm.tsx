@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { TradeOptions } from "@/components/TradeOptions";
 import { requestBuyerCode, requestQuote, verifyBuyerCode, type QuoteInput } from "@/lib/marketplace-api";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
 import { useAccountContact } from "@/lib/use-account-contact";
@@ -167,11 +168,7 @@ function QuoteFormForm({ trades, areas }: { trades: Option[]; areas: Option[] })
                   className="mt-1.5"
                 >
                   <option value="">{t("choose")}</option>
-                  {trades.map((trade) => (
-                    <option key={trade.slug} value={trade.slug}>
-                      {trade.name}
-                    </option>
-                  ))}
+                  <TradeOptions trades={trades} />
                 </NativeSelect>
                 {errors.trade ? (
                   <p id="quote-trade-error" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">

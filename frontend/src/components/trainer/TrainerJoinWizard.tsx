@@ -62,6 +62,7 @@ import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from
 import {insideGhana} from "@/lib/ghana-bounds";
 import {formatCedis, formatDate} from "@/lib/format";
 import {ProviderLocationMap} from "@/components/ProviderLocationMap";
+import {TradeOptions} from "@/components/TradeOptions";
 import {ID_NUMBER_HINTS, isIdDocumentType, tidyIdNumber} from "@/lib/id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {getWhoami} from "@/lib/session-api";
@@ -2655,11 +2656,7 @@ function TrainerJoinWizardForm() {
                     className={invalidControlClassName}
                   >
                     <option value="">{t("chooseTrade")}</option>
-                    {trades.map((trade) => (
-                      <option key={trade.id} value={trade.id}>
-                        {trade.name}
-                      </option>
-                    ))}
+                    <TradeOptions trades={trades} by="id" />
                   </NativeSelect>
                   <FieldError id="trade-error" message={errors.trade_id?.message} />
                 </div>

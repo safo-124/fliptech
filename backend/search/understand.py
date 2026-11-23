@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 from django.core.cache import cache
 from django.db.models import Count, Max
 
-from catalog.models import Trade
+from catalog.models import Trade, TradeCategory
 from geography.models import Area
 
 # Words that say what kind of thing is wanted, not which one. Dropped from
@@ -81,6 +81,9 @@ class Understood:
     # Other trades that look like what was typed, best first. For "Did you
     # mean" and for the suggestions under the search box.
     also: list = field(default_factory=list)
+    # A whole group of trades ("beauty", "building"), read only when no one
+    # trade was: "hair" means hairdressing, "beauty" means all of its group.
+    category: TradeCategory | None = None
 
 
 def _stamp():
@@ -105,6 +108,27 @@ def _vocabulary():
             trades.append((trade.pk, sorted(phrases)))
         areas = [(area.pk, normalise(area.name)) for area in Area.objects.all()]
         found = (trades, areas)
+        cache.set(key, found, 3600)
+    return found
+
+
+# Words in category names that say nothing about which category: "Trades",
+# "Skills", and the ones two names share ("Arts", "Craft", "Creative").
+GENERIC = {"trades", "trade", "skills", "skill", "arts", "art", "craft", "crafts", "creative"}
+
+
+def _categories():
+    """[(category_id, [word])]: each category's telling name words and the
+    synonyms staff keep on it, rebuilt when the categories change."""
+    stamp = TradeCategory.objects.aggregate(n=Count("id"), at=Max("updated_at"))
+    key = "search-categories:" + hashlib.sha1(f"{stamp['n']}:{stamp['at']}".encode()).hexdigest()
+    found = cache.get(key)
+    if found is None:
+        found = []
+        for category in TradeCategory.objects.filter(is_active=True):
+            words = set(normalise(category.name).split()) - GENERIC
+            words |= {normalise(word) for word in category.synonyms or []}
+            found.append((category.pk, sorted(w for w in words if w)))
         cache.set(key, found, 3600)
     return found
 
@@ -184,6 +208,23 @@ def understand(text):
             i for i, token in enumerate(free) if token and any(_close(token, w) for w in words)
         )
         result.also = [trade_id for _, trade_id, _ in scored[1:4]]
+    else:
+        # No one trade named: perhaps a whole category ("beauty courses",
+        # "building work in tema"). Whole words only, a typo allowed.
+        best, best_id, best_hits = 0, None, []
+        for category_id, words in _categories():
+            hits = [
+                i
+                for i, token in enumerate(free)
+                if token
+                and token not in STOP_WORDS
+                and any(_close(token, word) for word in words if " " not in word)
+            ]
+            if len(hits) > best:
+                best, best_id, best_hits = len(hits), category_id, hits
+        if best_id is not None:
+            result.category = TradeCategory.objects.get(pk=best_id)
+            taken.update(best_hits)
 
     left = [t for i, t in enumerate(tokens) if i not in taken and t not in STOP_WORDS]
     result.words = " ".join(left)

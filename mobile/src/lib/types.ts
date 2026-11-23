@@ -73,6 +73,24 @@ export type ProviderCard = {
 
 export type TradeOption = { id: number; name: string; slug: string; colour: string; provider_count: number };
 
+/**
+ * A group of trades, for browsing (backend catalog.models.TradeCategory),
+ * with what is live in it: workshops, online courses, shop items.
+ */
+export type TradeCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  /** See lib/categories.ts. */
+  icon: string;
+  provider_count: number;
+  course_count: number;
+  product_count: number;
+  live: boolean;
+  trades: { slug: string; name: string; colour: string; provider_count: number }[];
+};
+
 export type Intake = {
   id: number;
   start_date: string;

@@ -28,6 +28,61 @@ def prepare_trade_picture(django_file):
     return (content, as_png) if content is not None else (None, False)
 
 
+class TradeCategory(TimeStampedModel):
+    """A group of trades, for browsing before you know a trade's name:
+    "Engineering & Technical Trades", "Construction & Building Trades" and so
+    on. Each trade sits in one category; workshops, courses and products are
+    found through their trade, so none of them carries a category itself.
+
+    A category shows on the site only once a trade in it has something live,
+    so an empty one never makes the site look unfinished. There is no
+    "Others": a trade that fits nowhere is a sign a category is missing.
+    """
+
+    class Icon(models.TextChoices):
+        """The picture beside the name. Drawn by the website and the app
+        (frontend lib/trades.ts, mobile lib/categories.ts), so a new one needs
+        both."""
+
+        COG = "cog", "Cog: machines, metal, engines"
+        BRICKS = "bricks", "Bricks: building"
+        SCISSORS = "scissors", "Scissors: fashion, beauty"
+        PALETTE = "palette", "Palette: arts and crafts"
+        CHEF = "chef", "Chef's hat: food, guests"
+        LAPTOP = "laptop", "Laptop: computer and phone work"
+        HOUSE = "house", "House: home and everyday life"
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    description = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text=(
+            "One line saying what belongs here, so staff and trainers place trades the "
+            "same way. Shown on the category's page."
+        ),
+    )
+    icon = models.CharField(max_length=20, choices=Icon.choices, default=Icon.COG)
+    # Words people type for the whole group ("beauty", "building"), so a
+    # search finds its trades without naming one (search/understand.py).
+    synonyms = ArrayField(
+        models.CharField(max_length=60),
+        default=list,
+        blank=True,
+        help_text="Words people search for that mean this whole group. One per entry, lowercase.",
+    )
+    display_order = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["display_order", "name"]
+        verbose_name = "trade category"
+        verbose_name_plural = "trade categories"
+
+    def __str__(self):
+        return self.name
+
+
 class Trade(TimeStampedModel):
     """Welding, tailoring, plumbing and so on. A fixed list, never free text."""
 
@@ -52,6 +107,15 @@ class Trade(TimeStampedModel):
 
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
+    # Its group, for browsing (TradeCategory). Empty for a new trade until
+    # staff place it; it then shows in the trade lists but in no category.
+    category = models.ForeignKey(
+        TradeCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="trades",
+    )
     colour = models.CharField(max_length=10, choices=Colour.choices, default=Colour.VIOLET)
     # The trade's hand-painted signboard picture, in the style of Ghana's
     # painted barber and salon signs. Commissioned from a sign painter, so most

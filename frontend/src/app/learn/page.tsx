@@ -22,7 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { LEARN_CLIENT_NAMESPACES } from "@/i18n/namespaces";
-import { getAllTrades, listCourses, type CourseQuery } from "@/lib/api";
+import { CategoryPill } from "@/components/CategoryPill";
+import { getAllTrades, getTradeCategory, listCourses, type CourseQuery } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 
 export const revalidate = 300;
@@ -52,19 +53,27 @@ export default async function LearnPage({
   const sortParam = one(raw.sort);
   const query: CourseQuery = {
     trade: one(raw.trade),
+    category: one(raw.category),
     q: one(raw.q)?.slice(0, 80),
     sort: SORTS.includes(sortParam as (typeof SORTS)[number]) && sortParam ? (sortParam as CourseQuery["sort"]) : undefined,
     level: LEVELS.includes(one(raw.level) as (typeof LEVELS)[number]) ? one(raw.level) : undefined,
     price: one(raw.price) === "free" || one(raw.price) === "paid" ? (one(raw.price) as "free" | "paid") : undefined,
   };
-  const filtered = Boolean(query.trade || query.q || query.level || query.price);
+  const filtered = Boolean(query.trade || query.category || query.q || query.level || query.price);
 
-  const [courses, featured, trades, t] = await Promise.all([
+  const [courses, featured, allTrades, t, chosenCategory, tCategory] = await Promise.all([
     listCourses(query).catch(() => null),
     filtered || query.sort ? null : listCourses({ featured: "1" }).catch(() => null),
     getAllTrades().catch(() => []),
     getTranslations("Learn"),
+    query.category ? getTradeCategory(query.category).catch(() => null) : null,
+    getTranslations("CategoryFilter"),
   ]);
+  // Opened from a category page: only its trades to narrow by.
+  const inCategory = chosenCategory
+    ? allTrades.filter((trade) => trade.category?.slug === chosenCategory.slug)
+    : [];
+  const trades = inCategory.length ? inCategory : allTrades;
   const results = courses?.results ?? [];
   const catalogueEmpty = courses !== null && courses.count === 0 && !filtered && !query.sort;
   const spotlight = featured?.results.slice(0, 3) ?? [];
@@ -261,6 +270,15 @@ export default async function LearnPage({
               </h2>
               <p className="text-sm text-[var(--color-muted-foreground)]">{t("count", { count: courses.count })}</p>
             </div>
+            {chosenCategory ? (
+              <div className="-mt-2 mb-4">
+                <CategoryPill
+                  label={tCategory("showing", { category: chosenCategory.name })}
+                  clearLabel={tCategory("clear")}
+                  href={withParam("category", undefined)}
+                />
+              </div>
+            ) : null}
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((course) => (
                 <li key={course.id}>

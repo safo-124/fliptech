@@ -71,6 +71,8 @@ def _courses(understood, query, request):
         found = browse_courses(params)
         if understood.words and not found.exists():
             found = browse_courses({"trade": understood.trade.slug})
+    elif understood.category is not None:
+        found = browse_courses({"category": understood.category.slug})
     if found is None or not found.exists():
         found = browse_courses({"q": query})
     return found.count(), CourseCardSerializer(
@@ -89,6 +91,13 @@ def _products(understood, query, request):
             params["area"] = understood.area.slug
         if understood.words:
             params["q"] = understood.words
+        found = browse(params)
+        if not found.exists():
+            found = None
+    elif understood.category is not None:
+        params = {"category": understood.category.slug}
+        if understood.area is not None:
+            params["area"] = understood.area.slug
         found = browse(params)
         if not found.exists():
             found = None
@@ -119,6 +128,13 @@ def _shops(understood, query, request):
 
 def _matching_trades(understood, query):
     ids = ([understood.trade.pk] if understood.trade else []) + list(understood.also)
+    if not ids and understood.category is not None:
+        # "beauty": the trades of that category, to choose from.
+        ids = list(
+            understood.category.trades.filter(is_active=True)
+            .order_by("display_order", "name")
+            .values_list("pk", flat=True)[:6]
+        )
     if not ids and query:
         ids = list(
             Trade.objects.filter(is_active=True)
@@ -218,6 +234,11 @@ class SearchView(APIView):
                 "trade": _trade_payload(understood.trade) if understood.trade else None,
                 "area": _area_payload(understood.area) if understood.area else None,
                 "words": understood.words,
+                "category": (
+                    {"slug": understood.category.slug, "name": understood.category.name}
+                    if understood.category
+                    else None
+                ),
             },
             "trades": _matching_trades(understood, query),
             "workshops": {"count": workshop_count, "results": workshops},

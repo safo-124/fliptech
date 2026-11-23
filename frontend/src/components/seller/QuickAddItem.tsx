@@ -9,6 +9,7 @@ import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {NativeSelect} from "@/components/ui/native-select";
 import {Textarea} from "@/components/ui/textarea";
+import {TradeOptions} from "@/components/TradeOptions";
 import {compressPhoto} from "@/lib/compress-photo";
 import {
   nameExample,
@@ -427,11 +428,7 @@ export function QuickAddItem({
                 onChange={(event) => set("trade", event.target.value ? Number(event.target.value) : null)}
               >
                 <option value="">{t("tradeNone")}</option>
-                {trades.map((trade) => (
-                  <option key={trade.id} value={trade.id}>
-                    {trade.name}
-                  </option>
-                ))}
+                <TradeOptions trades={trades} by="id" />
               </NativeSelect>
             </div>
           </div>

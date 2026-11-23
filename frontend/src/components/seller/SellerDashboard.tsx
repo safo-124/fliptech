@@ -49,6 +49,7 @@ import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {NativeSelect} from "@/components/ui/native-select";
 import {Textarea} from "@/components/ui/textarea";
+import {TradeOptions} from "@/components/TradeOptions";
 import {
   addProductPhoto,
   copyProduct,
@@ -762,11 +763,7 @@ function ProductEditor({
             <Label htmlFor="product-trade">{t("tradeLabel")}</Label>
             <NativeSelect id="product-trade" value={trade} onChange={(event) => setTrade(event.target.value)}>
               <option value="">{t("tradeNone")}</option>
-              {trades.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
+              <TradeOptions trades={trades} by="id" />
             </NativeSelect>
             <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("tradeHelp")}</p>
           </div>

@@ -23,6 +23,7 @@ import type {
   ProductDetail,
   ProviderCard,
   TrainerShop,
+  TradeCategory,
   TradeOption,
   WorkshopDetail,
   QuickItemInput,
@@ -114,13 +115,24 @@ export function postJson<T>(path: string, body: unknown = {}): Promise<T> {
 const MAP_PAGES = 10;
 
 export const api = {
-  courses: (params: { q?: string; sort?: string; featured?: string } = {}) =>
+  courses: (params: { q?: string; sort?: string; featured?: string; category?: string } = {}) =>
     getJson<Paginated<CourseCard>>("/api/courses/", params),
+  /** The categories for browsing, each saying how much is live in it. */
+  tradeCategories: () => getJson<TradeCategory[]>("/api/trade-categories/"),
   products: (params: Record<string, string | undefined> = {}) =>
     getJson<Paginated<ProductCard>>("/api/products/", params),
   trainerShops: () => getJson<{ results: TrainerShop[] }>("/api/sellers/trainers/"),
   providers: (
-    params: { q?: string; trade?: string; area?: string; sort?: string; lat?: string; lng?: string; radius_km?: string } = {},
+    params: {
+      q?: string;
+      trade?: string;
+      category?: string;
+      area?: string;
+      sort?: string;
+      lat?: string;
+      lng?: string;
+      radius_km?: string;
+    } = {},
   ) => getJson<Paginated<ProviderCard>>("/api/providers/", params),
   /** Everything matching, a few of each, as the visitor types. log: count it in the report. */
   search: (q: string, options: { lat?: number; lng?: number; log?: boolean } = {}) =>

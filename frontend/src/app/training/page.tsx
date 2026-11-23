@@ -28,6 +28,7 @@ import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { BrandShards } from "@/components/BrandShards";
+import { CategoryPill } from "@/components/CategoryPill";
 import { FilterBar } from "@/components/FilterBar";
 import { IntakesBoard } from "@/components/IntakesBoard";
 import { ProviderCard } from "@/components/ProviderCard";
@@ -41,6 +42,7 @@ import {
   buildQuery,
   getAllRegions,
   getNearbyHelp,
+  getTradeCategory,
   getTrades,
   getUpcomingIntakes,
   searchProviders,
@@ -189,9 +191,21 @@ export default async function SearchPage({
   const listHref = `/training${buildQuery(params)}`;
   const currentPage = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const groupSize = Number.parseInt(params.places ?? "", 10);
+  // Opened from a category page (?category=): its name in the title, only
+  // its trades in the filter, and a pill to show every category again.
+  const [chosenCategory, tCategory] = await Promise.all([
+    params.category ? getTradeCategory(params.category).catch(() => null) : null,
+    getTranslations("CategoryFilter"),
+  ]);
+  const inCategory = chosenCategory
+    ? trades.results.filter((trade) => trade.category?.slug === chosenCategory.slug)
+    : [];
+  const filterTrades = inCategory.length ? inCategory : trades.results;
   const tradeTitle = params.trade
     ? t("tradeProviders", { trade: titleCase(params.trade) })
-    : t("allProviders");
+    : chosenCategory
+      ? t("tradeProviders", { trade: chosenCategory.name })
+      : t("allProviders");
   const resultTitle =
     groupSize > 0 ? t("withRoomFor", { title: tradeTitle, size: groupSize }) : tradeTitle;
   const searchedTrade = trades.results.find((trade) => trade.slug === params.trade) ?? null;
@@ -259,7 +273,7 @@ export default async function SearchPage({
       {/* Pulled up over the band's edge. -mt matches the pb above. */}
       <div className="app-shell relative z-20 -mt-14 sm:-mt-16">
         <FilterBar
-          trades={trades.results}
+          trades={filterTrades}
           areas={areas}
           params={params}
           total={unfiltered && results ? results.count : null}
@@ -323,6 +337,13 @@ export default async function SearchPage({
                 >
                   {resultTitle}
                 </h2>
+                {chosenCategory ? (
+                  <CategoryPill
+                    label={tCategory("showing", { category: chosenCategory.name })}
+                    clearLabel={tCategory("clear")}
+                    href={`/training${buildQuery({ ...params, category: undefined, page: undefined })}`}
+                  />
+                ) : null}
                 <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
                   {results.results.length === results.count
                     ? t("providerCount", { count: results.count })

@@ -19,6 +19,7 @@ import {
   getAllRegions,
   getAllTrades,
   getAreaSummary,
+  getTradeCategories,
   searchAllProducts,
   searchAllProviders,
 } from "@/lib/api";
@@ -62,6 +63,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const trade of trades) {
     entries.push({
       url: `${site}/trades/${trade.slug}`,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    });
+  }
+
+  // Category pages with something in them; an empty one is not worth a
+  // search engine's visit.
+  for (const category of await getTradeCategories().catch(() => [])) {
+    if (!category.live) continue;
+    entries.push({
+      url: `${site}/categories/${category.slug}`,
       changeFrequency: "weekly",
       priority: 0.7,
     });

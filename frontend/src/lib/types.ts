@@ -305,6 +305,27 @@ export type Trade = {
   /** The trade's hand-painted signboard picture, or null until there is one. */
   picture: string | null;
   provider_count: number;
+  /** Its group for browsing; null until staff place it. */
+  category?: { slug: string; name: string; icon: string } | null;
+};
+
+/**
+ * A group of trades, for browsing before you know a trade's name. See
+ * backend catalog.models.TradeCategory. `live` is false until a trade in it
+ * has a workshop, a course or a shop item: the site hides those.
+ */
+export type TradeCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  /** See components/CategoryIcon.tsx. */
+  icon: string;
+  provider_count: number;
+  course_count: number;
+  product_count: number;
+  live: boolean;
+  trades: { slug: string; name: string; colour: string; provider_count: number }[];
 };
 
 export type Region = {

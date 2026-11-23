@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import { BasketButton } from "@/components/BasketButton";
 import { ProductCard } from "@/components/Cards";
+import { CategoryRow } from "@/components/CategoryRow";
 import { Button } from "@/components/Form";
 import { Chip, FilterSheet } from "@/components/market/FilterSheet";
 import { SaveSearchButton } from "@/components/market/SaveSearchButton";
@@ -56,6 +57,7 @@ export default function ShopScreen() {
         onSearch={(q) => toggle({ q })}
         action={<BasketButton />}
       />
+      <CategoryRow list="shop" selected={filters.category} onSelect={(category) => toggle({ category })} />
 
       <ScrollView
         horizontal

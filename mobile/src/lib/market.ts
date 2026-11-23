@@ -6,6 +6,8 @@
 export type MarketFilters = {
   q?: string;
   trade?: string;
+  /** A whole group of trades, from the category row (lib/categories.ts). */
+  category?: string;
   sold_by?: "trainers" | "makers";
   /** One shop's products, from the "made by people who teach it" row. */
   seller?: { id: number; name: string };
@@ -51,6 +53,7 @@ export function queryParams(filters: MarketFilters, page = 1): Record<string, st
   return {
     q: filters.q || undefined,
     trade: filters.trade || undefined,
+    category: filters.category || undefined,
     sold_by: filters.sold_by,
     seller: filters.seller ? String(filters.seller.id) : undefined,
     min_price: price(filters.min_price),
