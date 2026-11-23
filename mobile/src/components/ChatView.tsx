@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Flag, GraduationCap, Phone, Send } from "lucide-react-native";
+import { Ban, Flag, GraduationCap, Phone, Send } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -40,6 +40,11 @@ function time(iso: string) {
  * same view for the person (their Messages) and the business (the inbox).
  * Numbers stay hidden until somebody taps "Share my number", which shares
  * only their own; a shared number shows as a bubble with a Call button.
+ *
+ * Either side may block the other (the ban button beside Report): nothing
+ * more can be sent in the chat from either side, and the box to write in
+ * gives way to a note, with Unblock for whoever blocked. The other side is
+ * told only that it cannot write here.
  */
 export function ChatView({
   title,
@@ -54,6 +59,10 @@ export function ChatView({
   onOpenPage,
   onShare,
   onReport,
+  onBlock,
+  blockedByYou = false,
+  canWrite = true,
+  closed = false,
 }: {
   title: string;
   messages: ChatMessage[];
@@ -70,13 +79,41 @@ export function ChatView({
   onOpenPage?: () => void;
   onShare?: () => Promise<void>;
   onReport?: (reason: ChatReportReason, details: string) => Promise<void>;
+  /** Block the other side (true) or unblock them (false). */
+  onBlock?: (on: boolean) => Promise<void>;
+  /** This side blocked the other. */
+  blockedByYou?: boolean;
+  /** False when either side blocked the other, or the person closed their account. */
+  canWrite?: boolean;
+  /** The person closed their account. */
+  closed?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [body, setBody] = useState(initial);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const scroll = useRef<ScrollViewInstance>(null);
+
+  function setBlocked(on: boolean) {
+    if (!onBlock) return;
+    setBlocking(true);
+    onBlock(on)
+      .catch((error: Error) => Alert.alert("That did not work", error.message))
+      .finally(() => setBlocking(false));
+  }
+
+  function block() {
+    Alert.alert(
+      `Block ${title}?`,
+      "Neither of you will be able to write in this chat until you unblock. They are not told. To tell Fliiptech staff what happened, use Report.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Block", style: "destructive", onPress: () => setBlocked(true) },
+      ],
+    );
+  }
 
   useEffect(() => {
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
@@ -110,16 +147,32 @@ export function ChatView({
         eyebrow={kindLabel ?? "MESSAGES"}
         title={title}
         action={
-          onReport ? (
-            <Pressable
-              onPress={() => setReporting((open) => !open)}
-              accessibilityRole="button"
-              accessibilityLabel="Report this chat"
-              hitSlop={8}
-              style={styles.report}
-            >
-              <Flag size={18} color={colors.mutedForeground} />
-            </Pressable>
+          onReport || onBlock ? (
+            <View style={styles.actions}>
+              {onBlock && !blockedByYou && !closed ? (
+                <Pressable
+                  onPress={block}
+                  disabled={blocking}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Block ${title}`}
+                  hitSlop={8}
+                  style={styles.report}
+                >
+                  <Ban size={18} color={colors.mutedForeground} />
+                </Pressable>
+              ) : null}
+              {onReport ? (
+                <Pressable
+                  onPress={() => setReporting((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report this chat"
+                  hitSlop={8}
+                  style={styles.report}
+                >
+                  <Flag size={18} color={colors.mutedForeground} />
+                </Pressable>
+              ) : null}
+            </View>
           ) : undefined
         }
       />
@@ -219,7 +272,28 @@ export function ChatView({
       <View style={{ paddingHorizontal: space.lg }}>
         <FormError message={problem} />
       </View>
-      {onShare && !loading ? (
+      {!loading && !canWrite ? (
+        <View style={[styles.stopped, { paddingBottom: insets.bottom + space.md }]} accessibilityLiveRegion="polite">
+          <Text variant="small" style={{ flex: 1 }}>
+            {closed
+              ? "This person closed their account, so they cannot be reached here."
+              : blockedByYou
+                ? `You blocked ${title}. Neither of you can write here.`
+                : "You cannot send messages in this chat."}
+          </Text>
+          {blockedByYou && onBlock ? (
+            <Pressable
+              onPress={() => setBlocked(false)}
+              disabled={blocking}
+              accessibilityRole="button"
+              style={[styles.shareButton, blocking ? { opacity: 0.5 } : null]}
+            >
+              <Text style={styles.shareText}>Unblock</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {onShare && !loading && canWrite ? (
         <View style={styles.shareBar}>
           <Text variant="small" style={{ flex: 1 }}>
             Your number is hidden. Share it only if you want them to call you.
@@ -235,6 +309,7 @@ export function ChatView({
           </Pressable>
         </View>
       ) : null}
+      {canWrite ? (
       <View style={[styles.composer, { paddingBottom: insets.bottom + space.sm }]}>
         <TextInput
           value={body}
@@ -256,6 +331,7 @@ export function ChatView({
           {sending ? <ActivityIndicator color="#ffffff" /> : <Send size={20} color="#ffffff" />}
         </Pressable>
       </View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -330,6 +406,17 @@ function ReportPanel({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   report: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  actions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  stopped: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.muted,
+  },
   pageLink: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   pageLinkText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.brand },
   reported: {

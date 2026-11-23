@@ -153,3 +153,80 @@ def test_empty_or_long_messages_are_refused(shop, buyer, texts):
         ).status_code
         == 404
     )
+
+
+# --------------------------------------------------------------------------
+# Blocking
+
+
+@pytest.mark.django_db
+def test_a_buyer_blocks_a_shop_and_nothing_more_is_sent_either_way(shop, buyer, texts):
+    chat_ = Conversation.objects.create(seller=shop, buyer=buyer)
+    them = signed_in(buyer.user)
+    seller = signed_in(shop.user)
+    block = reverse("account-chat-block", args=[chat_.pk])
+
+    blocked = them.post(block)
+    assert blocked.status_code == 200
+    assert (blocked.json()["blocked_by_you"], blocked.json()["can_write"]) == (True, False)
+
+    # The buyer is told how to write again; the shop only that it cannot.
+    mine = them.post(reverse("account-chat", args=[chat_.pk]), {"body": "Hi"}, content_type=JSON)
+    assert mine.status_code == 409
+    assert "Unblock" in mine.json()["detail"]
+    theirs = seller.post(reverse("inbox-chat", args=[chat_.pk]), {"body": "Hi"}, content_type=JSON)
+    assert theirs.status_code == 409
+    assert theirs.json()["detail"] == "You cannot contact them here."
+    # The old address for app builds made before the inbox, a shared number,
+    # and starting the chat again all stop too.
+    old = seller.post(reverse("seller-chat", args=[chat_.pk]), {"body": "Hi"}, content_type=JSON)
+    assert old.status_code == 409
+    assert seller.post(reverse("inbox-share", args=[chat_.pk])).status_code == 409
+    again = them.post(
+        reverse("account-chats"), {"seller": shop.pk, "body": "Hi"}, content_type=JSON
+    )
+    assert again.status_code == 409
+    assert chat_.messages.count() == 0
+    assert texts == []
+
+    # The shop's view of it: it cannot write, and is not told it was blocked.
+    row = seller.get(reverse("inbox")).json()["results"][0]
+    assert (row["blocked_by_you"], row["can_write"]) == (False, False)
+
+    unblocked = them.delete(block)
+    assert (unblocked.json()["blocked_by_you"], unblocked.json()["can_write"]) == (False, True)
+    sent = them.post(reverse("account-chat", args=[chat_.pk]), {"body": "Hi"}, content_type=JSON)
+    assert sent.status_code == 201
+
+
+@pytest.mark.django_db
+def test_only_the_side_that_blocked_can_unblock(shop, buyer, texts):
+    chat_ = Conversation.objects.create(seller=shop, buyer=buyer)
+    them = signed_in(buyer.user)
+    seller = signed_in(shop.user)
+
+    assert seller.post(reverse("inbox-block", args=[chat_.pk])).json()["blocked_by_you"] is True
+    # The buyer's unblock lifts only a block of their own: there is none.
+    lifted = them.delete(reverse("account-chat-block", args=[chat_.pk]))
+    assert (lifted.json()["blocked_by_you"], lifted.json()["can_write"]) == (False, False)
+    refused = them.post(reverse("account-chat", args=[chat_.pk]), {"body": "Hi"}, content_type=JSON)
+    assert refused.status_code == 409
+
+    seller.delete(reverse("inbox-block", args=[chat_.pk]))
+    sent = them.post(reverse("account-chat", args=[chat_.pk]), {"body": "Hi"}, content_type=JSON)
+    assert sent.status_code == 201
+
+
+@pytest.mark.django_db
+def test_nobody_blocks_in_someone_elses_chat(shop, buyer, django_user_model, texts):
+    chat_ = Conversation.objects.create(seller=shop, buyer=buyer)
+    stranger = CustomerAccount.objects.create(
+        user=django_user_model.objects.create_user("buyer-esi"),
+        phone="+233201113333",
+        phone_verified_at=timezone.now(),
+    )
+    as_stranger = signed_in(stranger.user)
+    assert as_stranger.post(reverse("account-chat-block", args=[chat_.pk])).status_code == 404
+    assert Client().post(reverse("account-chat-block", args=[chat_.pk])).status_code == 403
+    chat_.refresh_from_db()
+    assert chat_.person_blocked_at is None

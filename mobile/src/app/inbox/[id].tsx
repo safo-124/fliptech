@@ -59,6 +59,10 @@ export default function InboxChatScreen() {
       onReport={async (reason, details) => {
         await api.reportInboxChat(id, reason, details);
       }}
+      onBlock={async (on) => keep(await api.blockInboxChat(id, on))}
+      blockedByYou={thread.data?.blocked_by_you ?? false}
+      canWrite={thread.data?.can_write ?? true}
+      closed={thread.data?.closed ?? false}
     />
   );
 }

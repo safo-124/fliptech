@@ -647,10 +647,16 @@ urlpatterns = [
         chat.BuyerChatReportView.as_view(),
         name="account-chat-report",
     ),
+    path(
+        "account/chats/<int:pk>/block/",
+        chat.BuyerChatBlockView.as_view(),
+        name="account-chat-block",
+    ),
     path("inbox/", chat.InboxView.as_view(), name="inbox"),
     path("inbox/<int:pk>/", chat.InboxChatView.as_view(), name="inbox-chat"),
     path("inbox/<int:pk>/share-number/", chat.InboxShareView.as_view(), name="inbox-share"),
     path("inbox/<int:pk>/report/", chat.InboxReportView.as_view(), name="inbox-report"),
+    path("inbox/<int:pk>/block/", chat.InboxBlockView.as_view(), name="inbox-block"),
     # Shop chats at their old addresses, for app builds made before the inbox.
     path("seller/chats/", chat.SellerChatsView.as_view(), name="seller-chats"),
     path("seller/chats/<int:pk>/", chat.SellerChatView.as_view(), name="seller-chat"),

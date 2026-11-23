@@ -373,3 +373,27 @@ def test_a_chat_can_be_reported_to_staff(area, django_user_model, texts):
     assert reported.status_code == 201
     report = ChatReport.objects.get()
     assert (report.reason, report.by) == ("money", Message.Sender.BUYER)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_workshop_that_blocked_someone_gets_no_more_enquiries_from_them(
+    client, area, django_user_model, texts
+):
+    provider, course = workshop(area)
+    trainer = trainer_of(provider, django_user_model)
+    made = enquire(client, course, trainee_name="Abena", message="Do you take beginners?")
+    texted = len(texts)
+
+    blocked = signed_in(trainer.user).post(reverse("inbox-block", args=[made["conversation_id"]]))
+    assert blocked.json()["blocked_by_you"] is True
+
+    # A second enquiry is refused whole: no enquiry, no message, no text.
+    second = Programme.objects.create(
+        provider=provider, trade=course.trade, title="Gas welding", fee=900, duration_weeks=8
+    )
+    refused = client.post("/api/enquiries/", {"phone": TRAINEE, "programme_id": second.pk})
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "You cannot contact them here."
+    assert Enquiry.objects.count() == 1
+    assert Message.objects.count() == 1
+    assert len(texts) == texted

@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, GraduationCap, Loader2, Phone, Send, Store } from "lucide-react";
+import { Ban, Flag, GraduationCap, Loader2, Phone, Send, Store } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -24,6 +24,10 @@ const REASONS = [
  * new messages every few seconds while open and visible; nothing needs a
  * socket. Numbers are hidden until somebody taps "Share my number", which
  * shares only their own.
+ *
+ * Either side may block the other: nothing more can be sent in the chat from
+ * either side, and the box to write in gives way to a note, with Unblock for
+ * whoever blocked. The other side is told only that it cannot write here.
  */
 export function ChatThread({
   side,
@@ -31,6 +35,7 @@ export function ChatThread({
   send,
   share,
   report,
+  block,
   header,
 }: {
   side: "buyer" | "seller";
@@ -38,6 +43,8 @@ export function ChatThread({
   send: (body: string) => Promise<Thread>;
   share?: () => Promise<Thread>;
   report?: (reason: ChatReportReason, details: string) => Promise<{ detail: string }>;
+  /** Block the other side (true) or unblock them (false). */
+  block?: (on: boolean) => Promise<Thread>;
   header?: React.ReactNode;
 }) {
   const t = useTranslations("Chat");
@@ -99,7 +106,24 @@ export function ChatThread({
     setBusy(false);
   }
 
+  async function setBlocked(on: boolean) {
+    if (!block || !thread) return;
+    if (on && !window.confirm(t("blockConfirm", { name: thread.with.name }))) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      setThread(await block(on));
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : t("failed"));
+    }
+    setBusy(false);
+  }
+
   const kindLabel = thread ? (thread.kind === "workshop" ? t("kindWorkshop") : t("kindShop")) : null;
+  // Older servers say only "closed"; newer ones say can_write, which a block
+  // turns off too.
+  const canWrite = thread ? (thread.can_write ?? !thread.closed) : false;
+  const blockedByYou = thread?.blocked_by_you ?? false;
 
   return (
     <div className="flex min-h-[60vh] flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]">
@@ -126,6 +150,17 @@ export function ChatThread({
             </p>
           ) : null}
         </div>
+        {block && thread && !blockedByYou && !thread.closed ? (
+          <button
+            type="button"
+            onClick={() => void setBlocked(true)}
+            disabled={busy}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)] disabled:opacity-50"
+          >
+            <Ban aria-hidden="true" className="size-3.5" />
+            {t("block")}
+          </button>
+        ) : null}
         {report && thread ? (
           <button
             type="button"
@@ -244,9 +279,25 @@ export function ChatThread({
         <p role="status" className="border-t border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
           {t("closedAccount")}
         </p>
+      ) : thread && !canWrite ? (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] bg-[var(--color-muted)] px-4 py-3">
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            {blockedByYou ? t("blockedByYou", { name: thread.with.name }) : t("blockedByThem")}
+          </p>
+          {blockedByYou && block ? (
+            <button
+              type="button"
+              onClick={() => void setBlocked(false)}
+              disabled={busy}
+              className="inline-flex min-h-9 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-xs font-semibold hover:border-[var(--color-brand)] disabled:opacity-50"
+            >
+              {t("unblock")}
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
-      {share && thread && !thread.closed ? (
+      {share && thread && canWrite ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] px-4 py-2">
           <p className="text-xs text-[var(--color-muted-foreground)]">{t("privacy")}</p>
           <button
@@ -261,7 +312,7 @@ export function ChatThread({
         </div>
       ) : null}
 
-      {thread && !thread.closed ? (
+      {thread && canWrite ? (
         <form onSubmit={(event) => void submit(event)} className="flex items-end gap-2 border-t border-[var(--color-border)] p-3">
           <label htmlFor="chat-body" className="sr-only">
             {t("placeholder")}

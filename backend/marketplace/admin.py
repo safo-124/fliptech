@@ -795,8 +795,21 @@ class ChatReportAdmin(admin.ModelAdmin):
 
     list_display = ("conversation", "reason", "by", "state", "created_at")
     list_filter = ("state", "reason")
-    readonly_fields = ["conversation", "by", "reason", "details", "created_at"]
+    readonly_fields = ["conversation", "by", "reason", "details", "created_at", "blocked"]
     actions = ["close_reports"]
+
+    @admin.display(description="Blocked")
+    def blocked(self, obj):
+        """Whether either side blocked the other in this chat (chat.py, _block)."""
+        chat = obj.conversation
+        said = []
+        if chat.person_blocked_at:
+            when = timezone.localtime(chat.person_blocked_at)
+            said.append(f"The person blocked the business on {when:%d %b %Y}")
+        if chat.business_blocked_at:
+            when = timezone.localtime(chat.business_blocked_at)
+            said.append(f"The business blocked the person on {when:%d %b %Y}")
+        return "; ".join(said) or "No"
 
     def has_add_permission(self, request):
         return False

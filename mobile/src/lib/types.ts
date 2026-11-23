@@ -343,6 +343,12 @@ export type ChatSummary = {
   last: ChatMessage | null;
   unread: number;
   last_message_at: string;
+  /** The person closed their account: the business keeps the chat to read. */
+  closed?: boolean;
+  /** This side blocked the other, and may unblock. */
+  blocked_by_you?: boolean;
+  /** False when either side blocked the other, or the person closed their account. */
+  can_write?: boolean;
 };
 
 export type ChatThread = ChatSummary & { messages: ChatMessage[] };

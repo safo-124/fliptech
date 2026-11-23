@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useCallback } from "react";
 
 import { ChatThread } from "@/components/account/ChatThread";
-import { getChat, reportChat, sendChat, shareMyNumber, type ChatReportReason } from "@/lib/account-api";
+import { blockChat, getChat, reportChat, sendChat, shareMyNumber, type ChatReportReason } from "@/lib/account-api";
 
 /** A person's chat with a shop or a workshop, from their account. */
 export function BuyerChat({ id }: { id: number }) {
@@ -18,6 +18,7 @@ export function BuyerChat({ id }: { id: number }) {
     (reason: ChatReportReason, details: string) => reportChat(id, reason, details),
     [id],
   );
+  const block = useCallback((on: boolean) => blockChat(id, on), [id]);
   return (
     <ChatThread
       side="buyer"
@@ -25,6 +26,7 @@ export function BuyerChat({ id }: { id: number }) {
       send={send}
       share={share}
       report={report}
+      block={block}
       header={
         <Link
           href="/account"

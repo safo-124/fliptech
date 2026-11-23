@@ -1317,6 +1317,13 @@ class Conversation(models.Model):
     # and forth is one text, not one per message.
     buyer_texted_at = models.DateTimeField(null=True, blank=True)
     seller_texted_at = models.DateTimeField(null=True, blank=True)
+    # Blocked (marketplace/chat.py, _block): either side may stop the other
+    # reaching them here. While either is set nobody can send anything in
+    # this chat (a message, a number, an enquiry, a product question), so
+    # nobody is texted about it either. Only the side that blocked can
+    # unblock. Staff see both on a reported chat.
+    person_blocked_at = models.DateTimeField("blocked by the person", null=True, blank=True)
+    business_blocked_at = models.DateTimeField("blocked by the business", null=True, blank=True)
 
     class Meta:
         ordering = ["-last_message_at"]

@@ -195,6 +195,9 @@ export const api = {
   shareMyNumber: (id: number | string) => postJson<ChatThread>(`/api/account/chats/${id}/share-number/`),
   reportChat: (id: number | string, reason: ChatReportReason, details: string) =>
     postJson<{ detail: string }>(`/api/account/chats/${id}/report/`, { reason, details }),
+  /** Block the shop or workshop in this chat (on), or unblock it. */
+  blockChat: (id: number | string, on: boolean) =>
+    request<ChatThread>(on ? "POST" : "DELETE", `/api/account/chats/${id}/block/`),
 
   /** The business inbox: every chat for the shop and the workshop this login holds. */
   inbox: () => getJson<{ results: ChatSummary[] }>("/api/inbox/"),
@@ -203,6 +206,9 @@ export const api = {
   shareInboxNumber: (id: number | string) => postJson<ChatThread>(`/api/inbox/${id}/share-number/`),
   reportInboxChat: (id: number | string, reason: ChatReportReason, details: string) =>
     postJson<{ detail: string }>(`/api/inbox/${id}/report/`, { reason, details }),
+  /** Block the person in this chat (on), or unblock them, for the whole shop or workshop. */
+  blockInboxChat: (id: number | string, on: boolean) =>
+    request<ChatThread>(on ? "POST" : "DELETE", `/api/inbox/${id}/block/`),
   /** A seller opening the chat with a paid order's buyer, to write first. */
   openOrderChat: (reference: string) => postJson<ChatThread>("/api/inbox/", { order: reference }),
 

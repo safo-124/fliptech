@@ -63,6 +63,12 @@ different on an iPhone, and how to build and release it, is under
   for anyone signed in (`src/components/ReportVideoSheet.tsx`). Trainers'
   videos can go live before staff have watched them; this is how staff
   hear about a bad one.
+- **Chats: Block and Report** at the top of every chat
+  (`src/components/ChatView.tsx`), for the person and the business alike.
+  Block stops anything more being sent in that chat from either side
+  until whoever blocked unblocks; the other side is told only that it
+  cannot write. Report tells staff. Apple asks for both in any app where
+  people message each other.
 - A few account rows (saved things, selling, joining as a trainer) still
   open the website's page **inside the app** (`src/lib/open.ts`).
 

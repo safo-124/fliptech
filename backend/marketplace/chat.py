@@ -10,8 +10,11 @@ Each side is told about a new message (in the app, or by text when the app is
 not in use: appsupport/notify.py) at most once every TEXT_EVERY per thread,
 with a link to read it, so a quick back and forth is not a stream of texts.
 Phone numbers are never shown to the other side; either side may share their
-own (share-number). A workshop's reply marks the trainee's enquiry replied,
-which is what makes the response rate a measurement rather than a guess. The
+own (share-number). Either side may block the other (block): nothing more
+can be sent in that chat, from either side, until whoever blocked unblocks;
+a report stays the way to tell staff. A workshop's reply marks the trainee's
+enquiry replied, which is what makes the response rate a measurement rather
+than a guess. The
 website and the app poll the thread while it is open; nothing here needs a
 socket.
 """
@@ -61,6 +64,15 @@ class ChatClosed(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "This person closed their account, so they cannot be reached here."
     default_code = "chat_closed"
+
+
+class ChatBlocked(APIException):
+    """One side blocked the other in this chat: nothing can be sent in it
+    until the side that blocked unblocks."""
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "You cannot contact them here."
+    default_code = "chat_blocked"
 
 
 def _site(path):
@@ -144,6 +156,14 @@ def _unread(conversation, side):
     return messages.filter(created_at__gt=read_at).count() if read_at else messages.count()
 
 
+def _blocks(conversation, side):
+    """When this side blocked the other, and when the other side blocked
+    this one (each None if not)."""
+    if side == PERSON:
+        return conversation.person_blocked_at, conversation.business_blocked_at
+    return conversation.business_blocked_at, conversation.person_blocked_at
+
+
 def _summary(conversation, side, request):
     last = conversation.messages.order_by("-created_at").first()
     business = _business(conversation)
@@ -155,12 +175,17 @@ def _summary(conversation, side, request):
             them = {"name": _("Closed account"), "id": None}
         else:
             them = {"name": conversation.buyer.display_name or fallback, "id": None}
+    mine, theirs = _blocks(conversation, side)
     return {
         "id": conversation.pk,
         "kind": business["kind"],
         "with": them,
         # The person closed their account: kept to read, not to answer.
         "closed": conversation.buyer_id is None,
+        # This side blocked the other, and may unblock. The other side is
+        # only told it cannot write (can_write), not why.
+        "blocked_by_you": mine is not None,
+        "can_write": conversation.buyer_id is not None and mine is None and theirs is None,
         "business": business,
         "last": _message(last, request) if last else None,
         "unread": _unread(conversation, side),
@@ -206,6 +231,13 @@ def _post(conversation, side, body, product, request, *, kind=Message.Kind.TEXT,
             .select_related("seller", "provider", "buyer")
             .get(pk=conversation.pk)
         )
+        # Checked on the locked row, so a block that lands while this message
+        # is on its way still stops it.
+        mine, theirs = _blocks(conversation, side)
+        if mine is not None:
+            raise ChatBlocked(_("You blocked this chat. Unblock it to write here."))
+        if theirs is not None:
+            raise ChatBlocked(_("You cannot contact them here."))
         message = Message.objects.create(
             conversation=conversation,
             sender=side,
@@ -408,6 +440,17 @@ def _report(conversation, side, request):
     )
 
 
+def _block(conversation, side, request, *, on):
+    """Block (on) or unblock the other side, for this side only: unblocking
+    never lifts a block the other side made. Answers with the thread."""
+    field = "person_blocked_at" if side == PERSON else "business_blocked_at"
+    Conversation.objects.filter(pk=conversation.pk).update(
+        **{field: timezone.now() if on else None}
+    )
+    conversation.refresh_from_db()
+    return Response(_thread(conversation, side, request))
+
+
 # --------------------------------------------------------------------------
 # The person's side
 
@@ -537,6 +580,22 @@ class BuyerChatReportView(APIView):
     @extend_schema(request=None, responses={201: None})
     def post(self, request, pk):
         return _report(_own_chat(request, pk), PERSON, request)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class BuyerChatBlockView(APIView):
+    """Block the shop or workshop in this chat (POST), or unblock it (DELETE)."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [_buyer_permission()]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, pk):
+        return _block(_own_chat(request, pk), PERSON, request, on=True)
+
+    @extend_schema(request=None, responses={200: None})
+    def delete(self, request, pk):
+        return _block(_own_chat(request, pk), PERSON, request, on=False)
 
 
 # --------------------------------------------------------------------------
@@ -671,6 +730,23 @@ class InboxReportView(APIView):
     @extend_schema(request=None, responses={201: None})
     def post(self, request, pk):
         return _report(_inbox_chat(request, pk), BUSINESS, request)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class InboxBlockView(APIView):
+    """Block the person in this chat (POST), or unblock them (DELETE). For
+    the whole shop or workshop: any of its trainers may lift it."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsBusiness]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request, pk):
+        return _block(_inbox_chat(request, pk), BUSINESS, request, on=True)
+
+    @extend_schema(request=None, responses={200: None})
+    def delete(self, request, pk):
+        return _block(_inbox_chat(request, pk), BUSINESS, request, on=False)
 
 
 # --------------------------------------------------------------------------

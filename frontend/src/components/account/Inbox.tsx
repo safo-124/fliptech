@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ChatThread } from "@/components/account/ChatThread";
 import {
+  blockInboxChat,
   getAccount,
   getInbox,
   getInboxChat,
@@ -206,6 +207,7 @@ export function InboxChat({ id }: { id: number }) {
     (reason: ChatReportReason, details: string) => reportInboxChat(id, reason, details),
     [id],
   );
+  const block = useCallback((on: boolean) => blockInboxChat(id, on), [id]);
 
   if (notBusiness) return <NotBusiness t={t} />;
   return (
@@ -215,6 +217,7 @@ export function InboxChat({ id }: { id: number }) {
       send={send}
       share={share}
       report={report}
+      block={block}
       header={
         <Link
           href="/inbox"

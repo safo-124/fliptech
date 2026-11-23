@@ -249,6 +249,10 @@ export type ChatSummary = {
   unread: number;
   /** The person closed their account: the business keeps the chat to read. */
   closed?: boolean;
+  /** This side blocked the other, and may unblock. */
+  blocked_by_you?: boolean;
+  /** False when either side blocked the other, or the person closed their account. */
+  can_write?: boolean;
   last_message_at: string;
 };
 
@@ -259,6 +263,16 @@ export type ChatReportReason = "scam" | "money" | "abuse" | "other";
 /** Share my number: the signed-in person's own phone, into the chat. */
 export function shareMyNumber(id: number) {
   return sessionFetch<ChatThread>(`/api/account/chats/${id}/share-number/`, {method: "POST"});
+}
+
+/** Block the shop or workshop in this chat (on), or unblock it. */
+export function blockChat(id: number, on: boolean) {
+  return sessionFetch<ChatThread>(`/api/account/chats/${id}/block/`, {method: on ? "POST" : "DELETE"});
+}
+
+/** Block the person in this chat (on), or unblock them, for the whole shop or workshop. */
+export function blockInboxChat(id: number, on: boolean) {
+  return sessionFetch<ChatThread>(`/api/inbox/${id}/block/`, {method: on ? "POST" : "DELETE"});
 }
 
 export function reportChat(id: number, reason: ChatReportReason, details: string) {
