@@ -89,7 +89,10 @@ def test_an_enquiry_about_a_hidden_course_says_so_instead_of_a_start_date(board)
     enquiry = Enquiry.objects.create(
         provider=programme.provider,
         programme=programme,
-        intake=Intake.objects.filter(programme=programme, is_open=True).first(),
+        # A date still to come: one that has passed is never shown (item 5).
+        intake=Intake.objects.filter(programme=programme, is_open=True)
+        .order_by("-start_date")
+        .first(),
         trainee_phone="+233241110000",
     )
     assert TraineeEnquirySerializer(enquiry).data["programme_listed"] is True
