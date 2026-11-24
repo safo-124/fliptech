@@ -532,8 +532,11 @@ def rating_summary(provider):
 
 def may_review(trainee, course, request):
     """Someone who has finished at least one lesson they were allowed to
-    watch: a buyer, for a paid course."""
+    watch: a buyer, for a paid course. Never the workshop's own trainers or
+    shop owner: a course cannot rate itself."""
     if trainee is None:
+        return False
+    if watcher_runs_the_course(trainee, course):
         return False
     gate = gate_for(course, request)
     if gate.price and not gate.owned:
@@ -565,6 +568,14 @@ class CourseReviewsView(APIView):
         if trainee is None:
             return _sign_in_needed()
         course = _course_or_404(area_slug, slug)
+        if watcher_runs_the_course(trainee, course):
+            return Response(
+                {
+                    "detail": _("This is your own course: reviews are for your learners."),
+                    "code": "own_course",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if not may_review(trainee, course, request):
             return Response(
                 {"detail": _("Finish a lesson of this course to review it.")},
@@ -656,6 +667,17 @@ class LessonQuestionsView(APIView):
         if trainee is None:
             return _sign_in_needed()
         video = _lesson_or_404(video_id)
+        if watcher_runs_the_course(trainee, video.provider):
+            return Response(
+                {
+                    "detail": _(
+                        "This is your own course: answer your learners' questions from the "
+                        "course studio."
+                    ),
+                    "code": "own_course",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if not gate_for(video.provider, request).may_watch(video):
             return Response(
                 {"detail": _("Buy the course to ask about this lesson.")},

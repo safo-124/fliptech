@@ -18,6 +18,7 @@ export function CourseReviews({
   mine,
   canReview,
   signedIn,
+  ownCourse = false,
   signInHref,
 }: {
   area: string;
@@ -26,6 +27,8 @@ export function CourseReviews({
   mine: CourseReview | null;
   canReview: boolean;
   signedIn: boolean;
+  /** The viewer runs this workshop: a course cannot review itself. */
+  ownCourse?: boolean;
   signInHref: string;
 }) {
   const t = useTranslations("Classroom");
@@ -136,6 +139,8 @@ export function CourseReviews({
             </p>
           ) : null}
         </form>
+      ) : ownCourse ? (
+        <p className="text-sm text-[var(--color-muted-foreground)]">{t("reviewOwnCourse")}</p>
       ) : signedIn ? (
         <p className="text-sm text-[var(--color-muted-foreground)]">{t("reviewAfterLesson")}</p>
       ) : (

@@ -96,7 +96,15 @@ export function MyCourses() {
             </div>
             {shown.length === 0 ? (
               <p className="mt-6 text-sm text-[var(--color-muted-foreground)]">
-                {filter === "going" ? t("noneGoing") : t("noneDone")}
+                {filter === "going"
+                  ? t.rich("noneGoing", {
+                      list: (chunks) => (
+                        <Link href="/learn" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
+                          {chunks}
+                        </Link>
+                      ),
+                    })
+                  : t("noneDone")}
               </p>
             ) : (
               <ul className="mt-6 grid gap-4 md:grid-cols-2">

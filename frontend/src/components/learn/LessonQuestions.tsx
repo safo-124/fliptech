@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock3, Loader2, MessageCircleQuestion, Send } from "lucide-react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -19,7 +20,10 @@ export function LessonQuestions({
   currentTime,
   onSeek,
   onCount,
+  ownCourse = false,
 }: {
+  /** The viewer runs this workshop: no asking, they answer from the studio. */
+  ownCourse?: boolean;
   videoId: number;
   locked: boolean;
   signedIn: boolean;
@@ -75,7 +79,14 @@ export function LessonQuestions({
 
   return (
     <div className="space-y-5">
-      {locked ? (
+      {ownCourse ? (
+        <p className="rounded-xl bg-[var(--color-muted)] p-4 text-sm text-[var(--color-muted-foreground)]">
+          {t("askOwnCourse")}{" "}
+          <Link href="/trainer/course?tab=learners" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
+            {t("askOwnCourseLink")}
+          </Link>
+        </p>
+      ) : locked ? (
         <p className="rounded-xl bg-[var(--color-muted)] p-4 text-sm text-[var(--color-muted-foreground)]">
           {t("askLocked")}
         </p>
