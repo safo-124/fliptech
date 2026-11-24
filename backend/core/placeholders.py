@@ -109,3 +109,86 @@ def placeholder_error(text):
         '"%(text)s" looks like a placeholder. Write the real thing, or leave it empty if you '
         "do not know yet."
     ) % {"text": str(text).strip()[:40]}
+
+
+# Words people type to get past a name box: answers, greetings, the label
+# itself. A real name is never just one of these.
+FILLER_NAMES = {
+    "yes",
+    "no",
+    "ok",
+    "okay",
+    "hi",
+    "hello",
+    "name",
+    "my name",
+    "your name",
+    "full name",
+    "nothing",
+    "no name",
+    "abc",
+    "abcd",
+    "aaa",
+    "xyz",
+    "me",
+    "myself",
+    "user",
+    "admin",
+    "unknown",
+    "anonymous",
+    "nobody",
+    "someone",
+    "person",
+    "shop",
+    "my shop",
+    "workshop",
+    "my workshop",
+    "business",
+    "my business",
+    "company",
+}
+
+# Names this short pass, but staff are shown them to check ("Gym" is fine,
+# "Ama" is fine, "Jjj" is not).
+SHORT_NAME_LETTERS = 4
+
+
+def _letters(text):
+    return sum(1 for ch in str(text or "") if ch.isalpha())
+
+
+def name_problem(text):
+    """Why a name (a person's, a workshop's, a shop's) is not one, or None.
+    Empty is not checked here: whether a name is required is the form's call."""
+    from django.utils.translation import gettext as _
+
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    if _letters(raw) < 3:
+        return _("A name needs at least 3 letters.")
+    words = _normal(raw)
+    if words in FILLER_NAMES or is_placeholder(raw):
+        return _('"%(text)s" is not a name. Write the real name.') % {"text": raw[:40]}
+    if len(set(words.replace(" ", ""))) == 1:  # "aaaa", "zzz"
+        return _('"%(text)s" is not a name. Write the real name.') % {"text": raw[:40]}
+    return None
+
+
+def is_short_name(text):
+    """A name that passes but is short enough for staff to look at."""
+    raw = str(text or "").strip()
+    return bool(raw) and _letters(raw) <= SHORT_NAME_LETTERS
+
+
+def landmark_problem(text):
+    """A landmark someone can find: at least two words ("Madina Mall"), not "mall"."""
+    from django.utils.translation import gettext as _
+
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    words = [word for word in re.split(r"\s+", raw) if any(ch.isalpha() for ch in word)]
+    if len(words) < 2:
+        return _('Name the landmark in at least two words, for example "Opposite Madina Mall".')
+    return None

@@ -386,6 +386,8 @@ export type TrainerIntake = {
 export type TrainerProgramme = {
   id: number;
   trade: { id: number; name: string; slug: string };
+  /** The trainer's own words when the trade is "Other". */
+  trade_other?: string;
   title: string;
   fee: string | number;
   instalments_allowed: boolean;
@@ -512,6 +514,10 @@ export type TrainerVideoLimits = {
   publishes_straight_away?: boolean;
   /** True when this workshop's videos wait for review because staff removed some. */
   review_first_because_blocked?: boolean;
+  /** Approved videos a new workshop needs before its videos go on without waiting. */
+  trusted_after?: number;
+  /** How many it has: watched and approved by staff. */
+  approved_count?: number;
 };
 
 export type TrainerVideoList = { videos: TrainerVideo[]; limits: TrainerVideoLimits };
@@ -990,6 +996,10 @@ export type StudioDetails = {
   tool_products: { id: number; name: string; seller: string }[];
   level: CourseLevel | "";
   levels: { value: CourseLevel; label: string }[];
+  /** The workshop's trade, for examples in it. */
+  trade_slug?: string | null;
+  /** A price and a payout account are set: launch price and promo codes apply. */
+  selling_on?: boolean;
   price: string | null;
   sale_price: string | null;
   sale_ends_at: string | null;

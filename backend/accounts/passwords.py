@@ -280,6 +280,14 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
     name = serializers.CharField(max_length=120, required=False, allow_blank=True)
 
+    def validate_name(self, value):
+        from core.placeholders import name_problem
+
+        problem = name_problem(value)
+        if problem:
+            raise serializers.ValidationError(problem)
+        return value.strip()
+
     def validate_email(self, value):
         value = (value or "").strip().lower()
         if not value:

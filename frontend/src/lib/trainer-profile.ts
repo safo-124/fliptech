@@ -3,7 +3,7 @@ import {z} from "zod";
 import {v, type ValidationKey} from "../i18n/validation";
 
 import {idNumberIssue, tidyIdNumber} from "./id-numbers";
-import {isPlaceholder, isRoleLabel} from "./placeholders";
+import {isPlaceholder, isRoleLabel, landmarkTooShort, nameIssue} from "./placeholders";
 import {ghanaPhoneSchema, toGhanaE164} from "./phone";
 import type {TrainerProfile} from "./types";
 
@@ -130,6 +130,8 @@ const trainerDraftShape = z.object({
 
   // --- the course ---
   trade_id: z.string().min(1, v("tradeRequired")),
+  // "Other (describe)": the trainer's own words, when trade_id is "other".
+  trade_other: z.string().max(80),
   programme_title: requiredText("courseTitleRequired", 200),
   fee: cediAmount("feeInvalid", false),
   duration_weeks: z
@@ -171,6 +173,8 @@ const trainerDraftShape = z.object({
 
 type CourseRuleValues = Pick<
   z.infer<typeof trainerDraftShape>,
+  | "trade_id"
+  | "trade_other"
   | "places_offered"
   | "intake_start_date"
   | "fee_includes_certificate"
@@ -196,6 +200,12 @@ const PUBLIC_COURSE_TEXT = [
 /** The rules between course fields, for the whole form and the course alone. */
 function courseIssues(values: CourseRuleValues) {
   const issues: {path: keyof CourseRuleValues; message: ValidationKey}[] = [];
+  if (values.trade_id === "other") {
+    const typed = values.trade_other.trim();
+    if (typed.length < 3 || !/\p{L}/u.test(typed)) {
+      issues.push({path: "trade_other", message: v("tradeOtherRequired")});
+    }
+  }
   if (values.places_offered && !values.intake_start_date) {
     issues.push({path: "intake_start_date", message: v("startDateBeforePlaces")});
   }
@@ -239,6 +249,16 @@ export const trainerDraftSchema = trainerDraftShape.superRefine((values, context
   for (const issue of courseIssues(values)) {
     context.addIssue({code: "custom", path: [issue.path], message: issue.message});
   }
+  // Names someone can be known by, and a landmark someone can find.
+  for (const field of ["name", "full_name"] as const) {
+    const issue = nameIssue(values[field]);
+    if (issue) {
+      context.addIssue({code: "custom", path: [field], message: v(issue === "short" ? "nameTooShort" : "notAName")});
+    }
+  }
+  if (landmarkTooShort(values.landmark)) {
+    context.addIssue({code: "custom", path: ["landmark"], message: v("landmarkTwoWords")});
+  }
 });
 
 /**
@@ -250,6 +270,7 @@ export const trainerDraftSchema = trainerDraftShape.superRefine((values, context
 const courseSchema = trainerDraftShape
   .pick({
     trade_id: true,
+    trade_other: true,
     programme_title: true,
     fee: true,
     duration_weeks: true,
@@ -337,6 +358,7 @@ export const EMPTY_TRAINER_DRAFT: TrainerDraftForm = {
   site_visit_consent: false,
   data_consent: false,
   trade_id: "",
+  trade_other: "",
   programme_title: "",
   fee: "",
   duration_weeks: "",
@@ -448,7 +470,8 @@ export function trainerProfilePayload(raw: TrainerDraftForm) {
 
 function programmePayload(values: z.infer<typeof courseSchema>) {
   return {
-    trade_id: Number(values.trade_id),
+    trade_id: values.trade_id === "other" ? null : Number(values.trade_id),
+    trade_other: values.trade_id === "other" ? values.trade_other.trim() : "",
     title: values.programme_title,
     fee: plainCedis(values.fee),
     instalments_allowed: values.instalments_allowed,
@@ -537,7 +560,8 @@ export function draftFromTrainerProfile(profile: TrainerProfile): TrainerDraftFo
   }
   return {
     ...baseDraftFrom(profile),
-    trade_id: String(programme.trade.id),
+    trade_id: programme.trade.slug === "other" ? "other" : String(programme.trade.id),
+    trade_other: programme.trade_other ?? "",
     programme_title: programme.title,
     fee: String(programme.fee),
     duration_weeks: String(programme.duration_weeks),

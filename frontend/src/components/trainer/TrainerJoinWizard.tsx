@@ -57,12 +57,13 @@ import {Skeleton} from "@/components/ui/skeleton";
 import {Textarea} from "@/components/ui/textarea";
 import {validationMessage} from "@/i18n/validation";
 import {BRAND} from "@/lib/brand";
+import {tradeExampleKey} from "@/lib/trade-examples";
 import {isTeachingLanguage, TEACHING_LANGUAGES} from "@/lib/teaching-languages";
 import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from "@/lib/drafts";
 import {insideGhana} from "@/lib/ghana-bounds";
 import {formatCedis, formatDate} from "@/lib/format";
 import {ProviderLocationMap} from "@/components/ProviderLocationMap";
-import {TradeOptions} from "@/components/TradeOptions";
+import {OTHER_TRADE, TradeOptions} from "@/components/TradeOptions";
 import {knownExtraCosts} from "@/components/FeeReceipt";
 import {ID_NUMBER_HINTS, isIdDocumentType, tidyIdNumber} from "@/lib/id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
@@ -161,6 +162,7 @@ const WORKSHOP_FIELDS: FieldPath<TrainerDraftForm>[] = [
 
 const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "trade_id",
+  "trade_other",
   "programme_title",
   "fee",
   "duration_weeks",
@@ -217,6 +219,7 @@ const API_FIELD_NAMES: Record<string, FieldPath<TrainerDraftForm>> = {
   trainer_count: "trainer_count",
   trainee_count: "trainee_count",
   "programme.trade_id": "trade_id",
+  "programme.trade_other": "trade_other",
   "programme.title": "programme_title",
   "programme.fee": "fee",
   "programme.duration_weeks": "duration_weeks",
@@ -2665,9 +2668,30 @@ function TrainerJoinWizardForm() {
                     className={invalidControlClassName}
                   >
                     <option value="">{t("chooseTrade")}</option>
-                    <TradeOptions trades={trades} by="id" />
+                    <TradeOptions trades={trades} by="id" other={t("otherTrade")} />
                   </NativeSelect>
                   <FieldError id="trade-error" message={errors.trade_id?.message} />
+                  {watch("trade_id") === OTHER_TRADE ? (
+                    <div className="space-y-2 pt-1">
+                      <Label htmlFor="trade_other">
+                        {t("otherTradeLabel")}
+                        <RequiredCue />
+                      </Label>
+                      <Input
+                        id="trade_other"
+                        {...register("trade_other")}
+                        required
+                        maxLength={80}
+                        placeholder={t("otherTradePlaceholder")}
+                        aria-invalid={Boolean(errors.trade_other)}
+                        aria-describedby={describedBy("trade-other-hint", errors.trade_other && "trade-other-error")}
+                      />
+                      <p id="trade-other-hint" className="text-xs text-[var(--color-muted-foreground)]">
+                        {t("otherTradeHint", {brand: BRAND})}
+                      </p>
+                      <FieldError id="trade-other-error" message={errors.trade_other?.message} />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="programme_title">
@@ -2678,7 +2702,15 @@ function TrainerJoinWizardForm() {
                     id="programme_title"
                     {...register("programme_title")}
                     required
-                    placeholder={t("courseTitlePlaceholder")}
+                    placeholder={
+                      watch("trade_id") === OTHER_TRADE
+                        ? t("courseTitleExample.other")
+                        : selectedTrade
+                          ? tradeExampleKey(selectedTrade.slug) === "named"
+                            ? t("courseTitleExample.named", {trade: selectedTrade.name})
+                            : t(`courseTitleExample.${tradeExampleKey(selectedTrade.slug)}`)
+                          : t("courseTitlePlaceholder")
+                    }
                     aria-invalid={Boolean(errors.programme_title)}
                     aria-describedby={describedBy(errors.programme_title && "programme-title-error")}
                   />

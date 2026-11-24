@@ -3,7 +3,7 @@ from rest_framework import viewsets
 
 from catalog.listed import listed_course_q
 
-from .models import Trade, TradeCategory
+from .models import OTHER_TRADE_SLUG, Trade, TradeCategory
 from .serializers import TradeCategorySerializer, TradeSerializer
 
 
@@ -26,7 +26,9 @@ class TradeViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return (
-            _with_provider_count(Trade.objects.filter(is_active=True))
+            _with_provider_count(
+                Trade.objects.filter(is_active=True).exclude(slug=OTHER_TRADE_SLUG)
+            )
             .select_related("category")
             .order_by("display_order", "name")
         )

@@ -54,6 +54,13 @@ def video_dirs(settings, tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def trusted(settings):
+    """A workshop whose videos go on without waiting: past its first
+    reviewed videos (settings.VIDEO_TRUSTED_AFTER)."""
+    settings.VIDEO_TRUSTED_AFTER = 0
+
+
+@pytest.fixture
 def listing(db):
     region = Region.objects.create(name="Greater Accra", slug="greater-accra")
     area = Area.objects.create(region=region, name="Adenta", slug="adenta", centroid=ACCRA)
@@ -517,7 +524,7 @@ def test_a_sharp_upload_also_gets_a_720p_copy(owner, video_dirs, settings):
 
 @needs_ffmpeg
 @pytest.mark.django_db
-def test_an_encoded_upload_goes_straight_on_the_listing(owner, listing, video_dirs):
+def test_an_encoded_upload_goes_straight_on_the_listing(owner, listing, video_dirs, trusted):
     data = clip(video_dirs / "phone.mp4", size="640x360", seconds=2)
     video = upload(owner, data)
 
@@ -888,7 +895,7 @@ def test_approved_videos_survive_the_media_pruner(listing, staff, settings):
 
 
 @pytest.mark.django_db
-def test_a_prepared_video_goes_on_the_listing_before_staff_watch_it(owner, listing):
+def test_a_prepared_video_goes_on_the_listing_before_staff_watch_it(owner, listing, trusted):
     video = ready_video(listing[0])
 
     after_preparing(video)
@@ -919,7 +926,32 @@ def test_with_the_switch_off_a_prepared_video_waits_for_review(owner, listing, s
 
 
 @pytest.mark.django_db
-def test_the_trainer_is_told_videos_publish_straight_away(owner):
+def test_a_new_workshops_first_videos_wait_until_three_are_approved(owner, listing, staff):
+    provider = listing[0]
+    limits = owner.get(reverse("trainer-videos")).json()["limits"]
+    assert limits["publishes_straight_away"] is False
+    assert (limits["trusted_after"], limits["approved_count"]) == (3, 0)
+
+    for number in range(3):
+        video = ready_video(provider)
+        after_preparing(video)
+        video.refresh_from_db()
+        assert video.status == ProviderVideo.Status.PENDING, number
+        decide(video, ProviderVideo.Status.APPROVED, by=staff["lead"])
+
+    # Three watched and approved: the next one goes straight on.
+    video = ready_video(provider)
+    after_preparing(video)
+    video.refresh_from_db()
+    assert video.status == ProviderVideo.Status.APPROVED
+    assert video.reviewed_at is None  # on the listing, still to be watched
+    limits = owner.get(reverse("trainer-videos")).json()["limits"]
+    assert limits["publishes_straight_away"] is True
+    assert limits["approved_count"] == 3
+
+
+@pytest.mark.django_db
+def test_the_trainer_is_told_videos_publish_straight_away(owner, trusted):
     limits = owner.get(reverse("trainer-videos")).json()["limits"]
 
     assert limits["publishes_straight_away"] is True
@@ -1066,7 +1098,7 @@ def test_a_viewer_reports_a_live_video_once(viewer, listing, staff):
 
 
 @pytest.mark.django_db
-def test_reporting_needs_a_sign_in_a_shown_video_and_a_reason(client, viewer, listing):
+def test_reporting_needs_a_sign_in_a_shown_video_and_a_reason(client, viewer, listing, trusted):
     waiting = ready_video(listing[0], title="Waiting")
     live = ready_video(listing[0], title="Live")
     after_preparing(live)
@@ -1079,7 +1111,9 @@ def test_reporting_needs_a_sign_in_a_shown_video_and_a_reason(client, viewer, li
 
 
 @pytest.mark.django_db
-def test_keeping_a_video_marks_it_watched_and_closes_its_reports(client, viewer, listing, staff):
+def test_keeping_a_video_marks_it_watched_and_closes_its_reports(
+    client, viewer, listing, staff, trusted
+):
     video = ready_video(listing[0])
     after_preparing(video)
     assert report(viewer, video).status_code == 201

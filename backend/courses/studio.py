@@ -107,6 +107,13 @@ def _bad(field, message):
 MAX_TOOL_PRODUCTS = 12
 
 
+def _trade_slug(provider):
+    programme = (
+        provider.programmes.filter(is_active=True).select_related("trade").order_by("pk").first()
+    )
+    return programme.trade.slug if programme else None
+
+
 def details_payload(offer):
     return {
         "summary": offer.summary,
@@ -118,6 +125,11 @@ def details_payload(offer):
         ],
         "level": offer.level,
         "levels": [{"value": v, "label": label} for v, label in CourseOffer.Level.choices],
+        # The workshop's trade, for examples written in it (course page).
+        "trade_slug": _trade_slug(offer.provider),
+        # Selling is on once there is a price and a payout account: only
+        # then do a launch price and promo codes mean anything.
+        "selling_on": offer.is_paid,
         "price": f"{offer.price:.2f}" if offer.price else None,
         "sale_price": f"{offer.sale_price:.2f}" if offer.sale_price else None,
         "sale_ends_at": offer.sale_ends_at,

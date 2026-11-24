@@ -11,7 +11,7 @@ import { Button, Field, FormError } from "@/components/Form";
 import { StackHeader } from "@/components/StackHeader";
 import { Text } from "@/components/Text";
 import { ApiError, api, uploadPendingPhoto } from "@/lib/api";
-import { blankDraft, likeThis, nameExample, toInput, wasPriceTooLow, type QuickItemDraft } from "@/lib/quick-item";
+import { blankDraft, likeThis, nameExample, toInput, tradeOtherMissing, wasPriceTooLow, type QuickItemDraft } from "@/lib/quick-item";
 import { mayOpenGallery } from "@/lib/store-rules";
 import type { CreatedProduct } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
@@ -147,6 +147,10 @@ export default function AddItemScreen() {
     }
     if (shots.some((shot) => shot.state === "uploading")) {
       setProblem("A photo is still uploading. Wait a moment, then try again.");
+      return;
+    }
+    if (tradeOtherMissing(draft)) {
+      setProblem("Say what the trade is, for example Shoe making.");
       return;
     }
     setBusy(publish ? "sale" : "draft");
@@ -350,6 +354,7 @@ export default function AddItemScreen() {
                         style={[styles.chip, trade === item.id ? styles.chipOn : null]}
                         onPress={() => {
                           setTradeChosen(true);
+                          set("tradeOther", null);
                           set("trade", trade === item.id ? null : item.id);
                         }}
                         accessibilityRole="button"
@@ -358,7 +363,33 @@ export default function AddItemScreen() {
                         <Text style={[styles.chipText, trade === item.id ? styles.choiceTextOn : null]}>{item.name}</Text>
                       </Pressable>
                     ))}
+                    <Pressable
+                      style={[styles.chip, draft.tradeOther !== null ? styles.chipOn : null]}
+                      onPress={() => {
+                        setTradeChosen(true);
+                        if (draft.tradeOther !== null) set("tradeOther", null);
+                        else {
+                          set("trade", null);
+                          set("tradeOther", "");
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: draft.tradeOther !== null }}
+                    >
+                      <Text style={[styles.chipText, draft.tradeOther !== null ? styles.choiceTextOn : null]}>
+                        Other (describe)
+                      </Text>
+                    </Pressable>
                   </View>
+                  {draft.tradeOther !== null ? (
+                    <Field
+                      label="Your trade"
+                      value={draft.tradeOther}
+                      onChangeText={(text) => set("tradeOther", text)}
+                      placeholder="For example: Shoe making"
+                      maxLength={80}
+                    />
+                  ) : null}
                 </View>
               ) : null}
             </View>

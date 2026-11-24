@@ -27,7 +27,7 @@ type Errors = Record<string, string | undefined>;
  * paid. Payments go through Paystack and are split straight to the
  * trainer's account; see backend courses/views.py.
  */
-export function TrainerCourseSales() {
+export function TrainerCourseSales({onSaved}: {onSaved?: () => void} = {}) {
   const t = useTranslations("TrainerCourse");
   const [course, setCourse] = useState<TrainerCourse | null>(null);
   const [banks, setBanks] = useState<PayoutBank[] | null>(null);
@@ -95,6 +95,7 @@ export function TrainerCourseSales() {
     try {
       const saved = await savePayout(payout);
       setCourse(saved);
+      onSaved?.();
       setEditingPayout(false);
       setMessage(t("payoutSaved"));
     } catch (reason) {
@@ -113,6 +114,7 @@ export function TrainerCourseSales() {
     try {
       const saved = await setCoursePrice(price.trim());
       setCourse(saved);
+      onSaved?.();
       setPrice(saved.price ?? "");
       setMessage(saved.price ? t("priceSaved", { price: formatCedis(saved.price) }) : t("madeFree"));
     } catch (reason) {

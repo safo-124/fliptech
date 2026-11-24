@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 
+from core.name_check_admin import NameCheckMixin
+
 from .models import AppToken, CustomerAccount
 from .removal_admin import UserRemovalAdmin
 
@@ -18,11 +20,20 @@ class LoginAdmin(UserRemovalAdmin, UserAdmin):
 
 
 @admin.register(CustomerAccount)
-class CustomerAccountAdmin(admin.ModelAdmin):
+class CustomerAccountAdmin(NameCheckMixin, admin.ModelAdmin):
+    name_check_field = "display_name"
     """Everyone who has signed in. Read-mostly: switching one off is the only
     change staff make here; what they buy and sell lives on their orders."""
 
-    list_display = ("phone", "display_name", "email", "is_active", "created_at", "last_seen_at")
+    list_display = (
+        "phone",
+        "display_name",
+        "name_check",
+        "email",
+        "is_active",
+        "created_at",
+        "last_seen_at",
+    )
     list_filter = ("is_active",)
     search_fields = ("phone", "display_name", "email")
     readonly_fields = ("user", "phone", "phone_verified_at", "email_verified_at", "created_at")

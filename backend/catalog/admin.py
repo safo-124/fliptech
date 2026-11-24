@@ -537,8 +537,17 @@ class ProgrammeAdmin(CatalogWorkspaceMixin, SimpleHistoryAdmin):
         "instalments_allowed",
         "provider__area__region",
     )
-    search_fields = ("title", "provider__name", "provider__contact_phone", "trade__name")
-    search_help_text = "Search by programme, provider, contact phone, or trade."
+    search_fields = (
+        "title",
+        "provider__name",
+        "provider__contact_phone",
+        "trade__name",
+        "trade_other",
+    )
+    search_help_text = (
+        "Search by programme, provider, contact phone, or trade. Filter by trade "
+        '"Other" to see the trades trainers typed in (trade_other).'
+    )
     autocomplete_fields = ("provider", "trade")
     inlines = (IntakeInline,)
     list_select_related = ("provider", "provider__area", "provider__area__region", "trade")
@@ -551,7 +560,7 @@ class ProgrammeAdmin(CatalogWorkspaceMixin, SimpleHistoryAdmin):
         (
             "Offering",
             {
-                "fields": ("provider", "trade", "title", "is_active"),
+                "fields": ("provider", "trade", "trade_other", "title", "is_active"),
                 "description": "Provider and trade decide where this course appears publicly.",
             },
         ),

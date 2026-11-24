@@ -328,7 +328,13 @@ export function TrainerVideos({listingLive, tradeSlug}: {listingLive: boolean; t
                   ? t("publishNow", {brand: BRAND})
                   : limits.review_first_because_blocked
                     ? t("reviewFirstBlocked", {brand: BRAND})
-                    : t("reviewFirst", {brand: BRAND})}
+                    : limits.trusted_after && (limits.approved_count ?? 0) < limits.trusted_after
+                      ? t("reviewFirstNew", {
+                          brand: BRAND,
+                          count: limits.trusted_after,
+                          approved: limits.approved_count ?? 0,
+                        })
+                      : t("reviewFirst", {brand: BRAND})}
               </p>
               <div className="space-y-1.5">
                 <Label htmlFor="video-file">{t("fileLabel")}</Label>

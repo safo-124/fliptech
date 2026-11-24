@@ -72,6 +72,10 @@ export type TrainerVideoLimits = {
   publishes_straight_away?: boolean;
   /** True when this trainer is back to review-first because staff removed two of their videos. */
   review_first_because_blocked?: boolean;
+  /** Approved videos a new workshop needs before its videos go on without waiting. */
+  trusted_after?: number;
+  /** How many it has: watched and approved by staff. */
+  approved_count?: number;
 };
 
 export type TrainerVideoList = { videos: TrainerVideo[]; limits: TrainerVideoLimits };

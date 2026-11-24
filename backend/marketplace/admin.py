@@ -28,6 +28,7 @@ from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
 from accounts.removal_admin import SellerRemovalAdmin
+from core.name_check_admin import NameCheckMixin
 
 from .admin_outbox import SellerMessagesMixin
 from .models import (
@@ -50,7 +51,8 @@ CONFIRM_PERM = "marketplace.confirm_seller"
 
 
 @admin.register(SellerAccount)
-class SellerAccountAdmin(SellerRemovalAdmin, SellerMessagesMixin, admin.ModelAdmin):
+class SellerAccountAdmin(NameCheckMixin, SellerRemovalAdmin, SellerMessagesMixin, admin.ModelAdmin):
+    name_check_field = "business_name"
     """Who may sell, and whether anyone has checked them.
 
     Anyone can sign up to sell, so a sign-up is not trusted until someone with
@@ -65,6 +67,7 @@ class SellerAccountAdmin(SellerRemovalAdmin, SellerMessagesMixin, admin.ModelAdm
 
     list_display = (
         "business_name",
+        "name_check",
         "phone",
         "area",
         "kind",
@@ -441,7 +444,13 @@ class ProductAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "availability", "trade", "seller__area__region", "seller")
-    search_fields = ("name", "description", "seller__business_name", "seller__phone")
+    search_fields = (
+        "name",
+        "description",
+        "seller__business_name",
+        "seller__phone",
+        "trade_other",
+    )
     ordering = ("-created_at",)
     list_select_related = ("seller", "trade")
     autocomplete_fields = ("seller", "trade")
@@ -449,7 +458,7 @@ class ProductAdmin(admin.ModelAdmin):
     actions = ("take_down", "restore_product")
     readonly_fields = ("created_at", "updated_at")
     fieldsets = (
-        (None, {"fields": ("seller", "name", "slug", "trade")}),
+        (None, {"fields": ("seller", "name", "slug", "trade", "trade_other")}),
         ("What it is", {"fields": ("description", "price", "availability")}),
         (
             "Publication",

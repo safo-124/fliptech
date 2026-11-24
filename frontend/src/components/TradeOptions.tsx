@@ -12,7 +12,19 @@ type TradeOption = {
   category?: { name: string } | null;
 };
 
-export function TradeOptions({ trades, by = "slug" }: { trades: TradeOption[]; by?: "slug" | "id" }) {
+/** The value of the "Other (describe)" option, when a form offers one. */
+export const OTHER_TRADE = "other";
+
+export function TradeOptions({
+  trades,
+  by = "slug",
+  other,
+}: {
+  trades: TradeOption[];
+  by?: "slug" | "id";
+  /** The label of an "Other (describe)" option at the end; none without. */
+  other?: string;
+}) {
   const option = (trade: TradeOption) => {
     const value = by === "id" ? String(trade.id ?? "") : (trade.slug ?? "");
     return (
@@ -29,7 +41,18 @@ export function TradeOptions({ trades, by = "slug" }: { trades: TradeOption[]; b
     if (!name) loose.push(trade);
     else groups.set(name, [...(groups.get(name) ?? []), trade]);
   }
-  if (!groups.size) return <>{trades.map(option)}</>;
+  const otherOption = other ? (
+    <option key={OTHER_TRADE} value={OTHER_TRADE}>
+      {other}
+    </option>
+  ) : null;
+  if (!groups.size)
+    return (
+      <>
+        {trades.map(option)}
+        {otherOption}
+      </>
+    );
   return (
     <>
       {[...groups].map(([name, members]) => (
@@ -38,6 +61,7 @@ export function TradeOptions({ trades, by = "slug" }: { trades: TradeOption[]; b
         </optgroup>
       ))}
       {loose.map(option)}
+      {otherOption}
     </>
   );
 }

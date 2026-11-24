@@ -28,6 +28,19 @@ def prepare_trade_picture(django_file):
     return (content, as_png) if content is not None else (None, False)
 
 
+# The one trade for "my trade is not listed". Made the first time someone
+# picks it (other_trade()); kept out of every public trade list (catalog
+# views, search), and the trainer's own words (trade_other) say what it is.
+OTHER_TRADE_SLUG = "other"
+
+
+def other_trade():
+    trade, _ = Trade.objects.get_or_create(
+        slug=OTHER_TRADE_SLUG, defaults={"name": "Other", "display_order": 9999}
+    )
+    return trade
+
+
 class TradeCategory(TimeStampedModel):
     """A group of trades, for browsing before you know a trade's name:
     "Engineering & Technical Trades", "Construction & Building Trades" and so
@@ -169,6 +182,9 @@ class Programme(TimeStampedModel):
         "providers.Provider", on_delete=models.CASCADE, related_name="programmes"
     )
     trade = models.ForeignKey(Trade, on_delete=models.PROTECT, related_name="programmes")
+    # What the trainer typed when their trade is not listed (the "Other"
+    # trade, OTHER_TRADE_SLUG). Staff read these and add real trades.
+    trade_other = models.CharField(max_length=80, blank=True)
 
     title = models.CharField(max_length=200)
 

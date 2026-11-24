@@ -32,6 +32,7 @@ from import_export.admin import ExportActionMixin
 from simple_history.admin import SimpleHistoryAdmin
 
 from accounts.removal_admin import ProviderRemovalAdmin, TrainerRemovalAdmin
+from core.name_check_admin import NameCheckMixin
 from core.ranged import serve_private_file
 from core.site_links import provider_page_url
 
@@ -230,6 +231,7 @@ class ReturnForChangesForm(forms.Form):
 
 @admin.register(Provider)
 class ProviderAdmin(
+    NameCheckMixin,
     ProviderRemovalAdmin,
     OwnerMessagesAdminMixin,
     ExportActionMixin,
@@ -246,6 +248,7 @@ class ProviderAdmin(
 
     list_display = (
         "name",
+        "name_check",
         "area",
         "status_summary",
         "photos_waiting",
@@ -1470,7 +1473,8 @@ class ProviderEvidenceAdmin(admin.ModelAdmin):
 
 
 @admin.register(TrainerAccount)
-class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
+class TrainerAccountAdmin(NameCheckMixin, TrainerRemovalAdmin, admin.ModelAdmin):
+    name_check_field = "full_name"
     """Workshop owners who submit their own listing.
 
     This exists so the disable path is reachable. `TrainerAccount.is_active` is
@@ -1492,6 +1496,7 @@ class TrainerAccountAdmin(TrainerRemovalAdmin, admin.ModelAdmin):
     list_display = (
         "phone",
         "full_name",
+        "name_check",
         "approval_summary",
         "decide",
         "owned_provider",

@@ -373,7 +373,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             tips.append("add_price")
         if len(obj.description.strip()) < 40:
             tips.append("describe")
-        if not obj.trade_id:
+        if not obj.trade_id and not obj.trade_other:
             tips.append("trade")
         return tips
 
@@ -394,6 +394,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "price",
             "was_price",
             "trade",
+            "trade_other",
             "availability",
             "condition",
             "stock",
@@ -415,6 +416,19 @@ class OwnProductSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Give the product a name.")
         return value
+
+    def validate(self, attrs):
+        # A listed trade, or none with the seller's own words ("Other").
+        if attrs.get("trade") is not None:
+            attrs["trade_other"] = ""
+        elif "trade_other" in attrs:
+            typed = " ".join((attrs.get("trade_other") or "").split())
+            if typed and (len(typed) < 3 or not any(ch.isalpha() for ch in typed)):
+                raise serializers.ValidationError(
+                    {"trade_other": "Say what the trade is, for example Shoe making."}
+                )
+            attrs["trade_other"] = typed
+        return attrs
 
 
 class SellerProfileSerializer(serializers.ModelSerializer):
@@ -461,6 +475,14 @@ class SellerProfileSerializer(serializers.ModelSerializer):
         if not obj.area_id:
             missing.append("area")
         return missing
+
+    def validate_business_name(self, value):
+        from core.placeholders import name_problem
+
+        problem = name_problem(value)
+        if problem:
+            raise serializers.ValidationError(problem)
+        return value.strip()
 
     def validate_student_discount_percent(self, value):
         if value and not (self.instance and self.instance.provider_id):

@@ -10,6 +10,9 @@ export type QuickItemDraft = {
   price: string;
   availability: "available" | "made_to_order";
   trade: number | null;
+  /** "Other (describe)": the seller's words for a trade not listed; null when
+      a listed trade (or none) is chosen. */
+  tradeOther: string | null;
   description: string;
   stock: string;
   condition: "new" | "used";
@@ -24,6 +27,7 @@ export function blankDraft(trade: number | null): QuickItemDraft {
     price: "",
     availability: "available",
     trade,
+    tradeOther: null,
     description: "",
     stock: "",
     condition: "new",
@@ -39,6 +43,7 @@ export function likeThis(product: SellerProduct): QuickItemDraft {
     price: product.price ? plainPrice(product.price) : "",
     availability: product.availability === "made_to_order" ? "made_to_order" : "available",
     trade: product.trade,
+    tradeOther: !product.trade && product.trade_other ? product.trade_other : null,
     description: product.description,
     stock: "",
     condition: product.condition,
@@ -79,7 +84,8 @@ export function toInput(
     price: draft.price.trim() || null,
     was_price: draft.wasPrice.trim() || null,
     availability: draft.availability,
-    trade: draft.trade,
+    trade: draft.tradeOther === null ? draft.trade : null,
+    trade_other: draft.tradeOther === null ? "" : draft.tradeOther.trim(),
     description: draft.description.trim(),
     condition: draft.condition,
     stock: stock === "" ? null : Math.max(0, Number.parseInt(stock, 10) || 0),
@@ -90,6 +96,13 @@ export function toInput(
     photos,
     publish,
   };
+}
+
+/** An "Other" trade with too few words to say what it is. */
+export function tradeOtherMissing(draft: Pick<QuickItemDraft, "tradeOther">) {
+  if (draft.tradeOther === null) return false;
+  const typed = draft.tradeOther.trim();
+  return typed.length < 3 || !/\p{L}/u.test(typed);
 }
 
 /** The name placeholder for the shop's trade. */
