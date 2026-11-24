@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { CourseCard } from "@/components/Cards";
 import { CategoryRow } from "@/components/CategoryRow";
 import { PageHeader } from "@/components/PageHeader";
+import { SelectChip } from "@/components/PickerSheet";
 import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
@@ -19,7 +20,11 @@ import { space } from "@/theme/tokens";
 export default function LearnScreen() {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string | undefined>(undefined);
-  const courses = useQuery({ queryKey: ["courses", q, category], queryFn: () => api.courses({ q, category }) });
+  const [sort, setSort] = useState("");
+  const courses = useQuery({
+    queryKey: ["courses", q, category, sort],
+    queryFn: () => api.courses({ q, category, sort: sort || undefined }),
+  });
 
   return (
     <Screen refreshing={courses.isRefetching} onRefresh={() => void courses.refetch()}>
@@ -30,6 +35,21 @@ export default function LearnScreen() {
         onSearch={setQ}
       />
       <CategoryRow list="courses" selected={category} onSelect={setCategory} />
+      <View style={{ flexDirection: "row", paddingHorizontal: space.lg, paddingTop: space.md }}>
+        <SelectChip
+          label="Sort"
+          title="Sort courses"
+          options={[
+            { value: "", label: "Recommended" },
+            { value: "newest", label: "Newest" },
+            { value: "popular", label: "Most watched" },
+            { value: "rating", label: "Best rated" },
+            { value: "free", label: "Free first" },
+          ]}
+          value={sort}
+          onPick={setSort}
+        />
+      </View>
       <View style={{ marginTop: space.xl, gap: space.lg, paddingHorizontal: space.lg }}>
         {courses.isPending ? (
           [0, 1].map((n) => <Skeleton key={n} style={{ height: 280 }} />)

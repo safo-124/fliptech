@@ -471,3 +471,24 @@ export type SiteSearch = {
   nearby: ProviderCard[];
   trades_here: Trade[];
 };
+
+/** A region and its towns, for the "Where" picker (api.regions). */
+export type Region = {
+  id: number;
+  name: string;
+  slug: string;
+  areas: { id: number; name: string; slug: string; provider_count: number }[];
+};
+
+/** A course someone could still join, soonest first (api.upcomingIntakes). */
+export type UpcomingIntake = {
+  start_date: string;
+  places_remaining: number | null;
+  course: string;
+  trade: string;
+  trade_colour: string;
+  provider: string;
+  area: string;
+  area_slug: string;
+  slug: string;
+};
