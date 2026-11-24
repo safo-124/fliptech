@@ -161,6 +161,8 @@ export const api = {
     return all;
   },
   trades: () => getJson<Paginated<TradeOption>>("/api/trades/"),
+  /** What a new product is filed under: one per category (lib/trade-choices). */
+  tradeChoices: () => getJson<TradeOption[]>("/api/trades/choices/"),
   workshop: (area: string, slug: string) => getJson<WorkshopDetail>(`/api/providers/${area}/${slug}/`),
   enquire: (body: { phone: string; programme_id: number; intake_id?: number | null; trainee_name: string; message: string }) =>
     postJson<EnquiryConfirmation>("/api/enquiries/", body),
