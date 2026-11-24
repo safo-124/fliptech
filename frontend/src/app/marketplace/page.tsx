@@ -31,10 +31,12 @@ import { ClientMessages } from "@/i18n/ClientMessages";
 import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Picker } from "@/components/ui/picker";
+import { areaOptions, tradeOptions } from "@/lib/picker-options";
 import { CategoryPill } from "@/components/CategoryPill";
 import {
   buildQuery,
-  getAllAreas,
+  getAllRegions,
   getAllTrades,
   getTradeCategory,
   getTrainerShops,
@@ -77,10 +79,10 @@ export default async function MarketplacePage({
   ]);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const [products, trades, areas, trainerShops, t, payable] = await Promise.all([
+  const [products, trades, regions, trainerShops, t, payable] = await Promise.all([
     searchProducts(params).catch(() => null),
     getAllTrades().catch(() => []),
-    getAllAreas().catch(() => []),
+    getAllRegions().catch(() => []),
     // The "made by people who teach it" row, on the plain first page only.
     filtered || page > 1 ? null : getTrainerShops().catch(() => null),
     getTranslations("Marketplace"),
@@ -135,37 +137,35 @@ export default async function MarketplacePage({
                   <label htmlFor="market-trade" className="sr-only">
                     {t("tradeLabel")}
                   </label>
-                  <select
+                  <Picker
                     id="market-trade"
                     name="trade"
+                    label={t("tradeLabel")}
                     defaultValue={params.trade ?? ""}
-                    className="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
-                  >
-                    <option value="">{t("anyTrade")}</option>
-                    {trades.map((trade) => (
-                      <option key={trade.slug} value={trade.slug}>
-                        {trade.name}
-                      </option>
-                    ))}
-                  </select>
+                    searchPlaceholder={t("findTrade")}
+                    emptyLabel={t("noMatch")}
+                    options={[{ value: "", label: t("anyTrade") }, ...tradeOptions(trades)]}
+                    className="w-full"
+                    triggerClassName="h-11 text-sm text-[var(--color-foreground)] outline-none"
+                    selectClassName="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
+                  />
                 </div>
                 <div className="rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent sm:border-l sm:border-[var(--color-border)]">
                   <label htmlFor="market-area" className="sr-only">
                     {t("areaLabel")}
                   </label>
-                  <select
+                  <Picker
                     id="market-area"
                     name="area"
+                    label={t("areaLabel")}
                     defaultValue={params.area ?? ""}
-                    className="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
-                  >
-                    <option value="">{t("anyArea")}</option>
-                    {areas.map((area) => (
-                      <option key={area.slug} value={area.slug}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
+                    searchPlaceholder={t("findArea")}
+                    emptyLabel={t("noMatch")}
+                    options={[{ value: "", label: t("anyArea") }, ...areaOptions(regions)]}
+                    className="w-full"
+                    triggerClassName="h-11 text-sm text-[var(--color-foreground)] outline-none"
+                    selectClassName="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
+                  />
                 </div>
               </div>
 
@@ -179,19 +179,23 @@ export default async function MarketplacePage({
               <label htmlFor="market-sort" className="text-sm font-semibold text-white/80">
                 {t("sortLabel")}
               </label>
-              <select
+              <Picker
                 id="market-sort"
                 name="sort"
+                label={t("sortLabel")}
                 defaultValue={params.sort ?? ""}
-                className="h-11 rounded-full border-0 bg-[var(--color-card)] px-4 text-sm text-[var(--color-foreground)] outline-none"
-              >
-                <option value="">{t("sortBest")}</option>
-                <option value="price">{t("sortPriceLow")}</option>
-                <option value="-price">{t("sortPriceHigh")}</option>
-                <option value="newest">{t("sortNewest")}</option>
-                <option value="rating">{t("sortRating")}</option>
-                {params.near ? <option value="nearest">{t("sortNearest")}</option> : null}
-              </select>
+                submitOnChange
+                options={[
+                  { value: "", label: t("sortBest") },
+                  { value: "price", label: t("sortPriceLow") },
+                  { value: "-price", label: t("sortPriceHigh") },
+                  { value: "newest", label: t("sortNewest") },
+                  { value: "rating", label: t("sortRating") },
+                  ...(params.near ? [{ value: "nearest", label: t("sortNearest") }] : []),
+                ]}
+                triggerClassName="h-11 rounded-full bg-[var(--color-card)] px-4 text-sm text-[var(--color-foreground)] outline-none"
+                selectClassName="h-11 rounded-full border-0 bg-[var(--color-card)] px-4 text-sm text-[var(--color-foreground)] outline-none"
+              />
               <NearMeButton
                 labels={{
                   action: t("nearMe"),

@@ -32,7 +32,7 @@ export function TrainerShops({ shops }: { shops: TrainerShop[] }) {
           <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
       </div>
-      <ul className="-mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-6">
+      <ul className="-mx-3 mt-4 flex snap-x gap-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-6">
         {shops.map((shop) => (
           <li key={shop.id} className="w-40 shrink-0 snap-start sm:w-auto">
             <Link

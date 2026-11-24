@@ -86,7 +86,9 @@
     "howLearnTitle": "Learn",
     "howLearnBody": "Watch lessons online first, then join a workshop in person or buy the full course.",
     "howEarnTitle": "Earn",
-    "howEarnBody": "Open a shop and sell what you make, or list your own workshop and teach."
+    "howEarnBody": "Open a shop and sell what you make, or list your own workshop and teach.",
+    "findArea": "Search towns and regions",
+    "noMatch": "Nothing matches. Try another spelling."
   },
   "Marketplace": {
     "askAQuestion": "Ask a question",
@@ -434,7 +436,10 @@
     "tellWhenBack": "Tell me when it's back",
     "receiptPaidOnline": "Paid online",
     "askedInChat": "Your question is in your messages. {seller} replies there, and you get a text when they do.",
-    "openChat": "Open the chat"
+    "openChat": "Open the chat",
+    "findArea": "Search towns and regions",
+    "findTrade": "Search trades",
+    "noMatch": "Nothing matches. Try another spelling."
   },
   "Layout": {
     "titleDefault": "{brand} Skills Hub — find practical skills training in Ghana",
@@ -496,7 +501,14 @@
     "searchEverything": "See all results for “{q}”",
     "searchEmpty": "Nothing matched. Try a trade like “welding” or a town like “Ho”.",
     "searchFailed": "Search is not answering. Check your connection and try again.",
-    "searchHint": "Search workshops, courses, products and towns."
+    "searchHint": "Search workshops, courses, products and towns.",
+    "tabBar": "Main sections",
+    "tabHome": "Home",
+    "tabTraining": "Training",
+    "tabLearn": "Learn",
+    "tabShop": "Shop",
+    "tabAccount": "Account",
+    "tabBasketItems": "{count} in your basket"
   },
   "SiteFooter": {
     "tagline": "A clearer way to choose practical training.",
@@ -571,7 +583,10 @@
     "clearFilters": "Clear",
     "filterByTrade": "Trades",
     "allTrades": "All trades",
-    "workshopCount": "{count, plural, one {# workshop} other {# workshops}}"
+    "workshopCount": "{count, plural, one {# workshop} other {# workshops}}",
+    "findTrade": "Search trades",
+    "findArea": "Search towns and regions",
+    "noMatch": "Nothing matches. Try another spelling."
   },
   "ProviderCard": {
     "feeFrom": "Fee from",

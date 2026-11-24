@@ -167,7 +167,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
         aria-expanded={isOpen}
         aria-haspopup="menu"
         onClick={() => setOpen(isOpen ? null : pathname)}
-        className={showPhoto ? "pl-2 pr-2.5 sm:pr-3" : "px-3"}
+        className={showPhoto || account.name !== labels.account ? "pl-2 pr-2.5 sm:pr-3" : "px-3"}
       >
         {showPhoto ? (
           // Not next/image: at 28px there is nothing for the optimiser to save.
@@ -178,6 +178,13 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
             className="size-7 rounded-full object-cover ring-1 ring-[var(--color-border)]"
             onError={() => setPhotoFailed(true)}
           />
+        ) : account.name !== labels.account ? (
+          <span
+            aria-hidden
+            className="grid size-7 place-items-center rounded-full bg-[var(--color-brand)] text-[11px] font-semibold text-white"
+          >
+            {initials(account.name)}
+          </span>
         ) : (
           <UserRound aria-hidden />
         )}
@@ -191,7 +198,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
       {isOpen ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-10 mt-2 w-64 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-1.5 shadow-[0_24px_60px_-20px_rgb(38_0_90/0.4)]"
+          className="absolute right-0 top-full z-10 mt-2 w-64 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-1.5 shadow-[0_24px_60px_-20px_rgb(38_0_90/0.4)]"
         >
           <p className="truncate px-3 pb-2 pt-2.5 text-sm font-bold">{account.name}</p>
           {items.map(({href, label, icon: Icon}) => (
@@ -200,7 +207,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
               role="menuitem"
               href={href}
               onClick={() => setOpen(null)}
-              className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium hover:bg-[var(--color-brand-soft)]"
+              className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium hover:bg-[var(--color-brand-soft)]"
             >
               <Icon aria-hidden className="size-[1.125rem] text-[var(--color-brand)]" />
               {label}
@@ -218,7 +225,7 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
               router.push("/");
               router.refresh();
             }}
-            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium hover:bg-[var(--color-muted)]"
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium hover:bg-[var(--color-muted)]"
           >
             <LogOut aria-hidden className="size-[1.125rem] text-[var(--color-muted-foreground)]" />
             {labels.signOut}
@@ -230,6 +237,12 @@ export function AccountNav({labels}: {labels: AccountNavLabels}) {
 }
 
 /** "Ama Mensah" becomes "Ama": the header shares its row with the logo. */
+/** "Esi Mensah" → "EM"; one word → its first letter. */
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return ((words[0]?.[0] ?? "") + (words.length > 1 ? (words.at(-1)?.[0] ?? "") : "")).toUpperCase();
+}
+
 function firstName(name: string) {
   return name.trim().split(/\s+/)[0] || name;
 }

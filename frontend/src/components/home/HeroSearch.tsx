@@ -4,6 +4,7 @@ import {ArrowRight, MapPin, Search} from "lucide-react";
 import {useState} from "react";
 
 import {SuggestInput} from "@/components/search/SuggestInput";
+import {Picker, type PickerOption} from "@/components/ui/picker";
 
 /**
  * The home page's one search, for training, courses or products.
@@ -21,6 +22,8 @@ export type HeroSearchLabels = {
   placeholders: {training: string; courses: string; products: string};
   placeLabel: string;
   anywhere: string;
+  findArea: string;
+  noMatch: string;
   actions: {training: string; courses: string; products: string};
   everything: string;
 };
@@ -33,7 +36,8 @@ export function HeroSearch({
   areas,
   labels,
 }: {
-  areas: {slug: string; name: string}[];
+  /** Areas with a workshop, under their regions (areaOptions). */
+  areas: PickerOption[];
   labels: HeroSearchLabels;
 }) {
   const [tab, setTab] = useState<Tab>("training");
@@ -90,24 +94,19 @@ export function HeroSearch({
           </div>
 
           {tab === "training" ? (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg bg-[var(--color-muted)] px-3.5">
-              <MapPin aria-hidden="true" className="size-4 shrink-0 text-[var(--color-muted-foreground)]" />
-              <label htmlFor="landing-area" className="sr-only">
-                {labels.placeLabel}
-              </label>
-              <select
+            <div className="flex min-w-0 flex-1 items-center rounded-lg bg-[var(--color-muted)]">
+              <Picker
                 id="landing-area"
                 name="area"
-                defaultValue=""
-                className="h-12 w-full min-w-0 cursor-pointer border-0 bg-transparent text-[15px] text-[var(--color-foreground)] outline-none sm:text-sm"
-              >
-                <option value="">{labels.anywhere}</option>
-                {areas.map((area) => (
-                  <option key={area.slug} value={area.slug}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
+                label={labels.placeLabel}
+                searchPlaceholder={labels.findArea}
+                emptyLabel={labels.noMatch}
+                options={[{value: "", label: labels.anywhere}, ...areas]}
+                icon={<MapPin aria-hidden="true" className="size-4 shrink-0 text-[var(--color-muted-foreground)]" />}
+                className="w-full"
+                triggerClassName="h-12 px-3.5 text-[15px] text-[var(--color-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] rounded-lg sm:text-sm"
+                selectClassName="h-12 w-full min-w-0 cursor-pointer border-0 bg-transparent px-3.5 text-[15px] text-[var(--color-foreground)] outline-none sm:text-sm"
+              />
             </div>
           ) : null}
 

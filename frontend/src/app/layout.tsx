@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import {SiteFooter} from "@/components/SiteFooter";
 import {SiteHeader} from "@/components/SiteHeader";
+import {MobileTabBar} from "@/components/nav/MobileTabBar";
 import {SignInSheet} from "@/components/auth/SignInSheet";
 import {ClientMessages} from "@/i18n/ClientMessages";
 import {SIGN_IN_CLIENT_NAMESPACES} from "@/i18n/namespaces";
@@ -71,6 +72,7 @@ export const viewport: Viewport = {
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const t = await getTranslations("Layout");
+  const tHeader = await getTranslations("SiteHeader");
   // "en" is read as Ghanaian English: dates and money are written the way they
   // are in Ghana. A future "tw" or "gaa" needs no region suffix.
   const locale = await getLocale();
@@ -90,6 +92,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
+        <MobileTabBar
+          labels={{
+            bar: tHeader("tabBar"),
+            home: tHeader("tabHome"),
+            training: tHeader("tabTraining"),
+            learn: tHeader("tabLearn"),
+            shop: tHeader("tabShop"),
+            account: tHeader("tabAccount"),
+            basketItems: tHeader("tabBasketItems", {count: "{count}"}),
+          }}
+        />
         <PrivatePageGuard />
         {/* Answers openSignIn() from any page: see lib/sign-in.ts. */}
         <ClientMessages namespaces={SIGN_IN_CLIENT_NAMESPACES}>
