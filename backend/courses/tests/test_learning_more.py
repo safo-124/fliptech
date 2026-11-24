@@ -12,6 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core.files import File
 from django.test import Client
 from django.urls import reverse
@@ -952,3 +953,68 @@ def test_the_course_title_comes_before_the_workshop_name(client, course):
     provider.refresh_from_db()
     assert course_title(provider) == "Knotless braids"
     assert detail(client, provider)["course"]["title"] == "Knotless braids"
+
+
+def _own(trainee, provider):
+    """Make the signed-in learner the workshop's own trainer."""
+    from providers.models import ProviderMembership, TrainerAccount
+
+    owner = TrainerAccount.objects.create(user=trainee.user, phone="+233201119998")
+    ProviderMembership.objects.filter(provider=provider).delete()
+    ProviderMembership.objects.create(trainer=owner, provider=provider)
+
+
+@pytest.mark.django_db
+def test_the_workshop_cannot_review_or_question_its_own_course(learner_client, trainee, course):
+    provider, lessons = course
+    _own(trainee, provider)
+    watch(learner_client, lessons[0])
+
+    review = learner_client.post(
+        reverse("course-reviews", args=[provider.area.slug, provider.slug]),
+        {"rating": 5, "body": "Great"},
+        content_type="application/json",
+    )
+    question = learner_client.post(
+        reverse("lesson-questions", args=[lessons[0].pk]),
+        {"body": "How do I start?"},
+        content_type="application/json",
+    )
+
+    assert review.status_code == 403 and review.json()["code"] == "own_course"
+    assert question.status_code == 403 and question.json()["code"] == "own_course"
+    assert access(learner_client, provider)["can_review"] is False
+    assert access(learner_client, provider)["own_course"] is True
+
+
+@pytest.mark.django_db
+def test_hide_invalid_reviews_hides_self_and_unfinished_reviews(trainee, course, learner_client):
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from courses.learner import rating_summary
+    from courses.models import CourseReview
+    from trainees.models import TraineeAccount
+
+    provider, lessons = course
+    stranger = TraineeAccount.objects.create(
+        user=get_user_model().objects.create_user("stranger"), phone="+233249990001"
+    )
+    CourseReview.objects.create(provider=provider, trainee=stranger, rating=1)  # never watched
+    _own(trainee, provider)
+    CourseReview.objects.create(provider=provider, trainee=trainee, rating=5)  # self-review
+    assert rating_summary(provider)["count"] == 2
+
+    out = StringIO()
+    call_command("hide_invalid_reviews", stdout=out)
+    assert "2 review(s) would be hidden" in out.getvalue()
+    assert CourseReview.objects.filter(is_hidden=True).count() == 0  # a dry run changes nothing
+
+    call_command("hide_invalid_reviews", "--apply", stdout=StringIO())
+    assert CourseReview.objects.filter(is_hidden=True).count() == 2
+    assert rating_summary(provider) == {
+        "average": None,
+        "count": 0,
+        "spread": {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+    }

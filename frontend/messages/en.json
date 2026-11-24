@@ -2850,7 +2850,10 @@
     "apply": "Apply",
     "haveCode": "Have a promo code?",
     "lockedTitle": "Part of the paid course",
-    "lockedBody": "Buy the whole course for {price} to watch this and every other lesson. Pay with mobile money or a card."
+    "lockedBody": "Buy the whole course for {price} to watch this and every other lesson. Pay with mobile money or a card.",
+    "askOwnCourse": "This is your own course: learners ask here, and you answer from your course studio.",
+    "askOwnCourseLink": "Open the course studio",
+    "reviewOwnCourse": "This is your own course: reviews are for your learners."
   },
   "MyLearning": {
     "continueTitle": "Continue learning",
@@ -2872,7 +2875,7 @@
     "browse": "Browse courses",
     "tabGoing": "Going ({count})",
     "tabDone": "Finished ({count})",
-    "noneGoing": "Nothing in progress. Start a new course from the course list.",
+    "noneGoing": "Nothing in progress. Start a new course from the <list>course list</list>.",
     "noneDone": "Finish every lesson of a course to see it here, with its certificate.",
     "certificate": "Certificate",
     "resumeShort": "Carry on · {time}",

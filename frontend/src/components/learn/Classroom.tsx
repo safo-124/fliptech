@@ -386,7 +386,7 @@ export function Classroom({ data }: { data: CourseDetail }) {
 
       {/* ------------------------------------------------------ tabs */}
       <div className="min-w-0 lg:col-start-1 lg:row-start-3">
-        <div role="tablist" aria-label={t("aboutLesson")} className="flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">
+        <div role="tablist" aria-label={t("aboutLesson")} className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[var(--color-border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((item) => (
             <button
               key={item.id}
@@ -406,7 +406,7 @@ export function Classroom({ data }: { data: CourseDetail }) {
                 </span>
               ) : null}
               {tab === item.id ? (
-                <span aria-hidden="true" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[var(--color-brand)]" />
+                <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--color-brand)]" />
               ) : null}
             </button>
           ))}
@@ -445,6 +445,7 @@ export function Classroom({ data }: { data: CourseDetail }) {
               currentTime={time}
               onSeek={(seconds) => setSeek({ seconds, nonce: Date.now() })}
               onCount={setQuestionCount}
+              ownCourse={access?.own_course ?? false}
             />
           ) : (
             <CourseReviews
@@ -454,6 +455,7 @@ export function Classroom({ data }: { data: CourseDetail }) {
               initial={ratings}
               mine={access?.my_review ?? null}
               canReview={access?.can_review ?? false}
+              ownCourse={access?.own_course ?? false}
               signedIn={signedIn}
               signInHref={signInHref}
             />
@@ -473,7 +475,7 @@ export function Classroom({ data }: { data: CourseDetail }) {
           ownCourse={access?.own_course ?? false}
           suggestedName={access?.full_name ?? ""}
           programmes={programmes}
-          canReview={signedIn}
+          canReview={signedIn && !access?.own_course}
           onReview={() => {
             setTab("reviews");
             void refresh();
