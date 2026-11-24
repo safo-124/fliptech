@@ -64,6 +64,7 @@ describe("trainer profile form", () => {
         instalments_allowed: false,
         instalment_count: null,
         instalment_deposit_percent: null,
+        instalment_interval: "",
         instalment_note: "",
         duration_weeks: 12,
         hours_per_week: null,
@@ -81,7 +82,7 @@ describe("trainer profile form", () => {
     });
   });
 
-  it("requires the first course and, with instalments, how many payments", () => {
+  it("requires the first course and, with instalments, how many payments and when", () => {
     expect(trainerDraftSchema.safeParse({...complete, programme_title: ""}).success).toBe(false);
     const result = trainerDraftSchema.safeParse({...complete, instalments_allowed: true});
     expect(result.success).toBe(false);
@@ -89,11 +90,38 @@ describe("trainer profile form", () => {
       expect(result.error.issues).toContainEqual(
         expect.objectContaining({path: ["instalment_count"]}),
       );
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({path: ["instalment_interval"]}),
+      );
     }
-    // The choice made, the note is optional.
+    // The choices made, the note is optional.
     expect(
-      trainerDraftSchema.safeParse({...complete, instalments_allowed: true, instalment_count: "3"}).success,
+      trainerDraftSchema.safeParse({
+        ...complete,
+        instalments_allowed: true,
+        instalment_count: "3",
+        instalment_interval: "monthly",
+      }).success,
     ).toBe(true);
+  });
+
+  it("refuses placeholder text and a role in a name box, beside the field", () => {
+    const result = trainerDraftSchema.safeParse({
+      ...complete,
+      certificate_awarded: "To be changed",
+      owner_name: "Owner",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({path: ["certificate_awarded"], message: "placeholderText"}),
+      );
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({path: ["owner_name"], message: "roleNotName"}),
+      );
+    }
+    // A real word that happens to start like one is fine.
+    expect(trainerDraftSchema.safeParse({...complete, programme_title: "Test welding"}).success).toBe(true);
   });
 
   it("never stores sign-in or verification secrets in the browser draft", () => {

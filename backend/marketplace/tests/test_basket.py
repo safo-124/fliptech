@@ -126,6 +126,21 @@ def test_quantity_is_held_to_the_stock(client, shop):  # noqa: F811
 
 
 @pytest.mark.django_db
+def test_adding_when_every_one_left_is_in_the_basket_says_so(client, shop):  # noqa: F811
+    seller, product = shop
+    Product.objects.filter(pk=product.pk).update(stock=2)
+
+    first = add(client, product, 2).json()
+    again = add(client, product, 1, token=first["token"]).json()
+
+    assert first["added"] == 2 and first["notice"] == ""
+    # Nothing went in: the page must not say "Added to your basket".
+    assert again["added"] == 0
+    assert again["notice"] == "You already have all 2 in your basket."
+    assert again["groups"][0]["lines"][0]["quantity"] == 2
+
+
+@pytest.mark.django_db
 def test_a_seller_cannot_put_their_own_product_in_the_basket(client, shop):  # noqa: F811
     seller, product = shop
     client.force_login(seller.user)

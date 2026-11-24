@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAccount, getAddresses, updateAccount, type SavedAddress } from "@/lib/account-api";
 import { checkoutSeller, groupFor, loadBasket } from "@/lib/basket";
-import { formatCedis } from "@/lib/format";
+import { formatCedis, withArea } from "@/lib/format";
 import { priceBag, requestBuyerCode, verifyBuyerCode, type Fulfilment } from "@/lib/marketplace-api";
 import { openSignIn, SESSION_CHANGED } from "@/lib/sign-in";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
@@ -347,7 +347,9 @@ export function BasketCheckout({ sellerId, initialWay }: { sellerId: number; ini
               <span>
                 {group.pickup.name}
                 <span className="block font-normal text-[var(--color-muted-foreground)]">
-                  {[group.pickup.address, group.pickup.area].filter(Boolean).join(", ")}
+                  {/* The listing's own formatter: "Zongo Junction road, Madina"
+                      is not repeated as "…, Madina, Madina". */}
+                  {withArea(group.pickup.address, group.pickup.area)}
                 </span>
               </span>
             </p>

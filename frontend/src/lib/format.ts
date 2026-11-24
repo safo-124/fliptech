@@ -103,6 +103,15 @@ export function videoCost(video: {
 }
 
 /**
+ * Whether a "2026-12-01" date is today or later, in Ghana (UTC). The API only
+ * sends dates from today on; this keeps a page kept across midnight from
+ * showing yesterday's start date as the next one.
+ */
+export function notPast(isoDate: string | null | undefined, now: Date = new Date()): boolean {
+  return Boolean(isoDate) && isoDate! >= now.toISOString().slice(0, 10);
+}
+
+/**
  * "Zongo Junction road" + "Madina" as "Zongo Junction road, Madina", but an
  * address that already ends with its area ("Zongo Junction road, Madina")
  * is left as it is, not "…, Madina, Madina".

@@ -113,7 +113,12 @@ def _course_card(enquiry):
         "reference": enquiry.reference_code,
         "title": programme.title if programme else "",
         "fee": f"{programme.fee:.2f}" if programme else None,
-        "starts": enquiry.intake.start_date if enquiry.intake_id and listed else None,
+        # A start date that has passed says nothing useful: left out.
+        "starts": (
+            enquiry.intake.start_date
+            if enquiry.intake_id and listed and enquiry.intake.start_date >= timezone.localdate()
+            else None
+        ),
         "listed": listed,
     }
 

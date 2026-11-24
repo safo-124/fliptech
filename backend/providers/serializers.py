@@ -12,9 +12,30 @@ from rest_framework import serializers
 
 from catalog.models import Intake, Programme
 from core.media import public_url
+from core.placeholders import real_name
 from geography.models import Area, Region
 
 from .models import GovernmentStatus, Provider, ProviderPhoto, ProviderVideo, Verification
+
+
+def teacher_name(provider):
+    """Who teaches, by name: the master or madam the listing names, else the
+    owner's name on the listing, else the full name on the owner's trainer
+    account. A role typed into a name box ("Owner") or a stand-in ("tbc") is
+    skipped at each step, and "" means nobody is named."""
+    from .models import ProviderMembership
+
+    for candidate in (provider.lead_trainer_name, provider.owner_name):
+        name = real_name(candidate)
+        if name:
+            return name
+    owner = (
+        provider.trainer_memberships.filter(role=ProviderMembership.Role.OWNER)
+        .select_related("trainer")
+        .order_by("created_at")
+        .first()
+    )
+    return real_name(owner.trainer.full_name) if owner else ""
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -128,6 +149,7 @@ class ProgrammeSerializer(serializers.ModelSerializer):
             "instalments_allowed",
             "instalment_count",
             "instalment_deposit_percent",
+            "instalment_interval",
             "instalment_note",
             # The receipt on the listing: what the fee covers, and roughly what
             # the rest costs.
@@ -459,15 +481,16 @@ class ProviderDetailSerializer(ProviderListSerializer):
         from django.utils import timezone
 
         portrait = self._single_photo_url(obj, ProviderPhoto.Kind.PORTRAIT)
-        if not (obj.lead_trainer_name or portrait or obj.in_trade_since):
+        if not (real_name(obj.lead_trainer_name) or portrait or obj.in_trade_since):
             return None
         years = (
             max(0, timezone.localdate().year - obj.in_trade_since) if obj.in_trade_since else None
         )
         return {
             # The owner when no other master is named: the form asks for the
-            # master only if someone other than the owner teaches.
-            "name": obj.lead_trainer_name or obj.owner_name,
+            # master only if someone other than the owner teaches. Never a
+            # role ("Owner") or a stand-in ("tbc"): see teacher_name.
+            "name": teacher_name(obj),
             "portrait": portrait,
             "years_in_trade": years,
             "apprentices_trained": obj.apprentices_trained,

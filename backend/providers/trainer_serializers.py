@@ -8,8 +8,9 @@ from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
-from catalog.models import Trade
+from catalog.models import Programme, Trade
 from core.media import public_url
+from core.placeholders import is_placeholder, is_role_label, placeholder_error
 from geography.models import Area
 
 from .models import (
@@ -92,6 +93,13 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     instalment_deposit_percent = serializers.IntegerField(
         min_value=0, max_value=90, required=False, allow_null=True, default=None
     )
+    # When the payments after the first fall due: a choice, not typed.
+    instalment_interval = serializers.ChoiceField(
+        choices=Programme.InstalmentInterval.choices,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
     instalment_note = serializers.CharField(
         max_length=200,
         required=False,
@@ -138,30 +146,47 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     )
     intake = TrainerIntakeInputSerializer(required=False, allow_null=True, default=None)
 
+    # What trainees read on the listing, so a stand-in ("To be changed",
+    # "tbc") is refused here, beside the field (core/placeholders.py).
+    PUBLIC_TEXT = (
+        "title",
+        "certificate_awarded",
+        "extra_costs_note",
+        "instalment_note",
+        "weekly_schedule",
+    )
+
     def validate(self, attrs):
+        errors = {
+            field: placeholder_error(attrs[field])
+            for field in self.PUBLIC_TEXT
+            if is_placeholder(attrs.get(field))
+        }
         if not attrs.get("instalments_allowed"):
             attrs["instalment_note"] = ""
             attrs["instalment_count"] = None
             attrs["instalment_deposit_percent"] = None
+            attrs["instalment_interval"] = ""
+            errors.pop("instalment_note", None)
+            if errors:
+                raise serializers.ValidationError(errors)
             return attrs
         if attrs.get("instalment_count") is None:
-            raise serializers.ValidationError(
-                {"instalment_count": _("Choose how many payments a trainee can make.")}
-            )
+            errors["instalment_count"] = _("Choose how many payments a trainee can make.")
+        if not attrs.get("instalment_interval"):
+            errors["instalment_interval"] = _("Choose when the payments fall due.")
         # No deposit is stored as empty, so a listing never says "0% first".
         if not attrs.get("instalment_deposit_percent"):
             attrs["instalment_deposit_percent"] = None
         note = (attrs.get("instalment_note") or "").strip()
         if note and re.fullmatch(r"[\d\s.,%]+", note):
             # "30" alone: days, cedis, per cent? A trainee cannot tell.
-            raise serializers.ValidationError(
-                {
-                    "instalment_note": _(
-                        'Say what the number means, for example "3 payments over 3 months" '
-                        'or "pay within 30 days".'
-                    )
-                }
+            errors["instalment_note"] = _(
+                'Say what the number means, for example "3 payments over 3 months" '
+                'or "pay within 30 days".'
             )
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
 
@@ -276,7 +301,17 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
 
         from .id_numbers import id_number_problem, tidy_id_number
 
-        errors = {}
+        # What trainees read on the listing: a stand-in ("To be changed",
+        # "tbc", "xxx") is refused beside the field (core/placeholders.py).
+        errors = {
+            field: placeholder_error(attrs[field])
+            for field in ("name", "owner_name", "lead_trainer_name", "address", "directions")
+            if is_placeholder(attrs.get(field))
+        }
+        # A role is not a name: "Owner" would be shown as who teaches.
+        for field in ("owner_name", "lead_trainer_name"):
+            if field not in errors and is_role_label(attrs.get(field)):
+                errors[field] = _("Write the person's name, not their role.")
 
         # The number must have the shape of the ID type chosen, and is stored
         # one way so the same card typed twice is recognised (one card, one

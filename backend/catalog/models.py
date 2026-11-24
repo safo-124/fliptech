@@ -191,6 +191,22 @@ class Programme(TimeStampedModel):
         validators=[MaxValueValidator(90)],
         help_text="Per cent of the fee paid before starting. Empty for no deposit.",
     )
+
+    class InstalmentInterval(models.TextChoices):
+        """When the payments after the first fall due."""
+
+        WEEKLY = "weekly", "Every week"
+        FORTNIGHTLY = "fortnightly", "Every two weeks"
+        MONTHLY = "monthly", "Every month"
+        STAGES = "stages", "At set points in the course"
+
+    instalment_interval = models.CharField(
+        max_length=12,
+        choices=InstalmentInterval.choices,
+        blank=True,
+        help_text="When the payments after the first fall due.",
+    )
+    # Only about paying in parts: what the three choices cannot say.
     instalment_note = models.CharField(max_length=200, blank=True)
 
     duration_weeks = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
@@ -243,6 +259,10 @@ class Programme(TimeStampedModel):
     )
 
     is_active = models.BooleanField(default=True)
+    # When the trainer was last texted that the course's last intake had
+    # passed with no next date (providers/intake_prompts.py): once for each
+    # intake that passes, never every night.
+    next_date_asked_at = models.DateTimeField(null=True, blank=True, editable=False)
     history = HistoricalRecords()
 
     class Meta:

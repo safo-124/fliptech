@@ -17,6 +17,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from providers.freshness import queue_prompts, waiting_to_send
+        from providers.intake_prompts import ask_for_next_dates
 
         queued, withdrawn = queue_prompts()
         waiting = waiting_to_send().count()
@@ -24,3 +25,7 @@ class Command(BaseCommand):
             f"Queued {queued} prompt(s), withdrew {withdrawn} no longer due. "
             f"{waiting} waiting to be sent."
         )
+        # Courses whose last start date passed with none to come: the trainer
+        # is texted once for it (providers/intake_prompts.py).
+        asked = ask_for_next_dates()
+        self.stdout.write(f"Texted trainers for the next start date of {asked} course(s).")

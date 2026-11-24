@@ -49,7 +49,7 @@ export function AddToBasket({ product }: { product: ProductDetail }) {
         router.push(`/marketplace/checkout/${product.seller.id}`);
         return;
       }
-      showBasketToast(basket.notice || undefined);
+      showBasketToast(basket.notice || undefined, basket.added !== 0);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : tMarket("buyFailed"));
     }

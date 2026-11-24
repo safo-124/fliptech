@@ -34,7 +34,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { Card } from "@/components/ui/card";
-import { formatDate, formatDistance, formatDuration, formatFee } from "@/lib/format";
+import { formatDate, formatDistance, formatDuration, formatFee, notPast } from "@/lib/format";
 import type { ProviderCard as ProviderCardData } from "@/lib/types";
 
 import { TradeChip } from "./TradeChip";
@@ -196,7 +196,7 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
             <Fact
               icon={CalendarDays}
               label={t("nextIntake")}
-              value={provider.next_intake ? formatDate(provider.next_intake) : t("askProvider")}
+              value={notPast(provider.next_intake) ? formatDate(provider.next_intake!) : t("askProvider")}
             />
           </dl>
         </Link>

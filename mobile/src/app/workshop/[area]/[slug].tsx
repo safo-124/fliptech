@@ -193,7 +193,8 @@ export default function WorkshopScreen() {
         ) : null}
 
         {/* ---------------------------------------------------- the trainer */}
-        {w.master ? (
+        {/* Named by the server: the master, else the owner, never "Owner". */}
+        {w.master?.name ? (
           <Section title="Who teaches">
             <View style={styles.master}>
               <View style={styles.portrait}>
@@ -293,10 +294,15 @@ function ProgrammeCard({ programme, onEnquire }: { programme: Programme; onEnqui
         </View>
       ) : null}
       {extras.length ? <Text variant="small">Not in the fee: {extras.join(", ")}.</Text> : null}
-      {programme.extra_costs ? (
+      {/* As the website's receipt (frontend components/FeeReceipt.tsx): an
+          estimate of nothing is no estimate, so extras with none, or with 0,
+          are to be asked about, never "about GH₵0 more". */}
+      {Number(programme.extra_costs) > 0 ? (
         <Text variant="small">
-          Expect about {cedis(programme.extra_costs)} more{programme.extra_costs_note ? `: ${programme.extra_costs_note}` : ""}.
+          Expect about {cedis(programme.extra_costs!)} more{programme.extra_costs_note ? `: ${programme.extra_costs_note}` : ""}.
         </Text>
+      ) : extras.length ? (
+        <Text variant="small">Ask the workshop what the extras cost before you pay anything.</Text>
       ) : null}
       {open.length ? (
         <View style={{ gap: 6 }}>

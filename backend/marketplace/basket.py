@@ -298,8 +298,12 @@ def _group_payload(seller, lines, visible, request):
     }
 
 
-def basket_payload(basket, request, token=None, notice=""):
-    """The basket grouped by seller, in the order things were first added."""
+def basket_payload(basket, request, token=None, notice="", added=None):
+    """The basket grouped by seller, in the order things were first added.
+
+    `added`, from adding to the basket only: how many really went in, which is
+    0 when the basket already held every one left, so the page can say that
+    rather than "Added to your basket"."""
     if basket is None:
         return {"token": token, "owner": None, "count": 0, "groups": [], "notice": notice}
     lines = _lines_of(basket)
@@ -333,6 +337,7 @@ def basket_payload(basket, request, token=None, notice=""):
         "count": count,
         "groups": payload,
         "notice": notice,
+        **({"added": added} if added is not None else {}),
     }
 
 
@@ -449,8 +454,13 @@ class BasketItemsView(_BasketAPIView):
         notice = ""
         with transaction.atomic():
             line = basket.lines.filter(product=product, option=option).first()
-            wanted = data["quantity"] + (line.quantity if line else 0)
-            if wanted > cap:
+            had = line.quantity if line else 0
+            wanted = data["quantity"] + had
+            added = max(0, min(wanted, cap) - had)
+            if added == 0:
+                # Every one left is already in the basket: nothing went in.
+                notice = _("You already have all %(count)s in your basket.") % {"count": cap}
+            elif wanted > cap:
                 notice = _("Only %(count)s left.") % {"count": cap}
             if line is None:
                 if basket.lines.count() >= MAX_LINES:
@@ -468,7 +478,7 @@ class BasketItemsView(_BasketAPIView):
             else:
                 line.quantity = min(wanted, cap)
                 line.save(update_fields=["quantity"])
-        return Response(basket_payload(basket, request, token=token, notice=notice))
+        return Response(basket_payload(basket, request, token=token, notice=notice, added=added))
 
 
 @method_decorator(csrf_protect, name="dispatch")

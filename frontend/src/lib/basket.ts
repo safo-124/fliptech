@@ -65,6 +65,8 @@ export type Basket = {
   count: number;
   groups: BasketGroup[];
   notice: string;
+  /** From adding only: how many really went in; 0 when every one left was already in the basket. */
+  added?: number;
 };
 
 export type CheckoutInput = {

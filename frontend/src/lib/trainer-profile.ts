@@ -3,6 +3,7 @@ import {z} from "zod";
 import {v, type ValidationKey} from "../i18n/validation";
 
 import {idNumberIssue, tidyIdNumber} from "./id-numbers";
+import {isPlaceholder, isRoleLabel} from "./placeholders";
 import {ghanaPhoneSchema, toGhanaE164} from "./phone";
 import type {TrainerProfile} from "./types";
 
@@ -147,7 +148,10 @@ const trainerDraftShape = z.object({
   // choices. "" until chosen. See Programme.instalment_count in the backend.
   instalment_count: z.string(),
   instalment_deposit_percent: z.string(),
-  // Only what the two choices cannot say, and optional.
+  // When the payments after the first fall due: "weekly", "fortnightly",
+  // "monthly" or "stages". See Programme.InstalmentInterval in the backend.
+  instalment_interval: z.string(),
+  // Only about paying in parts, what the three choices cannot say. Optional.
   instalment_note: z.string().trim().max(200, v("tooLong")),
   hours_per_week: optionalWholeNumberUpTo(168, "hoursTooMany"),
   weekly_schedule: z.string().trim().max(200, v("tooLong")),
@@ -173,8 +177,21 @@ type CourseRuleValues = Pick<
   | "certificate_awarded"
   | "instalments_allowed"
   | "instalment_count"
+  | "instalment_interval"
   | "instalment_note"
+  | "programme_title"
+  | "extra_costs_note"
+  | "weekly_schedule"
 >;
+
+/** Public course text that trainees read, where a stand-in ("tbc") is refused. */
+const PUBLIC_COURSE_TEXT = [
+  "programme_title",
+  "certificate_awarded",
+  "extra_costs_note",
+  "instalment_note",
+  "weekly_schedule",
+] as const;
 
 /** The rules between course fields, for the whole form and the course alone. */
 function courseIssues(values: CourseRuleValues) {
@@ -187,6 +204,13 @@ function courseIssues(values: CourseRuleValues) {
   }
   if (values.instalments_allowed && !values.instalment_count) {
     issues.push({path: "instalment_count", message: v("instalmentCountRequired")});
+  }
+  if (values.instalments_allowed && !values.instalment_interval) {
+    issues.push({path: "instalment_interval", message: v("instalmentIntervalRequired")});
+  }
+  for (const field of PUBLIC_COURSE_TEXT) {
+    if (field === "instalment_note" && !values.instalments_allowed) continue;
+    if (isPlaceholder(values[field])) issues.push({path: field, message: v("placeholderText")});
   }
   if (values.instalments_allowed && /^[\d\s.,%]+$/.test(values.instalment_note)) {
     // "30" on its own: 30 what? Days, cedis, per cent? Trainees cannot tell.
@@ -203,6 +227,15 @@ export const trainerDraftSchema = trainerDraftShape.superRefine((values, context
     tidyIdNumber(values.id_document_type, values.id_document_number),
   );
   if (idIssue) context.addIssue({code: "custom", path: ["id_document_number"], message: idIssue});
+  // What trainees read about the workshop: no stand-ins ("tbc"), and a name
+  // box holds a name, not a role ("Owner"). The server says the same.
+  for (const field of ["name", "owner_name", "lead_trainer_name", "address", "directions"] as const) {
+    if (isPlaceholder(values[field])) {
+      context.addIssue({code: "custom", path: [field], message: v("placeholderText")});
+    } else if ((field === "owner_name" || field === "lead_trainer_name") && isRoleLabel(values[field])) {
+      context.addIssue({code: "custom", path: [field], message: v("roleNotName")});
+    }
+  }
   for (const issue of courseIssues(values)) {
     context.addIssue({code: "custom", path: [issue.path], message: issue.message});
   }
@@ -223,6 +256,7 @@ const courseSchema = trainerDraftShape
     instalments_allowed: true,
     instalment_count: true,
     instalment_deposit_percent: true,
+    instalment_interval: true,
     instalment_note: true,
     hours_per_week: true,
     weekly_schedule: true,
@@ -309,6 +343,7 @@ export const EMPTY_TRAINER_DRAFT: TrainerDraftForm = {
   instalments_allowed: false,
   instalment_count: "",
   instalment_deposit_percent: "",
+  instalment_interval: "",
   instalment_note: "",
   hours_per_week: "",
   weekly_schedule: "",
@@ -421,6 +456,7 @@ function programmePayload(values: z.infer<typeof courseSchema>) {
     instalment_deposit_percent: values.instalments_allowed
       ? optionalNumber(values.instalment_deposit_percent)
       : null,
+    instalment_interval: values.instalments_allowed ? values.instalment_interval : "",
     instalment_note: values.instalments_allowed ? values.instalment_note : "",
     duration_weeks: Number(values.duration_weeks),
     hours_per_week: optionalNumber(values.hours_per_week),
@@ -516,6 +552,7 @@ export function draftFromTrainerProfile(profile: TrainerProfile): TrainerDraftFo
       programme.instalment_deposit_percent === undefined
         ? ""
         : String(programme.instalment_deposit_percent),
+    instalment_interval: programme.instalment_interval ?? "",
     instalment_note: programme.instalment_note,
     hours_per_week: programme.hours_per_week === null ? "" : String(programme.hours_per_week),
     weekly_schedule: programme.weekly_schedule,

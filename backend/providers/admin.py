@@ -152,6 +152,30 @@ class ProviderMembershipInline(admin.TabularInline):
         return False
 
 
+class ReviewFlagFilter(admin.SimpleListFilter):
+    """Listings with something for staff to look at: placeholder text in a
+    public field, or numbers that do not add up (providers/review_flags.py).
+    Worked out in Python, so it reads every listing: fine at today's size."""
+
+    title = "review flags"
+    parameter_name = "flags"
+
+    def lookups(self, request, model_admin):
+        return [("yes", "Has review flags")]
+
+    def queryset(self, request, queryset):
+        if self.value() != "yes":
+            return queryset
+        from .review_flags import flags_for
+
+        flagged = [
+            provider.pk
+            for provider in queryset.prefetch_related("programmes")
+            if flags_for(provider)
+        ]
+        return queryset.filter(pk__in=flagged)
+
+
 class WorkQueueFilter(admin.SimpleListFilter):
     """Turns each sidebar badge into a changelist you can actually work through.
 
@@ -229,7 +253,14 @@ class ProviderAdmin(
         "last_confirmed_at",
         "freshness",
     )
-    list_filter = (WorkQueueFilter, "status", "area__region", "area", "created_at")
+    list_filter = (
+        WorkQueueFilter,
+        ReviewFlagFilter,
+        "status",
+        "area__region",
+        "area",
+        "created_at",
+    )
     search_fields = ("name", "owner_name", "address", "contact_phone")
     autocomplete_fields = ("area",)
     prepopulated_fields = {"slug": ("name",)}
@@ -254,6 +285,16 @@ class ProviderAdmin(
     ]
 
     fieldsets = (
+        (
+            "Review flags",
+            {
+                "fields": ("review_flags",),
+                "description": (
+                    "For staff only: placeholder text, and numbers that do not add up. The "
+                    "trainer is not stopped by these; ask them to fix what is wrong."
+                ),
+            },
+        ),
         (
             "Workshop",
             {
@@ -320,6 +361,7 @@ class ProviderAdmin(
         ),
     )
     readonly_fields = (
+        "review_flags",
         "status",
         "photos_waiting",
         "submitted_at",
@@ -328,6 +370,19 @@ class ProviderAdmin(
         "declared_accurate_at",
         "site_visit_consent_at",
     )
+
+    @admin.display(description="Review flags")
+    def review_flags(self, obj):
+        """Placeholder text and numbers that do not add up, for staff only:
+        the trainer is never stopped by these (providers/review_flags.py)."""
+        from .review_flags import flags_for
+
+        if obj is None or obj.pk is None:
+            return "-"
+        flags = flags_for(obj)
+        if not flags:
+            return "None."
+        return format_html_join("", "<p>⚠ {}</p>", ((flag,) for flag in flags))
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))

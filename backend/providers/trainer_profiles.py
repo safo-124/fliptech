@@ -503,6 +503,7 @@ def serialize_profile(provider, account=None):
             "instalments_allowed": programme.instalments_allowed,
             "instalment_count": programme.instalment_count,
             "instalment_deposit_percent": programme.instalment_deposit_percent,
+            "instalment_interval": programme.instalment_interval,
             "instalment_note": programme.instalment_note,
             "duration_weeks": programme.duration_weeks,
             "hours_per_week": programme.hours_per_week,

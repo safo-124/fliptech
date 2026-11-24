@@ -72,6 +72,8 @@ export type Programme = {
   instalment_count?: number | null;
   /** Per cent paid before starting; null for no deposit. */
   instalment_deposit_percent?: number | null;
+  /** When the payments after the first fall due: "weekly", "fortnightly", "monthly", "stages" or "". */
+  instalment_interval?: string;
   instalment_note: string;
   /** What the fee covers, shown as a receipt on the listing. */
   fee_includes_tools: boolean;
@@ -389,6 +391,8 @@ export type TrainerProgramme = {
   instalments_allowed: boolean;
   instalment_count?: number | null;
   instalment_deposit_percent?: number | null;
+  /** When the payments after the first fall due: "weekly", "fortnightly", "monthly", "stages" or "". */
+  instalment_interval?: string;
   instalment_note: string;
   duration_weeks: number;
   hours_per_week: number | null;

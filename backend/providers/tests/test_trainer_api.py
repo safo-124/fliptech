@@ -79,6 +79,7 @@ def profile_payload(catalogue, **overrides):
             "instalments_allowed": True,
             "instalment_count": 2,
             "instalment_deposit_percent": 50,
+            "instalment_interval": "monthly",
             "instalment_note": "The second before the last month",
             "duration_weeks": 12,
             "hours_per_week": 30,

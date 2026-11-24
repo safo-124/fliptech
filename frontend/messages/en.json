@@ -696,6 +696,14 @@
     "instalmentsAllowed": "Instalments allowed",
     "fullPayment": "Full payment",
     "instalmentDetails": "Instalment details",
+    "instalmentPlanPayments": "{count} payments",
+    "instalmentPlanDeposit": "{percent}% before starting",
+    "instalmentPlanInterval": {
+      "weekly": "every week",
+      "fortnightly": "every two weeks",
+      "monthly": "every month",
+      "stages": "at set points in the course"
+    },
     "allowed": "Allowed",
     "allowedAsk": "Allowed. Ask the workshop how it works.",
     "hoursAWeek": "Hours a week",
@@ -805,6 +813,17 @@
     "noLocalBody": "No {trade} providers are listed in {place} yet. Widen your search to compare training options in other areas.",
     "seeElsewhere": "See providers elsewhere"
   },
+  "NotFound": {
+    "metaTitle": "Page not found",
+    "eyebrow": "Page not found",
+    "title": "We could not find that page",
+    "body": "The link may be old, or the listing may have been taken down. Try a search, or start from training or the marketplace.",
+    "searchLabel": "Search Fliiptech",
+    "searchPlaceholder": "Welding in Tema, sewing, hair…",
+    "searchAction": "Search",
+    "findTraining": "Find training",
+    "marketplace": "Marketplace"
+  },
   "CategoryPage": {
     "notFound": "Category not found",
     "metaTitle": "{category}: training, courses and tools in Ghana",
@@ -851,6 +870,9 @@
     "wholeNumber": "Enter a whole number",
     "notNegative": "Can't be negative",
     "instalmentCountRequired": "Choose how many payments",
+    "instalmentIntervalRequired": "Choose when the payments are due",
+    "placeholderText": "This looks like placeholder text. Write the real thing, or leave it empty if you do not know yet.",
+    "roleNotName": "Write the person's name, not their role",
     "hoursTooMany": "There are only 168 hours in a week",
     "yearInvalid": "Enter a year that has already happened",
     "fullNameRequired": "Your name is required",
@@ -1529,7 +1551,7 @@
     "joinLead": "Create your training profile from your phone. Skills Hub staff will check the details before anything becomes public.",
     "quickSetup": "Quick phone setup",
     "reviewedByStaff": "Reviewed by staff",
-    "noPassword": "No password needed",
+    "noPassword": "Starts with a code to your phone",
     "dashboardMetaTitle": "Trainer dashboard",
     "dashboardDescription": "View your Skills Hub workshop profile and review status.",
     "workspace": "Trainer workspace",
@@ -1882,7 +1904,15 @@
     "durationLabel": "Duration in weeks",
     "instalmentsLabel": "Trainees may pay in instalments",
     "instalmentNoteLabel": "Instalment arrangement",
-    "instalmentNotePlaceholder": "For example: paid weekly, or by mobile money",
+    "instalmentNotePlaceholder": "For example: by mobile money",
+    "instalmentNoteHint": "Only about paying in parts.",
+    "instalmentWhen": "When are the other payments due?",
+    "instalmentInterval": {
+      "weekly": "Every week",
+      "fortnightly": "Every two weeks",
+      "monthly": "Every month",
+      "stages": "At set points in the course"
+    },
     "instalmentPayments": "Number of payments",
     "instalmentPaymentsChoose": "Choose",
     "instalmentPaymentsCount": "{count} payments",

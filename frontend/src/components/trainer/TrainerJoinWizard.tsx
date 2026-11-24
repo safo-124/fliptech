@@ -63,6 +63,7 @@ import {insideGhana} from "@/lib/ghana-bounds";
 import {formatCedis, formatDate} from "@/lib/format";
 import {ProviderLocationMap} from "@/components/ProviderLocationMap";
 import {TradeOptions} from "@/components/TradeOptions";
+import {knownExtraCosts} from "@/components/FeeReceipt";
 import {ID_NUMBER_HINTS, isIdDocumentType, tidyIdNumber} from "@/lib/id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
 import {getWhoami} from "@/lib/session-api";
@@ -166,6 +167,7 @@ const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "instalments_allowed",
   "instalment_count",
   "instalment_deposit_percent",
+  "instalment_interval",
   "instalment_note",
   "hours_per_week",
   "weekly_schedule",
@@ -222,6 +224,8 @@ const API_FIELD_NAMES: Record<string, FieldPath<TrainerDraftForm>> = {
   "programme.instalment_note": "instalment_note",
   "programme.instalment_count": "instalment_count",
   "programme.instalment_deposit_percent": "instalment_deposit_percent",
+  "programme.instalment_interval": "instalment_interval",
+  "programme.certificate_awarded": "certificate_awarded",
   "programme.hours_per_week": "hours_per_week",
   "programme.weekly_schedule": "weekly_schedule",
   "programme.capacity": "capacity",
@@ -632,18 +636,23 @@ function extrasExample(slug: string | undefined, t: ReturnType<typeof useTransla
 
 const PAYMENT_COUNTS = ["2", "3", "4", "6"] as const;
 const DEPOSITS = ["0", "25", "50"] as const;
+/** Programme.InstalmentInterval in the backend. */
+const INSTALMENT_INTERVALS = ["weekly", "fortnightly", "monthly", "stages"] as const;
 
-/** "3 payments, 50% before starting" from the two choices, for the review. */
+/** "3 payments, every month, 50% before starting" from the three choices, for the review. */
 function planSummary(
   count: string,
   deposit: string,
+  interval: string,
   t: ReturnType<typeof useTranslations<"TrainerJoinWizard">>,
 ) {
   if (!count) return "";
-  const payments = t("instalmentPaymentsCount", {count: Number(count)});
-  return deposit && deposit !== "0"
-    ? `${payments}, ${t("instalmentDepositPercent", {percent: Number(deposit)})}`
-    : payments;
+  const parts = [t("instalmentPaymentsCount", {count: Number(count)})];
+  if ((INSTALMENT_INTERVALS as readonly string[]).includes(interval)) {
+    parts.push(t(`instalmentInterval.${interval as (typeof INSTALMENT_INTERVALS)[number]}`).toLowerCase());
+  }
+  if (deposit && deposit !== "0") parts.push(t("instalmentDepositPercent", {percent: Number(deposit)}));
+  return parts.join(", ");
 }
 
 /** "1,200" as typed, as a number. */
@@ -2759,6 +2768,26 @@ function TrainerJoinWizardForm() {
                           ))}
                         </NativeSelect>
                       </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label htmlFor="instalment_interval">
+                          {t("instalmentWhen")}
+                          <RequiredCue />
+                        </Label>
+                        <NativeSelect
+                          id="instalment_interval"
+                          {...register("instalment_interval")}
+                          aria-invalid={Boolean(errors.instalment_interval)}
+                          aria-describedby={describedBy(errors.instalment_interval && "instalment-interval-error")}
+                        >
+                          <option value="">{t("instalmentPaymentsChoose")}</option>
+                          {INSTALMENT_INTERVALS.map((interval) => (
+                            <option key={interval} value={interval}>
+                              {t(`instalmentInterval.${interval}`)}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                        <FieldError id="instalment-interval-error" message={errors.instalment_interval?.message} />
+                      </div>
                     </div>
                     <div className="mt-3 space-y-2">
                       <Label htmlFor="instalment_note">{t("instalmentNoteOptional")}</Label>
@@ -2767,8 +2796,14 @@ function TrainerJoinWizardForm() {
                         {...register("instalment_note")}
                         placeholder={t("instalmentNotePlaceholder")}
                         aria-invalid={Boolean(errors.instalment_note)}
-                        aria-describedby={describedBy(errors.instalment_note && "instalment-note-error")}
+                        aria-describedby={describedBy(
+                          "instalment-note-hint",
+                          errors.instalment_note && "instalment-note-error",
+                        )}
                       />
+                      <p id="instalment-note-hint" className="text-xs text-[var(--color-muted-foreground)]">
+                        {t("instalmentNoteHint")}
+                      </p>
                       <FieldError id="instalment-note-error" message={errors.instalment_note?.message} />
                     </div>
                   </div>
@@ -3118,7 +3153,15 @@ function TrainerJoinWizardForm() {
                 </div>
                 <ReviewRow label={t("reviewPayment")}>
                   {values.instalments_allowed
-                    ? [planSummary(values.instalment_count, values.instalment_deposit_percent, t), values.instalment_note.trim()]
+                    ? [
+                        planSummary(
+                          values.instalment_count,
+                          values.instalment_deposit_percent,
+                          values.instalment_interval,
+                          t,
+                        ),
+                        values.instalment_note.trim(),
+                      ]
                         .filter(Boolean)
                         .join(". ") || t("reviewInstalments")
                     : t("reviewFullPayment")}
@@ -3130,11 +3173,11 @@ function TrainerJoinWizardForm() {
                     .join(", ") || t("reviewNothingIncluded")}
                 </ReviewRow>
                 <ReviewRow label={t("reviewExtras")}>
-                  {values.extra_costs
+                  {knownExtraCosts(values.extra_costs) !== null
                     ? `${money(values.extra_costs)}${values.extra_costs_note ? `: ${values.extra_costs_note}` : ""}`
                     : t("reviewNotGiven")}
                 </ReviewRow>
-                {values.extra_costs ? (
+                {knownExtraCosts(values.extra_costs) !== null ? (
                   <ReviewRow label={t("reviewTotal")}>
                     {money(String(plainNumber(values.fee) + plainNumber(values.extra_costs)))}
                   </ReviewRow>

@@ -18,7 +18,7 @@ export function QuickAdd({ productId, label, className }: { productId: number; l
     setBusy(true);
     try {
       const basket = await addToBasket(productId, null, 1);
-      showBasketToast(basket.notice || undefined);
+      showBasketToast(basket.notice || undefined, basket.added !== 0);
     } catch {
       // Needs a size or colour, sold out, or your own: the product page
       // says which.

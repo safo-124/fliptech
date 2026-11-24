@@ -2,6 +2,7 @@ import { CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { notPast } from "@/lib/format";
 import { tradeClass } from "@/lib/trades";
 import type { UpcomingIntake } from "@/lib/types";
 
@@ -19,7 +20,7 @@ const MONTH = new Intl.DateTimeFormat("en-GH", { month: "short", timeZone: "UTC"
  * script, so the search page's budget barely notices it.
  */
 export function IntakesBoard({
-  intakes,
+  intakes: given,
   className = "",
 }: {
   intakes: UpcomingIntake[];
@@ -27,6 +28,9 @@ export function IntakesBoard({
   className?: string;
 }) {
   const t = useTranslations("SearchPage");
+  // The API sends only dates from today on; a page kept across midnight
+  // still drops yesterday's (lib/format, notPast).
+  const intakes = given.filter((intake) => notPast(intake.start_date));
   if (intakes.length === 0) return null;
 
   return (
