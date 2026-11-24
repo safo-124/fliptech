@@ -8,7 +8,7 @@ from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
-from catalog.models import Programme, Trade
+from catalog.models import OTHER_TRADE_SLUG, Programme, Trade
 from core.media import public_url
 from core.placeholders import is_placeholder, is_role_label, placeholder_error
 from geography.models import Area
@@ -82,7 +82,13 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
     trade_id = serializers.PrimaryKeyRelatedField(
         source="trade",
         queryset=Trade.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+        default=None,
     )
+    # "Other (describe)": the trainer's own words for a trade that is not
+    # listed. Sent instead of trade_id; the course goes under the Other trade.
+    trade_other = serializers.CharField(max_length=80, required=False, allow_blank=True, default="")
     title = serializers.CharField(max_length=200)
     fee = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
     instalments_allowed = serializers.BooleanField(required=False, default=False)
@@ -162,6 +168,7 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
             for field in self.PUBLIC_TEXT
             if is_placeholder(attrs.get(field))
         }
+        self._trade(attrs, errors)
         if not attrs.get("instalments_allowed"):
             attrs["instalment_note"] = ""
             attrs["instalment_count"] = None
@@ -188,6 +195,23 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
+
+    @staticmethod
+    def _trade(attrs, errors):
+        """A listed trade, or "Other" with the trainer's own words for it."""
+        typed = " ".join((attrs.get("trade_other") or "").split())
+        trade = attrs.get("trade")
+        if trade is not None and trade.slug != OTHER_TRADE_SLUG:
+            attrs["trade_other"] = ""
+            return
+        if trade is None and not typed:
+            errors["trade_id"] = _("Choose a trade, or Other and say what it is.")
+            return
+        if len(typed) < 3 or not any(ch.isalpha() for ch in typed):
+            errors["trade_other"] = _("Say what your trade is, for example Shoe making.")
+            return
+        attrs["trade"] = Trade.objects.get(slug=OTHER_TRADE_SLUG)
+        attrs["trade_other"] = typed
 
 
 class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

@@ -62,7 +62,7 @@ import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from
 import {insideGhana} from "@/lib/ghana-bounds";
 import {formatCedis, formatDate} from "@/lib/format";
 import {ProviderLocationMap} from "@/components/ProviderLocationMap";
-import {TradeOptions} from "@/components/TradeOptions";
+import {OTHER_TRADE, TradeOptions} from "@/components/TradeOptions";
 import {knownExtraCosts} from "@/components/FeeReceipt";
 import {ID_NUMBER_HINTS, isIdDocumentType, tidyIdNumber} from "@/lib/id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
@@ -161,6 +161,7 @@ const WORKSHOP_FIELDS: FieldPath<TrainerDraftForm>[] = [
 
 const COURSE_FIELDS: FieldPath<TrainerDraftForm>[] = [
   "trade_id",
+  "trade_other",
   "programme_title",
   "fee",
   "duration_weeks",
@@ -217,6 +218,7 @@ const API_FIELD_NAMES: Record<string, FieldPath<TrainerDraftForm>> = {
   trainer_count: "trainer_count",
   trainee_count: "trainee_count",
   "programme.trade_id": "trade_id",
+  "programme.trade_other": "trade_other",
   "programme.title": "programme_title",
   "programme.fee": "fee",
   "programme.duration_weeks": "duration_weeks",
@@ -2665,9 +2667,30 @@ function TrainerJoinWizardForm() {
                     className={invalidControlClassName}
                   >
                     <option value="">{t("chooseTrade")}</option>
-                    <TradeOptions trades={trades} by="id" />
+                    <TradeOptions trades={trades} by="id" other={t("otherTrade")} />
                   </NativeSelect>
                   <FieldError id="trade-error" message={errors.trade_id?.message} />
+                  {watch("trade_id") === OTHER_TRADE ? (
+                    <div className="space-y-2 pt-1">
+                      <Label htmlFor="trade_other">
+                        {t("otherTradeLabel")}
+                        <RequiredCue />
+                      </Label>
+                      <Input
+                        id="trade_other"
+                        {...register("trade_other")}
+                        required
+                        maxLength={80}
+                        placeholder={t("otherTradePlaceholder")}
+                        aria-invalid={Boolean(errors.trade_other)}
+                        aria-describedby={describedBy("trade-other-hint", errors.trade_other && "trade-other-error")}
+                      />
+                      <p id="trade-other-hint" className="text-xs text-[var(--color-muted-foreground)]">
+                        {t("otherTradeHint", {brand: BRAND})}
+                      </p>
+                      <FieldError id="trade-other-error" message={errors.trade_other?.message} />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="programme_title">

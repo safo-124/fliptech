@@ -30,6 +30,7 @@ from .videos import (
     review_first_because_blocked,
     seconds_used,
     start_upload,
+    watched_and_approved,
 )
 
 
@@ -75,6 +76,13 @@ class TrainerVideosView(APIView):
                         provider is not None
                         and settings.VIDEO_PUBLISH_WITHOUT_REVIEW
                         and review_first_because_blocked(provider)
+                    ),
+                    # While a workshop is new: how many approved videos it
+                    # needs before its videos go on without waiting, and how
+                    # many it has.
+                    "trusted_after": settings.VIDEO_TRUSTED_AFTER,
+                    "approved_count": (
+                        watched_and_approved(provider) if provider is not None else 0
                     ),
                 },
             }

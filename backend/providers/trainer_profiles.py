@@ -498,6 +498,7 @@ def serialize_profile(provider, account=None):
                 "name": programme.trade.name,
                 "slug": programme.trade.slug,
             },
+            "trade_other": programme.trade_other,
             "title": programme.title,
             "fee": format(programme.fee, ".2f"),
             "instalments_allowed": programme.instalments_allowed,

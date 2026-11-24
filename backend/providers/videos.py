@@ -86,9 +86,28 @@ def review_first_because_blocked(provider):
     return provider.videos_blocked >= settings.VIDEO_BLOCKS_BEFORE_REVIEW
 
 
+def watched_and_approved(provider):
+    """How many of this workshop's videos staff have watched and approved.
+    Videos that went live on their own and are not yet watched do not count."""
+    return provider.videos.filter(
+        status=ProviderVideo.Status.APPROVED, reviewed_at__isnull=False
+    ).count()
+
+
+def review_first_while_new(provider):
+    """Whether this workshop's videos wait for staff because it has too few
+    approved ones yet (settings.VIDEO_TRUSTED_AFTER)."""
+    return watched_and_approved(provider) < settings.VIDEO_TRUSTED_AFTER
+
+
 def publishes_straight_away(provider):
-    """Whether a video, once prepared, goes on the listing without waiting."""
-    return settings.VIDEO_PUBLISH_WITHOUT_REVIEW and not review_first_because_blocked(provider)
+    """Whether a video, once prepared, goes on the listing without waiting:
+    only for a workshop with enough videos approved and none too many blocked."""
+    return (
+        settings.VIDEO_PUBLISH_WITHOUT_REVIEW
+        and not review_first_because_blocked(provider)
+        and not review_first_while_new(provider)
+    )
 
 
 def start_upload(provider, *, title, name, size, actor, agreed_to_guidelines=False):

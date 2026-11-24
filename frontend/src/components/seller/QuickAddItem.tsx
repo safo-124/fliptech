@@ -9,11 +9,12 @@ import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {NativeSelect} from "@/components/ui/native-select";
 import {Textarea} from "@/components/ui/textarea";
-import {TradeOptions} from "@/components/TradeOptions";
+import {OTHER_TRADE, TradeOptions} from "@/components/TradeOptions";
 import {compressPhoto} from "@/lib/compress-photo";
 import {
   nameExample,
   toInput,
+  tradeOtherMissing,
   wasPriceTooLow,
   type QuickItemDraft,
 } from "@/lib/quick-item";
@@ -65,6 +66,7 @@ export function QuickAddItem({
 }) {
   const t = useTranslations("QuickAdd");
   const [draft, setDraft] = useState<QuickItemDraft>(start);
+  const [tradeOtherShown, setTradeOtherShown] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
   const [busy, setBusy] = useState<"sale" | "draft" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -146,6 +148,10 @@ export function QuickAddItem({
     }
     if (uploading) {
       setProblem(t("waitForPhotos"));
+      return;
+    }
+    if (tradeOtherMissing(draft)) {
+      setTradeOtherShown(true);
       return;
     }
     setBusy(publish ? "sale" : "draft");
@@ -424,12 +430,38 @@ export function QuickAddItem({
               <Label htmlFor="quick-trade">{t("trade")}</Label>
               <NativeSelect
                 id="quick-trade"
-                value={draft.trade ? String(draft.trade) : ""}
-                onChange={(event) => set("trade", event.target.value ? Number(event.target.value) : null)}
+                value={draft.tradeOther !== null ? OTHER_TRADE : draft.trade ? String(draft.trade) : ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === OTHER_TRADE) {
+                    setDraft((current) => ({...current, trade: null, tradeOther: current.tradeOther ?? ""}));
+                  } else {
+                    setDraft((current) => ({...current, trade: value ? Number(value) : null, tradeOther: null}));
+                  }
+                }}
               >
                 <option value="">{t("tradeNone")}</option>
-                <TradeOptions trades={trades} by="id" />
+                <TradeOptions trades={trades} by="id" other={t("otherTrade")} />
               </NativeSelect>
+              {draft.tradeOther !== null ? (
+                <div className="mt-3">
+                  <Label htmlFor="quick-trade-other">{t("otherTradeLabel")}</Label>
+                  <Input
+                    id="quick-trade-other"
+                    maxLength={80}
+                    value={draft.tradeOther}
+                    onChange={(event) => set("tradeOther", event.target.value)}
+                    placeholder={t("otherTradePlaceholder")}
+                    aria-invalid={(tradeOtherShown && tradeOtherMissing(draft)) || undefined}
+                    aria-describedby={tradeOtherShown && tradeOtherMissing(draft) ? "quick-trade-other-error" : undefined}
+                  />
+                  {tradeOtherShown && tradeOtherMissing(draft) ? (
+                    <p id="quick-trade-other-error" role="alert" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                      {t("otherTradeRequired")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </details>

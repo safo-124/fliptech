@@ -49,7 +49,7 @@ import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {NativeSelect} from "@/components/ui/native-select";
 import {Textarea} from "@/components/ui/textarea";
-import {TradeOptions} from "@/components/TradeOptions";
+import {OTHER_TRADE, TradeOptions} from "@/components/TradeOptions";
 import {
   addProductPhoto,
   copyProduct,
@@ -705,8 +705,18 @@ function ProductEditor({
   const [stock, setStock] = useState(product?.stock !== null && product?.stock !== undefined ? String(product.stock) : "");
   const [makeDays, setMakeDays] = useState(product?.make_days ? String(product.make_days) : "");
   const [trade, setTrade] = useState<string>(
-    product ? (product.trade ? String(product.trade) : "") : defaultTrade ? String(defaultTrade) : "",
+    product
+      ? product.trade
+        ? String(product.trade)
+        : product.trade_other
+          ? OTHER_TRADE
+          : ""
+      : defaultTrade
+        ? String(defaultTrade)
+        : "",
   );
+  const [tradeOther, setTradeOther] = useState(product?.trade_other ?? "");
+  const [tradeOtherProblem, setTradeOtherProblem] = useState(false);
   const tradeSlug = trades.find((item) => String(item.id) === trade)?.slug;
   // A "before" price at or under the price is no sale: say so as they type.
   const wasPriceTooLow =
@@ -714,6 +724,11 @@ function ProductEditor({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const typedTrade = tradeOther.trim();
+    if (trade === OTHER_TRADE && (typedTrade.length < 3 || !/\p{L}/u.test(typedTrade))) {
+      setTradeOtherProblem(true);
+      return;
+    }
     const body = {
       name: name.trim(),
       description: description.trim(),
@@ -725,7 +740,8 @@ function ProductEditor({
       condition,
       stock: stock.trim() === "" ? null : Math.max(0, Number.parseInt(stock, 10) || 0),
       make_days: makeDays.trim() === "" ? null : Math.min(365, Math.max(1, Number.parseInt(makeDays, 10) || 1)),
-      trade: trade ? Number(trade) : null,
+      trade: trade && trade !== OTHER_TRADE ? Number(trade) : null,
+      trade_other: trade === OTHER_TRADE ? typedTrade : "",
     };
     await run(async () => {
       if (product) await updateProduct(product.id, body);
@@ -763,9 +779,32 @@ function ProductEditor({
             <Label htmlFor="product-trade">{t("tradeLabel")}</Label>
             <NativeSelect id="product-trade" value={trade} onChange={(event) => setTrade(event.target.value)}>
               <option value="">{t("tradeNone")}</option>
-              <TradeOptions trades={trades} by="id" />
+              <TradeOptions trades={trades} by="id" other={t("otherTrade")} />
             </NativeSelect>
             <p className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">{t("tradeHelp")}</p>
+            {trade === OTHER_TRADE ? (
+              <div className="mt-3">
+                <Label htmlFor="product-trade-other">{t("otherTradeLabel")}</Label>
+                <Input
+                  id="product-trade-other"
+                  required
+                  maxLength={80}
+                  value={tradeOther}
+                  onChange={(event) => {
+                    setTradeOther(event.target.value);
+                    setTradeOtherProblem(false);
+                  }}
+                  placeholder={t("otherTradePlaceholder")}
+                  aria-invalid={tradeOtherProblem || undefined}
+                  aria-describedby={tradeOtherProblem ? "product-trade-other-error" : undefined}
+                />
+                {tradeOtherProblem ? (
+                  <p id="product-trade-other-error" role="alert" className="mt-1.5 text-xs font-medium text-[var(--color-destructive)]">
+                    {t("otherTradeRequired")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

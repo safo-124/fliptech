@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 
 from accounts.views import IsCustomer, _account
 from catalog.listed import listed_course_q, with_a_listed_course
-from catalog.models import Programme, Trade
+from catalog.models import OTHER_TRADE_SLUG, Programme, Trade
 from geography.models import Area
 from providers.filters import ProviderFilter
 from providers.models import Provider
@@ -138,6 +138,7 @@ def _matching_trades(understood, query):
     if not ids and query:
         ids = list(
             Trade.objects.filter(is_active=True)
+            .exclude(slug=OTHER_TRADE_SLUG)
             .filter(Q(name__icontains=query) | Q(synonyms__icontains=query))
             .values_list("pk", flat=True)[:4]
         )

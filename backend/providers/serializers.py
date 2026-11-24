@@ -132,10 +132,14 @@ class IntakeSerializer(serializers.ModelSerializer):
 
 
 class ProgrammeSerializer(serializers.ModelSerializer):
-    trade = serializers.CharField(source="trade.name", read_only=True)
+    trade = serializers.SerializerMethodField()
     trade_slug = serializers.CharField(source="trade.slug", read_only=True)
     trade_colour = serializers.CharField(source="trade.colour", read_only=True)
     intakes = serializers.SerializerMethodField()
+
+    def get_trade(self, obj) -> str:
+        # "Other" says nothing; the trainer's own words for it do.
+        return obj.trade_other or obj.trade.name
 
     class Meta:
         model = Programme

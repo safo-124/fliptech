@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 from django.core.cache import cache
 from django.db.models import Count, Max
 
-from catalog.models import Trade, TradeCategory
+from catalog.models import OTHER_TRADE_SLUG, Trade, TradeCategory
 from geography.models import Area
 
 # Words that say what kind of thing is wanted, not which one. Dropped from
@@ -98,7 +98,7 @@ def _vocabulary():
     found = cache.get(key)
     if found is None:
         trades = []
-        for trade in Trade.objects.filter(is_active=True):
+        for trade in Trade.objects.filter(is_active=True).exclude(slug=OTHER_TRADE_SLUG):
             # (phrase, is the trade's own name): part of a name counts
             # ("mechanics" for "Auto mechanics"), part of a synonym does not,
             # or "phone repair" would match "car repair".

@@ -376,6 +376,8 @@ class Product(TimeStampedModel):
         blank=True,
         related_name="products",
     )
+    # A trade that is not listed, in the seller's words (trade left empty).
+    trade_other = models.CharField(max_length=80, blank=True)
 
     availability = models.CharField(
         max_length=20,

@@ -25,6 +25,7 @@ const complete: TrainerDraftForm = {
   latitude: "5.6037",
   longitude: "-0.1870",
   trade_id: "3",
+  trade_other: "",
   programme_title: "Beginner arc welding",
   fee: "1200.00",
   duration_weeks: "12",
@@ -59,6 +60,7 @@ describe("trainer profile form", () => {
       data_consent: false,
       programme: {
         trade_id: 3,
+        trade_other: "",
         title: "Beginner arc welding",
         fee: "1200.00",
         instalments_allowed: false,
@@ -150,6 +152,18 @@ describe("trainer profile form", () => {
     expect(storage).not.toHaveProperty("id_document_type");
     // The rest of the step still survives a reload.
     expect(storage).toMatchObject({full_name: complete.full_name, role: complete.role});
+  });
+
+  it("takes a trade that is not listed in the trainer's own words", () => {
+    const missing = trainerDraftSchema.safeParse({...complete, trade_id: "other", trade_other: " "});
+    expect(missing.success).toBe(false);
+    expect(missing.error?.issues.map((issue) => issue.path.join("."))).toContain("trade_other");
+
+    const typed = {...complete, trade_id: "other", trade_other: "  Shoe making "};
+    expect(trainerDraftSchema.safeParse(typed).success).toBe(true);
+    const programme = trainerProfilePayload(typed).programme;
+    expect(programme?.trade_id).toBeNull();
+    expect(programme?.trade_other).toBe("Shoe making");
   });
 
   it("keeps the landmark, which the field officer navigates by", () => {

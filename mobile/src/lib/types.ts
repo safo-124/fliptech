@@ -421,6 +421,8 @@ export type SellerProduct = {
   price: string | null;
   was_price: string | null;
   trade: number | null;
+  /** The seller's own words when the trade is not listed. */
+  trade_other?: string;
   availability: "available" | "made_to_order" | "sold_out";
   condition: "new" | "used";
   stock: number | null;
@@ -438,6 +440,7 @@ export type QuickItemInput = {
   price?: string | null;
   was_price?: string | null;
   trade?: number | null;
+  trade_other?: string;
   availability?: SellerProduct["availability"];
   condition?: SellerProduct["condition"];
   stock?: number | null;

@@ -373,7 +373,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             tips.append("add_price")
         if len(obj.description.strip()) < 40:
             tips.append("describe")
-        if not obj.trade_id:
+        if not obj.trade_id and not obj.trade_other:
             tips.append("trade")
         return tips
 
@@ -394,6 +394,7 @@ class OwnProductSerializer(serializers.ModelSerializer):
             "price",
             "was_price",
             "trade",
+            "trade_other",
             "availability",
             "condition",
             "stock",
@@ -415,6 +416,19 @@ class OwnProductSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Give the product a name.")
         return value
+
+    def validate(self, attrs):
+        # A listed trade, or none with the seller's own words ("Other").
+        if attrs.get("trade") is not None:
+            attrs["trade_other"] = ""
+        elif "trade_other" in attrs:
+            typed = " ".join((attrs.get("trade_other") or "").split())
+            if typed and (len(typed) < 3 or not any(ch.isalpha() for ch in typed)):
+                raise serializers.ValidationError(
+                    {"trade_other": "Say what the trade is, for example Shoe making."}
+                )
+            attrs["trade_other"] = typed
+        return attrs
 
 
 class SellerProfileSerializer(serializers.ModelSerializer):

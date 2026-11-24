@@ -571,6 +571,9 @@ VIDEO_MIN_FREE_BYTES = env.int("VIDEO_MIN_FREE_BYTES", default=0)
 # afterwards and block it if it breaks the guidelines. False: every video
 # waits for staff before it shows.
 VIDEO_PUBLISH_WITHOUT_REVIEW = env.bool("VIDEO_PUBLISH_WITHOUT_REVIEW", default=True)
+# Even then, a workshop's first videos wait for staff: until this many of its
+# videos have been watched and approved, each new one waits too.
+VIDEO_TRUSTED_AFTER = env.int("VIDEO_TRUSTED_AFTER", default=3)
 # A listing with this many videos blocked goes back to waiting for review.
 VIDEO_BLOCKS_BEFORE_REVIEW = env.int("VIDEO_BLOCKS_BEFORE_REVIEW", default=2)
 # An upload nobody has added to for this long is abandoned and removed.

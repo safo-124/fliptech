@@ -5,6 +5,7 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 from django.urls import reverse
+from django.utils import timezone
 
 from catalog.models import Programme, Trade
 from providers.models import Provider
@@ -89,7 +90,12 @@ def test_an_enquiry_about_a_hidden_course_says_so_instead_of_a_start_date(board)
     enquiry = Enquiry.objects.create(
         provider=programme.provider,
         programme=programme,
-        intake=Intake.objects.filter(programme=programme, is_open=True).first(),
+        # An upcoming one: the board also has intakes that have started.
+        intake=Intake.objects.filter(
+            programme=programme, is_open=True, start_date__gte=timezone.localdate()
+        )
+        .order_by("start_date")
+        .first(),
         trainee_phone="+233241110000",
     )
     assert TraineeEnquirySerializer(enquiry).data["programme_listed"] is True

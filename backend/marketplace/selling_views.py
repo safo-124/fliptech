@@ -2089,6 +2089,7 @@ class CopyProductView(APIView):
                 price=original.price,
                 was_price=original.was_price,
                 trade=original.trade,
+                trade_other=original.trade_other,
                 availability=original.availability,
                 condition=original.condition,
                 status=Product.Status.DRAFT,

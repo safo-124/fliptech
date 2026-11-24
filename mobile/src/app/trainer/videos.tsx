@@ -150,7 +150,13 @@ type From = "gallery" | "files";
 /** The one line above the form on how a new video reaches the listing. */
 function publishing(limits: TrainerVideoLimits) {
   if (limits.publishes_straight_away) return T.publishesStraightAway;
-  return limits.review_first_because_blocked ? T.reviewFirstBecauseBlocked : T.reviewFirst;
+  if (limits.review_first_because_blocked) return T.reviewFirstBecauseBlocked;
+  const needed = limits.trusted_after ?? 0;
+  const approved = limits.approved_count ?? 0;
+  if (needed && approved < needed) {
+    return `Our team watches your first ${needed} videos before they show on your listing (${approved} approved so far). After that, new videos go on as soon as they are ready, and our team watches them afterwards.`;
+  }
+  return T.reviewFirst;
 }
 /** The upload this screen is sending right now, if any. One at a time: two would share one phone's signal. */
 type Sending = { videoId: number; controller: AbortController };

@@ -441,7 +441,13 @@ class ProductAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "availability", "trade", "seller__area__region", "seller")
-    search_fields = ("name", "description", "seller__business_name", "seller__phone")
+    search_fields = (
+        "name",
+        "description",
+        "seller__business_name",
+        "seller__phone",
+        "trade_other",
+    )
     ordering = ("-created_at",)
     list_select_related = ("seller", "trade")
     autocomplete_fields = ("seller", "trade")
@@ -449,7 +455,7 @@ class ProductAdmin(admin.ModelAdmin):
     actions = ("take_down", "restore_product")
     readonly_fields = ("created_at", "updated_at")
     fieldsets = (
-        (None, {"fields": ("seller", "name", "slug", "trade")}),
+        (None, {"fields": ("seller", "name", "slug", "trade", "trade_other")}),
         ("What it is", {"fields": ("description", "price", "availability")}),
         (
             "Publication",
