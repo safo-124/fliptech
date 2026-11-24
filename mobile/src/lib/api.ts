@@ -166,8 +166,12 @@ export const api = {
     postJson<{ authorization_url: string; reference: string }>(`/api/courses/${area}/${slug}/buy/`, code ? { code } : {}),
   verifyCourse: (reference: string) =>
     postJson<{ status: string; owned: boolean }>(`/api/payments/${reference}/verify/`),
-  lessonProgress: (lesson: number, position: number, completed = false) =>
-    postJson<{ certificate: unknown }>(`/api/learn/lessons/${lesson}/progress/`, { position, completed }),
+  /** Where the learner is, and the stretches played since the last report (lib/played.ts). */
+  lessonProgress: (lesson: number, position: number, watched: [number, number][]) =>
+    postJson<{ lesson: { completed: boolean }; course: { finished: boolean } }>(
+      `/api/learn/lessons/${lesson}/progress/`,
+      { position, watched },
+    ),
   myCourses: () => getJson<{ results: MyCourse[]; signed_in: boolean }>("/api/learn/mine/"),
   /** Tell staff a lesson video breaks the guidelines. A second report from the same person replaces the first. */
   reportVideo: (video: number, reason: string, note: string) =>

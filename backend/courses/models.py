@@ -65,6 +65,9 @@ class CourseOffer(TimeStampedModel):
 
     # The course page, in the trainer's words. One item a line for the two
     # lists, so a trainer on a phone types them as they would a text.
+    # The online course's own name ("Braiding for beginners"). Empty: the
+    # workshop's first course title, then the workshop name (display_title).
+    title = models.CharField(max_length=120, blank=True)
     summary = models.TextField(max_length=1200, blank=True)
     outcomes = models.TextField("what you will learn", max_length=1500, blank=True)
     tools = models.TextField("what you need", max_length=1000, blank=True)
@@ -283,6 +286,11 @@ class LessonProgress(TimeStampedModel):
     )
     position = models.PositiveIntegerField(default=0)
     furthest = models.PositiveIntegerField(default=0)
+    # The parts actually played, as merged [start, end] seconds, and their
+    # total. A lesson is complete at 90% of it watched (courses/learner.py),
+    # so skipping to the end completes nothing.
+    watched = models.JSONField(default=list, blank=True)
+    watched_seconds = models.PositiveIntegerField(default=0)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

@@ -165,17 +165,24 @@ export function Classroom({ data }: { data: CourseDetail }) {
 
   // ---------------------------------------------------- progress
   const report = useCallback(
-    (lesson: ProviderVideo, { position, duration, ended }: PlayerReport) => {
+    (lesson: ProviderVideo, { position, duration, played }: PlayerReport) => {
       setTime(position);
       const key = String(lesson.id);
-      const updated = { ...progressRef.current, [key]: advance(progressRef.current[key], position, duration, ended) };
+      const updated = { ...progressRef.current, [key]: advance(progressRef.current[key], position, duration, played) };
       progressRef.current = updated;
       setProgress(updated);
       const finishedAll = lessons.every((item) => updated[String(item.id)]?.completed);
       if (!signedIn) writeLocal(course.id, updated);
       if (signedIn) {
-        saveProgress(lesson.id, position, ended)
+        saveProgress(lesson.id, position, played)
           .then((reply) => {
+            // The server's word on whether the lesson is finished.
+            const row = progressRef.current[key];
+            if (row && row.completed !== reply.lesson.completed) {
+              const fixed = { ...progressRef.current, [key]: { ...row, completed: reply.lesson.completed } };
+              progressRef.current = fixed;
+              setProgress(fixed);
+            }
             if (reply.course.finished && !celebrated.current) {
               celebrated.current = true;
               setDone({ certificate: reply.course.certificate, needsName: reply.course.needs_name });
@@ -456,13 +463,15 @@ export function Classroom({ data }: { data: CourseDetail }) {
 
       {done ? (
         <CourseComplete
-          courseName={course.name}
+          courseName={course.title || course.name}
           area={course.area_slug}
           slug={course.slug}
           signedIn={signedIn}
           signInHref={signInHref}
           certificate={done.certificate}
           needsName={done.needsName}
+          ownCourse={access?.own_course ?? false}
+          suggestedName={access?.full_name ?? ""}
           programmes={programmes}
           canReview={signedIn}
           onReview={() => {

@@ -93,13 +93,28 @@ export function videoCost(video: {
   kind: string;
   duration_seconds: number | null;
   sources: { bytes: number | null }[];
-}): { minutes: number; mb: number } | null {
+}): { value: number; unit: "sec" | "min"; mb: number } | null {
   const smallest = video.sources[0];
   if (video.kind === "youtube" || !video.duration_seconds || !smallest?.bytes) return null;
   return {
-    minutes: Math.max(1, Math.round(video.duration_seconds / 60)),
+    ...shortLength(video.duration_seconds),
     mb: Math.max(1, Math.round(smallest.bytes / 1024 ** 2)),
   };
+}
+
+/**
+ * A lesson's length for a label: seconds under a minute ("11 sec"), whole
+ * minutes from there ("1 min", "2 min"). Messages say it as
+ * "{value} {unit, select, sec {sec} other {min}}".
+ */
+export function shortLength(seconds: number): { value: number; unit: "sec" | "min" } {
+  if (seconds < 60) return { value: Math.max(1, Math.round(seconds)), unit: "sec" };
+  return { value: Math.round(seconds / 60), unit: "min" };
+}
+
+/** Hours to one decimal, as a number so "1 hour" / "1.5 hours" plural right. */
+export function hoursOf(seconds: number) {
+  return Math.round((seconds / 3600) * 10) / 10;
 }
 
 /**

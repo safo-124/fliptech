@@ -16,7 +16,9 @@ describe("cedis", () => {
 
 describe("courseLength", () => {
   it("counts lessons and minutes, or hours past one", () => {
-    expect(courseLength(1, 30)).toBe("1 lesson · 1 min");
+    expect(courseLength(1, 30)).toBe("1 lesson · 30 sec");
+    expect(courseLength(1, 60)).toBe("1 lesson · 1 min");
+    expect(courseLength(2, 3600)).toBe("2 lessons · 1 hour");
     expect(courseLength(5, 249)).toBe("5 lessons · 4 min");
     expect(courseLength(12, 5400)).toBe("12 lessons · 1.5 hours");
   });

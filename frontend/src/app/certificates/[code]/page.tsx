@@ -119,7 +119,9 @@ export default async function CertificatePage({ params }: { params: Promise<Para
                 {hours > 0 ? (
                   <span className="inline-flex items-center gap-1">
                     <Clock3 aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
-                    {hours >= 1 ? t("hours", { hours: hours.toFixed(1) }) : t("minutes", { minutes: Math.max(1, Math.round(hours * 60)) })}
+                    {hours >= 1
+                      ? t("hours", { hours: Math.round(hours * 10) / 10 })
+                      : t("minutes", { minutes: Math.max(1, Math.round(hours * 60)) })}
                   </span>
                 ) : null}
               </p>

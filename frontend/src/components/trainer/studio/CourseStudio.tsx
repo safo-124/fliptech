@@ -298,7 +298,7 @@ function Overview({ onUnanswered, onGo }: { onUnanswered: (n: number) => void; o
 function CoursePageEditor() {
   const t = useTranslations("CourseStudio");
   const [details, setDetails] = useState<StudioDetails | null>(null);
-  const [form, setForm] = useState({ summary: "", outcomes: "", tools: "", level: "" });
+  const [form, setForm] = useState({ title: "", summary: "", outcomes: "", tools: "", level: "" });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -306,7 +306,13 @@ function CoursePageEditor() {
     getStudioDetails()
       .then((loaded) => {
         setDetails(loaded);
-        setForm({ summary: loaded.summary, outcomes: loaded.outcomes, tools: loaded.tools, level: loaded.level });
+        setForm({
+          title: loaded.title ?? "",
+          summary: loaded.summary,
+          outcomes: loaded.outcomes,
+          tools: loaded.tools,
+          level: loaded.level,
+        });
       })
       .catch(() => setNote({ ok: false, text: t("loadFailed") }));
   }, [t]);
@@ -335,6 +341,18 @@ function CoursePageEditor() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <form onSubmit={save} className="space-y-5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-[var(--shadow-card)]">
+        <div>
+          <label htmlFor="studio-title" className="text-sm font-bold">{t("titleLabel")}</label>
+          <p className="text-xs text-[var(--color-muted-foreground)]">{t("titleHelp")}</p>
+          <input
+            id="studio-title"
+            value={form.title}
+            onChange={(event) => setForm({ ...form, title: event.target.value })}
+            maxLength={120}
+            placeholder={details.title_fallback ?? ""}
+            className={`${field} mt-1.5 h-11`}
+          />
+        </div>
         <div>
           <label htmlFor="studio-summary" className="text-sm font-bold">{t("summaryLabel")}</label>
           <p className="text-xs text-[var(--color-muted-foreground)]">{t("summaryHelp")}</p>
@@ -419,6 +437,7 @@ function CoursePageEditor() {
       {/* A preview of what learners will read. */}
       <aside aria-label={t("preview")} className="h-fit rounded-2xl border border-dashed border-[var(--color-border-strong)] p-5 lg:sticky lg:top-32">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">{t("preview")}</p>
+        <p className="mt-3 text-lg font-extrabold leading-tight">{form.title.trim() || details.title_fallback}</p>
         <p className="mt-3 text-sm leading-relaxed">{form.summary || <span className="text-[var(--color-muted-foreground)]">{t("previewEmpty")}</span>}</p>
         {outcomes.length ? (
           <>

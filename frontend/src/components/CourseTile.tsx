@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { formatCedis } from "@/lib/format";
+import { formatCedis, hoursOf, shortLength } from "@/lib/format";
 import type { CourseCard } from "@/lib/types";
 
 /**
@@ -58,11 +58,8 @@ export function CourseTile({ course }: { course: CourseCard }) {
         <span className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur">
           <Clock3 aria-hidden="true" className="size-3" />
           {hours >= 1
-            ? t("lengthHours", { count: course.lessons, hours: hours.toFixed(1) })
-            : t("lengthMinutes", {
-                count: course.lessons,
-                minutes: Math.max(1, Math.round((course.total_seconds ?? 0) / 60)),
-              })}
+            ? t("lengthHours", { count: course.lessons, hours: hoursOf(course.total_seconds ?? 0) })
+            : t("lengthMinutes", { count: course.lessons, ...shortLength(course.total_seconds ?? 0) })}
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-4">

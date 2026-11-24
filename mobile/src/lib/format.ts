@@ -10,12 +10,21 @@ export function cedis(value: string | number | null | undefined): string {
   })}`;
 }
 
-/** "3 lessons · 12 min" or "5 lessons · 1.5 hours". */
+/** A lesson's length: "11 sec" under a minute, then "1 min", "2 min". */
+export function shortLength(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))} sec`;
+  return `${Math.round(seconds / 60)} min`;
+}
+
+/** "3 lessons · 12 min", "1 lesson · 40 sec" or "5 lessons · 1.5 hours". */
 export function courseLength(lessons: number, seconds: number | null): string {
   const count = `${lessons} ${lessons === 1 ? "lesson" : "lessons"}`;
   const total = seconds ?? 0;
-  if (total >= 3600) return `${count} · ${(total / 3600).toFixed(1)} hours`;
-  return `${count} · ${Math.max(1, Math.round(total / 60))} min`;
+  if (total >= 3600) {
+    const hours = Math.round((total / 3600) * 10) / 10;
+    return `${count} · ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  return `${count} · ${shortLength(total)}`;
 }
 
 /** "3 Nov" or, outside this year, "3 Nov 2027". */

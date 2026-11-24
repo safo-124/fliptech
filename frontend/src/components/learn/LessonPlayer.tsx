@@ -21,6 +21,8 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
+import {newTracker, takePlayed, trackPlayhead, type PlayTracker} from "@/lib/learn-local";
+import {frameStyle, useMediaAspect} from "@/lib/media-aspect";
 import { countPlay } from "@/lib/course-api";
 import { offlineUrl } from "@/lib/offline-lessons";
 import type { ProviderVideo } from "@/lib/types";
@@ -44,7 +46,13 @@ type HlsLike = {
   on(event: string, handler: (...args: unknown[]) => void): void;
 };
 
-export type PlayerReport = { position: number; duration: number; ended: boolean };
+export type PlayerReport = {
+  position: number;
+  duration: number;
+  ended: boolean;
+  /** The stretches played since the last report (not seeks). */
+  played: [number, number][];
+};
 
 function read(key: string) {
   try {
@@ -105,6 +113,7 @@ export function LessonPlayer({
 }) {
   const t = useTranslations("Classroom");
   const [started, setStarted] = useState(autoStart);
+  const {ratio} = useMediaAspect(video.poster);
 
   if (!started) {
     return (
@@ -112,7 +121,8 @@ export function LessonPlayer({
         type="button"
         onClick={() => setStarted(true)}
         aria-label={playLabel}
-        className="group relative block aspect-video w-full overflow-hidden bg-black focus-visible:outline-offset-2"
+        style={frameStyle(ratio)}
+        className="group relative block w-full overflow-hidden bg-black focus-visible:outline-offset-2"
       >
         {video.poster ? (
           <Image
@@ -179,6 +189,10 @@ function ActivePlayer({
   const media = useRef<HTMLVideoElement>(null);
   const hls = useRef<HlsLike | null>(null);
   const lastSave = useRef(0);
+  // What was actually played, as opposed to skipped (lib/learn-local.ts).
+  const tracker = useRef<PlayTracker>(newTracker());
+  // The video's own shape: portrait stays portrait (lib/media-aspect.ts).
+  const aspect = useMediaAspect(video.poster);
   const hideTimer = useRef<number | null>(null);
   const lastTap = useRef<{ at: number; side: "left" | "right" } | null>(null);
   const report = useRef(onReport);
@@ -341,10 +355,12 @@ function ActivePlayer({
     const element = media.current;
     if (!element || !report.current) return;
     lastSave.current = Date.now();
+    trackPlayhead(tracker.current, element.currentTime);
     report.current({
       position: ended ? element.duration || element.currentTime : element.currentTime,
       duration: element.duration || 0,
       ended,
+      played: takePlayed(tracker.current),
     });
   }, []);
 
@@ -536,9 +552,10 @@ function ActivePlayer({
       onPointerMove={poke}
       aria-label={video.title}
       role="region"
-      className={`group/player relative aspect-video w-full select-none overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-violet)] ${
+      style={fullscreen ? undefined : frameStyle(aspect.ratio)}
+      className={`group/player relative w-full select-none overflow-hidden bg-black outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-violet)] ${
         chrome ? "" : "cursor-none"
-      } ${fullscreen ? "!aspect-auto h-full" : ""}`}
+      } ${fullscreen ? "h-full" : ""}`}
     >
       <video
         ref={media}
@@ -551,6 +568,7 @@ function ActivePlayer({
         onLoadedMetadata={(event) => {
           const element = event.currentTarget;
           setDuration(element.duration);
+          aspect.fromVideo(element);
           if (startAt > 5 && startAt < element.duration - 10 && element.currentTime < 1) {
             element.currentTime = startAt;
             setResumed(startAt);
@@ -569,12 +587,20 @@ function ActivePlayer({
           setChrome(true);
           send();
         }}
+        onSeeking={() => {
+          // A jump plays nothing: start counting again from where it lands.
+          tracker.current.last = null;
+        }}
+        onSeeked={(event) => {
+          tracker.current.last = event.currentTarget.currentTime;
+        }}
         onWaiting={() => setWaiting(true)}
         onPlaying={() => setWaiting(false)}
         onCanPlay={() => setWaiting(false)}
         onTimeUpdate={(event) => {
           const element = event.currentTarget;
           setTime(element.currentTime);
+          if (!element.paused && !element.seeking) trackPlayhead(tracker.current, element.currentTime);
           if (element.buffered.length) setBuffered(element.buffered.end(element.buffered.length - 1));
           if (Date.now() - lastSave.current > SAVE_EVERY_MS) send();
         }}

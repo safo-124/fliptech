@@ -84,6 +84,8 @@ export function CourseComplete({
   signInHref,
   certificate: initial,
   needsName,
+  ownCourse = false,
+  suggestedName = "",
   programmes,
   canReview,
   onReview,
@@ -96,6 +98,10 @@ export function CourseComplete({
   signInHref: string;
   certificate: Certificate | null;
   needsName: boolean;
+  /** The viewer runs this workshop: no certificate, say so. */
+  ownCourse?: boolean;
+  /** The account's name, filled in for the learner to confirm. */
+  suggestedName?: string;
   programmes: CourseDetail["programmes"];
   canReview: boolean;
   onReview: () => void;
@@ -105,7 +111,7 @@ export function CourseComplete({
   const dialog = useRef<HTMLDialogElement>(null);
   const [claimed, setClaimed] = useState<Certificate | null>(null);
   const certificate = claimed ?? initial;
-  const [name, setName] = useState("");
+  const [name, setName] = useState(suggestedName);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -116,6 +122,11 @@ export function CourseComplete({
 
   async function claim(event: FormEvent) {
     event.preventDefault();
+    // First name and surname at least; the server checks the rest (filler).
+    if (name.trim().split(/\s+/).filter((word) => /\p{L}/u.test(word)).length < 2) {
+      setProblem(t("nameNeedsTwoWords"));
+      return;
+    }
     setBusy(true);
     setProblem(null);
     try {
@@ -206,6 +217,11 @@ export function CourseComplete({
                 </span>
               </span>
             </a>
+          ) : ownCourse ? (
+            <div className="rounded-2xl border border-dashed border-[var(--color-border-strong)] p-4">
+              <p className="font-bold">{t("ownCourseTitle")}</p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">{t("ownCourseBody")}</p>
+            </div>
           ) : needsName ? (
             <form
               onSubmit={claim}
@@ -214,21 +230,25 @@ export function CourseComplete({
               <label htmlFor="certificate-name" className="font-bold">
                 {t("nameForCertificate")}
               </label>
-              <p className="text-sm text-[var(--color-muted-foreground)]">
+              <p id="certificate-name-help" className="text-sm text-[var(--color-muted-foreground)]">
                 {t("nameForCertificateHelp")}
               </p>
               <div className="mt-3 flex gap-2">
                 <input
                   id="certificate-name"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setProblem(null);
+                  }}
                   maxLength={120}
+                  aria-describedby="certificate-name-help"
                   autoComplete="name"
                   className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--color-input)] px-3 text-sm outline-none focus:border-[var(--color-brand)]"
                 />
                 <button
                   type="submit"
-                  disabled={busy || name.trim().length < 2}
+                  disabled={busy || name.trim().length < 3}
                   className="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--color-brand)] px-4 text-sm font-bold text-white disabled:opacity-50"
                 >
                   {busy ? (
