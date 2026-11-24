@@ -1,4 +1,3 @@
-import {Search} from "lucide-react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 
@@ -8,6 +7,7 @@ import {BrandMark} from "@/components/BrandMark";
 import {BRAND} from "@/lib/brand";
 import {MainNav} from "@/components/nav/MainNav";
 import {MobileNav} from "@/components/nav/MobileNav";
+import {SearchPalette} from "@/components/search/SearchPalette";
 import type {NavLabels, NavSection} from "@/components/nav/types";
 
 /**
@@ -118,13 +118,24 @@ export function SiteHeader() {
           <MainNav sections={sections} labels={labels} />
 
           <div className="flex items-center gap-1.5">
-            {/* An icon from sm, a search pill from xl. */}
-            <Link href="/search" aria-label={t("search")} className="nav-search">
-              <Search aria-hidden className="size-5 text-[var(--color-brand)] xl:size-4" />
-              <span aria-hidden className="hidden xl:inline">
-                {t("searchPill")}
-              </span>
-            </Link>
+            {/* An icon from sm, a search pill from xl; opens the search panel. */}
+            <SearchPalette
+              labels={{
+                open: t("search"),
+                pill: t("searchPill"),
+                placeholder: t("searchPlaceholder"),
+                close: t("searchClose"),
+                trades: t("searchTrades"),
+                workshops: t("searchWorkshopsGroup"),
+                courses: t("searchCourses"),
+                products: t("searchProducts"),
+                shops: t("searchShops"),
+                everything: t("searchEverything", {q: "{q}"}),
+                empty: t("searchEmpty"),
+                failed: t("searchFailed"),
+                hint: t("searchHint"),
+              }}
+            />
             <BasketLink
               labels={{basket: tBasket("basket"), added: tBasket("added"), viewBasket: tBasket("viewBasket")}}
             />

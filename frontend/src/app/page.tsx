@@ -24,7 +24,7 @@
  * the site is usable on a cheap phone on a slow network.
  */
 
-import { ArrowRight, ArrowUpRight, GraduationCap, MapPin, PlayCircle, Search, ShoppingBag } from "lucide-react";
+import { ArrowRight, GraduationCap, PlayCircle, ShieldCheck, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,12 +32,13 @@ import { permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
-import { IntakesBoard } from "@/components/IntakesBoard";
+import { GhanaMap } from "@/components/home/GhanaMap";
+import { HeroSearch, type HeroSearchLabels } from "@/components/home/HeroSearch";
+import { HomeIntakes } from "@/components/home/HomeIntakes";
+import { Rail } from "@/components/home/Rail";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { TradeIcon } from "@/components/TradeArt";
 import { ProductTile } from "@/components/marketplace/ProductTile";
-import { SuggestInput } from "@/components/search/SuggestInput";
-import { Button } from "@/components/ui/button";
 import {
   getAllAreas,
   getAllTrades,
@@ -73,9 +74,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** How many courses and products each half of the featured row shows. Three
-    fills it on a desktop and costs a phone one screen. */
-const FEATURED = 3;
+/** How many courses and products each row holds. The rows scroll, so this
+    is how far a visitor can browse before "View all". */
+const FEATURED = 10;
 
 /** A picture for one of the page's places: staff's choice, or a stand-in. */
 type Picture = { url: string; alt: string; credit?: string; caption?: string; href?: string };
@@ -141,281 +142,220 @@ export default async function Home({
           href: `/${workshop.area_slug}/${workshop.slug}`,
         }
       : null);
-  const training =
-    chosen(pictures.training) ??
-    (workshop?.primary_photo ? { url: workshop.primary_photo, alt: "" } : null);
-  const firstPoster = featuredCourses.find((course) => course.poster)?.poster;
-  const learning = chosen(pictures.learning) ?? (firstPoster ? { url: firstPoster, alt: "" } : null);
-  const firstProduct = featuredProducts.find((product) => product.photo)?.photo;
-  const market =
-    chosen(pictures.marketplace) ?? (firstProduct ? { url: firstProduct, alt: "" } : null);
+  const pins = (workshops?.results ?? []).map(({ lat, lng }) => ({ lat, lng }));
+  const townCount = placesWithWorkshops.length;
+
+  const heroLabels: HeroSearchLabels = {
+    tabsLabel: t("searchTabsLabel"),
+    tabs: { training: t("tabTraining"), courses: t("tabCourses"), products: t("tabProducts") },
+    skillLabel: t("skillLabel"),
+    placeholders: {
+      training: t("skillPlaceholder"),
+      courses: t("coursePlaceholder"),
+      products: t("productPlaceholder"),
+    },
+    placeLabel: t("placeLabel"),
+    anywhere: t("anywhereInGhana"),
+    actions: { training: t("searchAction"), courses: t("searchCourses"), products: t("searchProducts") },
+    everything: t("searchEverything", { q: "{q}" }),
+  };
 
   return (
-    <div>
+    <div className="pb-4">
       {/* ------------------------------------------------------------ hero */}
-      <section className={styles.heroBleed}>
-        <div className="app-shell grid items-center gap-8 py-8 sm:py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-10 lg:py-14">
+      <section className={styles.hero}>
+        <div className={`app-shell grid items-center gap-10 py-10 sm:py-14 lg:gap-14 lg:py-16 ${hero ? "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--color-brand)] sm:text-xs">
-              {t("eyebrow")}
-            </p>
-            <h1 className="mt-3 max-w-[16ch] text-[2.1rem] font-extrabold leading-[1.05] tracking-[-0.04em] text-[var(--color-brand-deep)] sm:text-5xl lg:text-[3.4rem]">
+            <p className="text-[13px] font-medium text-[var(--color-muted-foreground)]">{t("eyebrow")}</p>
+            <h1 className="mt-3 max-w-[17ch] text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] text-[var(--color-brand-deep)] sm:text-5xl lg:text-[3.25rem]">
               {t("headline")}
             </h1>
-            <p className="mt-4 max-w-[46ch] text-[15px] leading-relaxed text-[var(--color-foreground)]/75 sm:text-lg">
+            <p className="mt-4 max-w-[48ch] text-base leading-relaxed text-[var(--color-muted-foreground)] sm:text-lg">
               {t("subhead")}
             </p>
 
-            {/* A GET form, so the core action needs no JavaScript. The fields
-                are the ones /training reads; a free-text area box would be
-                dropped on arrival, so the place is a list of real areas. */}
-            <form action="/training" method="get" className="mt-7">
-              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-2.5 shadow-[var(--shadow-lg)] sm:flex sm:items-center sm:gap-2 sm:p-2">
-                <div className="flex flex-1 items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent sm:px-2">
-                  <Search aria-hidden="true" className="size-4 shrink-0 text-[var(--color-brand)]" />
-                  <label htmlFor="landing-q" className="sr-only">
-                    {t("skillLabel")}
-                  </label>
-                  {/* Suggests as the visitor types; submitting still
-                      searches training, as before. */}
-                  <SuggestInput
-                    id="landing-q"
-                    name="q"
-                    placeholder={t("skillPlaceholder")}
-                    everythingLabel={t("searchEverything", { q: "{q}" })}
-                    className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)]"
-                  />
-                </div>
-
-                <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:mt-0 sm:w-44 sm:shrink-0 sm:border-l sm:border-[var(--color-border)] sm:bg-transparent sm:px-3">
-                  <MapPin aria-hidden="true" className="size-4 shrink-0 text-[var(--color-brand)]" />
-                  <label htmlFor="landing-area" className="sr-only">
-                    {t("placeLabel")}
-                  </label>
-                  <select
-                    id="landing-area"
-                    name="area"
-                    defaultValue=""
-                    className="h-12 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
-                  >
-                    <option value="">{t("anywhere")}</option>
-                    {placesWithWorkshops.map((area) => (
-                      <option key={area.slug} value={area.slug}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <Button type="submit" variant="brand" size="lg" className="mt-2 w-full sm:mt-0 sm:w-auto">
-                  {t("searchAction")}
-                  <ArrowRight aria-hidden="true" />
-                </Button>
-              </div>
-            </form>
+            <HeroSearch areas={placesWithWorkshops} labels={heroLabels} />
 
             {popularTrades.length ? (
-              <div className="mt-4">
-                <span className="text-xs font-semibold text-[var(--color-muted-foreground)]">
-                  {t("popular")}
-                </span>
-                {/* One row that scrolls sideways, edge to edge on a phone,
-                    fading out at the end so it reads as "there is more". */}
+              <div className="mt-4 flex items-start gap-2">
+                <span className="shrink-0 pt-2 text-[13px] text-[var(--color-muted-foreground)]">{t("popular")}</span>
                 <div className={styles.chipRow}>
-                {/* Trades with a workshop to show, most workshops first, so
-                    the first tap never lands on "no providers match". Ties
-                    keep the display order staff set in the back office. */}
-                {popularTrades.map((trade) => (
-                  <Link
-                    key={trade.slug}
-                    href={`/training?trade=${trade.slug}`}
-                    className={styles.chip}
-                  >
-                    {trade.name}
-                  </Link>
-                ))}
+                  {popularTrades.map((trade) => (
+                    <Link key={trade.slug} href={`/training?trade=${trade.slug}`} className={styles.chip}>
+                      {trade.name}
+                    </Link>
+                  ))}
                 </div>
               </div>
             ) : null}
           </div>
 
-          {hero ? <HeroPicture picture={hero} badge={t("heroBadge")} /> : null}
+          {hero ? (
+            <HeroPicture
+              picture={hero}
+              visited={stats && stats.visited > 0 ? t("visitedCard", { count: stats.visited, brand: BRAND }) : null}
+            />
+          ) : null}
         </div>
 
-        {/* Real counts, in place of the star ratings the design shows and
-            the site has no way to back. A count of nothing is left out
-            rather than shown as a zero that reads as "nobody". */}
+        {/* Real counts, shown once they are big enough to reassure rather
+            than to say "nearly empty". */}
         {stats ? (
-          <TrustStrip
-            // The workshop count is the one /training shows, from the same
-            // search, so the two pages never disagree. The site-stats count
-            // is a separately cached request and could lag behind it.
-            stats={workshops ? { ...stats, workshops: workshops.count } : stats}
-            t={t}
-          />
+          <TrustStrip stats={workshops ? { ...stats, workshops: workshops.count } : stats} t={t} />
         ) : null}
       </section>
 
-      {/* -------------------------------------------------------- pillars */}
-      <section className="app-shell mt-8 grid gap-4 sm:mt-10 md:grid-cols-3">
-        <Pillar
-          href="/training"
-          icon={<GraduationCap aria-hidden="true" className="size-6" />}
-          tone="brand"
-          title={t("pillarTrainingTitle")}
-          body={t("pillarTrainingBody")}
-          action={t("pillarTrainingAction")}
-          picture={training}
-        />
-        <Pillar
-          href="/learn"
-          icon={<PlayCircle aria-hidden="true" className="size-6" />}
-          tone="coral"
-          title={t("pillarLearningTitle")}
-          body={t("pillarLearningBody")}
-          action={t("pillarLearningAction")}
-          picture={learning}
-        />
-        <Pillar
-          href="/marketplace"
-          icon={<ShoppingBag aria-hidden="true" className="size-6" />}
-          tone="dye"
-          title={t("pillarMarketTitle")}
-          body={t("pillarMarketBody")}
-          action={t("pillarMarketAction")}
-          picture={market}
-        />
+      {/* ---------------------------------------------------------- bento */}
+      <section className="app-shell mt-10 grid gap-3 sm:mt-12 md:grid-cols-[1.5fr_1fr] md:grid-rows-2">
+        <Link href="/training" className={`${styles.tile} md:row-span-2 md:min-h-[22rem]`}>
+          <span className={styles.tileIcon}>
+            <GraduationCap aria-hidden="true" className="size-5" />
+          </span>
+          <span className={styles.tileTitle}>{t("pillarTrainingTitle")}</span>
+          <span className={styles.tileBody}>{t("pillarTrainingBody")}</span>
+          <span className={styles.tileLink}>
+            {t("pillarTrainingAction")}
+            <ArrowRight aria-hidden="true" className="size-3.5" />
+          </span>
+          {townCount >= MIN_STAT ? (
+            <span className={`${styles.tileStat} mt-auto pt-6`}>
+              <strong>{townCount}</strong>
+              {t("statTowns", { count: townCount })}
+            </span>
+          ) : null}
+          <GhanaMap pins={pins} className={styles.tileMap} />
+        </Link>
+        <Link href="/learn" className={styles.tile}>
+          <span className={styles.tileIcon}>
+            <PlayCircle aria-hidden="true" className="size-5" />
+          </span>
+          <span className={styles.tileTitle}>{t("pillarLearningTitle")}</span>
+          <span className={styles.tileBody}>{t("pillarLearningBody")}</span>
+          <span className={styles.tileLink}>
+            {t("pillarLearningAction")}
+            <ArrowRight aria-hidden="true" className="size-3.5" />
+          </span>
+        </Link>
+        <Link href="/marketplace" className={styles.tile}>
+          <span className={styles.tileIcon}>
+            <ShoppingBag aria-hidden="true" className="size-5" />
+          </span>
+          <span className={styles.tileTitle}>{t("pillarMarketTitle")}</span>
+          <span className={styles.tileBody}>{t("pillarMarketBody")}</span>
+          <span className={styles.tileLink}>
+            {t("pillarMarketAction")}
+            <ArrowRight aria-hidden="true" className="size-3.5" />
+          </span>
+        </Link>
+      </section>
+
+      {/* --------------------------------------------------- starting soon */}
+      {upcoming.length ? <HomeIntakes intakes={upcoming} /> : null}
+
+      {/* ---------------------------------------------------------- courses */}
+      <section className="app-shell mt-14 sm:mt-16">
+        {featuredCourses.length ? (
+          <Rail
+            label={t("coursesTitle")}
+            previous={t("previous")}
+            next={t("next")}
+            head={<SectionHead title={t("coursesTitle")} body={t("coursesBody")} linkHref="/learn" linkLabel={t("coursesAll")} />}
+          >
+            {featuredCourses.map((course) => (
+              <li key={course.id}>
+                <CourseTile course={course} />
+              </li>
+            ))}
+          </Rail>
+        ) : (
+          <>
+            <SectionHead title={t("coursesTitle")} linkHref="/learn" linkLabel={t("coursesAll")} />
+            <Waiting body={t("coursesNone")} href="/trainer/dashboard#videos" action={t("coursesTeach")} />
+          </>
+        )}
       </section>
 
       {/* ------------------------------------------------------ categories */}
-      {liveCategories.length ? (
-        <section id="categories" className="app-shell mt-12 scroll-mt-24 sm:mt-14">
+      {liveCategories.length || trades.length ? (
+        <section id="categories" className="app-shell mt-14 scroll-mt-24 sm:mt-16">
           <SectionHead
-            title={t("categoriesTitle")}
-            body={t("categoriesBody")}
+            title={liveCategories.length ? t("categoriesTitle") : t("skillsTitle")}
+            body={liveCategories.length ? t("categoriesBody") : t("skillsBody")}
             linkHref="/training"
             linkLabel={t("viewAll")}
           />
-          {/* The same quiet tiles as the trades, in brand violet: a category
-              is a group of trades with their own colours, so it has none. */}
-          <ul className={styles.skills}>
-            {liveCategories.map((category) => (
-              <li key={category.slug}>
-                <Link href={`/categories/${category.slug}`} className={`${tradeClass("violet")} ${styles.skill}`}>
-                  <span className={styles.skillIcon}>
-                    <CategoryIcon icon={category.icon} className="size-6" />
-                  </span>
-                  <ArrowUpRight aria-hidden="true" className={styles.skillArrow} />
-                  <span className={styles.skillName}>{category.name}</span>
-                  <span className={styles.skillCount}>
-                    {category.trades
-                      .filter((trade) => trade.provider_count > 0)
-                      .map((trade) => trade.name)
-                      .join(", ") || t("skillCount", { count: category.provider_count })}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : trades.length ? (
-        <section id="categories" className="app-shell mt-12 scroll-mt-24 sm:mt-14">
-          <SectionHead
-            title={t("skillsTitle")}
-            body={t("skillsBody")}
-            linkHref="/training"
-            linkLabel={t("viewAll")}
-          />
-          {/* Quiet tiles: the trade's colour is a hint (the icon, a glow in
-              the corner, the border on hover), not a full pastel block. */}
-          <ul className={styles.skills}>
-            {trades.map((trade) => (
-              <li key={trade.slug}>
-                <Link href={`/trades/${trade.slug}`} className={`${tradeClass(trade.colour)} ${styles.skill}`}>
-                  <span className={styles.skillIcon}>
-                    {trade.picture ? (
-                      <Image src={trade.picture} alt="" fill sizes="48px" className="object-cover" />
-                    ) : (
-                      <TradeIcon colour={trade.colour} className="size-6" />
-                    )}
-                  </span>
-                  <ArrowUpRight aria-hidden="true" className={styles.skillArrow} />
-                  <span className={styles.skillName}>{trade.name}</span>
-                  <span className={styles.skillCount}>{t("skillCount", { count: trade.provider_count })}</span>
-                </Link>
-              </li>
-            ))}
+          <ul className={styles.cats}>
+            {liveCategories.length
+              ? liveCategories.map((category) => (
+                  <li key={category.slug}>
+                    <Link href={`/categories/${category.slug}`} className={styles.cat}>
+                      <span className={styles.catIcon}>
+                        <CategoryIcon icon={category.icon} className="size-5" />
+                      </span>
+                      <span className={styles.catName}>{category.name}</span>
+                      <span className={styles.catCount}>{t("skillCount", { count: category.provider_count })}</span>
+                    </Link>
+                  </li>
+                ))
+              : trades.map((trade) => (
+                  <li key={trade.slug}>
+                    <Link href={`/trades/${trade.slug}`} className={`${tradeClass(trade.colour)} ${styles.cat}`}>
+                      <span className={styles.catIcon}>
+                        {trade.picture ? (
+                          <Image src={trade.picture} alt="" fill sizes="40px" className="object-cover" />
+                        ) : (
+                          <TradeIcon colour={trade.colour} className="size-5" />
+                        )}
+                      </span>
+                      <span className={styles.catName}>{trade.name}</span>
+                      <span className={styles.catCount}>{t("skillCount", { count: trade.provider_count })}</span>
+                    </Link>
+                  </li>
+                ))}
           </ul>
         </section>
       ) : null}
 
-      {/* --------------------------------------------------- starting soon */}
-      {/* The departures board from the search page: the next courses anyone
-          could still join. A reason to act now rather than one day. */}
-      {upcoming.length ? (
-        <section className="app-shell mt-12 sm:mt-14">
-          <IntakesBoard intakes={upcoming} />
-        </section>
-      ) : null}
-
-      {/* -------------------------------------------- courses and products */}
-      <section className="app-shell mt-12 grid gap-10 sm:mt-14 lg:grid-cols-2 lg:gap-8">
-        <div>
-          <SectionHead
-            title={t("coursesTitle")}
-            linkHref="/learn"
-            linkLabel={t("coursesAll")}
-          />
-          {featuredCourses.length ? (
-            <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {featuredCourses.map((course) => (
-                <li key={course.id}>
-                  <CourseTile course={course} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Waiting body={t("coursesNone")} href="/trainer/dashboard#videos" action={t("coursesTeach")} />
-          )}
-        </div>
-        <div>
-          <SectionHead
-            title={t("productsTitle")}
-            linkHref="/marketplace"
-            linkLabel={t("productsAll")}
-          />
-          {featuredProducts.length ? (
-            <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {featuredProducts.map((product) => (
-                <li key={product.id}>
-                  <ProductTile product={product} />
-                </li>
-              ))}
-            </ul>
-          ) : (
+      {/* --------------------------------------------------------- products */}
+      <section className="app-shell mt-14 sm:mt-16">
+        {featuredProducts.length ? (
+          <Rail
+            label={t("productsTitle")}
+            previous={t("previous")}
+            next={t("next")}
+            head={<SectionHead title={t("productsTitle")} body={t("productsBody")} linkHref="/marketplace" linkLabel={t("productsAll")} />}
+          >
+            {featuredProducts.map((product) => (
+              <li key={product.id}>
+                <ProductTile product={product} />
+              </li>
+            ))}
+          </Rail>
+        ) : (
+          <>
+            <SectionHead title={t("productsTitle")} linkHref="/marketplace" linkLabel={t("productsAll")} />
             <Waiting body={t("productsNone")} href="/sell" action={t("productsSell")} />
-          )}
-        </div>
+          </>
+        )}
       </section>
 
       {/* --------------------------------------------------- featured shops */}
-      {/* Shop plan shops, a few at a time in an order that changes daily. */}
       {featuredShops.length ? (
-        <section className="app-shell mt-12 sm:mt-14">
+        <section className="app-shell mt-14 sm:mt-16">
           <SectionHead title={t("shopsTitle")} linkHref="/marketplace" linkLabel={t("productsAll")} />
           <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {featuredShops.map((shop) => (
               <li key={shop.id}>
                 <Link
                   href={`/marketplace/seller/${shop.id}`}
-                  className="group block overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30"
+                  className="block overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] transition-colors hover:border-[var(--color-border-strong)]"
                 >
                   <div className="relative aspect-square bg-[var(--color-muted)]">
                     {shop.photo ? (
                       <Image src={shop.photo} alt="" fill sizes="(min-width: 1024px) 16vw, 50vw" className="object-cover" />
                     ) : null}
                   </div>
-                  <p className="truncate px-3 pt-2.5 text-sm font-bold">{shop.business_name}</p>
+                  <p className="truncate px-3 pt-2.5 text-sm font-semibold">{shop.business_name}</p>
                   <p className="truncate px-3 pb-3 text-xs text-[var(--color-muted-foreground)]">{shop.area}</p>
                 </Link>
               </li>
@@ -424,27 +364,45 @@ export default async function Home({
         </section>
       ) : null}
 
+      {/* ---------------------------------------------------- how it works */}
+      <section aria-labelledby="how-heading" className="app-shell mt-14 sm:mt-16">
+        <h2 id="how-heading" className="text-xl font-semibold tracking-[-0.02em] text-[var(--color-brand-deep)] sm:text-2xl">
+          {t("howTitle")}
+        </h2>
+        <ol className="mt-5 grid gap-3 md:grid-cols-3">
+          {(["Find", "Learn", "Earn"] as const).map((step, index) => (
+            <li key={step} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
+              <span className="grid size-7 place-items-center rounded-full bg-[var(--color-muted)] text-[13px] font-semibold tabular-nums">
+                {index + 1}
+              </span>
+              <h3 className="mt-3 text-base font-semibold">{t(`how${step}Title`)}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--color-muted-foreground)]">{t(`how${step}Body`)}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
       {/* ------------------------------------------------------- become one */}
-      <section className="app-shell mt-12 sm:mt-14">
-        <div className="hero-wash rounded-3xl border border-[var(--color-brand)]/15 px-6 py-8 sm:px-10 lg:flex lg:items-center lg:justify-between lg:gap-10">
+      <section className="app-shell mt-14 sm:mt-16">
+        <div className="rounded-2xl bg-[var(--color-brand-deep)] px-6 py-8 text-white sm:px-10 lg:flex lg:items-center lg:justify-between lg:gap-10">
           <div className="max-w-[52ch]">
-            <h2 className="text-2xl font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)] sm:text-3xl">
-              {t("providerTitle")}
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--color-foreground)]/75 sm:text-base">
-              {t("providerBody")}
-            </p>
+            <h2 className="text-2xl font-semibold tracking-[-0.02em]">{t("providerTitle")}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/75 sm:text-base">{t("providerBody")}</p>
           </div>
           <div className="mt-6 flex flex-col gap-2.5 sm:flex-row lg:mt-0 lg:shrink-0">
-            <Button asChild variant="brand" size="lg">
-              <Link href="/trainer/join">
-                {t("providerAction")}
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/sell">{t("providerSell")}</Link>
-            </Button>
+            <Link
+              href="/trainer/join"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-[var(--color-brand-deep)] transition-colors hover:bg-white/90"
+            >
+              {t("providerAction")}
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </Link>
+            <Link
+              href="/sell"
+              className="inline-flex h-12 items-center justify-center rounded-lg border border-white/35 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              {t("providerSell")}
+            </Link>
           </div>
         </div>
       </section>
@@ -452,10 +410,13 @@ export default async function Home({
   );
 }
 
+/** Below this a count reads as "nearly empty", so it is left out. */
+const MIN_STAT = 10;
+
 /**
- * "38 workshops listed · 12 visited by Fliiptech · …", each only when above
- * zero. The number and its words are one list item, so a screen reader
- * reads "38 workshops listed" as one phrase.
+ * "38 workshops listed · 12 visited by Fliiptech · …", each only once it is
+ * at least MIN_STAT. The number and its words are one list item, so a screen
+ * reader reads "38 workshops listed" as one phrase.
  */
 function TrustStrip({
   stats,
@@ -469,15 +430,15 @@ function TrustStrip({
     { count: stats.visited, label: t("statVisited", { brand: BRAND }) },
     { count: stats.lessons, label: t("statLessons", { count: stats.lessons }) },
     { count: stats.products, label: t("statProducts", { count: stats.products }) },
-  ].filter((item) => item.count > 0);
+  ].filter((item) => item.count >= MIN_STAT);
   if (items.length === 0) return null;
 
   return (
-    <div className="border-t border-[var(--color-brand)]/10">
-      <ul className="app-shell flex flex-wrap gap-x-8 gap-y-3 py-4 sm:py-5">
+    <div className="border-t border-[var(--color-border)]">
+      <ul className="app-shell flex flex-wrap gap-x-8 gap-y-2 py-4">
         {items.map((item) => (
-          <li key={item.label} className="flex items-baseline gap-2 text-sm text-[var(--color-foreground)]/70">
-            <strong className="text-2xl font-extrabold tracking-[-0.03em] text-[var(--color-brand)]">
+          <li key={item.label} className="flex items-baseline gap-2 text-sm text-[var(--color-muted-foreground)]">
+            <strong className="text-xl font-semibold tabular-nums tracking-[-0.02em] text-[var(--color-foreground)]">
               {item.count}
             </strong>
             {item.label}
@@ -489,16 +450,14 @@ function TrustStrip({
 }
 
 /**
- * The large picture beside the search, with the brand's note on it.
- *
- * Its credit sits on the picture whenever there is one, because a Creative
- * Commons photograph requires it. A workshop's photograph standing in for a
- * chosen one says whose it is and links there instead.
+ * The picture beside the search. Its credit or caption sits on it whenever
+ * there is one, because a Creative Commons photograph requires it; a
+ * workshop's photograph standing in says whose it is and links there.
  */
-function HeroPicture({ picture, badge }: { picture: Picture; badge: string }) {
+function HeroPicture({ picture, visited }: { picture: Picture; visited: string | null }) {
   return (
     <figure className="relative">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-[var(--color-brand-soft)] shadow-[var(--shadow-lg)]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[var(--color-muted)]">
         <Image
           src={picture.url}
           alt={picture.alt}
@@ -508,7 +467,7 @@ function HeroPicture({ picture, badge }: { picture: Picture; badge: string }) {
           className="object-cover"
         />
         {picture.credit || picture.caption ? (
-          <figcaption className="absolute bottom-0 left-0 max-w-full rounded-tr-xl bg-black/55 px-3 py-1.5 text-[11px] text-white">
+          <figcaption className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs text-white backdrop-blur-sm">
             {picture.href ? (
               <Link href={picture.href} className="hover:underline">
                 {picture.caption}
@@ -519,76 +478,15 @@ function HeroPicture({ picture, badge }: { picture: Picture; badge: string }) {
           </figcaption>
         ) : null}
       </div>
-      {/* A note pinned to the picture, like a sign on a workshop wall. */}
-      <span
-        aria-hidden="true"
-        className="absolute -top-3 right-3 max-w-[9rem] -rotate-6 rounded-2xl bg-[var(--color-brand-pink)] px-4 py-2.5 text-center text-sm font-extrabold italic leading-tight text-white shadow-[var(--shadow-lg)] sm:max-w-[11rem] sm:text-lg lg:-right-3"
-      >
-        {badge}
-      </span>
-    </figure>
-  );
-}
-
-/** One of the three things the site does, with its picture when it has one. */
-function Pillar({
-  href,
-  icon,
-  tone,
-  title,
-  body,
-  action,
-  picture,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  tone: "brand" | "coral" | "dye";
-  title: string;
-  body: string;
-  action: string;
-  picture: Picture | null;
-}) {
-  const tones = {
-    brand: "bg-[var(--color-brand-soft)] border-[var(--color-brand)]/20",
-    coral: "bg-[#fbe3dc] border-[#f3cec3]",
-    dye: "bg-[#d9e4f2] border-[#c3d4ea]",
-  } as const;
-  const accents = {
-    brand: "bg-[var(--color-brand)]",
-    coral: "bg-[#c2456a]",
-    dye: "bg-[#0c447c]",
-  } as const;
-
-  return (
-    <Link
-      href={href}
-      className={`group flex min-h-40 overflow-hidden rounded-2xl border shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5 ${tones[tone]}`}
-    >
-      <span className="flex min-w-0 flex-1 flex-col p-5">
-        <span className="flex items-center gap-3">
-          <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-white ${accents[tone]}`}>
-            {icon}
+      {visited ? (
+        <span className="absolute -bottom-4 right-4 flex items-center gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3.5 py-2.5 text-[13px] font-medium shadow-[var(--shadow-lg)] sm:-left-6 sm:right-auto">
+          <span className="grid size-7 place-items-center rounded-lg bg-[var(--color-visit-bg)] text-[var(--color-visit)]">
+            <ShieldCheck aria-hidden="true" className="size-4" />
           </span>
-          <span className="text-lg font-extrabold tracking-[-0.02em]">{title}</span>
-        </span>
-        <span className="mt-2 block text-[13px] leading-snug text-[var(--color-foreground)]/70">
-          {body}
-        </span>
-        {/* Styled as a button, but the whole card is the link: one target,
-            and no link inside a link. */}
-        <span
-          className={`mt-4 inline-flex w-fit items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white ${accents[tone]}`}
-        >
-          {action}
-          <ArrowRight aria-hidden="true" className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </span>
-      {picture ? (
-        <span className="relative hidden w-[38%] shrink-0 sm:block md:hidden lg:block">
-          <Image src={picture.url} alt={picture.alt} fill sizes="(min-width: 1024px) 12vw, 30vw" className="object-cover" />
+          {visited}
         </span>
       ) : null}
-    </Link>
+    </figure>
   );
 }
 
@@ -606,14 +504,14 @@ function SectionHead({
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <div className="min-w-0">
-        <h2 className="text-xl font-extrabold tracking-[-0.03em] text-[var(--color-brand-deep)] sm:text-2xl">
+        <h2 className="text-xl font-semibold tracking-[-0.02em] text-[var(--color-brand-deep)] sm:text-2xl">
           {title}
         </h2>
         {body ? <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{body}</p> : null}
       </div>
       <Link
         href={linkHref}
-        className="inline-flex items-center gap-1 text-[13px] font-bold text-[var(--color-brand)] hover:underline"
+        className="inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--color-brand)] hover:underline"
       >
         {linkLabel}
         <ArrowRight aria-hidden="true" className="size-3.5" />
@@ -625,9 +523,9 @@ function SectionHead({
 /** Where a featured row would be, before there is anything to feature. */
 function Waiting({ body, href, action }: { body: string; href: string; action: string }) {
   return (
-    <div className="mt-5 rounded-2xl border border-dashed border-[var(--color-border-strong)] p-6 text-center">
+    <div className="mt-5 rounded-xl border border-dashed border-[var(--color-border-strong)] p-6 text-center">
       <p className="text-sm text-[var(--color-muted-foreground)]">{body}</p>
-      <Link href={href} className="mt-2 inline-block text-sm font-bold text-[var(--color-brand)] hover:underline">
+      <Link href={href} className="mt-2 inline-block text-sm font-semibold text-[var(--color-brand)] hover:underline">
         {action}
       </Link>
     </div>
