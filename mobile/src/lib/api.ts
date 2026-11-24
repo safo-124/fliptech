@@ -24,6 +24,8 @@ import type {
   ProviderCard,
   TrainerShop,
   TradeCategory,
+  Region,
+  UpcomingIntake,
   TradeOption,
   WorkshopDetail,
   QuickItemInput,
@@ -119,6 +121,9 @@ export const api = {
     getJson<Paginated<CourseCard>>("/api/courses/", params),
   /** The categories for browsing, each saying how much is live in it. */
   tradeCategories: () => getJson<TradeCategory[]>("/api/trade-categories/"),
+  /** Ghana's regions with their towns; sixteen, so one page. */
+  regions: () => getJson<Paginated<Region>>("/api/regions/"),
+  upcomingIntakes: (limit = 6) => getJson<UpcomingIntake[]>(`/api/intakes/upcoming/?limit=${limit}`),
   products: (params: Record<string, string | undefined> = {}) =>
     getJson<Paginated<ProductCard>>("/api/products/", params),
   trainerShops: () => getJson<{ results: TrainerShop[] }>("/api/sellers/trainers/"),

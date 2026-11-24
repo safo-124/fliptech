@@ -1,14 +1,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
-import { X } from "lucide-react-native";
+import { MapPin, X } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { WorkshopRow } from "@/components/Cards";
 import { CategoryRow } from "@/components/CategoryRow";
 import { MapButton } from "@/components/MapButton";
 import { PageHeader } from "@/components/PageHeader";
+import { SelectChip, areaOptions } from "@/components/PickerSheet";
 import { Screen } from "@/components/Screen";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
@@ -42,6 +43,7 @@ export default function ExploreScreen() {
     sort: sort || undefined,
     ...(sort === "nearest" && here ? { ...here, radius_km: "100" } : {}),
   };
+  const regions = useQuery({ queryKey: ["regions"], queryFn: api.regions, staleTime: 60 * 60_000 });
   const workshops = useQuery({
     queryKey: ["providers", query],
     queryFn: () => api.providers(query),
@@ -85,35 +87,33 @@ export default function ExploreScreen() {
         action={<MapButton onPress={() => router.push("/map")} />}
       />
       <CategoryRow list="training" selected={category} onSelect={setCategory} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sorts}>
-        {SORTS.map((option) => {
-          const on = sort === option.value;
-          return (
-            <Pressable
-              key={option.label}
-              onPress={() => void choose(option.value)}
-              style={[styles.sort, on ? styles.sortOn : null]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-            >
-              {option.value === "nearest" && locating ? <ActivityIndicator size="small" color={colors.brand} /> : null}
-              <Text style={[styles.sortText, on ? { color: "#fff" } : null]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {params.trade || params.area ? (
+      <View style={styles.sorts}>
+        <SelectChip
+          title="Where are you looking?"
+          searchPlaceholder="Search towns and regions"
+          icon={<MapPin size={15} color={params.area ? colors.brand : colors.mutedForeground} />}
+          options={[{ value: "", label: "Anywhere" }, ...areaOptions(regions.data?.results ?? [], { onlyWithWorkshops: true })]}
+          value={params.area ?? ""}
+          onPick={(area) => router.setParams({ area })}
+        />
+        <SelectChip
+          label="Sort"
+          title="Sort workshops"
+          icon={locating ? <ActivityIndicator size="small" color={colors.brand} /> : null}
+          options={SORTS.map((option) => ({ value: option.value, label: option.label }))}
+          value={sort}
+          onPick={(value) => void choose(value)}
+        />
+      </View>
+      {params.trade ? (
         <Pressable
-          onPress={() => router.setParams({ trade: "", area: "" })}
+          onPress={() => router.setParams({ trade: "" })}
           style={[styles.sort, styles.filter]}
           accessibilityRole="button"
           accessibilityLabel="Remove this filter"
         >
           <Text style={styles.sortText}>
-            {[params.trade, params.area]
-              .filter(Boolean)
-              .map((slug) => slug!.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase()))
-              .join(" · ")}
+            {params.trade.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase())}
           </Text>
           <X size={16} color={colors.mutedForeground} />
         </Pressable>
@@ -161,7 +161,7 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  sorts: { gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md },
+  sorts: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md },
   sort: {
     flexDirection: "row",
     alignItems: "center",
