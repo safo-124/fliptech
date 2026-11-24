@@ -99,7 +99,7 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
   return (
     <article className="h-full">
       <Card
-        className="group h-full overflow-hidden transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-lg)]"
+        className="group h-full overflow-hidden transition-[border-color,box-shadow] hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-card)]"
       >
         <Link
           href={`/${provider.area_slug}/${provider.slug}`}
@@ -150,7 +150,7 @@ export function ProviderCard({ provider }: { provider: ProviderCardData }) {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start gap-2">
-                <h2 className="line-clamp-2 flex-1 text-[15px] font-bold leading-snug tracking-tight sm:text-base">
+                <h2 className="line-clamp-2 flex-1 text-[15px] font-semibold leading-snug tracking-tight sm:text-base">
                   {provider.name}
                 </h2>
                 <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-secondary)] text-[var(--color-muted-foreground)] transition-colors group-hover:bg-[var(--color-brand-soft)] group-hover:text-[var(--color-brand-strong)]">

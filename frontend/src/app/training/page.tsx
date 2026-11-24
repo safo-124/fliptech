@@ -27,10 +27,9 @@ import type { Metadata } from "next";
 import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
-import { BrandShards } from "@/components/BrandShards";
 import { CategoryPill } from "@/components/CategoryPill";
 import { FilterBar } from "@/components/FilterBar";
-import { IntakesBoard } from "@/components/IntakesBoard";
+import { StartingSoon } from "@/components/StartingSoon";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SearchMapPanel } from "@/components/SearchMapPanel";
 import { TradeArt } from "@/components/TradeArt";
@@ -43,6 +42,7 @@ import {
   getAllRegions,
   getNearbyHelp,
   getTradeCategory,
+  getTradeCategories,
   getTrades,
   getUpcomingIntakes,
   searchProviders,
@@ -193,14 +193,13 @@ export default async function SearchPage({
   const groupSize = Number.parseInt(params.places ?? "", 10);
   // Opened from a category page (?category=): its name in the title, only
   // its trades in the filter, and a pill to show every category again.
-  const [chosenCategory, tCategory] = await Promise.all([
+  const [chosenCategory, tCategory, allCategories] = await Promise.all([
     params.category ? getTradeCategory(params.category).catch(() => null) : null,
     getTranslations("CategoryFilter"),
+    getTradeCategories().catch(() => []),
   ]);
-  const inCategory = chosenCategory
-    ? trades.results.filter((trade) => trade.category?.slug === chosenCategory.slug)
-    : [];
-  const filterTrades = inCategory.length ? inCategory : trades.results;
+  // What a course is filed under (catalog/listing.py): one tile each.
+  const categories = allCategories.map(({ slug, name, icon, provider_count }) => ({ slug, name, icon, provider_count }));
   const tradeTitle = params.trade
     ? t("tradeProviders", { trade: titleCase(params.trade) })
     : chosenCategory
@@ -224,79 +223,57 @@ export default async function SearchPage({
 
   return (
     <>
-      {/* The hero, the search and the board share one positioning context: on
-          a wide screen the board sits in the hero's right half, and on a phone
-          it follows the trade tiles. One element, placed by CSS, so it is not
-          rendered twice. */}
-      <div className="relative">
-      {/* The hero continues the header's indigo rather than sitting below it as
-          a separate light block, so the brand reads as one field the page
-          emerges from. The search card then breaks the band's lower edge,
-          which is what stops this looking like a stock hero-over-form. */}
-      <section
-        className={`band relative isolate overflow-hidden pb-20 sm:pb-24 ${boardInHero ? "xl:min-h-[25rem]" : ""}`}
-      >
+      {/* The hero sits on the page's own background with a faint violet wash
+          from the logo, as on the home page; "Starting soon" is a small card
+          beside the headline on a wide screen and follows the search on a
+          phone. */}
+      <section className="relative isolate">
         <div
-          className="surface-grid pointer-events-none absolute inset-0 opacity-[0.07]"
           aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[26rem] bg-[radial-gradient(ellipse_70%_100%_at_30%_0%,color-mix(in_oklab,var(--color-brand-soft)_80%,transparent),transparent_75%)]"
         />
-        {/* Anchored bottom-right, behind the search card that overlaps this
-            band's edge, so the wedges read as depth rather than as clutter.
-            Where the board takes the hero's right half, it replaces them. Not
-            on a phone, where the headline and the sentence fill the width and
-            the wedges only crowd them. */}
-        <BrandShards
-          className={`pointer-events-none absolute -bottom-10 right-0 h-[19rem] w-[22rem] opacity-70 max-sm:hidden sm:h-[23rem] sm:w-[28rem] ${boardInHero ? "xl:hidden" : ""}`}
-        />
-        <div className="app-shell relative z-10 pt-8 sm:pt-10 lg:pt-14">
+        <div
+          className={`app-shell grid gap-8 pt-8 sm:pt-10 lg:pt-12 ${boardInHero ? "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,25rem)] xl:items-end" : ""}`}
+        >
           <div className="max-w-3xl">
-            <span className="badge border-white/20 bg-white/10 text-white/80 backdrop-blur-sm">
+            <p className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--color-muted-foreground)]">
               <MapPin aria-hidden="true" className="size-3.5" />
               {unfiltered && results
                 ? t("heroCount", { count: results.count, coverage })
                 : t("heroBadge", { coverage })}
-            </span>
-            <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.05] tracking-[-0.035em] text-white sm:text-4xl lg:text-[3.25rem]">
-              {t.rich("heroTitle", {
-                highlight: (chunks) => (
-                  <span className="bg-gradient-to-r from-[var(--color-sand)] via-[var(--color-peach)] to-[var(--color-coral)] bg-clip-text text-transparent">
-                    {chunks}
-                  </span>
-                ),
-              })}
+            </p>
+            <h1 className="mt-3 max-w-2xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-[var(--color-brand-deep)] sm:text-4xl lg:text-[3rem]">
+              {t.rich("heroTitle", { highlight: (chunks) => <>{chunks}</> })}
             </h1>
             {/* Not on a phone, where the search should start on the first
                 screen and the headline already says it. */}
-            <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 max-sm:hidden sm:text-base sm:leading-7">
+            <p className="mt-3 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)] max-sm:hidden">
               {t("heroLead")}
             </p>
           </div>
-        </div>
-      </section>
-
-      {/* Pulled up over the band's edge. -mt matches the pb above. */}
-      <div className="app-shell relative z-20 -mt-14 sm:-mt-16">
-        <FilterBar
-          trades={filterTrades}
-          areas={areas}
-          params={params}
-          total={unfiltered && results ? results.count : null}
-        />
-      </div>
-
-      {boardInHero ? (
-        <div className="xl:pointer-events-none xl:absolute xl:inset-x-0 xl:top-0 xl:z-10">
-          <div className="app-shell pt-6 sm:pt-8 xl:flex xl:justify-end xl:pt-14">
-            <div className="xl:pointer-events-auto xl:w-[25rem]">
-              <IntakesBoard
-                intakes={upcoming}
-                className="xl:bg-none xl:bg-white/[0.07] xl:ring-1 xl:ring-white/15"
-              />
+          {boardInHero ? (
+            <div className="max-xl:hidden">
+              <StartingSoon intakes={upcoming} title={t("boardTitle")} allLabel={t("boardAll")} />
             </div>
-          </div>
+          ) : null}
         </div>
-      ) : null}
-      </div>
+
+        <div className="app-shell mt-6 sm:mt-8">
+          <FilterBar
+            categories={categories}
+            trades={trades.results}
+            areas={areas}
+            params={params}
+            total={unfiltered && results ? results.count : null}
+          />
+        </div>
+
+        {boardInHero ? (
+          <div className="app-shell mt-6 xl:hidden">
+            <StartingSoon intakes={upcoming} title={t("boardTitle")} allLabel={t("boardAll")} />
+          </div>
+        ) : null}
+      </section>
 
       {/* pb-24 on phones clears the floating map button below, so it never
           covers the last result card. */}
@@ -332,12 +309,10 @@ export default async function SearchPage({
           <>
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-strong)]">
-                  {t("exploreOptions")}
-                </p>
+                <p className="text-[13px] font-medium text-[var(--color-muted-foreground)]">{t("exploreOptions")}</p>
                 <h2
                   id="search-results-heading"
-                  className="mt-1 text-xl font-bold tracking-tight sm:text-2xl"
+                  className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[var(--color-brand-deep)] sm:text-2xl"
                 >
                   {resultTitle}
                 </h2>
@@ -374,7 +349,7 @@ export default async function SearchPage({
             {results.count > 0 ? (
               <Link
                 href={mapHref}
-                className="band fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[900] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
+                className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[900] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full bg-[var(--color-brand-deep)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] lg:hidden"
               >
                 <Map aria-hidden="true" className="size-4" />
                 {t("viewOnMap", { count: results.count })}
