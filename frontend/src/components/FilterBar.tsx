@@ -11,8 +11,9 @@
  * Still links and a plain GET form, as the filters always were. That is the
  * deliberate choice behind the page-weight budget: the search page ships no
  * JavaScript for its core function, so it works on a mid-range Android over
- * 3G, with a dropped connection, and before hydration. Each blank is the
- * phone's own <select>, opening the phone's own picker; the tiles are links.
+ * 3G, with a dropped connection, and before hydration. Each blank starts as
+ * the phone's own <select> and becomes a searchable list once the script has
+ * loaded; the tiles are links.
  */
 
 import Link from "next/link";
@@ -22,7 +23,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { TradeOptions } from "@/components/TradeOptions";
+import { Picker } from "@/components/ui/picker";
+import { tradeOptions } from "@/lib/picker-options";
 import type { SearchParams } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { formatFee, titleCase } from "@/lib/format";
@@ -30,7 +32,7 @@ import { tradeClass } from "@/lib/trades";
 import type { Trade } from "@/lib/types";
 
 /** An area someone can choose in the sentence: one with workshops in it. */
-export type AreaChoice = { slug: string; name: string };
+export type AreaChoice = { slug: string; name: string; region?: string; count?: number };
 
 function withParam(current: SearchParams, key: keyof SearchParams, value?: string) {
   const next = new URLSearchParams();
@@ -62,20 +64,21 @@ const FEES = ["500", "1000", "1500", "2500"];
  */
 const GROUP_SIZES = ["5", "10", "20", "30"];
 
-/** One blank in the sentence: a <select> dressed as an underlined word. */
+/**
+ * One blank in the sentence: a dropdown dressed as an underlined word. Before
+ * the script loads it is the phone's own <select>; after, a list that can be
+ * searched and is grouped (areas under regions, trades under categories).
+ */
 function Blank({
   label,
   colour,
-  children,
-  ...select
-}: React.ComponentProps<"select"> & { label: string; colour?: string }) {
+  ...picker
+}: Omit<React.ComponentProps<typeof Picker>, "label" | "selectClassName"> & { label: string; colour?: string }) {
   return (
     <span
       className={`blank ${colour ? `${tradeClass(colour)} text-[var(--trade-fg)]` : "text-[var(--color-brand-strong)]"}`}
     >
-      <select aria-label={label} {...select}>
-        {children}
-      </select>
+      <Picker label={label} {...picker} />
     </span>
   );
 }
@@ -125,48 +128,58 @@ export function FilterBar({
                   label={t("tradeLabel")}
                   defaultValue={params.trade ?? ""}
                   colour={chosenTrade?.colour}
-                >
-                  <option value="">{t("anyTrade")}</option>
-                  <TradeOptions trades={trades} />
-                </Blank>
+                  searchPlaceholder={t("findTrade")}
+                  emptyLabel={t("noMatch")}
+                  options={[{ value: "", label: t("anyTrade") }, ...tradeOptions(trades)]}
+                />
               ),
               area: () => (
-                <Blank name="area" label={t("areaLabel")} defaultValue={params.area ?? ""}>
-                  <option value="">{t("anyArea")}</option>
-                  {/* An area reached from elsewhere is kept, so the next
-                      search does not silently drop it. */}
-                  {params.area && !areas.some((area) => area.slug === params.area) ? (
-                    <option value={params.area}>{titleCase(params.area)}</option>
-                  ) : null}
-                  {areas.map((area) => (
-                    <option key={area.slug} value={area.slug}>
-                      {area.name}
-                    </option>
-                  ))}
-                </Blank>
+                <Blank
+                  name="area"
+                  label={t("areaLabel")}
+                  defaultValue={params.area ?? ""}
+                  searchPlaceholder={t("findArea")}
+                  emptyLabel={t("noMatch")}
+                  options={[
+                    { value: "", label: t("anyArea") },
+                    // An area reached from elsewhere is kept, so the next
+                    // search does not silently drop it.
+                    ...(params.area && !areas.some((area) => area.slug === params.area)
+                      ? [{ value: params.area, label: titleCase(params.area) }]
+                      : []),
+                    ...areas.map((area) => ({
+                      value: area.slug,
+                      label: area.name,
+                      group: area.region,
+                      hint: area.count ? t("workshopCount", { count: area.count }) : undefined,
+                    })),
+                  ]}
+                />
               ),
               fee: () => (
-                <Blank name="max_fee" label={t("maximumFee")} defaultValue={params.max_fee ?? ""}>
-                  <option value="">{t("anyAmount")}</option>
-                  {FEES.map((fee) => (
-                    <option key={fee} value={fee}>
-                      {t("upTo", { fee: formatFee(fee, tFormat) })}
-                    </option>
-                  ))}
-                </Blank>
+                <Blank
+                  name="max_fee"
+                  label={t("maximumFee")}
+                  defaultValue={params.max_fee ?? ""}
+                  options={[
+                    { value: "", label: t("anyAmount") },
+                    ...FEES.map((fee) => ({ value: fee, label: t("upTo", { fee: formatFee(fee, tFormat) }) })),
+                  ]}
+                />
               ),
               places: () => (
-                <Blank name="places" label={t("placesNeeded")} defaultValue={params.places ?? ""}>
-                  <option value="">{t("justMe")}</option>
-                  {params.places && !GROUP_SIZES.includes(params.places) ? (
-                    <option value={params.places}>{t("groupOf", { size: params.places })}</option>
-                  ) : null}
-                  {GROUP_SIZES.map((size) => (
-                    <option key={size} value={size}>
-                      {t("groupOf", { size })}
-                    </option>
-                  ))}
-                </Blank>
+                <Blank
+                  name="places"
+                  label={t("placesNeeded")}
+                  defaultValue={params.places ?? ""}
+                  options={[
+                    { value: "", label: t("justMe") },
+                    ...(params.places && !GROUP_SIZES.includes(params.places)
+                      ? [{ value: params.places, label: t("groupOf", { size: params.places }) }]
+                      : []),
+                    ...GROUP_SIZES.map((size) => ({ value: size, label: t("groupOf", { size }) })),
+                  ]}
+                />
               ),
             })}
           </p>

@@ -19,6 +19,7 @@ import { BrandShards } from "@/components/BrandShards";
 import { CourseTile } from "@/components/CourseTile";
 import { ContinueLearning } from "@/components/learn/ContinueLearning";
 import { Button } from "@/components/ui/button";
+import { Picker } from "@/components/ui/picker";
 import { Card } from "@/components/ui/card";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { LEARN_CLIENT_NAMESPACES } from "@/i18n/namespaces";
@@ -131,21 +132,16 @@ export default async function LearnPage({
                 className="h-12 w-full rounded-xl border-0 bg-white pl-12 pr-4 text-[15px] text-[var(--color-foreground)] shadow-lg outline-none ring-2 ring-transparent placeholder:text-[var(--color-muted-foreground)] focus:ring-[var(--color-peach)]"
               />
             </span>
-            <label htmlFor="learn-sort" className="sr-only">
-              {t("sortLabel")}
-            </label>
-            <select
+            <Picker
               id="learn-sort"
               name="sort"
+              label={t("sortLabel")}
               defaultValue={query.sort ?? ""}
-              className="h-12 rounded-xl border border-white/25 bg-white/10 px-3 text-sm font-semibold text-white backdrop-blur [&>option]:text-[var(--color-foreground)]"
-            >
-              {SORTS.map((sort) => (
-                <option key={sort} value={sort}>
-                  {t(`sort.${sort || "recommended"}`)}
-                </option>
-              ))}
-            </select>
+              submitOnChange
+              options={SORTS.map((sort) => ({ value: sort, label: t(`sort.${sort || "recommended"}`) }))}
+              triggerClassName="h-12 rounded-xl border border-white/25 bg-white/10 px-3 text-sm font-semibold text-white backdrop-blur"
+              selectClassName="h-12 rounded-xl border border-white/25 bg-white/10 px-3 text-sm font-semibold text-white backdrop-blur [&>option]:text-[var(--color-foreground)]"
+            />
             <Button type="submit" variant="warm" size="lg" className="h-12">
               {t("searchAction")}
             </Button>

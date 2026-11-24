@@ -452,6 +452,41 @@ body {
     pointer-events: none;
   }
 
+  /* The site's bar along the bottom of a phone (nav/MobileTabBar) gives way
+     to a dashboard's own bar (dashboard/DashboardNav). */
+  body:has([data-dashboard-nav]) .tabbar {
+    display: none;
+  }
+
+  /* The searchable dropdown's button (components/ui/picker.tsx). */
+  .picker-trigger {
+    display: inline-flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    text-align: left;
+  }
+  /* In the search sentence it looks like the select it replaced: an
+     underlined word, with the blank's own chevron. */
+  .blank .picker-trigger {
+    width: auto;
+    max-width: 100%;
+    min-height: 2.75rem;
+    padding: 0 1.15em 0 0.15em;
+    border-bottom: 2px solid currentColor;
+    color: inherit;
+    font: inherit;
+  }
+  .blank .picker-trigger:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  .blank .picker-chevron {
+    display: none;
+  }
+
   /* A checkbox drawn as a switch: "only workshops someone has visited". */
   .switch {
     appearance: none;

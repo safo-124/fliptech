@@ -211,11 +211,15 @@ export default async function SearchPage({
   const searchedTrade = trades.results.find((trade) => trade.slug === params.trade) ?? null;
   // The places the sentence offers: areas with a workshop in them, so no
   // choice leads to an empty page.
-  const areas = regions
-    .flatMap((region) => region.areas)
-    .filter((area) => area.provider_count > 0)
-    .map((area) => ({ slug: area.slug, name: area.name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // Grouped under their regions, a region's areas in order.
+  const areas = [...regions]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((region) =>
+      region.areas
+        .filter((area) => area.provider_count > 0)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((area) => ({ slug: area.slug, name: area.name, region: region.name, count: area.provider_count })),
+    );
   const boardInHero = showBoard && upcoming.length > 0;
 
   return (
@@ -370,7 +374,7 @@ export default async function SearchPage({
             {results.count > 0 ? (
               <Link
                 href={mapHref}
-                className="band fixed inset-x-0 bottom-5 z-[900] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
+                className="band fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[900] mx-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] ring-1 ring-white/20 lg:hidden"
               >
                 <Map aria-hidden="true" className="size-4" />
                 {t("viewOnMap", { count: results.count })}

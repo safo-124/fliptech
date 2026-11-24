@@ -38,8 +38,12 @@ test.describe("public discovery UI", () => {
     await expect(page.locator("[data-provider-map]")).toHaveCount(0);
 
     await expectMinimumTapHeight(page, "#provider-search");
-    for (const blank of ["trade", "area", "max_fee", "places"]) {
-      await expectMinimumTapHeight(page, `select[name="${blank}"]`);
+    // Each blank of the sentence is a searchable dropdown's button.
+    const blanks = page.locator(".blank .picker-trigger");
+    await expect(blanks).toHaveCount(4);
+    for (let index = 0; index < 4; index += 1) {
+      const height = await blanks.nth(index).evaluate((element) => element.getBoundingClientRect().height);
+      expect(height).toBeGreaterThanOrEqual(44);
     }
     await expectMinimumTapHeight(page, 'button[type="submit"]');
     await expectNoPageOverflow(page);
@@ -50,15 +54,17 @@ test.describe("public discovery UI", () => {
     await page.setViewportSize({width: 375, height: 812});
     await page.goto(searchPage);
 
-    // The phone's own picker, so a plain choice and a submit, with no script.
-    const trade = page.getByLabel("Trade", {exact: true});
-    const firstTrade = await trade.locator("option").nth(1).getAttribute("value");
-    await trade.selectOption(firstTrade!);
-    await page.getByLabel("Maximum fee").selectOption("2500");
+    // Each blank opens a list (a sheet on a phone); pick, then submit.
+    await page.getByRole("button", {name: /^Trade:/}).click();
+    await page.getByRole("option").nth(1).click();
+    const firstTrade = await page.locator('input[type="hidden"][name="trade"]').inputValue();
+    expect(firstTrade).not.toBe("");
+    await page.getByRole("button", {name: /^Maximum fee:/}).click();
+    await page.getByRole("option", {name: /2,500/}).click();
     await page.getByRole("button", {name: /show workshops/i}).click();
     await expect(page).toHaveURL(new RegExp(`trade=${firstTrade}`));
     await expect(page).toHaveURL(/max_fee=2500/);
-    await expect(page.getByLabel("Trade", {exact: true})).toHaveValue(firstTrade!);
+    await expect(page.locator('input[type="hidden"][name="trade"]')).toHaveValue(firstTrade);
 
     // A tile keeps the rest of the sentence and changes only the trade.
     const tiles = page.getByRole("navigation", {name: "Trades"});

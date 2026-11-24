@@ -36,11 +36,12 @@ import { GhanaMap } from "@/components/home/GhanaMap";
 import { HeroSearch, type HeroSearchLabels } from "@/components/home/HeroSearch";
 import { HomeIntakes } from "@/components/home/HomeIntakes";
 import { Rail } from "@/components/home/Rail";
+import { areaOptions } from "@/lib/picker-options";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { TradeIcon } from "@/components/TradeArt";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import {
-  getAllAreas,
+  getAllRegions,
   getAllTrades,
   getHomePictures,
   getSiteStats,
@@ -95,11 +96,11 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, areas, pictures, workshops, courses, products, stats, upcoming, t, shops, categories] = await Promise.all([
+  const [trades, regions, pictures, workshops, courses, products, stats, upcoming, t, shops, categories] = await Promise.all([
     // getAllTrades, not getTrades: trades are created by staff in the
     // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
-    getAllAreas().catch(() => []),
+    getAllRegions().catch(() => []),
     getHomePictures().catch((): HomePictures => ({})),
     searchProviders({}).catch(() => null),
     listCourses().catch(() => null),
@@ -116,9 +117,10 @@ export default async function Home({
   const liveCategories = categories.filter((category) => category.live);
   // The same rule as /training's area choice: only places with a workshop,
   // so every choice in "Where are you looking?" leads to results.
-  const placesWithWorkshops = areas
-    .filter((area) => area.provider_count > 0)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const placesWithWorkshops = areaOptions(regions, {
+    onlyWithWorkshops: true,
+    countLabel: (count) => t("skillCount", { count }),
+  });
   const popularTrades = trades
     .map((trade, order) => ({trade, order}))
     .filter(({trade}) => trade.provider_count > 0)
@@ -156,6 +158,8 @@ export default async function Home({
     },
     placeLabel: t("placeLabel"),
     anywhere: t("anywhereInGhana"),
+    findArea: t("findArea"),
+    noMatch: t("noMatch"),
     actions: { training: t("searchAction"), courses: t("searchCourses"), products: t("searchProducts") },
     everything: t("searchEverything", { q: "{q}" }),
   };

@@ -119,6 +119,7 @@ export function DashboardBottomBar<Key extends string>({
   const t = useTranslations("DashboardNav");
   return (
     <nav
+      data-dashboard-nav
       aria-label={t("sections")}
       /* pb-[env(safe-area-inset-bottom)] keeps the row clear of the iOS home
          indicator, which otherwise sits on top of the last few pixels. */
