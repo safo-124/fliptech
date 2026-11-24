@@ -55,22 +55,22 @@ test.describe("public discovery UI", () => {
     await page.goto(searchPage);
 
     // Each blank opens a list (a sheet on a phone); pick, then submit.
-    await page.getByRole("button", {name: /^Trade:/}).click();
+    await page.getByRole("button", {name: /^Category:/}).click();
     await page.getByRole("option").nth(1).click();
-    const firstTrade = await page.locator('input[type="hidden"][name="trade"]').inputValue();
-    expect(firstTrade).not.toBe("");
+    const firstCategory = await page.locator('input[type="hidden"][name="category"]').inputValue();
+    expect(firstCategory).not.toBe("");
     await page.getByRole("button", {name: /^Maximum fee:/}).click();
     await page.getByRole("option", {name: /2,500/}).click();
     await page.getByRole("button", {name: /show workshops/i}).click();
-    await expect(page).toHaveURL(new RegExp(`trade=${firstTrade}`));
+    await expect(page).toHaveURL(new RegExp(`category=${firstCategory}`));
     await expect(page).toHaveURL(/max_fee=2500/);
-    await expect(page.locator('input[type="hidden"][name="trade"]')).toHaveValue(firstTrade);
+    await expect(page.locator('input[type="hidden"][name="category"]')).toHaveValue(firstCategory);
 
-    // A tile keeps the rest of the sentence and changes only the trade.
-    const tiles = page.getByRole("navigation", {name: "Trades"});
+    // A tile keeps the rest of the sentence and changes only the category.
+    const tiles = page.getByRole("navigation", {name: "Categories"});
     await expect(tiles.locator('[aria-current="page"]')).toHaveCount(1);
-    await tiles.getByRole("link", {name: /all trades/i}).click();
-    await expect(page).not.toHaveURL(/trade=/);
+    await tiles.getByRole("link", {name: /all categories/i}).click();
+    await expect(page).not.toHaveURL(/category=/);
     await expect(page).toHaveURL(/max_fee=2500/);
     await expectNoPageOverflow(page);
   });

@@ -17,14 +17,15 @@
  */
 
 import Link from "next/link";
-import { ArrowRight, Search, X } from "lucide-react";
+import { ArrowRight, Ellipsis, LayoutGrid, Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Picker } from "@/components/ui/picker";
-import { tradeOptions } from "@/lib/picker-options";
+import { CategoryIcon } from "@/components/CategoryIcon";
+import { OTHER_TRADE } from "@/components/TradeOptions";
 import type { SearchParams } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { formatFee, titleCase } from "@/lib/format";
@@ -45,8 +46,10 @@ function withParam(current: SearchParams, key: keyof SearchParams, value?: strin
   return query ? `/training?${query}` : "/training";
 }
 
+// The trade is not a blank any more (the categories are), so a ?trade= from
+// an older link rides along as a hidden field, shown as a pill to remove.
 const FORM_FIELDS = new Set<keyof SearchParams>([
-  "trade",
+  "category",
   "area",
   "q",
   "max_fee",
@@ -83,16 +86,22 @@ function Blank({
   );
 }
 
+/** A category to browse by: one tile, and one choice in the sentence. */
+export type CategoryChoice = { slug: string; name: string; icon: string; provider_count: number };
+
 export function FilterBar({
+  categories,
   trades,
   areas,
   params,
   total,
 }: {
+  categories: CategoryChoice[];
+  /** Every trade, to name one reached by an older link (?trade=welding). */
   trades: Trade[];
   areas: AreaChoice[];
   params: SearchParams;
-  /** How many workshops there are in all, for the "All trades" tile, when known. */
+  /** How many workshops there are in all, for the "All categories" tile, when known. */
   total: number | null;
 }) {
   const t = useTranslations("FilterBar");
@@ -102,10 +111,22 @@ export function FilterBar({
     ([key, value]) => value && !FORM_FIELDS.has(key as keyof SearchParams),
   );
   const chosenTrade = trades.find((trade) => trade.slug === params.trade);
+  // The page for one category (or every one, or a trade), keeping the rest
+  // of the sentence: the place, the fee, the group size.
+  const withCategory = (slug?: string, trade?: string) => {
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value && key !== "page" && key !== "category" && key !== "trade") next.set(key, value);
+    }
+    if (slug) next.set("category", slug);
+    if (trade) next.set("trade", trade);
+    const query = next.toString();
+    return query ? `/training?${query}` : "/training";
+  };
 
   return (
     <div>
-      <Card className="relative bg-[var(--color-card)] p-4 shadow-[var(--shadow-lg)] sm:p-6">
+      <Card className="relative border-[var(--color-border-strong)] bg-[var(--color-card)] p-4 shadow-none sm:p-6">
         {hasFilters ? (
           <Button asChild variant="ghost" size="sm" className="absolute right-2 top-2 min-h-11">
             <Link href="/training">
@@ -124,13 +145,17 @@ export function FilterBar({
             {t.rich("sentence", {
               trade: () => (
                 <Blank
-                  name="trade"
+                  name="category"
                   label={t("tradeLabel")}
-                  defaultValue={params.trade ?? ""}
-                  colour={chosenTrade?.colour}
-                  searchPlaceholder={t("findTrade")}
-                  emptyLabel={t("noMatch")}
-                  options={[{ value: "", label: t("anyTrade") }, ...tradeOptions(trades)]}
+                  defaultValue={params.category ?? ""}
+                  options={[
+                    { value: "", label: t("anyTrade") },
+                    ...categories.map((category) => ({
+                      value: category.slug,
+                      label: category.name,
+                      hint: t("workshopCount", { count: category.provider_count }),
+                    })),
+                  ]}
                 />
               ),
               area: () => (
@@ -220,33 +245,89 @@ export function FilterBar({
         </form>
       </Card>
 
-      {/* The trades as tiles. A row to swipe on a phone, a grid from sm. */}
-      <nav aria-label={t("filterByTrade")} className="scrollbar-none -mx-3 overflow-x-auto px-3 pt-3 sm:mx-0 sm:overflow-visible sm:px-0">
-        <ul className="flex gap-2.5 sm:grid sm:grid-cols-4 lg:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]">
-          <li className="w-[7.5rem] shrink-0 sm:w-auto">
-            <Link
-              href={withParam(params, "trade", undefined)}
-              aria-current={!params.trade ? "page" : undefined}
-              className={`trade-tile ${tradeClass("violet")}`}
-            >
-              {t("allTrades")}
-              {total !== null ? <small>{t("workshopCount", { count: total })}</small> : null}
-            </Link>
+      {chosenTrade ? (
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
+          <Link
+            href={withParam(params, "trade", undefined)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-card)] px-3 font-medium text-[var(--color-foreground)] hover:border-[var(--color-brand)]"
+          >
+            {chosenTrade.name}
+            <X aria-hidden="true" className="size-3.5" />
+          </Link>
+        </p>
+      ) : null}
+
+      {/* The categories as tiles. A row to swipe on a phone, a grid from sm. */}
+      <nav aria-label={t("filterByTrade")} className="scrollbar-none -mx-3 overflow-x-auto px-3 pt-4 sm:mx-0 sm:overflow-visible sm:px-0">
+        <ul className="flex gap-2.5 sm:grid sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
+          <li className="w-44 shrink-0 sm:w-auto">
+            <CategoryTile
+              href={withCategory(undefined)}
+              current={!params.category && !params.trade}
+              icon={<LayoutGrid aria-hidden="true" className="size-[1.15rem]" />}
+              name={t("allTrades")}
+              note={total !== null ? t("workshopCount", { count: total }) : null}
+            />
           </li>
-          {trades.map((trade) => (
-            <li key={trade.slug} className="w-[7.5rem] shrink-0 sm:w-auto">
-              <Link
-                href={withParam(params, "trade", trade.slug)}
-                aria-current={params.trade === trade.slug ? "page" : undefined}
-                className={`trade-tile ${tradeClass(trade.colour)}`}
-              >
-                {trade.name}
-                <small>{t("workshopCount", { count: trade.provider_count })}</small>
-              </Link>
+          {categories.map((category) => (
+            <li key={category.slug} className="w-44 shrink-0 sm:w-auto">
+              <CategoryTile
+                href={withCategory(category.slug)}
+                current={params.category === category.slug}
+                icon={<CategoryIcon icon={category.icon} className="size-[1.15rem]" />}
+                name={category.name}
+                note={t("workshopCount", { count: category.provider_count })}
+              />
             </li>
           ))}
+          {/* "Others (describe)": courses filed under the Other trade. */}
+          <li className="w-44 shrink-0 sm:w-auto">
+            <CategoryTile
+              href={withCategory(undefined, OTHER_TRADE)}
+              current={params.trade === OTHER_TRADE}
+              icon={<Ellipsis aria-hidden="true" className="size-[1.15rem]" />}
+              name={t("others")}
+              note={t("othersNote")}
+            />
+          </li>
         </ul>
       </nav>
     </div>
+  );
+}
+
+function CategoryTile({
+  href,
+  current,
+  icon,
+  name,
+  note,
+}: {
+  href: string;
+  current: boolean;
+  icon: React.ReactNode;
+  name: string;
+  note: string | null;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={current ? "page" : undefined}
+      className={`grid h-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-0.5 rounded-xl border p-3 transition-colors ${
+        current
+          ? "border-[var(--color-brand)] bg-[var(--color-brand-soft)]"
+          : "border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-border-strong)]"
+      }`}
+    >
+      <span
+        className={`row-span-2 grid size-9 place-items-center rounded-lg text-[var(--color-brand)] ${
+          current ? "bg-[var(--color-card)]" : "bg-[var(--color-muted)]"
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="text-[13px] font-semibold leading-tight">{name}</span>
+      {note ? <span className="text-xs text-[var(--color-muted-foreground)]">{note}</span> : null}
+    </Link>
   );
 }

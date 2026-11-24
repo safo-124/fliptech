@@ -566,11 +566,11 @@
   },
   "FilterBar": {
     "sentence": "I want to learn <trade></trade> in <area></area>, costing <fee></fee>, for <places></places>.",
-    "tradeLabel": "Trade",
+    "tradeLabel": "Category",
     "areaLabel": "Area",
     "maximumFee": "Maximum fee",
     "placesNeeded": "Places needed",
-    "anyTrade": "any trade",
+    "anyTrade": "any category",
     "anyArea": "any area",
     "anyAmount": "any amount",
     "upTo": "up to {fee}",
@@ -581,12 +581,14 @@
     "visitedOnly": "Only workshops {brand} has visited",
     "showWorkshops": "Show workshops",
     "clearFilters": "Clear",
-    "filterByTrade": "Trades",
-    "allTrades": "All trades",
+    "filterByTrade": "Categories",
+    "allTrades": "All categories",
     "workshopCount": "{count, plural, one {# workshop} other {# workshops}}",
     "findTrade": "Search trades",
     "findArea": "Search towns and regions",
-    "noMatch": "Nothing matches. Try another spelling."
+    "noMatch": "Nothing matches. Try another spelling.",
+    "others": "Others",
+    "othersNote": "Described by trainers"
   },
   "ProviderCard": {
     "feeFrom": "Fee from",
@@ -646,7 +648,8 @@
     "boardNote": "The next courses with places",
     "boardPlaces": "{count, plural, one {# place left} other {# places left}}",
     "boardOpen": "Places open",
-    "heroCount": "{count, plural, one {# workshop} other {# workshops}} {coverage}"
+    "heroCount": "{count, plural, one {# workshop} other {# workshops}} {coverage}",
+    "boardAll": "All intakes"
   },
   "MapView": {
     "clusterTitle": "{count} providers. Open to zoom in.",
