@@ -107,6 +107,20 @@ def _bad(field, message):
 MAX_TOOL_PRODUCTS = 12
 
 
+def course_title_fallback(provider):
+    """What the course is called while its own title is empty."""
+    from .learner import course_title
+
+    if hasattr(provider, "course_offer"):
+        offer_title = provider.course_offer.title
+        provider.course_offer.title = ""
+        try:
+            return course_title(provider)
+        finally:
+            provider.course_offer.title = offer_title
+    return course_title(provider)
+
+
 def _trade_slug(provider):
     programme = (
         provider.programmes.filter(is_active=True).select_related("trade").order_by("pk").first()
@@ -116,6 +130,9 @@ def _trade_slug(provider):
 
 def details_payload(offer):
     return {
+        # Its own name; empty falls back (courses.learner.course_title).
+        "title": offer.title,
+        "title_fallback": course_title_fallback(offer.provider),
         "summary": offer.summary,
         "outcomes": offer.outcomes,
         "tools": offer.tools,
@@ -156,7 +173,12 @@ class StudioDetailsView(TrainerView):
         offer, _created = CourseOffer.objects.get_or_create(provider=self.provider(request))
         data = request.data
         fields = []
-        for name, limit in (("summary", 1200), ("outcomes", 1500), ("tools", 1000)):
+        for name, limit in (
+            ("title", 120),
+            ("summary", 1200),
+            ("outcomes", 1500),
+            ("tools", 1000),
+        ):
             if name in data:
                 setattr(offer, name, str(data.get(name) or "").strip()[:limit])
                 fields.append(name)

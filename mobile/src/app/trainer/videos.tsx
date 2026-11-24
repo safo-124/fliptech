@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { Check, CircleCheck, FolderOpen, Images, Pause, ShieldCheck, Trash2, Upload, Video } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { shortLength } from "@/lib/format";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button, Field, FormError } from "@/components/Form";
@@ -50,9 +51,9 @@ const T = {
   // Whether a video shows before or after our team has watched it: the
   // server's switch, and review-first again for a trainer with two removed.
   publishesStraightAway:
-    "Your videos go on your listing as soon as they are ready. Our team watches them afterwards and removes any that break the guidelines.",
-  reviewFirstBecauseBlocked: "Two of your videos were removed, so our team now watches each new video before it shows.",
-  reviewFirst: "Our team watches each video before it shows on your listing.",
+    `Your videos appear on your listing as soon as they are ready. ${BRAND} checks each one soon after and removes any that break the guidelines.`,
+  reviewFirstBecauseBlocked: `Two of your videos were removed, so ${BRAND} now watches each new video before it appears.`,
+  reviewFirst: `${BRAND} watches each video before it appears on your listing.`,
   tipsTitle: "Before you film",
   tips: (minutes: number) => [
     `One lesson per video, up to ${minutes} minutes. Split a longer course into lessons.`,
@@ -90,7 +91,7 @@ const T = {
   addFailed: "That video could not be started. Check your connection and try again.",
   removeFailed: "That video could not be removed. Try again.",
   loadFailed: "Your videos could not be loaded. Check your connection and try again.",
-  empty: `No videos yet. Once ${BRAND} has watched one you send, trainees can play it on your listing.`,
+  empty: "No videos yet. Send your first lesson, and trainees can play it on your listing once it is approved.",
   emptyStraightAway: "No videos yet. Once one you send is ready, trainees can play it on your listing.",
   count: (count: number, max: number, used: string, hours: number) =>
     `${count} ${count === 1 ? "video" : "videos"} of ${max} · ${used} of ${hours} hours used.`,
@@ -121,7 +122,6 @@ const T = {
   resumeLabel: (name: string) => `Choose “${name}” again`,
   wrongFile: (name: string) => `That is not the same video. Choose “${name}”, or remove this one and start again.`,
   pause: "Pause",
-  length: (minutes: number) => `${minutes} ${minutes === 1 ? "minute" : "minutes"}`,
   reviewNote: (note: string) => `Why: ${note}`,
   failureNote: (reason: string) => `What went wrong: ${reason}`,
   remove: "Remove",
@@ -154,7 +154,7 @@ function publishing(limits: TrainerVideoLimits) {
   const needed = limits.trusted_after ?? 0;
   const approved = limits.approved_count ?? 0;
   if (needed && approved < needed) {
-    return `Our team watches your first ${needed} videos before they show on your listing (${approved} approved so far). After that, new videos go on as soon as they are ready, and our team watches them afterwards.`;
+    return `${BRAND} watches your first ${needed} videos before they appear on your listing (${approved} approved so far). After that, new videos appear as soon as they are ready, and ${BRAND} checks each one soon after.`;
   }
   return T.reviewFirst;
 }
@@ -774,7 +774,7 @@ function VideoCard({
         </View>
         <Text variant="heading">{video.title}</Text>
         {video.duration_seconds ? (
-          <Text variant="small">{T.length(Math.max(1, Math.round(video.duration_seconds / 60)))}</Text>
+          <Text variant="small">{shortLength(video.duration_seconds)}</Text>
         ) : null}
         {uploading ? (
           <View style={{ gap: 6 }}>

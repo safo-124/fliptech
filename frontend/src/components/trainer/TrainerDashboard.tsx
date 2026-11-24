@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   FilePenLine,
   GraduationCap,
   LayoutDashboard,
@@ -611,14 +612,24 @@ export function TrainerDashboard() {
                   ) : null}
                 </div>
               </div>
-              {profile.editable ? (
-                <Button asChild variant="outline" className="w-full sm:w-auto">
-                  <Link href="/trainer/join">
-                    <FilePenLine aria-hidden="true" />
-                    {t("editDraft")}
-                  </Link>
-                </Button>
-              ) : null}
+              <div className="flex w-full flex-col gap-2 sm:w-auto">
+                {profile.editable ? (
+                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                    <Link href="/trainer/join">
+                      <FilePenLine aria-hidden="true" />
+                      {profile.status === "published" ? t("editListing") : t("editDraft")}
+                    </Link>
+                  </Button>
+                ) : null}
+                {profile.public_path ? (
+                  <Button asChild variant="ghost" className="w-full sm:w-auto">
+                    <Link href={profile.public_path}>
+                      <ExternalLink aria-hidden="true" />
+                      {t("viewPublicPage")}
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </CardHeader>
           {profile.review_note ? (

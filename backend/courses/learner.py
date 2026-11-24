@@ -53,10 +53,15 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# A lesson counts as finished at 90% of it, or within the last 20 seconds:
-# a trainer's goodbye is not something to sit through for a tick.
+# A lesson counts as finished once 90% of it has actually been played: the
+# parts played are kept as time ranges (LessonProgress.watched), so seeking to
+# the end adds nothing.
 FINISHED_SHARE = 0.9
-FINISHED_TAIL_SECONDS = 20
+# Played time can only come in as fast as time passes (allowing 2x speed and
+# a little slack for a request that was held back): ranges claiming more
+# than that are refused.
+MAX_SPEED = 2
+SLACK_SECONDS = 30
 
 
 def _lesson_or_404(video_id):
@@ -94,11 +99,104 @@ def first_name(trainee):
 # Progress and certificates
 
 
-def is_finished(video, furthest):
+def merge_ranges(ranges):
+    """[[start, end], ...] sorted and joined where they touch or overlap."""
+    merged = []
+    for start, end in sorted(ranges):
+        if merged and start <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+
+def clean_ranges(raw, length):
+    """The played ranges a client sent, as whole seconds inside the lesson.
+    Anything that is not a [start, end] pair of numbers is dropped."""
+    cleaned = []
+    if not isinstance(raw, list):
+        return cleaned
+    for pair in raw[:200]:
+        try:
+            start, end = (float(pair[0]), float(pair[1]))
+        except (TypeError, ValueError, IndexError, KeyError):
+            continue
+        start, end = max(0, int(start)), int(round(end))
+        if length:
+            end = min(end, length)
+        if end > start:
+            cleaned.append([start, end])
+    return cleaned
+
+
+def watched_total(ranges):
+    return sum(end - start for start, end in ranges)
+
+
+def is_finished(video, watched_seconds):
     length = video.duration_seconds or 0
     if length <= 0:
-        return furthest > 0
-    return furthest >= length * FINISHED_SHARE or furthest >= length - FINISHED_TAIL_SECONDS
+        # No length known (an outside video): played at all is all we can say.
+        return watched_seconds > 0
+    return watched_seconds >= length * FINISHED_SHARE
+
+
+def add_watched(row, video, raw, now):
+    """Fold newly played ranges into the row. Returns False when they claim
+    more playing than the time since the last report allows."""
+    added = clean_ranges(raw, video.duration_seconds or 0)
+    if not added:
+        return True
+    merged = merge_ranges([list(pair) for pair in row.watched or []] + added)
+    total = watched_total(merged)
+    gained = total - (row.watched_seconds or 0)
+    since = row.updated_at or row.created_at or now
+    elapsed = max(0, (now - since).total_seconds()) if row.pk else 0
+    if gained > elapsed * MAX_SPEED + SLACK_SECONDS:
+        return False
+    row.watched = merged
+    row.watched_seconds = total
+    return True
+
+
+def watcher_runs_the_course(trainee, course):
+    """The workshop's own trainers and its shop owner preview their course;
+    they are not its learners and get no certificate for it."""
+    user_id = trainee.user_id
+    if course.trainer_memberships.filter(trainer__user_id=user_id).exists():
+        return True
+    seller = getattr(course, "seller_account", None)
+    try:
+        return bool(seller and seller.user_id == user_id)
+    except Exception:  # noqa: BLE001 - no shop
+        return False
+
+
+def certificate_name_problem(name):
+    """Why a name cannot go on a certificate, or None: the full name, in at
+    least two words, and a real one."""
+    from core.placeholders import name_problem
+
+    name = " ".join(str(name or "").split())
+    words = [word for word in name.split(" ") if any(ch.isalpha() for ch in word)]
+    if len(words) < 2:
+        return _("Write your full name, first name and surname, as it should appear.")
+    return name_problem(name)
+
+
+def course_title(course):
+    """What the course is called: its own title, else the workshop's first
+    in-person course, else the workshop's name."""
+    offer = getattr(course, "course_offer", None)
+    try:
+        if offer is not None and offer.title.strip():
+            return offer.title.strip()
+    except Exception:  # noqa: BLE001 - no offer row
+        pass
+    programme = course.programmes.filter(is_active=True).order_by("pk").first()
+    if programme is not None and programme.title.strip():
+        return programme.title.strip()
+    return course.name
 
 
 def course_progress(trainee, course, lessons=None):
@@ -155,8 +253,12 @@ def issue_certificate(trainee, course, *, name=None):
     ).count()
     if done < len(lessons):
         return None
-    holder = (name or trainee.display_name or "").strip()
-    if not holder:
+    # Only a name the learner confirmed for the certificate (item: "This
+    # name will appear on your certificate"), and never for their own course.
+    holder = " ".join(str(name or "").split())
+    if not holder or certificate_name_problem(holder):
+        return None
+    if watcher_runs_the_course(trainee, course):
         return None
     from providers.learning import _trade
 
@@ -171,7 +273,7 @@ def issue_certificate(trainee, course, *, name=None):
                     trainee=trainee,
                     provider=course,
                     trainee_name=holder[:120],
-                    course_name=course.name[:200],
+                    course_name=course_title(course)[:200],
                     area_name=course.area.name if course.area_id else "",
                     trade_name=(trade or {}).get("name", "")[:120],
                     lessons=len(lessons),
@@ -206,16 +308,18 @@ class LessonProgressView(APIView):
             position = 0
         if video.duration_seconds:
             position = min(position, video.duration_seconds)
-        finished_now = bool(request.data.get("completed"))
 
+        now = timezone.now()
         with transaction.atomic():
             row, _created = LessonProgress.objects.select_for_update().get_or_create(
                 trainee=trainee, video=video, defaults={"provider": video.provider}
             )
             row.position = position
             row.furthest = max(row.furthest, position)
-            if row.completed_at is None and (finished_now or is_finished(video, row.furthest)):
-                row.completed_at = timezone.now()
+            # The ranges actually played; a jump to the end plays nothing.
+            accepted = add_watched(row, video, request.data.get("watched"), now)
+            if row.completed_at is None and is_finished(video, row.watched_seconds):
+                row.completed_at = now
             row.save()
 
         course = video.provider
@@ -223,21 +327,26 @@ class LessonProgressView(APIView):
         done = LessonProgress.objects.filter(
             trainee=trainee, video__in=lessons, completed_at__isnull=False
         ).count()
-        certificate = None
-        if done == len(lessons):
-            certificate = issue_certificate(trainee, course)
+        certificate = Certificate.objects.filter(trainee=trainee, provider=course).first()
+        own_course = watcher_runs_the_course(trainee, course)
+        length = video.duration_seconds or 0
         return Response(
             {
                 "lesson": {
                     "position": row.position,
                     "furthest": row.furthest,
+                    "watched_seconds": row.watched_seconds,
+                    "watched_share": round(row.watched_seconds / length, 3) if length else None,
                     "completed": row.completed_at is not None,
+                    "accepted": accepted,
                 },
                 "course": {
                     "done": done,
                     "total": len(lessons),
                     "finished": done == len(lessons),
-                    "needs_name": done == len(lessons) and certificate is None,
+                    # Finished: the learner confirms the name to print first.
+                    "needs_name": done == len(lessons) and certificate is None and not own_course,
+                    "own_course": own_course,
                     "certificate": certificate_payload(certificate, request),
                 },
             }
@@ -258,11 +367,37 @@ class CourseCertificateView(APIView):
         if trainee is None:
             return _sign_in_needed()
         course = _course_or_404(area_slug, slug)
+        if watcher_runs_the_course(trainee, course):
+            return Response(
+                {
+                    "detail": _(
+                        "This is your own course: you can watch it, but a certificate is "
+                        "for your learners."
+                    ),
+                    "code": "own_course",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        existing = Certificate.objects.filter(trainee=trainee, provider=course).first()
+        if existing is not None:
+            return Response(certificate_payload(existing, request), status=status.HTTP_200_OK)
+        lessons = list(course.videos.shown())
+        done = LessonProgress.objects.filter(
+            trainee=trainee, video__in=lessons, completed_at__isnull=False
+        ).count()
+        if not lessons or done < len(lessons):
+            return Response(
+                {"detail": _("Finish every lesson first, then ask again.")},
+                status=status.HTTP_409_CONFLICT,
+            )
         name = " ".join(str(request.data.get("name") or "").split())[:120]
-        if name and not trainee.display_name:
+        problem = certificate_name_problem(name)
+        if problem:
+            return Response({"name": [problem]}, status=status.HTTP_400_BAD_REQUEST)
+        if not trainee.display_name:
             trainee.display_name = name
             trainee.save(update_fields=["display_name", "updated_at"])
-        certificate = issue_certificate(trainee, course, name=name or None)
+        certificate = issue_certificate(trainee, course, name=name)
         if certificate is None:
             return Response(
                 {"detail": _("Finish every lesson first, then ask again.")},
@@ -609,9 +744,20 @@ def learner_state(trainee, course, lessons, request):
     """What the course page adds for a signed-in trainee: progress, their
     certificate and review, and whether they may write one."""
     if trainee is None:
-        return {"progress": {}, "certificate": None, "my_review": None, "can_review": False}
+        return {
+            "progress": {},
+            "certificate": None,
+            "my_review": None,
+            "can_review": False,
+            "own_course": False,
+            "full_name": "",
+        }
     review = course.course_reviews.filter(trainee=trainee).first()
     return {
+        # Previewing their own course: no certificate (watcher_runs_the_course).
+        "own_course": watcher_runs_the_course(trainee, course),
+        # To fill in the certificate name, for the learner to confirm.
+        "full_name": trainee.display_name or "",
         "progress": {
             key: {k: v for k, v in row.items() if k != "updated_at"}
             for key, row in course_progress(trainee, course, lessons).items()

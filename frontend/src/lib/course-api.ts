@@ -75,10 +75,12 @@ export function savePayout(details: {bank_code: string; account_number: string; 
 // --------------------------------------------------------------------------
 // Learning
 
-export function saveProgress(videoId: number, position: number, completed = false) {
+/** Where the learner is, and the stretches they actually played since the
+ *  last report: the server counts a lesson finished at 90% played. */
+export function saveProgress(videoId: number, position: number, watched: [number, number][]) {
   return trainerFetch<ProgressReply>(`/api/learn/lessons/${videoId}/progress/`, {
     method: "POST",
-    body: JSON.stringify({position: Math.floor(position), completed}),
+    body: JSON.stringify({position: Math.floor(position), watched}),
   });
 }
 

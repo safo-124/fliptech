@@ -43,7 +43,12 @@ export const MARKETPLACE_CLIENT_NAMESPACES = [
 ] as const satisfies readonly ClientNamespace[];
 
 /** A course's classroom, /learn/mine and /learn/saved. */
-export const LEARN_CLIENT_NAMESPACES = ["Classroom", "MyLearning"] as const satisfies readonly ClientNamespace[];
+export const LEARN_CLIENT_NAMESPACES = [
+  "Classroom",
+  "MyLearning",
+  // "Report this video" under each lesson (components/learn/ReportVideo.tsx).
+  "VideoReport",
+] as const satisfies readonly ClientNamespace[];
 
 /** The seller's sign-in and their own workspace. */
 export const SELLER_CLIENT_NAMESPACES = [

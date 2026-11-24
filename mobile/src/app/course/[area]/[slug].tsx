@@ -17,7 +17,8 @@ import { ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { cedis, courseLength } from "@/lib/format";
+import { cedis, courseLength, shortLength } from "@/lib/format";
+import { newTracker, takePlayed, trackPlayhead, type PlayTracker } from "@/lib/played";
 import { SITE_URL } from "@/lib/config";
 import { dataSaving } from "@/lib/datasaver";
 import { mediaUrl, photoUrl } from "@/lib/media";
@@ -475,8 +476,10 @@ function Player({
 }) {
   const auth = useAuth();
   const lastSent = useRef(0);
+  const tracker = useRef<PlayTracker>(newTracker());
   const player = useVideoPlayer(source, (p) => {
-    p.timeUpdateEventInterval = PROGRESS_EVERY;
+    // Every second, so a seek can be told from playing (lib/played.ts).
+    p.timeUpdateEventInterval = 1;
     if (startAt > 5) p.currentTime = startAt;
     // With data saver on, nothing plays until the play button is pressed.
     if (!dataSaving()) p.play();
@@ -485,25 +488,29 @@ function Player({
     status: player.status,
   });
 
-  async function send(position: number, completed = false) {
+  async function send(position: number) {
     if (!report) return;
+    const watched = takePlayed(tracker.current);
     try {
       await auth.ensureTrainee();
-      await api.lessonProgress(lesson.id, Math.floor(position), completed);
-      if (completed) onProgress();
+      const reply = await api.lessonProgress(lesson.id, Math.floor(position), watched);
+      if (reply.lesson.completed) onProgress();
     } catch {
       // Progress is a nicety: the next report catches up.
     }
   }
 
   useEventListener(player, "timeUpdate", ({ currentTime }) => {
+    if (player.playing) trackPlayhead(tracker.current, currentTime);
+    else tracker.current.last = null;
     if (Math.abs(currentTime - lastSent.current) >= PROGRESS_EVERY) {
       lastSent.current = currentTime;
       void send(currentTime);
     }
   });
   useEventListener(player, "playToEnd", () => {
-    void send(lesson.duration_seconds ?? player.duration, true);
+    trackPlayhead(tracker.current, lesson.duration_seconds ?? player.duration);
+    void send(lesson.duration_seconds ?? player.duration);
     onEnd();
   });
 
@@ -573,7 +580,7 @@ function LessonRow({
   onSave: () => void;
   onUnsave: () => void;
 }) {
-  const minutes = lesson.duration_seconds ? `${Math.max(1, Math.round(lesson.duration_seconds / 60))} min` : "";
+  const minutes = lesson.duration_seconds ? shortLength(lesson.duration_seconds) : "";
   return (
     <View style={[styles.lesson, first ? null : styles.divider, active ? styles.lessonActive : null]}>
       <Pressable

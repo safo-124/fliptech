@@ -535,6 +535,12 @@ def serialize_profile(provider, account=None):
     return {
         "id": provider.pk,
         "name": provider.name,
+        # The listing's public address, once it is live.
+        "public_path": (
+            f"/{provider.area.slug}/{provider.slug}"
+            if provider.status == Provider.Status.PUBLISHED
+            else None
+        ),
         "owner_name": provider.owner_name,
         "owner_phone": str(provider.owner_phone),
         "contact_phone": str(provider.contact_phone),

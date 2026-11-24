@@ -18,6 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from courses import learner, studio
+from courses.learner import course_title
 from courses.models import (
     Certificate,
     CourseBoost,
@@ -86,6 +87,25 @@ def progress(client, video, position, **extra):
     )
 
 
+def watch(client, video, upto=None, start=0, step=20):
+    """Play a lesson for real: report the played ranges a few seconds apart,
+    as the player does (time is moved on between reports)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    end = upto if upto is not None else (video.duration_seconds or 100)
+    position, body = start, None
+    while position < end:
+        reached = min(end, position + step)
+        LessonProgress.objects.filter(video=video).update(
+            updated_at=timezone.now() - timedelta(seconds=60)
+        )
+        body = progress(client, video, reached, watched=[[position, reached]]).json()
+        position = reached
+    return body
+
+
 def with_length(videos, seconds=100):
     for video in videos:
         video.duration_seconds = seconds
@@ -117,21 +137,46 @@ def test_a_lesson_is_finished_at_ninety_percent_and_rewinding_keeps_it(learner_c
     _, lessons = course
     with_length(lessons)
 
-    first = progress(learner_client, lessons[0], 50).json()
-    assert first["lesson"] == {"position": 50, "furthest": 50, "completed": False}
+    half = watch(learner_client, lessons[0], upto=50)
+    assert half["lesson"]["completed"] is False
+    assert half["lesson"]["watched_seconds"] == 50
 
-    done = progress(learner_client, lessons[0], 91).json()
+    done = watch(learner_client, lessons[0], start=50, upto=90)
     assert done["lesson"]["completed"] is True
-    assert done["course"] == {
-        "done": 1,
-        "total": 3,
-        "finished": False,
-        "needs_name": False,
-        "certificate": None,
-    }
+    assert done["course"]["done"] == 1
+    assert done["course"]["needs_name"] is False
 
     rewound = progress(learner_client, lessons[0], 5).json()
-    assert rewound["lesson"] == {"position": 5, "furthest": 91, "completed": True}
+    assert rewound["lesson"]["completed"] is True
+    assert rewound["lesson"]["position"] == 5
+
+
+@pytest.mark.django_db
+def test_seeking_to_the_end_does_not_finish_a_lesson(learner_client, course):
+    _, lessons = course
+    with_length(lessons)
+
+    # Jumped to the end: the position moves, nothing was played.
+    jumped = progress(learner_client, lessons[0], 100).json()
+    assert jumped["lesson"]["completed"] is False
+    # A client claiming the whole lesson at once is refused: no time has passed.
+    claimed = progress(learner_client, lessons[0], 100, watched=[[0, 100]]).json()
+    assert claimed["lesson"]["accepted"] is False
+    assert claimed["lesson"]["completed"] is False
+    # Ranges past the end of the video are cut to it.
+    watch(learner_client, lessons[0], upto=80)
+    late = progress(learner_client, lessons[0], 100, watched=[[80, 500]]).json()
+    assert late["lesson"]["watched_seconds"] == 100
+
+
+@pytest.mark.django_db
+def test_watched_ranges_are_merged_not_double_counted(learner_client, course):
+    _, lessons = course
+    with_length(lessons)
+    watch(learner_client, lessons[0], upto=40)
+    again = watch(learner_client, lessons[0], start=0, upto=40)  # the same part twice
+    assert again["lesson"]["watched_seconds"] == 40
+    assert LessonProgress.objects.get(video=lessons[0]).watched == [[0, 40]]
 
 
 @pytest.mark.django_db
@@ -148,14 +193,19 @@ def test_finishing_every_lesson_issues_a_certificate_anyone_can_check(
 ):
     provider, lessons = course
     with_length(lessons)
-    for video in lessons[:-1]:
-        progress(learner_client, video, 0, completed=True)
-    last = progress(learner_client, lessons[-1], 100).json()
+    for video in lessons:
+        last = watch(learner_client, video)
 
-    certificate = last["course"]["certificate"]
+    # Finished: the learner confirms the name to print first.
     assert last["course"]["finished"] is True
+    assert last["course"]["needs_name"] is True
+    assert last["course"]["certificate"] is None
+    url = reverse("course-certificate", args=[provider.area.slug, provider.slug])
+    issued = learner_client.post(url, {"name": "Ama Owusu"}, content_type="application/json")
+    assert issued.status_code == 201, issued.content
+    certificate = issued.json()
     assert certificate["trainee_name"] == "Ama Owusu"
-    assert certificate["course_name"] == provider.name
+    assert certificate["course_name"] == course_title(provider)
     assert certificate["lessons"] == 3
     assert certificate["total_seconds"] == 300
 
@@ -165,23 +215,24 @@ def test_finishing_every_lesson_issues_a_certificate_anyone_can_check(
     assert checked.status_code == 200
     assert checked.json()["course_path"] == f"/learn/{provider.area.slug}/{provider.slug}"
     # Asking again gives the same one.
-    again = learner_client.post(
-        reverse("course-certificate", args=[provider.area.slug, provider.slug])
-    )
+    again = learner_client.post(url)
     assert again.json()["code"] == certificate["code"]
     assert Certificate.objects.count() == 1
 
 
 @pytest.mark.django_db
-def test_a_certificate_waits_for_a_name_when_the_account_has_none(learner_client, trainee, course):
+def test_the_certificate_name_must_be_a_full_real_name(learner_client, trainee, course):
     provider, lessons = course
     trainee.display_name = ""
     trainee.save()
     for video in lessons:
-        body = progress(learner_client, video, 0, completed=True).json()
+        body = watch(learner_client, video)
     assert body["course"]["needs_name"] is True
 
     url = reverse("course-certificate", args=[provider.area.slug, provider.slug])
+    for refused in ("Kofi", "yes", "test test", ""):
+        answer = learner_client.post(url, {"name": refused}, content_type="application/json")
+        assert answer.status_code == 400, refused
     issued = learner_client.post(url, {"name": "Kofi  Mensah"}, content_type="application/json")
     assert issued.status_code == 201
     assert issued.json()["trainee_name"] == "Kofi Mensah"
@@ -190,9 +241,31 @@ def test_a_certificate_waits_for_a_name_when_the_account_has_none(learner_client
 
 
 @pytest.mark.django_db
+def test_the_workshops_own_trainer_previews_but_gets_no_certificate(
+    learner_client, trainee, course
+):
+    from providers.models import ProviderMembership, TrainerAccount
+
+    provider, lessons = course
+    owner = TrainerAccount.objects.create(user=trainee.user, phone="+233201119999")
+    ProviderMembership.objects.filter(provider=provider).delete()
+    ProviderMembership.objects.create(trainer=owner, provider=provider)
+    for video in lessons:
+        body = watch(learner_client, video)
+    assert body["course"]["finished"] is True
+    assert body["course"]["own_course"] is True
+    assert body["course"]["needs_name"] is False
+
+    url = reverse("course-certificate", args=[provider.area.slug, provider.slug])
+    refused = learner_client.post(url, {"name": "Ama Owusu"}, content_type="application/json")
+    assert refused.status_code == 403
+    assert Certificate.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_no_certificate_before_every_lesson_is_finished(learner_client, course):
     provider, lessons = course
-    progress(learner_client, lessons[0], 0, completed=True)
+    watch(learner_client, lessons[0])
     url = reverse("course-certificate", args=[provider.area.slug, provider.slug])
     assert learner_client.post(url).status_code == 409
 
@@ -206,7 +279,7 @@ def test_my_courses_is_empty_not_an_error_for_a_stranger(client):
 def test_my_courses_says_how_far_and_where_to_carry_on(learner_client, course):
     provider, lessons = course
     with_length(lessons)
-    progress(learner_client, lessons[0], 0, completed=True)
+    watch(learner_client, lessons[0])
     progress(learner_client, lessons[1], 40)
 
     mine = learner_client.get(reverse("my-courses")).json()["results"]
@@ -225,7 +298,7 @@ def test_my_courses_says_how_far_and_where_to_carry_on(learner_client, course):
 @pytest.mark.django_db
 def test_the_course_page_gets_this_learners_progress(learner_client, course):
     provider, lessons = course
-    progress(learner_client, lessons[0], 0, completed=True)
+    watch(learner_client, lessons[0])
     state = access(learner_client, provider)
     assert state["progress"][str(lessons[0].pk)]["completed"] is True
     assert state["can_review"] is True
@@ -243,7 +316,7 @@ def test_only_someone_who_finished_a_lesson_may_review(learner_client, client, c
     refused = learner_client.post(url, {"rating": 5}, content_type="application/json")
     assert refused.status_code == 403
 
-    progress(learner_client, lessons[0], 0, completed=True)
+    watch(learner_client, lessons[0])
     made = learner_client.post(
         url, {"rating": 4, "body": "Clear steps."}, content_type="application/json"
     )
@@ -263,7 +336,7 @@ def test_only_someone_who_finished_a_lesson_may_review(learner_client, client, c
 def test_a_paid_course_is_reviewed_only_by_buyers(learner_client, trainee, course):
     provider, lessons = course
     priced(provider)
-    progress(learner_client, lessons[0], 0, completed=True)  # the free preview
+    watch(learner_client, lessons[0])  # the free preview
     url = reverse("course-reviews", args=[provider.area.slug, provider.slug])
     assert (
         learner_client.post(url, {"rating": 5}, content_type="application/json").status_code == 403
@@ -491,7 +564,7 @@ def test_plays_are_counted_and_the_studio_shows_where_learners_stop(
     for _ in range(3):
         assert client.post(reverse("lesson-play", args=[lessons[0].pk])).status_code == 204
     client.post(reverse("lesson-play", args=[lessons[1].pk]))
-    progress(learner_client, lessons[0], 0, completed=True)
+    watch(learner_client, lessons[0])
     progress(learner_client, lessons[1], 10)
 
     stats = trainer_client.get(reverse("studio-stats")).json()
@@ -865,3 +938,17 @@ def test_selling_is_on_only_with_a_price_and_a_payout_account(trainer_client, co
         provider=provider, defaults={"price": "200.00", "paystack_subaccount": "ACCT_x"}
     )
     assert trainer_client.get(reverse("studio-details")).json()["selling_on"] is True
+
+
+@pytest.mark.django_db
+def test_the_course_title_comes_before_the_workshop_name(client, course):
+    from catalog.models import Programme  # an in-person course title comes second
+    from courses.models import CourseOffer
+
+    provider, _lessons = course
+    Programme.objects.filter(provider=provider).delete()
+    assert course_title(provider) == provider.name
+    CourseOffer.objects.update_or_create(provider=provider, defaults={"title": "Knotless braids"})
+    provider.refresh_from_db()
+    assert course_title(provider) == "Knotless braids"
+    assert detail(client, provider)["course"]["title"] == "Knotless braids"

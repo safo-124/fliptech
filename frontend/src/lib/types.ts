@@ -147,6 +147,8 @@ export type LessonCaption = { language: string; label: string; url: string };
 export type CourseCard = {
   id: number;
   name: string;
+  /** The course's own name; `name` is the workshop's ("by <name>"). */
+  title?: string;
   slug: string;
   area: string;
   area_slug: string;
@@ -196,7 +198,13 @@ export type CourseDetail = {
   }[];
 };
 
-export type LessonProgressRow = { position: number; furthest: number; completed: boolean };
+export type LessonProgressRow = {
+  position: number;
+  furthest: number;
+  completed: boolean;
+  /** Stretches actually played, [start, end] seconds (kept on this phone). */
+  watched?: [number, number][];
+};
 
 export type Certificate = {
   code: string;
@@ -233,12 +241,14 @@ export type LessonQuestion = {
 };
 
 export type ProgressReply = {
-  lesson: LessonProgressRow;
+  lesson: LessonProgressRow & {watched_seconds?: number; watched_share?: number | null};
   course: {
     done: number;
     total: number;
     finished: boolean;
     needs_name: boolean;
+    /** The learner runs this workshop: they preview, no certificate. */
+    own_course?: boolean;
     certificate: Certificate | null;
   };
 };
@@ -415,6 +425,8 @@ export type TrainerProgramme = {
 export type TrainerProfile = {
   id: number;
   name: string;
+  /** The live listing's address ("/adenta/ama-braids"), null until published. */
+  public_path?: string | null;
   owner_name: string;
   /** Private sign-in identity. The server owns this field. */
   owner_phone: string;
@@ -985,10 +997,17 @@ export type CourseAccess = {
   certificate: Certificate | null;
   my_review: CourseReview | null;
   can_review: boolean;
+  /** The viewer runs this workshop: they preview, no certificate. */
+  own_course?: boolean;
+  /** The name on the account, offered for the certificate to confirm. */
+  full_name?: string;
 };
 
 /** The trainer's course studio. See backend courses/studio.py. */
 export type StudioDetails = {
+  /** The course's own name; empty shows title_fallback. */
+  title?: string;
+  title_fallback?: string;
   summary: string;
   outcomes: string;
   tools: string;

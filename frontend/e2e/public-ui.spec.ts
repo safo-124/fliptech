@@ -135,3 +135,43 @@ test.describe("public discovery UI", () => {
     await expectNoPageOverflow(page);
   });
 });
+
+/** Every "Namespace.key" in the messages, to catch one shown raw. */
+async function messageKeys() {
+  const {readFile} = await import("node:fs/promises");
+  const {join} = await import("node:path");
+  // Playwright runs from the frontend folder (playwright.config.ts).
+  const messages = JSON.parse(await readFile(join(process.cwd(), "messages", "en.json"), "utf8"));
+  const keys: string[] = [];
+  const walk = (node: unknown, path: string) => {
+    if (node && typeof node === "object") {
+      for (const [key, value] of Object.entries(node as Record<string, unknown>)) walk(value, path ? `${path}.${key}` : key);
+    } else if (path.includes(".")) keys.push(path);
+  };
+  walk(messages, "");
+  return new Set(keys);
+}
+
+test.describe("no raw message keys", () => {
+  test("public pages show words, never a message key like VideoReport.open", async ({page}) => {
+    test.setTimeout(90_000);
+    const keys = await messageKeys();
+    const pages = ["/", "/training", "/marketplace", "/learn", "/account"];
+    // The first course, when the demo data has one with lessons.
+    await page.goto(`${publicSite}/learn`);
+    const course = await page.locator('a[href^="/learn/"]:not([href="/learn/mine"]):not([href="/learn/saved"])').first();
+    if (await course.count()) pages.push((await course.getAttribute("href")) ?? "/learn");
+    for (const path of pages) {
+      await page.goto(`${publicSite}${path}`);
+      await page.waitForLoadState("networkidle");
+      const shown = await page.evaluate(() => {
+        const labels = Array.from(document.querySelectorAll("[aria-label],[placeholder],[title]")).flatMap((element) =>
+          ["aria-label", "placeholder", "title"].map((name) => element.getAttribute(name) ?? ""),
+        );
+        return [document.body.innerText, ...labels].join("\n");
+      });
+      const raw = (shown.match(/\b[A-Z][A-Za-z]+(?:\.[A-Za-z0-9_]+)+\b/g) ?? []).filter((text) => keys.has(text));
+      expect(raw, `raw message keys on ${path}`).toEqual([]);
+    }
+  });
+});

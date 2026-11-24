@@ -4,6 +4,7 @@ import {Play} from "lucide-react";
 import Image from "next/image";
 import {useRef, useState, type MouseEvent} from "react";
 
+import {frameStyle, useMediaAspect} from "@/lib/media-aspect";
 import type {ProviderVideo} from "@/lib/types";
 import {embedUrl, thumbnailUrl, watchUrl} from "@/lib/youtube";
 
@@ -47,6 +48,8 @@ function UploadedLesson({
   qualityLabel: string;
 }) {
   const [playing, setPlaying] = useState(false);
+  // Portrait stays portrait (lib/media-aspect.ts).
+  const aspect = useMediaAspect(video.poster);
   // The smallest copy unless the trainee asks: they pay for data in bundles.
   const [quality, setQuality] = useState(video.sources[0]?.quality);
   const player = useRef<HTMLVideoElement>(null);
@@ -82,7 +85,9 @@ function UploadedLesson({
           autoPlay
           playsInline
           preload="auto"
-          className="aspect-video w-full rounded-xl bg-black"
+          onLoadedMetadata={(event) => aspect.fromVideo(event.currentTarget)}
+          style={frameStyle(aspect.ratio)}
+          className="w-full rounded-xl bg-black"
         />
         {video.sources.length > 1 ? (
           <div role="group" aria-label={qualityLabel} className="flex gap-1.5">
@@ -108,7 +113,8 @@ function UploadedLesson({
       type="button"
       onClick={() => setPlaying(true)}
       aria-label={playLabel}
-      className="group relative block aspect-video w-full overflow-hidden rounded-xl border border-[var(--color-border)] bg-black focus-visible:outline-offset-2"
+      style={frameStyle(aspect.ratio)}
+      className="group relative block w-full overflow-hidden rounded-xl border border-[var(--color-border)] bg-black focus-visible:outline-offset-2"
     >
       {video.poster ? (
         <Image

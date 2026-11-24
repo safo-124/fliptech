@@ -21,6 +21,7 @@ import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {Separator} from "@/components/ui/separator";
 import {Skeleton} from "@/components/ui/skeleton";
+import {shortLength} from "@/lib/format";
 import {BRAND} from "@/lib/brand";
 import {deleteTrainerVideo, getTrainerVideos, startTrainerVideo} from "@/lib/trainer-api";
 import {TrainerApiError} from "@/lib/trainer-fetch";
@@ -544,7 +545,7 @@ function VideoCard({
           <p className="break-words font-semibold leading-6">{video.title}</p>
           {video.duration_seconds ? (
             <p className="text-xs text-[var(--color-muted-foreground)]">
-              {t("length", {minutes: Math.max(1, Math.round(video.duration_seconds / 60))})}
+              {t("length", shortLength(video.duration_seconds))}
             </p>
           ) : null}
           {uploading ? (

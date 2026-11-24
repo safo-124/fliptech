@@ -192,17 +192,22 @@ describe("a trainer's videos in the app", () => {
     [
       "go live straight away",
       { publishes_straight_away: true, review_first_because_blocked: false },
-      "Your videos go on your listing as soon as they are ready. Our team watches them afterwards and removes any that break the guidelines.",
+      "Your videos appear on your listing as soon as they are ready. Fliiptech checks each one soon after and removes any that break the guidelines.",
     ],
     [
       "are watched first after two were removed",
       { publishes_straight_away: false, review_first_because_blocked: true },
-      "Two of your videos were removed, so our team now watches each new video before it shows.",
+      "Two of your videos were removed, so Fliiptech now watches each new video before it appears.",
     ],
     [
       "are watched first for everyone",
       { publishes_straight_away: false, review_first_because_blocked: false },
-      "Our team watches each video before it shows on your listing.",
+      "Fliiptech watches each video before it appears on your listing.",
+    ],
+    [
+      "are watched first while the workshop is new",
+      { publishes_straight_away: false, review_first_because_blocked: false, trusted_after: 3, approved_count: 1 },
+      "Fliiptech watches your first 3 videos before they appear on your listing (1 approved so far). After that, new videos appear as soon as they are ready, and Fliiptech checks each one soon after.",
     ],
   ])("says above the form when videos %s", async (_case, publishing, line) => {
     mockApi.list.mockResolvedValue({ videos: [], limits: { ...LIMITS, ...publishing } });

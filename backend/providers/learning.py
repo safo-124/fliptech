@@ -149,12 +149,16 @@ class CourseCardSerializer(serializers.ModelSerializer):
     rating = serializers.SerializerMethodField()
     reviews = serializers.IntegerField(source="rating_count", read_only=True, default=0)
     featured = serializers.BooleanField(read_only=True, default=False)
+    # The course's own name (courses.learner.course_title); "name" stays the
+    # workshop's, for "by <workshop>".
+    title = serializers.SerializerMethodField()
 
     class Meta:
         model = Provider
         fields = [
             "id",
             "name",
+            "title",
             "slug",
             "area",
             "area_slug",
@@ -189,6 +193,19 @@ class CourseCardSerializer(serializers.ModelSerializer):
         return (
             f"{offer.price:.2f}" if offer is not None and offer.is_paid and offer.on_sale else None
         )
+
+    @extend_schema_field(serializers.CharField())
+    def get_title(self, obj):
+        offer = self._offer(obj)
+        if offer is not None and offer.title.strip():
+            return offer.title.strip()
+        programmes = getattr(obj, "active_programmes", None)
+        if programmes is None:
+            programmes = list(obj.programmes.filter(is_active=True).order_by("pk")[:1])
+        for programme in programmes:
+            if programme.title.strip():
+                return programme.title.strip()
+        return obj.name
 
     @extend_schema_field(serializers.CharField())
     def get_level(self, obj):

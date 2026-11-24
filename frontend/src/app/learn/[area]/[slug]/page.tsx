@@ -33,7 +33,7 @@ import { ClientMessages } from "@/i18n/ClientMessages";
 import { LEARN_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { ApiError, getCourse, listCourses } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
-import { formatCedis } from "@/lib/format";
+import { formatCedis, hoursOf, shortLength } from "@/lib/format";
 import { tradeClass } from "@/lib/trades";
 import type { CourseCard } from "@/lib/types";
 
@@ -55,11 +55,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const [data, t] = await Promise.all([load(area, slug).catch(() => null), getTranslations("Learn")]);
   if (!data) return { title: t("notFound") };
   return {
-    title: t("courseMetaTitle", { name: data.course.name }),
+    title: t("courseMetaTitle", { name: data.course.title || data.course.name }),
     description:
       data.details.summary ||
       t("courseMetaDescription", {
-        name: data.course.name,
+        name: data.course.title || data.course.name,
         area: data.course.area,
         count: data.course.lessons,
         brand: BRAND,
@@ -94,8 +94,8 @@ export default async function CoursePage({ params }: { params: Promise<Params> }
   const seconds = course.total_seconds ?? 0;
   const length =
     seconds >= 3600
-      ? t("lengthHours", { count: course.lessons, hours: (seconds / 3600).toFixed(1) })
-      : t("lengthMinutes", { count: course.lessons, minutes: Math.max(1, Math.round(seconds / 60)) });
+      ? t("lengthHours", { count: course.lessons, hours: hoursOf(seconds) })
+      : t("lengthMinutes", { count: course.lessons, ...shortLength(seconds) });
   const workshopHref = `/${course.area_slug}/${course.slug}`;
 
   return (
@@ -143,7 +143,7 @@ export default async function CoursePage({ params }: { params: Promise<Params> }
                 ) : null}
               </div>
               <h1 className="mt-3 max-w-[24ch] text-[2rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white sm:text-[2.6rem]">
-                {course.name}
+                {course.title || course.name}
               </h1>
               {details.summary ? (
                 <p className="mt-3 max-w-[62ch] text-[15px] leading-relaxed text-white/80 sm:text-base">
