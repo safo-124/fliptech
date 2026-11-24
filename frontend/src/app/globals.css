@@ -87,7 +87,7 @@
   --color-peach: oklch(0.81 0.085 55);
   --color-coral: oklch(0.71 0.115 30);
 
-  --radius: 0.875rem;
+  --radius: 0.625rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -213,7 +213,7 @@ body {
     width: 2.75rem;
     height: 2.75rem;
     place-items: center;
-    border-radius: 9999px;
+    border-radius: 0.625rem;
     cursor: pointer;
     list-style: none;
     color: var(--color-muted-foreground);
