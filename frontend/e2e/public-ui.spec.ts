@@ -139,7 +139,9 @@ test.describe("public discovery UI", () => {
 /** Every "Namespace.key" in the messages, to catch one shown raw. */
 async function messageKeys() {
   const {readFile} = await import("node:fs/promises");
-  const messages = JSON.parse(await readFile(new URL("../messages/en.json", import.meta.url), "utf8"));
+  const {join} = await import("node:path");
+  // Playwright runs from the frontend folder (playwright.config.ts).
+  const messages = JSON.parse(await readFile(join(process.cwd(), "messages", "en.json"), "utf8"));
   const keys: string[] = [];
   const walk = (node: unknown, path: string) => {
     if (node && typeof node === "object") {
