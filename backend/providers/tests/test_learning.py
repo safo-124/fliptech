@@ -127,7 +127,8 @@ def test_a_course_page_lists_its_lessons_in_order(client, area):
     body = response.json()
     assert body["course"]["lessons"] == 2
     assert [video["title"] for video in body["lessons"]] == ["Lesson 1", "Lesson 2"]
-    assert body["lessons"][0]["sources"][0]["quality"] == 360
+    # Everybody's view: the lessons are there, their files need an account.
+    assert body["lessons"][0]["sources"] == [] and body["lessons"][0]["sign_in"] is True
 
 
 @pytest.mark.django_db

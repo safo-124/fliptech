@@ -132,6 +132,8 @@ export type ProviderVideo = {
   captions?: LessonCaption[];
   /** A lesson of a paid course this viewer has not bought: no sources. */
   locked?: boolean;
+  /** Plays once the viewer signs in: every lesson needs an account. */
+  sign_in?: boolean;
   /** The heading this lesson sits under in its course; "" for none. */
   section?: string;
   /** What the lesson covers, in the trainer's words. */
@@ -992,6 +994,10 @@ export type CourseAccess = {
   sources: Record<string, VideoSource[]>;
   /** By lesson id: the HLS stream, where one has been made. */
   streams: Record<string, string>;
+  /** By lesson id: a YouTube lesson's id, for a viewer allowed to watch it. */
+  youtube?: Record<string, string>;
+  /** Signed in with any account: enough to watch (every lesson needs one). */
+  account?: boolean;
   /** By lesson id, for a signed-in trainee. */
   progress: Record<string, LessonProgressRow>;
   certificate: Certificate | null;

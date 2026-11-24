@@ -108,13 +108,22 @@ def access(client, provider):
 
 
 @pytest.mark.django_db
-def test_a_free_course_plays_every_lesson(client, course):
-    provider, _ = course
+def test_a_free_course_plays_every_lesson_once_signed_in(client, course, trainee):
+    provider, lessons = course
 
     body = course_lessons(client, provider)
 
+    # The page is everybody's view: nothing plays without an account, but
+    # nothing is "locked" either; signing in is all it takes.
     assert body["course"]["price"] is None
-    assert all(lesson["sources"] and not lesson["locked"] for lesson in body["lessons"])
+    assert all(
+        lesson["sign_in"] and not lesson["locked"] and lesson["sources"] == []
+        for lesson in body["lessons"]
+    )
+    assert access(client, provider)["sources"] == {}
+
+    as_user(client, trainee.user)
+    assert set(access(client, provider)["sources"]) == {str(lesson.pk) for lesson in lessons}
 
 
 @pytest.mark.django_db
@@ -126,8 +135,11 @@ def test_a_paid_course_gives_the_first_lesson_free_and_locks_the_rest(client, co
 
     assert body["course"]["price"] == "150.00"
     first, *rest = body["lessons"]
-    assert first["sources"] and not first["locked"]
-    assert all(lesson["locked"] and lesson["sources"] == [] for lesson in rest)
+    # The preview needs only an account; the rest need buying.
+    assert first["sign_in"] and not first["locked"] and first["sources"] == []
+    assert all(
+        lesson["locked"] and not lesson["sign_in"] and lesson["sources"] == [] for lesson in rest
+    )
     # The still stays, so a trainee can see what they would be buying.
     assert all(lesson["poster"] for lesson in rest)
 
@@ -141,7 +153,9 @@ def test_the_workshop_listing_locks_the_same_lessons(client, course):
         reverse("provider-by-slug", args=[provider.area.slug, provider.slug])
     ).json()["videos"]
 
-    assert [bool(video["sources"]) for video in videos] == [True, False, False]
+    assert [bool(video["sources"]) for video in videos] == [False, False, False]
+    assert [video["sign_in"] for video in videos] == [True, False, False]
+    assert [video["locked"] for video in videos] == [False, True, True]
 
 
 @pytest.mark.django_db
@@ -162,8 +176,13 @@ def test_a_buyer_and_the_workshops_trainer_see_everything_and_a_stranger_does_no
     provider, lessons = course
     priced(provider)
     stranger = access(client, provider)
-    assert set(stranger["sources"]) == {str(lessons[0].pk)}
+    assert stranger["sources"] == {}  # signed out: nothing, not even the preview
     assert stranger["owned"] is False
+
+    as_user(client, trainee.user)
+    signed_in = access(client, provider)
+    assert set(signed_in["sources"]) == {str(lessons[0].pk)}  # the preview
+    assert signed_in["owned"] is False
 
     CoursePurchase.objects.create(
         reference="fc-paid",
@@ -311,12 +330,17 @@ def test_caddy_streams_a_locked_file_only_to_someone_who_may_watch_it(client, co
             reverse("media-access"), HTTP_X_FORWARDED_URI=f"/media/{video_file.name}"
         ).status_code
 
-    assert ask(lessons[0].public_360) == 200  # the free preview
+    # Signed out: no lesson file at all, not even the free preview.
+    assert ask(lessons[0].public_360) == 403
     assert ask(lessons[1].public_360) == 403
     assert ask(lessons[1].public_poster) == 200  # stills are never locked
     assert (
         client.get(reverse("media-access"), HTTP_X_FORWARDED_URI="/media/x.jpg").status_code == 200
     )
+
+    as_user(client, trainee.user)
+    assert ask(lessons[0].public_360) == 200  # the free preview, now signed in
+    assert ask(lessons[1].public_360) == 403
 
     CoursePurchase.objects.create(
         reference="fc-paid",

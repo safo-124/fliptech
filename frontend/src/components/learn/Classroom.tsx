@@ -16,6 +16,7 @@ import {
   Star,
   Tag,
   Ticket,
+  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -29,6 +30,7 @@ import {
   verifyPurchase,
 } from "@/lib/course-api";
 import { formatCedis } from "@/lib/format";
+import { openSignIn } from "@/lib/sign-in";
 import { advance, readLocal, writeLocal, type ProgressMap } from "@/lib/learn-local";
 import { TrainerApiError } from "@/lib/trainer-fetch";
 import type { Certificate, CourseAccess, CourseCard, CourseDetail, ProviderVideo } from "@/lib/types";
@@ -135,10 +137,20 @@ export function Classroom({ data }: { data: CourseDetail }) {
   const playable: ProviderVideo[] = useMemo(
     () =>
       lessons.map((lesson) => {
+        // The page is everybody's view, which carries no files (every
+        // lesson needs an account); this viewer's come with the access.
         const sources = access?.sources[String(lesson.id)];
+        const youtube = access?.youtube?.[String(lesson.id)];
         const stream = access?.streams?.[String(lesson.id)] ?? lesson.stream;
-        if (!lesson.locked || !sources) return { ...lesson, stream };
-        return { ...lesson, locked: false, sources, stream };
+        if (!sources?.length && !youtube) return { ...lesson, stream };
+        return {
+          ...lesson,
+          locked: false,
+          sign_in: false,
+          sources: sources?.length ? sources : lesson.sources,
+          youtube_id: youtube ?? lesson.youtube_id,
+          stream,
+        };
       }),
     [lessons, access],
   );
@@ -147,6 +159,8 @@ export function Classroom({ data }: { data: CourseDetail }) {
   const finishedCount = lessons.filter((lesson) => progress[String(lesson.id)]?.completed).length;
   const share = lessons.length ? (finishedCount / lessons.length) * 100 : 0;
   const locked = Boolean(current?.locked);
+  // Plays once signed in. Until the access has loaded, nobody is known yet.
+  const needsSignIn = !locked && Boolean(current?.sign_in);
   const owned = access?.owned ?? !paid;
   const certificate = done?.certificate ?? access?.certificate ?? null;
 
@@ -248,6 +262,15 @@ export function Classroom({ data }: { data: CourseDetail }) {
               paymentsEnabled={access?.payments_enabled ?? true}
               signInHref={signInHref}
               onBuy={() => buy()}
+            />
+          ) : needsSignIn ? (
+            <SignInToWatch
+              poster={current.poster}
+              checking={access === null}
+              onSignIn={async () => {
+                const signed = await openSignIn({reason: t("signInToWatchReason"), role: "trainee", interest: "learn"});
+                if (signed) await refresh();
+              }}
             />
           ) : (
             <LessonPlayer
@@ -795,6 +818,47 @@ function BuyPanel({
           {problem}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** Where the player would be for someone signed out: every lesson needs an
+    account. Its still, and the way to sign in or register (one sheet). */
+function SignInToWatch({
+  poster,
+  checking,
+  onSignIn,
+}: {
+  poster: string | null;
+  checking: boolean;
+  onSignIn: () => void;
+}) {
+  const t = useTranslations("Classroom");
+  return (
+    <div className="relative grid aspect-video place-items-center overflow-hidden text-center text-white">
+      {poster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={poster} alt="" className="absolute inset-0 size-full scale-105 object-cover opacity-40 blur-[3px]" />
+      ) : null}
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-[var(--color-brand-deep)]/80 via-black/50 to-black/70" />
+      {checking ? (
+        <Loader2 aria-label={t("checkingAccount")} className="relative size-7 animate-spin text-white/80" />
+      ) : (
+        <div className="relative max-w-sm px-6 py-4">
+          <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur">
+            <UserRound aria-hidden="true" className="size-6" />
+          </span>
+          <p className="mt-3 text-lg font-bold sm:text-xl">{t("signInToWatchTitle")}</p>
+          <p className="mt-1 text-sm leading-relaxed text-white/80">{t("signInToWatchBody")}</p>
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-bold text-[var(--color-brand)] shadow-lg hover:bg-white/90"
+          >
+            {t("signInToWatch")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -655,8 +655,14 @@ def test_approving_publishes_the_files_and_only_then(client, staff, listing):
     [shown] = public_videos(client, listing[0])
     assert shown["kind"] == "upload"
     assert shown["duration_seconds"] == 120
-    assert shown["sources"] == [{"quality": 360, "url": shown["sources"][0]["url"], "bytes": 11}]
-    assert "/media/videos/public/" in shown["sources"][0]["url"]
+    # The listing is everybody's view, so it carries no files: every lesson
+    # needs an account (courses/access.py). The files themselves are public.
+    assert shown["sources"] == [] and shown["sign_in"] is True
+    from providers.serializers import video_sources
+
+    [source] = video_sources(video)
+    assert source["quality"] == 360 and source["bytes"] == 11
+    assert "/media/videos/public/" in source["url"]
     assert shown["poster"]
 
 
@@ -828,6 +834,7 @@ def test_only_approved_videos_are_public(owner, listing, staff):
         "stream",
         "captions",
         "locked",
+        "sign_in",
         "section",
         "description",
     }
@@ -844,7 +851,11 @@ def test_a_video_added_from_youtube_before_uploads_still_plays(owner, listing):
 
     [video] = public_videos(owner, listing[0])
 
-    assert (video["kind"], video["youtube_id"], video["sources"]) == ("youtube", "dQw4w9WgXcQ", [])
+    # Everybody's view hides the id too; a signed-in viewer gets it.
+    assert (video["kind"], video["youtube_id"], video["sources"]) == ("youtube", "", [])
+    assert video["sign_in"] is True
+    mine = owner.get(reverse("course-access", args=[listing[0].area.slug, listing[0].slug])).json()
+    assert mine["youtube"] == {str(video["id"]): "dQw4w9WgXcQ"}
 
 
 @pytest.mark.django_db
