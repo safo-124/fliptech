@@ -40,7 +40,8 @@ import {SellerQuotesTab} from "@/components/seller/SellerQuotes";
 import {InlineItemEdit} from "@/components/seller/InlineItemEdit";
 import {QuickAddItem} from "@/components/seller/QuickAddItem";
 import {blankDraft, likeThis, type QuickItemDraft} from "@/lib/quick-item";
-import {getAllTrades} from "@/lib/api";
+import {getAllTrades, getTradeChoices} from "@/lib/api";
+import {categoryChoiceFor, choicesWith} from "@/lib/trade-choices";
 import {checkPhoto} from "@/lib/photo-check";
 import {compressPhoto} from "@/lib/compress-photo";
 import {Button} from "@/components/ui/button";
@@ -106,10 +107,16 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<SellerProduct | "new" | null>(null);
   // For the item form's trade choice.
+  // The categories are what a product is filed under (lib/trade-choices);
+  // every trade is kept so an older product keeps its own when edited.
   const [trades, setTrades] = useState<{id: number; name: string; slug: string}[]>([]);
+  const [allTrades, setAllTrades] = useState<TradeChoice[]>([]);
   useEffect(() => {
+    getTradeChoices()
+      .then((choices) => setTrades(choices.map(({id, name, slug}) => ({id, name, slug}))))
+      .catch(() => {});
     getAllTrades()
-      .then((all) => setTrades(all.map(({id, name, slug}) => ({id, name, slug}))))
+      .then((all) => setAllTrades(all.map(({id, name, slug, category}) => ({id, name, slug, category}))))
       .catch(() => {});
   }, []);
 
@@ -265,7 +272,8 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
               busy={busy}
               mayPublish={seller.may_sell}
               trades={trades}
-              defaultTrade={seller.workshop?.trade_id ?? null}
+              allTrades={allTrades}
+              defaultTrade={categoryChoiceFor(trades, allTrades, seller.workshop?.trade_id)}
               editing={editing}
               setEditing={setEditing}
               run={run}
@@ -383,13 +391,14 @@ function Banner({
 // ---------------------------------------------------------------------------
 // Products
 
-type TradeChoice = {id: number; name: string; slug: string};
+type TradeChoice = {id: number; name: string; slug: string; category?: {name: string} | null};
 
 function ProductsTab({
   products,
   busy,
   mayPublish,
   trades,
+  allTrades,
   defaultTrade,
   editing,
   setEditing,
@@ -399,6 +408,7 @@ function ProductsTab({
   busy: boolean;
   mayPublish: boolean;
   trades: TradeChoice[];
+  allTrades: TradeChoice[];
   defaultTrade: number | null;
   editing: SellerProduct | "new" | null;
   setEditing: (value: SellerProduct | "new" | null) => void;
@@ -446,7 +456,8 @@ function ProductsTab({
         <QuickAddItem
           key={JSON.stringify(quick.start)}
           trades={trades}
-          start={quick.start}
+          // A copy is a new item: it goes in the category of the one copied.
+          start={{...quick.start, trade: categoryChoiceFor(trades, allTrades, quick.start.trade)}}
           initialFiles={quick.files}
           onClose={() => setQuick(null)}
           onSaved={(product) => {
@@ -469,7 +480,7 @@ function ProductsTab({
         // straight away instead of after a page reload.
         product={products.find((item) => item.id === editing.id) ?? editing}
         busy={busy}
-        trades={trades}
+        trades={choicesWith(trades, allTrades, editing.trade)}
         defaultTrade={defaultTrade}
         onClose={() => setEditing(null)}
         run={run}

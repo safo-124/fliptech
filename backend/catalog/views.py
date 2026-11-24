@@ -1,5 +1,8 @@
 from django.db.models import Count, Prefetch, Q
+from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from catalog.listed import listed_course_q
 
@@ -32,6 +35,18 @@ class TradeViewSet(viewsets.ReadOnlyModelViewSet):
             .select_related("category")
             .order_by("display_order", "name")
         )
+
+    @extend_schema(responses=TradeSerializer(many=True))
+    @action(detail=False, url_path="choices", pagination_class=None)
+    def choices(self, request):
+        """What a new course or product is filed under: one per category
+        (catalog/listing.py). The forms add "Other (describe)" themselves."""
+        from .listing import listing_trades
+
+        ids = [trade.pk for trade in listing_trades()]
+        trades = {trade.pk: trade for trade in self.get_queryset().filter(pk__in=ids)}
+        ordered = [trades[pk] for pk in ids if pk in trades]
+        return Response(self.get_serializer(ordered, many=True).data)
 
 
 class TradeCategoryViewSet(viewsets.ReadOnlyModelViewSet):

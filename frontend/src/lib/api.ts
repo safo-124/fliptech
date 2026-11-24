@@ -246,6 +246,11 @@ export function getAllTrades() {
   return fetchCompleteCollection<Trade>("/api/trades/");
 }
 
+/** What a new course or product is filed under: one per category (lib/trade-choices.ts). */
+export function getTradeChoices() {
+  return fetchJson<Trade[]>("/api/trades/choices/");
+}
+
 export function getTrade(slug: string) {
   return fetchJson<Trade>(`/api/trades/${slug}/`);
 }

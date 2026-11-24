@@ -71,7 +71,14 @@ export type ProviderCard = {
   lng: number;
 };
 
-export type TradeOption = { id: number; name: string; slug: string; colour: string; provider_count: number };
+export type TradeOption = {
+  id: number;
+  name: string;
+  slug: string;
+  colour: string;
+  provider_count: number;
+  category?: { name: string } | null;
+};
 
 /**
  * A group of trades, for browsing (backend catalog.models.TradeCategory),

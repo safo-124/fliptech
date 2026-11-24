@@ -87,6 +87,20 @@ async function mockTrainerApi(
       results: [{id: 3, name: "Welding", slug: "welding", description: "", provider_count: 4}],
     }),
   );
+  // A course is filed under a category (lib/trade-choices). Registered after
+  // the route above, so it answers first.
+  await page.route("**/api/trades/choices/**", (route) =>
+    json(route, [
+      {
+        id: 3,
+        name: "Engineering & Technical Trades",
+        slug: "engineering-technical-trades",
+        description: "",
+        provider_count: 4,
+        category: {name: "Engineering & Technical Trades"},
+      },
+    ]),
+  );
   await page.route("**/api/trainer/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -247,7 +261,7 @@ test.describe("trainer self-registration on a phone", () => {
     expect(api.saves[0]).toMatchObject({name: "Accra Welding Works", area_id: 7, programme: null});
     await page.getByRole("button", {name: "Continue to course"}).click();
 
-    await page.getByLabel("Trade").selectOption("3");
+    await page.getByLabel("Category").selectOption("3");
     await page.getByLabel("Course title").fill("Beginner arc welding");
     await page.getByLabel("Full fee (GH₵)").fill("1200");
     await page.getByLabel("Duration in weeks").fill("12");
@@ -353,7 +367,7 @@ test.describe("sent back from review", () => {
     await page.getByLabel(/the pin is on my workshop/i).check();
     await page.getByRole("button", {name: "Continue to photos"}).click();
     await page.getByRole("button", {name: "Continue to course"}).click();
-    await page.getByLabel("Trade").selectOption("3");
+    await page.getByLabel("Category").selectOption("3");
     await page.getByLabel("Course title").fill("Beginner arc welding");
     await page.getByLabel("Full fee (GH₵)").fill("1,200");
     await page.getByLabel("Duration in weeks").fill("12");

@@ -64,6 +64,7 @@ import {insideGhana} from "@/lib/ghana-bounds";
 import {formatCedis, formatDate} from "@/lib/format";
 import {ProviderLocationMap} from "@/components/ProviderLocationMap";
 import {OTHER_TRADE, TradeOptions} from "@/components/TradeOptions";
+import {choicesWith} from "@/lib/trade-choices";
 import {knownExtraCosts} from "@/components/FeeReceipt";
 import {ID_NUMBER_HINTS, isIdDocumentType, tidyIdNumber} from "@/lib/id-numbers";
 import {ghanaPhoneSchema, toGhanaE164} from "@/lib/phone";
@@ -994,6 +995,8 @@ function TrainerJoinWizardForm() {
   const [profile, setProfile] = useState<TrainerProfile | null>(null);
   const [areas, setAreas] = useState<TrainerArea[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
+  // Every trade, so a course already filed under one keeps it (lib/trade-choices).
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [phone, setPhone] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
@@ -1071,6 +1074,7 @@ function TrainerJoinWizardForm() {
         setSession(nextSession);
         setAreas(reference.areas);
         setTrades(reference.trades);
+        setAllTrades(reference.allTrades);
 
         if (nextSession.authenticated) {
           setPhone(nextSession.phone);
@@ -1818,7 +1822,7 @@ function TrainerJoinWizardForm() {
   const idHint = isIdDocumentType(idType) ? ID_NUMBER_HINTS[idType] : null;
   const typedName = watch("full_name");
   const typedIdNumber = watch("id_document_number");
-  const selectedTrade = trades.find((trade) => String(trade.id) === watch("trade_id"));
+  const selectedTrade = [...trades, ...allTrades].find((trade) => String(trade.id) === watch("trade_id"));
   const instalmentsAllowed = watch("instalments_allowed");
   const feeIncludesCertificate = watch("fee_includes_certificate");
   const intakeStartDate = watch("intake_start_date");
@@ -2668,7 +2672,11 @@ function TrainerJoinWizardForm() {
                     className={invalidControlClassName}
                   >
                     <option value="">{t("chooseTrade")}</option>
-                    <TradeOptions trades={trades} by="id" other={t("otherTrade")} />
+                    <TradeOptions
+                      trades={choicesWith(trades, allTrades, watch("trade_id"))}
+                      by="id"
+                      other={t("otherTrade")}
+                    />
                   </NativeSelect>
                   <FieldError id="trade-error" message={errors.trade_id?.message} />
                   {watch("trade_id") === OTHER_TRADE ? (

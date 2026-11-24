@@ -11,6 +11,7 @@ import { Button, Field, FormError } from "@/components/Form";
 import { StackHeader } from "@/components/StackHeader";
 import { Text } from "@/components/Text";
 import { ApiError, api, uploadPendingPhoto } from "@/lib/api";
+import { categoryChoiceFor } from "@/lib/trade-choices";
 import { blankDraft, likeThis, nameExample, toInput, tradeOtherMissing, wasPriceTooLow, type QuickItemDraft } from "@/lib/quick-item";
 import { mayOpenGallery } from "@/lib/store-rules";
 import type { CreatedProduct } from "@/lib/types";
@@ -40,8 +41,13 @@ export default function AddItemScreen() {
   const client = useQueryClient();
   const params = useLocalSearchParams<{ like?: string }>();
   const shop = useQuery({ queryKey: ["seller-account"], queryFn: api.sellerAccount });
-  const trades = useQuery({ queryKey: ["trades"], queryFn: api.trades });
-  const startTrade = shop.data?.workshop?.trade_id ?? null;
+  // The categories are the choice; every trade is read to place the
+  // workshop's own (or a copied item's) in its category.
+  const trades = useQuery({ queryKey: ["trade-choices"], queryFn: api.tradeChoices });
+  const allTrades = useQuery({ queryKey: ["trades"], queryFn: api.trades });
+  const choices = trades.data ?? [];
+  const toCategory = (id: number | null | undefined) => categoryChoiceFor(choices, allTrades.data?.results ?? [], id);
+  const startTrade = toCategory(shop.data?.workshop?.trade_id);
 
   const [draft, setDraft] = useState<QuickItemDraft>(() => {
     if (params.like) {
@@ -56,7 +62,8 @@ export default function AddItemScreen() {
   // The trade: the seller's own choice once they make one, else the
   // workshop's (known once the shop has loaded).
   const [tradeChosen, setTradeChosen] = useState(Boolean(params.like));
-  const trade = tradeChosen ? draft.trade : startTrade;
+  // A copied item is a new one: it goes in the category of the one copied.
+  const trade = tradeChosen ? (draft.tradeOther !== null ? null : toCategory(draft.trade)) : startTrade;
 
   const [shots, setShots] = useState<Shot[]>([]);
   const [more, setMore] = useState(false);
@@ -150,7 +157,7 @@ export default function AddItemScreen() {
       return;
     }
     if (tradeOtherMissing(draft)) {
-      setProblem("Say what the trade is, for example Shoe making.");
+      setProblem("Say what your skill is, for example Shoe making.");
       return;
     }
     setBusy(publish ? "sale" : "draft");
@@ -166,7 +173,7 @@ export default function AddItemScreen() {
     }
   }
 
-  const tradeSlug = trades.data?.results.find((item) => item.id === trade)?.slug;
+  const tradeSlug = choices.find((item) => item.id === trade)?.slug;
   const tooLow = wasPriceTooLow(draft);
 
   if (saved) {
@@ -344,11 +351,11 @@ export default function AddItemScreen() {
                 onChangeText={(text) => set("options", text)}
                 placeholder="Small, Medium, Large"
               />
-              {trades.data?.results.length ? (
+              {choices.length ? (
                 <View style={{ gap: space.sm }}>
-                  <Text variant="label">Trade</Text>
+                  <Text variant="label">Category</Text>
                   <View style={styles.chips}>
-                    {trades.data.results.map((item) => (
+                    {choices.map((item) => (
                       <Pressable
                         key={item.id}
                         style={[styles.chip, trade === item.id ? styles.chipOn : null]}
@@ -377,13 +384,13 @@ export default function AddItemScreen() {
                       accessibilityState={{ selected: draft.tradeOther !== null }}
                     >
                       <Text style={[styles.chipText, draft.tradeOther !== null ? styles.choiceTextOn : null]}>
-                        Other (describe)
+                        Others (describe)
                       </Text>
                     </Pressable>
                   </View>
                   {draft.tradeOther !== null ? (
                     <Field
-                      label="Your trade"
+                      label="Your skill"
                       value={draft.tradeOther}
                       onChangeText={(text) => set("tradeOther", text)}
                       placeholder="For example: Shoe making"

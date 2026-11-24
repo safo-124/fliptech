@@ -311,9 +311,15 @@ async function completeCollection<T>(path: string): Promise<T[]> {
 }
 
 export async function getTrainerReferenceData() {
-  const [areas, trades] = await Promise.all([
+  const [areas, trades, allTrades] = await Promise.all([
     completeCollection<TrainerArea>("/api/areas/"),
+    // What a course is filed under: the categories (lib/trade-choices.ts).
+    fetch(`${API_URL}/api/trades/choices/`).then((response) => {
+      if (!response.ok) throw new Error(`Trades ${response.status}`);
+      return response.json() as Promise<Trade[]>;
+    }),
+    // Every trade, so a course already filed under one keeps it.
     completeCollection<Trade>("/api/trades/"),
   ]);
-  return {areas, trades};
+  return {areas, trades, allTrades};
 }
