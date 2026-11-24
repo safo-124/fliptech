@@ -8,9 +8,15 @@ from drf_spectacular.utils import extend_schema_field
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
 
-from catalog.models import OTHER_TRADE_SLUG, Programme, Trade
+from catalog.models import OTHER_TRADE_SLUG, Programme, Trade, other_trade
 from core.media import public_url
-from core.placeholders import is_placeholder, is_role_label, placeholder_error
+from core.placeholders import (
+    is_placeholder,
+    is_role_label,
+    landmark_problem,
+    name_problem,
+    placeholder_error,
+)
 from geography.models import Area
 
 from .models import (
@@ -210,7 +216,7 @@ class TrainerProgrammeInputSerializer(RejectUnknownFieldsMixin, serializers.Seri
         if len(typed) < 3 or not any(ch.isalpha() for ch in typed):
             errors["trade_other"] = _("Say what your trade is, for example Shoe making.")
             return
-        attrs["trade"] = Trade.objects.get(slug=OTHER_TRADE_SLUG)
+        attrs["trade"] = other_trade()
         attrs["trade_other"] = typed
 
 
@@ -336,6 +342,15 @@ class TrainerProfileInputSerializer(RejectUnknownFieldsMixin, serializers.Serial
         for field in ("owner_name", "lead_trainer_name"):
             if field not in errors and is_role_label(attrs.get(field)):
                 errors[field] = _("Write the person's name, not their role.")
+        # Names someone can be known by, and a landmark someone can find.
+        for field in ("name", "full_name"):
+            if field not in errors:
+                problem = name_problem(attrs.get(field))
+                if problem:
+                    errors[field] = problem
+        problem = landmark_problem(attrs.get("landmark"))
+        if problem:
+            errors["landmark"] = problem
 
         # The number must have the shape of the ID type chosen, and is stored
         # one way so the same card typed twice is recognised (one card, one

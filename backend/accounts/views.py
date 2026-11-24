@@ -79,6 +79,14 @@ class CodeVerifySerializer(serializers.Serializer):
 class AccountSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(read_only=True)
 
+    def validate_display_name(self, value):
+        from core.placeholders import name_problem
+
+        problem = name_problem(value)
+        if problem:
+            raise serializers.ValidationError(problem)
+        return value.strip()
+
     def validate_email(self, value):
         value = (value or "").strip().lower() or None
         if (

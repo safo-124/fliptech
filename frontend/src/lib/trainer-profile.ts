@@ -3,7 +3,7 @@ import {z} from "zod";
 import {v, type ValidationKey} from "../i18n/validation";
 
 import {idNumberIssue, tidyIdNumber} from "./id-numbers";
-import {isPlaceholder, isRoleLabel} from "./placeholders";
+import {isPlaceholder, isRoleLabel, landmarkTooShort, nameIssue} from "./placeholders";
 import {ghanaPhoneSchema, toGhanaE164} from "./phone";
 import type {TrainerProfile} from "./types";
 
@@ -248,6 +248,16 @@ export const trainerDraftSchema = trainerDraftShape.superRefine((values, context
   }
   for (const issue of courseIssues(values)) {
     context.addIssue({code: "custom", path: [issue.path], message: issue.message});
+  }
+  // Names someone can be known by, and a landmark someone can find.
+  for (const field of ["name", "full_name"] as const) {
+    const issue = nameIssue(values[field]);
+    if (issue) {
+      context.addIssue({code: "custom", path: [field], message: v(issue === "short" ? "nameTooShort" : "notAName")});
+    }
+  }
+  if (landmarkTooShort(values.landmark)) {
+    context.addIssue({code: "custom", path: ["landmark"], message: v("landmarkTwoWords")});
   }
 });
 

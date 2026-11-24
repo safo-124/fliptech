@@ -57,6 +57,7 @@ import {Skeleton} from "@/components/ui/skeleton";
 import {Textarea} from "@/components/ui/textarea";
 import {validationMessage} from "@/i18n/validation";
 import {BRAND} from "@/lib/brand";
+import {tradeExampleKey} from "@/lib/trade-examples";
 import {isTeachingLanguage, TEACHING_LANGUAGES} from "@/lib/teaching-languages";
 import {ownerOf, readDraft, removeDraft, TRAINER_PROFILE_DRAFT, writeDraft} from "@/lib/drafts";
 import {insideGhana} from "@/lib/ghana-bounds";
@@ -2701,7 +2702,15 @@ function TrainerJoinWizardForm() {
                     id="programme_title"
                     {...register("programme_title")}
                     required
-                    placeholder={t("courseTitlePlaceholder")}
+                    placeholder={
+                      watch("trade_id") === OTHER_TRADE
+                        ? t("courseTitleExample.other")
+                        : selectedTrade
+                          ? tradeExampleKey(selectedTrade.slug) === "named"
+                            ? t("courseTitleExample.named", {trade: selectedTrade.name})
+                            : t(`courseTitleExample.${tradeExampleKey(selectedTrade.slug)}`)
+                          : t("courseTitlePlaceholder")
+                    }
                     aria-invalid={Boolean(errors.programme_title)}
                     aria-describedby={describedBy(errors.programme_title && "programme-title-error")}
                   />

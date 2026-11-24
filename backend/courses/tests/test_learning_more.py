@@ -850,3 +850,18 @@ def test_tools_for_a_course_with_no_offer_is_empty(client, course):
     provider, _ = course
     found = client.get(reverse("course-tools", args=[provider.area.slug, provider.slug])).json()
     assert found == {"chosen": False, "tools": [], "products": []}
+
+
+@pytest.mark.django_db
+def test_selling_is_on_only_with_a_price_and_a_payout_account(trainer_client, course):
+    from courses.models import CourseOffer
+
+    provider, _lessons = course
+    details = trainer_client.get(reverse("studio-details")).json()
+    assert details["selling_on"] is False
+    assert "trade_slug" in details
+
+    CourseOffer.objects.update_or_create(
+        provider=provider, defaults={"price": "200.00", "paystack_subaccount": "ACCT_x"}
+    )
+    assert trainer_client.get(reverse("studio-details")).json()["selling_on"] is True

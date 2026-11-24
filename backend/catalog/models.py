@@ -28,10 +28,17 @@ def prepare_trade_picture(django_file):
     return (content, as_png) if content is not None else (None, False)
 
 
-# The one trade for "my trade is not listed". Made by a migration; kept out
-# of every public trade list (catalog views, search), and the trainer's own
-# words (trade_other) say what it really is.
+# The one trade for "my trade is not listed". Made the first time someone
+# picks it (other_trade()); kept out of every public trade list (catalog
+# views, search), and the trainer's own words (trade_other) say what it is.
 OTHER_TRADE_SLUG = "other"
+
+
+def other_trade():
+    trade, _ = Trade.objects.get_or_create(
+        slug=OTHER_TRADE_SLUG, defaults={"name": "Other", "display_order": 9999}
+    )
+    return trade
 
 
 class TradeCategory(TimeStampedModel):

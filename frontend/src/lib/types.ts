@@ -996,6 +996,10 @@ export type StudioDetails = {
   tool_products: { id: number; name: string; seller: string }[];
   level: CourseLevel | "";
   levels: { value: CourseLevel; label: string }[];
+  /** The workshop's trade, for examples in it. */
+  trade_slug?: string | null;
+  /** A price and a payout account are set: launch price and promo codes apply. */
+  selling_on?: boolean;
   price: string | null;
   sale_price: string | null;
   sale_ends_at: string | null;

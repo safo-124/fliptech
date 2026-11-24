@@ -476,6 +476,14 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             missing.append("area")
         return missing
 
+    def validate_business_name(self, value):
+        from core.placeholders import name_problem
+
+        problem = name_problem(value)
+        if problem:
+            raise serializers.ValidationError(problem)
+        return value.strip()
+
     def validate_student_discount_percent(self, value):
         if value and not (self.instance and self.instance.provider_id):
             raise serializers.ValidationError(

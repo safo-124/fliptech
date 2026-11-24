@@ -897,6 +897,9 @@
     "longitudeRange": "That pin is outside Ghana. Move the pin onto your workshop.",
     "tradeRequired": "Choose a trade",
     "tradeOtherRequired": "Say what your trade is, for example Shoe making",
+    "nameTooShort": "A name needs at least 3 letters",
+    "notAName": "That is not a name. Write the real name",
+    "landmarkTwoWords": "Name the landmark in at least two words, for example Opposite Madina Mall",
     "courseTitleRequired": "Course title is required",
     "feeInvalid": "Enter the fee as a number, for example 1200 or 1,200",
     "weeksInvalid": "Enter the number of weeks",
@@ -1999,7 +2002,17 @@
     "masterNamePlaceholder": "Madam Akosua Mensah",
     "inTradeSinceLabel": "In the trade since (year)",
     "apprenticesTrainedLabel": "Apprentices trained so far",
-    "teachingLanguagesLegend": "Languages the teaching is done in"
+    "teachingLanguagesLegend": "Languages the teaching is done in",
+    "courseTitleExample": {
+      "welding": "For example: Beginner arc welding",
+      "tailoring": "For example: Dressmaking for beginners",
+      "plumbing": "For example: Household plumbing basics",
+      "autoMechanics": "For example: Car servicing and repairs",
+      "hairdressing": "For example: Braiding and natural hair care",
+      "electrical": "For example: House wiring for beginners",
+      "named": "For example: {trade} for beginners",
+      "other": "For example: Your trade for beginners"
+    }
   },
   "ReportProblem": {
     "title": "Report a problem",
@@ -2987,6 +3000,7 @@
     "savePage": "Save course page",
     "preview": "Preview",
     "previewEmpty": "Your words appear here as you type.",
+    "sellingOffNote": "A launch price and promo codes appear here once your course has a price and your payout account is set.",
     "sellingNote": "Payments go through Paystack. Course sales go straight to your payout account; featuring is paid to Fliiptech.",
     "saleTitle": "Launch price",
     "saleLead": "A lower price for a while, shown next to your full price of {price}, to get your first learners.",
@@ -3038,7 +3052,27 @@
     "toolProductsAdded": "Added",
     "toolProductsRemove": "Remove {name}",
     "toolProductsNone": "Nothing found. Try another word.",
-    "toolProductsSaved": "Saved."
+    "toolProductsSaved": "Saved.",
+    "outcomesExample": {
+      "welding": "Strike and hold a steady arc\nWeld a strong butt joint\nWork safely with gas and sparks",
+      "tailoring": "Take body measurements\nCut a pattern from your measurements\nSew a lined dress",
+      "plumbing": "Fit a basin tap\nJoin PVC and PPR pipes\nFind and fix a leak",
+      "autoMechanics": "Change engine oil and filters\nCheck and replace brake pads\nFind a fault with a scanner",
+      "hairdressing": "Part and section hair neatly\nDo knotless braids that last\nCare for natural hair",
+      "electrical": "Wire a socket and a switch\nRead a simple wiring diagram\nTest a circuit safely",
+      "named": "The first skill a learner gets\nThe next thing they can do\nWhat they can sell or charge for"
+    },
+    "toolsExample": {
+      "welding": "Welding machine\nWelding helmet and gloves\nScrap steel to practise on",
+      "tailoring": "Sewing machine\nTape measure and tailor's chalk\nFabric to practise on",
+      "plumbing": "Pipe wrench\nPVC pipes and fittings\nPlumber's tape",
+      "autoMechanics": "Socket set and spanners\nJack and axle stands\nOverall and gloves",
+      "hairdressing": "Rat-tail comb\nBraiding extensions\nHair clips",
+      "electrical": "Insulated screwdrivers and pliers\nCable and sockets to practise on\nA test meter",
+      "named": "The main tool\nWhat to practise on\nSafety wear, if any"
+    },
+    "previewNeeds": "What learners need",
+    "previewLevel": "Level: {level}"
   },
   "SiteSearch": {
     "metaTitle": "Search",

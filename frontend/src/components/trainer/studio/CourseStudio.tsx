@@ -21,10 +21,12 @@ import {
   Trash2,
   Users,
   Wallet,
+  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { tradeExampleKey } from "@/lib/trade-examples";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { Stars } from "@/components/learn/Stars";
@@ -328,6 +330,7 @@ function CoursePageEditor() {
   }
 
   const outcomes = form.outcomes.split("\n").map((line) => line.replace(/^[\s\-•]+/, "").trim()).filter(Boolean);
+  const tools = form.tools.split("\n").map((line) => line.replace(/^[\s\-•]+/, "").trim()).filter(Boolean);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
@@ -354,7 +357,7 @@ function CoursePageEditor() {
               onChange={(event) => setForm({ ...form, outcomes: event.target.value })}
               rows={6}
               maxLength={1500}
-              placeholder={t("outcomesPlaceholder")}
+              placeholder={t(`outcomesExample.${tradeExampleKey(details.trade_slug)}`)}
               className={`${field} mt-1.5 py-2.5`}
             />
           </div>
@@ -367,7 +370,7 @@ function CoursePageEditor() {
               onChange={(event) => setForm({ ...form, tools: event.target.value })}
               rows={6}
               maxLength={1000}
-              placeholder={t("toolsPlaceholder")}
+              placeholder={t(`toolsExample.${tradeExampleKey(details.trade_slug)}`)}
               className={`${field} mt-1.5 py-2.5`}
             />
           </div>
@@ -430,6 +433,24 @@ function CoursePageEditor() {
             </ul>
           </>
         ) : null}
+        {tools.length ? (
+          <>
+            <p className="mt-4 text-sm font-extrabold">{t("previewNeeds")}</p>
+            <ul className="mt-2 space-y-1.5">
+              {tools.map((tool) => (
+                <li key={tool} className="flex gap-2 text-sm">
+                  <Wrench aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-muted-foreground)]" />
+                  {tool}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {form.level ? (
+          <p className="mt-4 inline-flex rounded-full bg-[var(--color-muted)] px-3 py-1 text-xs font-bold">
+            {t("previewLevel", {level: t(`level.${form.level as "beginner" | "intermediate" | "advanced"}`)})}
+          </p>
+        ) : null}
       </aside>
     </div>
   );
@@ -439,14 +460,31 @@ function CoursePageEditor() {
 
 function Selling() {
   const t = useTranslations("CourseStudio");
+  // A launch price and promo codes only mean something once the course is
+  // actually sold: a price and a payout account (backend CourseOffer.is_paid).
+  const [sellingOn, setSellingOn] = useState<boolean | null>(null);
+  const check = useCallback(() => {
+    getStudioDetails()
+      .then((loaded) => setSellingOn(Boolean(loaded.selling_on)))
+      .catch(() => setSellingOn(false));
+  }, []);
+  useEffect(() => {
+    check();
+  }, [check]);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-6">
-        <TrainerCourseSales />
-        <LaunchPrice />
+        <TrainerCourseSales onSaved={check} />
+        {sellingOn ? <LaunchPrice /> : null}
       </div>
       <div className="space-y-6">
-        <PromoCodes />
+        {sellingOn ? (
+          <PromoCodes />
+        ) : sellingOn === false ? (
+          <p className="rounded-2xl border border-dashed border-[var(--color-border-strong)] p-5 text-sm text-[var(--color-muted-foreground)]">
+            {t("sellingOffNote")}
+          </p>
+        ) : null}
         <Promote />
         <p className="text-xs text-[var(--color-muted-foreground)]">{t("sellingNote")}</p>
       </div>

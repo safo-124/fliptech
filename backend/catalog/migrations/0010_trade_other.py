@@ -3,16 +3,6 @@
 from django.db import migrations, models
 
 
-def add_other_trade(apps, schema_editor):
-    """The "Other" trade for courses whose trade is not listed. Kept out of
-    the public trade lists in code; nothing else changes."""
-    Trade = apps.get_model("catalog", "Trade")
-    Trade.objects.get_or_create(
-        slug="other",
-        defaults={"name": "Other", "display_order": 9999, "is_active": True},
-    )
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -30,5 +20,4 @@ class Migration(migrations.Migration):
             name="trade_other",
             field=models.CharField(blank=True, max_length=80),
         ),
-        migrations.RunPython(add_other_trade, migrations.RunPython.noop),
     ]

@@ -62,7 +62,10 @@ const ROLE_LABELS = new Set([
 ]);
 
 function normal(text: string) {
-  return text.toLowerCase().replace(/[^0-9a-z]+/g, " ").trim();
+  return text
+    .toLowerCase()
+    .replace(/[^0-9a-z]+/g, " ")
+    .trim();
 }
 
 /** Whether a whole field is a stand-in. */
@@ -79,4 +82,61 @@ export function isPlaceholder(text: string | null | undefined): boolean {
 /** Whether a name box holds a role ("Owner") rather than a name. */
 export function isRoleLabel(text: string | null | undefined): boolean {
   return ROLE_LABELS.has(normal(text ?? ""));
+}
+
+// Answers, greetings and labels typed to get past a name box. The server
+// keeps the same list (backend core/placeholders.py FILLER_NAMES).
+const FILLER_NAMES = new Set([
+  "yes",
+  "no",
+  "ok",
+  "okay",
+  "hi",
+  "hello",
+  "name",
+  "my name",
+  "your name",
+  "full name",
+  "nothing",
+  "no name",
+  "abc",
+  "abcd",
+  "aaa",
+  "xyz",
+  "me",
+  "myself",
+  "user",
+  "admin",
+  "unknown",
+  "anonymous",
+  "nobody",
+  "someone",
+  "person",
+  "shop",
+  "my shop",
+  "workshop",
+  "my workshop",
+  "business",
+  "my business",
+  "company",
+]);
+
+/** Why a name is not one: "short" (under 3 letters), "filler", or null. */
+export function nameIssue(
+  text: string | null | undefined,
+): "short" | "filler" | null {
+  const raw = (text ?? "").trim();
+  if (!raw) return null;
+  if ((raw.match(/\p{L}/gu) ?? []).length < 3) return "short";
+  const words = normal(raw);
+  if (FILLER_NAMES.has(words) || isPlaceholder(raw)) return "filler";
+  if (new Set(words.replace(/ /g, "")).size === 1) return "filler";
+  return null;
+}
+
+/** A landmark someone can find needs at least two words ("Madina Mall"). */
+export function landmarkTooShort(text: string | null | undefined): boolean {
+  const raw = (text ?? "").trim();
+  if (!raw) return false;
+  return raw.split(/\s+/).filter((word) => /\p{L}/u.test(word)).length < 2;
 }
