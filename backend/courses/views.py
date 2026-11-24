@@ -255,6 +255,13 @@ class CourseAccessView(APIView):
                     for video in watchable
                     if stream_url(video, request)
                 },
+                # The page is everybody's view, which hides YouTube ids too
+                # (every lesson needs an account): this viewer's, if allowed.
+                "youtube": {
+                    str(video.pk): video.youtube_id for video in watchable if video.youtube_id
+                },
+                # Any account, not only a learner's: enough to watch.
+                "account": gate.signed_in,
                 **learner_state(trainee, course, lessons, request),
             }
         )

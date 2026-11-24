@@ -205,6 +205,8 @@ export type CourseAccess = {
   payments_enabled: boolean;
   sources: Record<string, VideoSource[]>;
   streams: Record<string, string>;
+  /** By lesson id: a YouTube lesson's id, for a viewer allowed to watch it. */
+  youtube?: Record<string, string>;
   progress: Record<string, LessonProgressRow>;
   certificate: Certificate | null;
 };

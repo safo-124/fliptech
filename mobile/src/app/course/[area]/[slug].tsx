@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView, type VideoSource as PlayerSource } from "expo-video";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Award, CircleCheck, CirclePlay, CloudDownload, Flag, Lock, MapPin, ExternalLink, Trash } from "lucide-react-native";
+import { Award, CircleCheck, CirclePlay, CloudDownload, Flag, Lock, MapPin, ExternalLink, Trash, UserRound } from "lucide-react-native";
 import { useMemo, useRef, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -131,7 +131,10 @@ export default function CourseScreen() {
    * note, with no pointer to buying it elsewhere.
    */
   function lockedLesson() {
-    if (SELLS_COURSES) {
+    // Every lesson needs an account, free ones too (backend courses/access.py).
+    if (!auth.signedIn) {
+      router.push({ pathname: "/sign-in", params: { why: "to watch the lessons" } });
+    } else if (SELLS_COURSES) {
       void buy();
     } else if (!auth.signedIn) {
       router.push({ pathname: "/sign-in", params: { why: "to open your courses" } });
@@ -198,7 +201,11 @@ export default function CourseScreen() {
             }}
           />
         ) : (
-          <LockedPoster poster={active?.poster ?? data?.course.poster ?? null} loading={!data || access.isPending} />
+          <LockedPoster
+            poster={active?.poster ?? data?.course.poster ?? null}
+            loading={!data || access.isPending}
+            signIn={auth.signedIn ? undefined : () => router.push({ pathname: "/sign-in", params: { why: "to watch the lessons" } })}
+          />
         )}
       </View>
       <BackBar
@@ -327,7 +334,9 @@ export default function CourseScreen() {
                         saving={saving[lesson.id]}
                         onPress={() =>
                           lesson.kind === "youtube"
-                            ? void Linking.openURL(`https://www.youtube.com/watch?v=${lesson.youtube_id}`)
+                            ? access.data?.youtube?.[lesson.id]
+                              ? void Linking.openURL(`https://www.youtube.com/watch?v=${access.data.youtube[lesson.id]}`)
+                              : lockedLesson()
                             : playable(lesson)
                               ? setCurrent(lesson.id)
                               : lockedLesson()
@@ -535,7 +544,21 @@ function Player({
   );
 }
 
-function LockedPoster({ poster, loading }: { poster: string | null; loading: boolean }) {
+/**
+ * Where the player would be when this lesson cannot play here: for someone
+ * signed out (every lesson needs an account) a way to sign in or register;
+ * else the paid course's lock.
+ */
+function LockedPoster({
+  poster,
+  loading,
+  signIn,
+}: {
+  poster: string | null;
+  loading: boolean;
+  /** Shown when signed out: opens sign-in. */
+  signIn?: () => void;
+}) {
   return (
     <View style={styles.video}>
       {poster ? (
@@ -544,9 +567,18 @@ function LockedPoster({ poster, loading }: { poster: string | null; loading: boo
       {loading ? null : (
         <View style={styles.lockOverlay}>
           <View style={styles.lockBadge}>
-            <Lock size={22} color="#fff" />
+            {signIn ? <UserRound size={22} color="#fff" /> : <Lock size={22} color="#fff" />}
           </View>
-          <Text style={{ color: "#fff", fontFamily: fonts.semibold }}>Unlock the course to watch</Text>
+          {signIn ? (
+            <>
+              <Text style={{ color: "#fff", fontFamily: fonts.semibold }}>Sign in to watch</Text>
+              <Pressable onPress={signIn} accessibilityRole="button" style={styles.signInButton}>
+                <Text style={styles.signInText}>Sign in or register</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={{ color: "#fff", fontFamily: fonts.semibold }}>Unlock the course to watch</Text>
+          )}
         </View>
       )}
     </View>
@@ -667,6 +699,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: space.sm,
   },
+  signInButton: {
+    marginTop: 4,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signInText: { fontFamily: fonts.bold, fontSize: 14, color: colors.brand },
   lockBadge: {
     width: 52,
     height: 52,

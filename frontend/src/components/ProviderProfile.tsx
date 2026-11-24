@@ -566,8 +566,10 @@ function Videos({ provider }: { provider: ProviderDetail }) {
           const cost = videoCost(video);
           return (
             <li key={video.id}>
-              {video.locked ? (
-                // Part of the paid course: its still, and the way to it.
+              {video.locked || video.sign_in ? (
+                // Part of the paid course, or a lesson that needs an account
+                // (this page is everybody's view): its still, and the way to
+                // the course page, which knows who is watching.
                 <Link
                   href={`/learn/${provider.area_slug}/${provider.slug}`}
                   className="relative grid aspect-video place-items-center overflow-hidden rounded-xl bg-black text-white"
@@ -578,7 +580,7 @@ function Videos({ provider }: { provider: ProviderDetail }) {
                   ) : null}
                   <span className="relative inline-flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/30">
                     <Lock aria-hidden="true" className="size-4" />
-                    {t("videoInCourse")}
+                    {video.locked ? t("videoInCourse") : t("videoWatch")}
                   </span>
                 </Link>
               ) : (

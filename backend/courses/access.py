@@ -4,11 +4,16 @@ One rule, used by every place a lesson's files could leak from: the public
 listing, the course page, its per-viewer access endpoint, and Caddy's check
 before it streams a file (media_access_view).
 
-A lesson is locked when its workshop charges for the course, it is not the
-free preview (the first lesson approved, by when it was sent), and it is an
-upload — a YouTube link from before uploads is public on YouTube anyway, so
-locking it here would lock nothing. A locked lesson may still be watched by
-someone who bought the course, by the workshop's own trainers, and by staff.
+Every lesson needs an account: nobody signed out may play one, free course,
+preview or not. Staff asked for it to be strict, so the files themselves are
+refused (Caddy asks media_access_view), not only hidden on the page.
+
+On top of that, a lesson is locked when its workshop charges for the course,
+it is not the free preview (the first lesson approved, by when it was sent),
+and it is an upload — a YouTube link from before uploads is public on YouTube
+anyway, so locking it here would lock nothing. A locked lesson may still be
+watched by someone who bought the course, by the workshop's own trainers, and
+by staff.
 """
 
 from dataclasses import dataclass, field
@@ -30,9 +35,19 @@ class Gate:
     locked_ids: set = field(default_factory=set)
     preview_id: int | None = None
     owned: bool = False
+    # Signed in at all (any account). Without it, nothing plays.
+    signed_in: bool = False
+
+    def is_locked(self, video):
+        """Part of the paid course and not bought: buying opens it."""
+        return not self.owned and video.pk in self.locked_ids
+
+    def needs_sign_in(self, video):
+        """Would play, once the viewer signs in."""
+        return not self.owned and not self.signed_in and not self.is_locked(video)
 
     def may_watch(self, video):
-        return self.owned or video.pk not in self.locked_ids
+        return self.owned or (self.signed_in and video.pk not in self.locked_ids)
 
 
 def offer_for(provider):
@@ -40,6 +55,11 @@ def offer_for(provider):
         return provider.course_offer
     except CourseOffer.DoesNotExist:
         return None
+
+
+def _signed_in(request):
+    user = getattr(request, "user", None) if request is not None else None
+    return bool(user is not None and user.is_authenticated and user.is_active)
 
 
 def _viewer_owns(provider, request):
@@ -64,7 +84,7 @@ def gate_for(provider, request=None, *, videos=None):
     """
     offer = offer_for(provider)
     if offer is None or not offer.is_paid:
-        return Gate()
+        return Gate(signed_in=_signed_in(request))
     if videos is None:
         videos = list(provider.videos.shown().in_course_order())
     uploads = [video for video in videos if not video.is_youtube]
@@ -75,6 +95,7 @@ def gate_for(provider, request=None, *, videos=None):
         preview_id=preview,
         locked_ids={video.pk for video in uploads if video.pk != preview},
         owned=_viewer_owns(provider, request),
+        signed_in=_signed_in(request),
     )
 
 

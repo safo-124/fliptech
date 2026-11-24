@@ -835,7 +835,8 @@
     "videoMeta": "{value} {unit, select, sec {sec} other {min}} · about {mb} MB to watch",
     "videoQuality": "Picture quality",
     "videoInCourse": "In the paid course",
-    "videosAsCourse": "Watch them as a course"
+    "videosAsCourse": "Watch them as a course",
+    "videoWatch": "Watch in the course"
   },
   "SaveProviderButton": {
     "save": "Save",
@@ -2906,7 +2907,12 @@
     "lockedBody": "Buy the whole course for {price} to watch this and every other lesson. Pay with mobile money or a card.",
     "askOwnCourse": "This is your own course: learners ask here, and you answer from your course studio.",
     "askOwnCourseLink": "Open the course studio",
-    "reviewOwnCourse": "This is your own course: reviews are for your learners."
+    "reviewOwnCourse": "This is your own course: reviews are for your learners.",
+    "signInToWatchTitle": "Sign in to watch",
+    "signInToWatchBody": "Lessons are for members. Sign in, or create a free account in a minute with your phone number.",
+    "signInToWatch": "Sign in or register",
+    "signInToWatchReason": "Sign in to watch the lessons.",
+    "checkingAccount": "Checking your account"
   },
   "MyLearning": {
     "continueTitle": "Continue learning",

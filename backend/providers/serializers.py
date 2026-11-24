@@ -344,8 +344,11 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
 
     `locked` is a lesson of a paid course this viewer has not bought: it
     comes with its title, length and still, so a trainee can see what they
-    would be buying, and without its sources. Fails closed: with no gate
-    in the context, one is worked out with no viewer, which locks.
+    would be buying, and without its sources. `sign_in` is a lesson that
+    would play once the viewer signs in (courses/access.py: every lesson
+    needs an account). Either way there are no sources, no stream and no
+    YouTube id. Fails closed: with no gate in the context, one is worked out
+    with no viewer, which allows nothing.
     """
 
     kind = serializers.SerializerMethodField()
@@ -354,6 +357,8 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
     stream = serializers.SerializerMethodField()
     captions = serializers.SerializerMethodField()
     locked = serializers.SerializerMethodField()
+    sign_in = serializers.SerializerMethodField()
+    youtube_id = serializers.SerializerMethodField()
 
     class Meta:
         model = ProviderVideo
@@ -368,6 +373,7 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
             "stream",
             "captions",
             "locked",
+            "sign_in",
             "section",
             "description",
         ]
@@ -413,7 +419,15 @@ class ProviderVideoSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.BooleanField())
     def get_locked(self, obj):
-        return not self._gate(obj).may_watch(obj)
+        return self._gate(obj).is_locked(obj)
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_sign_in(self, obj):
+        return self._gate(obj).needs_sign_in(obj)
+
+    @extend_schema_field(serializers.CharField(allow_blank=True))
+    def get_youtube_id(self, obj):
+        return obj.youtube_id if self._gate(obj).may_watch(obj) else ""
 
 
 def lesson_captions(video, request=None):
