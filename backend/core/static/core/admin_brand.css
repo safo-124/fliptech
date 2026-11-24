@@ -881,5 +881,9 @@ body.login .errornote { margin: 0 0 18px; padding: 12px 14px; font-size: 14px; }
   #content input.vTextField, #content textarea, #content select { max-width: 100%; box-sizing: border-box; }
   .related-widget-wrapper { flex-wrap: wrap; max-width: 100%; }
   .related-widget-wrapper .select2-container { max-width: 100%; }
-  select.select2-hidden-accessible { left: 0; right: auto; max-width: 1px; }
 }
+
+/* At every width, not only on a phone: the hidden <select> took the width of
+   the page and, though clipped, still widened it (a sideways scroll on the
+   workshop form at 1280px). */
+select.select2-hidden-accessible { left: 0; right: auto; max-width: 1px; }
