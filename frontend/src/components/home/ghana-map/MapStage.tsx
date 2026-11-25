@@ -18,14 +18,20 @@ export type MapCard = {
 /** How often an open home page asks the server for the latest pins. */
 const REFRESH_MS = 2 * 60 * 1000;
 
+type Spot = { x: number; y: number; below: boolean };
 type Shown =
-  | { kind: "card"; card: MapCard; x: number; y: number }
-  | { kind: "group"; title: string; photo: string | null; x: number; y: number }
-  | { kind: "tip"; text: string; x: number; y: number };
+  | ({ kind: "card"; card: MapCard } & Spot)
+  | ({ kind: "group"; title: string; photo: string | null } & Spot)
+  | ({ kind: "tip"; text: string } & Spot);
+
+/** Half a card's width, in pixels: how far a card reaches either side of its pin. */
+const HALF_CARD = 120;
+/** A pin nearer the top than this gets its card below it, inside the tile. */
+const ROOM_ABOVE = 190;
 
 /**
  * The live part of the map: hover cards for pins, a name and count for each
- * region, the region list lighting up its region, and a quiet refresh every
+ * region, and a quiet refresh every
  * two minutes while the page is on screen, so a workshop that joins while
  * someone is looking appears without a reload. Everything here is extra: the
  * map underneath is plain links (GhanaMap).
@@ -59,10 +65,15 @@ export function MapStage({
     return () => window.clearInterval(timer);
   }, [router]);
 
-  function above(element: Element) {
+  /** Where a card goes: over the pin, or under it near the top, and never
+      past the map's sides, since the tile around it clips what spills out. */
+  function spot(element: Element): Spot {
     const box = stage.current!.getBoundingClientRect();
     const rect = element.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2 - box.left, y: rect.top - box.top };
+    const centre = rect.left + rect.width / 2 - box.left;
+    const x = box.width > HALF_CARD * 2 ? Math.min(Math.max(centre, HALF_CARD), box.width - HALF_CARD) : box.width / 2;
+    const top = rect.top - box.top;
+    return top < ROOM_ABOVE ? { x, y: rect.bottom - box.top, below: true } : { x, y: top, below: false };
   }
 
   function show(target: EventTarget | null, pointer?: { clientX: number; clientY: number }) {
@@ -70,33 +81,24 @@ export function MapStage({
     const pin = target.closest("[data-pin]");
     if (pin) {
       const card = cards[pin.getAttribute("data-pin")!];
-      if (card) setShown({ kind: "card", card, ...above(pin) });
+      if (card) setShown({ kind: "card", card, ...spot(pin) });
       return;
     }
     const group = target.closest("[data-group]");
     if (group) {
       const ids = group.getAttribute("data-group")!.split(",");
       const photo = ids.map((id) => cards[id]?.photo).find(Boolean) ?? null;
-      setShown({ kind: "group", title: labels.group.replace("{count}", String(ids.length)).replace("{place}", group.getAttribute("data-place") ?? ""), photo, ...above(group) });
+      setShown({ kind: "group", title: labels.group.replace("{count}", String(ids.length)).replace("{place}", group.getAttribute("data-place") ?? ""), photo, ...spot(group) });
       return;
     }
     const region = target.closest("[data-tip]");
     if (region && pointer) {
       const box = stage.current.getBoundingClientRect();
-      setShown({ kind: "tip", text: region.getAttribute("data-tip")!, x: pointer.clientX - box.left, y: pointer.clientY - box.top });
+      const y = pointer.clientY - box.top;
+      setShown({ kind: "tip", text: region.getAttribute("data-tip")!, x: pointer.clientX - box.left, y, below: y < 40 });
       return;
     }
     setShown(null);
-  }
-
-  function light(target: EventTarget | null, on: boolean) {
-    if (!(target instanceof Element) || !stage.current) return;
-    const row = target.closest("[data-region-row]");
-    if (!row) return;
-    const slug = row.getAttribute("data-region-row");
-    stage.current
-      .querySelectorAll(`[data-region="${CSS.escape(slug ?? "")}"]`)
-      .forEach((path) => path.classList.toggle(styles.regionOn, on));
   }
 
   return (
@@ -108,24 +110,24 @@ export function MapStage({
         if (event.pointerType === "mouse") show(event.target, event);
       }}
       onPointerLeave={() => setShown(null)}
-      onPointerOver={(event) => light(event.target, true)}
-      onPointerOut={(event) => light(event.target, false)}
-      onFocus={(event) => {
-        show(event.target);
-        light(event.target, true);
-      }}
-      onBlur={(event) => {
-        setShown(null);
-        light(event.target, false);
-      }}
+      onFocus={(event) => show(event.target)}
+      onBlur={() => setShown(null)}
     >
       {children}
       {shown?.kind === "tip" ? (
-        <div className={styles.tip} style={{ left: shown.x, top: shown.y }} aria-hidden="true">
+        <div
+          className={`${styles.tip} ${shown.below ? styles.below : ""}`}
+          style={{ left: shown.x, top: shown.y }}
+          aria-hidden="true"
+        >
           {shown.text}
         </div>
       ) : shown ? (
-        <div className={styles.card} style={{ left: shown.x, top: shown.y }} aria-hidden="true">
+        <div
+          className={`${styles.card} ${shown.below ? styles.below : ""}`}
+          style={{ left: shown.x, top: shown.y }}
+          aria-hidden="true"
+        >
           {shown.kind === "card" ? (
             <>
               {shown.card.photo ? (

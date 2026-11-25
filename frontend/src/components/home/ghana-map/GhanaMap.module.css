@@ -1,14 +1,30 @@
 /* The home page's map of Ghana: GhanaMap draws it, MapStage animates it. */
 
+/* Sized by its container, so names and pins can grow when the map is drawn
+   small (see the container queries at the end). */
 .stage {
   position: relative;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  container-type: inline-size;
 }
 
 .svg {
   display: block;
   width: 100%;
-  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
   overflow: visible;
+}
+
+.credit {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+  font-size: 0.625rem;
+  color: var(--color-muted-foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* Land and water. */
@@ -18,8 +34,7 @@
   stroke-linejoin: round;
   transition: fill 0.15s;
 }
-.region:hover,
-.regionOn {
+.region:hover {
   fill: oklch(0.88 0.06 296);
 }
 a:focus-visible .region {
@@ -264,16 +279,28 @@ a:focus-visible .ring {
   transform: translate(-50%, calc(-100% - 0.625rem));
 }
 
-/* Phones: the map is about half its drawn size, so names and pins are drawn
-   bigger to stay readable and tappable, and only the capitals are named. */
-@media (width < 48rem) {
-  .town,
+.card.below,
+.tip.below {
+  transform: translate(-50%, 0.625rem);
+}
+
+/* The map is drawn 600 units wide. In a home page tile it is about half that,
+   so names and pins are drawn bigger to stay readable and tappable, and the
+   smallest maps name only the capitals. */
+@container (width < 30rem) {
   .lakeLabel {
     display: none;
   }
   .regionLabel {
     font-size: 13px;
     stroke-width: 3.5px;
+  }
+  .town .placeLabel {
+    font-size: 14px;
+    stroke-width: 3.5px;
+  }
+  .town .dot {
+    r: 2.6px;
   }
   .regional .placeLabel {
     font-size: 17px;
@@ -292,5 +319,10 @@ a:focus-visible .ring {
   a:hover > g > .pinBody,
   a:focus-visible > g > .pinBody {
     transform: scale(1.7);
+  }
+}
+@container (width < 20rem) {
+  .town {
+    display: none;
   }
 }

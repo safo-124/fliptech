@@ -24,7 +24,7 @@
  * the site is usable on a cheap phone on a slow network.
  */
 
-import { ArrowRight, PlayCircle, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ArrowRight, GraduationCap, PlayCircle, ShieldCheck, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,10 +32,10 @@ import { permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
+import { GhanaMap } from "@/components/home/GhanaMap";
 import { HeroSearch, type HeroSearchLabels } from "@/components/home/HeroSearch";
 import { HomeIntakes } from "@/components/home/HomeIntakes";
 import { Rail } from "@/components/home/Rail";
-import { TrainingMapSection } from "@/components/home/TrainingMapSection";
 import { areaOptions } from "@/lib/picker-options";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { TradeIcon } from "@/components/TradeArt";
@@ -146,6 +146,7 @@ export default async function Home({
           href: `/${workshop.area_slug}/${workshop.slug}`,
         }
       : null);
+  const townCount = placesWithWorkshops.length;
 
   const heroLabels: HeroSearchLabels = {
     tabsLabel: t("searchTabsLabel"),
@@ -209,11 +210,30 @@ export default async function Home({
         ) : null}
       </section>
 
-      {/* ------------------------------------------- find training: the map */}
-      <TrainingMapSection pins={pins} />
-
-      {/* ------------------------------------- the other two parts of the site */}
-      <section className="app-shell mt-3 grid gap-3 md:grid-cols-2">
+      {/* ---------------------------------------------------------- bento */}
+      <section className="app-shell mt-10 grid gap-3 sm:mt-12 md:grid-cols-[1.5fr_1fr] md:grid-rows-2">
+        {/* The map's regions and pins are links of their own, so the tile is
+            two links side by side rather than one link around everything. */}
+        <div className={`${styles.tile} md:row-span-2 md:min-h-[22rem]`}>
+          <Link href="/training" className={styles.tileMain}>
+            <span className={styles.tileIcon}>
+              <GraduationCap aria-hidden="true" className="size-5" />
+            </span>
+            <span className={styles.tileTitle}>{t("pillarTrainingTitle")}</span>
+            <span className={styles.tileBody}>{t("pillarTrainingBody")}</span>
+            <span className={styles.tileLink}>
+              {t("pillarTrainingAction")}
+              <ArrowRight aria-hidden="true" className="size-3.5" />
+            </span>
+            {townCount >= MIN_STAT ? (
+              <span className={`${styles.tileStat} mt-auto pt-6`}>
+                <strong>{townCount}</strong>
+                {t("statTowns", { count: townCount })}
+              </span>
+            ) : null}
+          </Link>
+          <GhanaMap pins={pins} className={styles.tileMap} />
+        </div>
         <Link href="/learn" className={styles.tile}>
           <span className={styles.tileIcon}>
             <PlayCircle aria-hidden="true" className="size-5" />

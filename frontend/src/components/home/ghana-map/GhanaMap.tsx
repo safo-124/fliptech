@@ -56,9 +56,9 @@ function initials(name: string): string {
  * Ghana's sixteen regions with a pin for every listed workshop, drawn on the
  * server as plain SVG: no map library, no tiles, and the regions and pins
  * are ordinary links, so the map works with no JavaScript at all. MapStage
- * adds the hover cards on top.
+ * adds the hover cards on top; ../GhanaMap puts the two together.
  */
-export function GhanaMap({
+export function GhanaMapSvg({
   pins,
   regionCounts,
   labels,
