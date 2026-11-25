@@ -1019,6 +1019,10 @@ function TrainerJoinWizardForm() {
   // Whose draft this form may read and write: the signed-in user. A draft
   // typed by anyone else in this tab is never loaded. See lib/drafts.ts.
   const draftOwner = useRef<string | null>(null);
+  // The account's own name, when it started the "full name" box: the name
+  // read from the ID photo may replace it, since only the ID's version is
+  // what staff check. Anything the person typed themselves stays theirs.
+  const prefilledName = useRef("");
   const previousStepRef = useRef<Step>("phone");
 
   // Rebuilt when the loaded profile changes, so the intake rule knows which
@@ -1054,9 +1058,13 @@ function TrainerJoinWizardForm() {
     draftOwner.current = owner;
     const saved = readDraft<Partial<TrainerDraftForm>>(TRAINER_PROFILE_DRAFT, owner);
     reset({...EMPTY_TRAINER_DRAFT, ...(saved ?? {})});
+    prefilledName.current = "";
     if (!getValues("full_name")) {
       const name = realName(accountName);
-      if (name) setValue("full_name", name);
+      if (name) {
+        setValue("full_name", name);
+        prefilledName.current = name;
+      }
     }
   }
 
@@ -1392,7 +1400,7 @@ function TrainerJoinWizardForm() {
           setValue(field, value, {shouldDirty: true, shouldValidate: true});
         }
       };
-      fill("full_name", result.read.name, cardRead?.read.name);
+      fill("full_name", result.read.name, cardRead?.read.name || prefilledName.current);
       fill("id_document_number", result.read.number, cardRead?.read.number);
       setCardRead(result);
       setHasIdDocument(true);

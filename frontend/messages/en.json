@@ -1140,7 +1140,12 @@
     "learningAll": "All my courses",
     "learningCertificates": "{count, plural, one {# certificate} other {# certificates}}",
     "learningSaved": "Saved lessons",
-    "shoppingTitle": "Shopping"
+    "shoppingTitle": "Shopping",
+    "idNameTitle": "Use the name on your ID?",
+    "idNameBody": "Your trainer details were checked under the name {name}. Use it as your account name too, so you never type it again.",
+    "idNameUse": "Use this name",
+    "idNameKeep": "Keep “{name}”",
+    "idNameLater": "Not now"
   },
   "Chat": {
     "closedAccount": "This person closed their account. The chat is kept here for your records, but they cannot be reached through it.",
@@ -1872,7 +1877,7 @@
     "requiredFields": "Required fields",
     "aboutYouTitle": "About you",
     "aboutYouLead": "We check that a real person runs a real workshop before a listing goes live. Your ID is never shown on the site and never shared with trainees.",
-    "fullNameLabel": "Your full name",
+    "fullNameLabel": "Your full name, as on your ID",
     "roleLabel": "Your role here",
     "chooseOne": "Choose one",
     "idTypeLabel": "ID type",
