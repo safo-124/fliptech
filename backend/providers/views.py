@@ -179,7 +179,9 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
             .annotate(has_shop=Exists(on_sale))
             .order_by("-created_at", "pk")[:MAX_PINS]
         )
-        return Response(ProviderPinSerializer(queryset, many=True, context={"request": request}).data)
+        return Response(
+            ProviderPinSerializer(queryset, many=True, context={"request": request}).data
+        )
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)

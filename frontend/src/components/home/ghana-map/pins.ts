@@ -9,8 +9,9 @@ export type PlacedPin =
   | { kind: "pin"; x: number; y: number; pin: MapPin }
   | { kind: "group"; x: number; y: number; pins: MapPin[]; place: string; href: string };
 
-/** How close, in map units, two pins may sit before they become one bubble. */
-export const GROUP_RADIUS = 22;
+/** How close, in map units, two pins may sit before they become one bubble:
+    far enough that two bubbles never overlap, even drawn larger on a phone. */
+export const GROUP_RADIUS = 36;
 
 /**
  * Where each pin goes, with near neighbours gathered into one numbered

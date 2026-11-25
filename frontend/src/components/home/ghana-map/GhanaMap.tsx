@@ -88,6 +88,10 @@ export function GhanaMap({
           <stop offset="0" stopColor="#fff" stopOpacity="0" />
           <stop offset="0.35" stopColor="#fff" stopOpacity="1" />
         </linearGradient>
+        {/* Rivers run on past the border; only the part in Ghana is drawn. */}
+        <clipPath id="gm-land">
+          <path d={allRegions} />
+        </clipPath>
         <mask id="gm-sea-mask">
           <rect x="0" y={seaTop} width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#gm-sea-fade)" />
         </mask>
@@ -119,12 +123,14 @@ export function GhanaMap({
       <path d={allRegions} className={styles.borders} />
 
       {/* Water. */}
-      {GEO.rivers.map((d, index) => (
-        <path key={index} d={d} className={styles.river} />
-      ))}
-      {GEO.lakes.map((d, index) => (
-        <path key={index} d={d} className={styles.lake} />
-      ))}
+      <g clipPath="url(#gm-land)">
+        {GEO.rivers.map((d, index) => (
+          <path key={index} d={d} className={styles.river} />
+        ))}
+        {GEO.lakes.map((d, index) => (
+          <path key={index} d={d} className={styles.lake} />
+        ))}
+      </g>
       <text {...xy(project(7.35, -0.32))} className={styles.lakeLabel}>
         {labels.lake}
       </text>
