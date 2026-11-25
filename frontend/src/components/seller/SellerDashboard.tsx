@@ -422,7 +422,8 @@ function ProductsTab({
   const [saved, setSaved] = useState<CreatedProduct | null>(null);
   const camera = useRef<HTMLInputElement>(null);
 
-  /** Open the form and the camera together: the camera has to be opened by
+  /** Open the form and the photo picker together (the phone offers the
+   *  camera or the gallery): the picker has to be opened by
    *  the tap itself, or a phone refuses. */
   function openQuick(start: QuickItemDraft) {
     setSaved(null);
@@ -436,7 +437,6 @@ function ProductsTab({
       ref={camera}
       type="file"
       accept="image/*"
-      capture="environment"
       multiple
       className="sr-only"
       tabIndex={-1}

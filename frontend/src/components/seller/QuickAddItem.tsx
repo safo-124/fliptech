@@ -258,7 +258,6 @@ export function QuickAddItem({
           ref={picker}
           type="file"
           accept="image/*"
-          capture="environment"
           multiple
           className="sr-only"
           tabIndex={-1}
