@@ -153,9 +153,17 @@ def _roles(user):
     if "trainee_account" in held and user.trainee_account.is_active:
         payload["trainee"] = {"href": "/account/learning"}
     if "trainer_account" in held and user.trainer_account.is_active:
+        trainer = user.trainer_account
         payload["trainer"] = {
             "href": "/trainer/dashboard",
-            "status": user.trainer_account.approval_status,
+            "status": trainer.approval_status,
+            # The name staff checked against the trainer's ID, once confirmed:
+            # the account page offers it as the account's name too.
+            "checked_name": (
+                trainer.full_name.strip()
+                if trainer.approval_status == trainer.Approval.CONFIRMED
+                else ""
+            ),
         }
     if "seller_account" in held and user.seller_account.is_active:
         payload["seller"] = {

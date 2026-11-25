@@ -24,6 +24,7 @@ import {useCallback, useEffect, useState} from "react";
 import {AccountExtras} from "@/components/account/AccountExtras";
 import {AccountSections} from "@/components/account/AccountSections";
 import {LearningCard} from "@/components/account/LearningCard";
+import {NameFromId} from "@/components/account/NameFromId";
 import {AccountSecurity} from "@/components/account/AccountSecurity";
 import {PhoneSignIn, WelcomeStep} from "@/components/auth/PhoneSignIn";
 import {announceSessionChange} from "@/lib/sign-in";
@@ -399,6 +400,14 @@ function SignedIn({
           {t("signOut")}
         </Button>
       </header>
+      <NameFromId
+        checkedName={roles.trainer?.checked_name}
+        currentName={account.display_name}
+        onChanged={async (name) => {
+          setDetails((current) => ({...current, display_name: name}));
+          await reload();
+        }}
+      />
       <AccountExtras />
 
       {message ? (

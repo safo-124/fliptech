@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Camera,
   CheckCircle2,
-  Clock,
   Copy,
   Lightbulb,
   ImagePlus,
@@ -302,9 +301,10 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
 /**
  * The banner that says whether anything of theirs is actually for sale.
  *
- * Three states, kept apart because the thing to do about each is different:
- * finish the form (their work), wait for confirmation (not their work), or
- * nothing at all.
+ * Kept apart because the thing to do about each is different: finish the
+ * form, put something on sale, or nothing at all. There is no "wait for us":
+ * a seller puts things on sale without waiting for staff (see the backend's
+ * SellerAccount).
  */
 function SellerStatus({
   seller,
@@ -330,13 +330,6 @@ function SellerStatus({
     return (
       <Banner tone="warn" Icon={Store} title={t("finishShopTitle")} action={{label: t("finishShopAction"), onClick: onFix}}>
         {t("finishShopBody")}
-      </Banner>
-    );
-  }
-  if (seller.approval_status === "pending") {
-    return (
-      <Banner tone="warn" Icon={Clock} title={t("waitingTitle")}>
-        {t("waitingBody")}
       </Banner>
     );
   }

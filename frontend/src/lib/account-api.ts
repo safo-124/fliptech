@@ -12,7 +12,12 @@ import {clearAllDrafts} from "./drafts";
 import {trainerFetch as sessionFetch} from "./trainer-fetch";
 import type {MarketplaceOrder} from "./types";
 
-export type RoleState = {href: string; status?: "pending" | "confirmed" | "declined"} | null;
+export type RoleState = {
+  href: string;
+  status?: "pending" | "confirmed" | "declined";
+  /** Trainers only: the name staff checked against their ID, once confirmed. */
+  checked_name?: string;
+} | null;
 
 export type CustomerAccount = {
   phone: string;

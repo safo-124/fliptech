@@ -19,7 +19,7 @@ import type { SellerProduct } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
 const LEVELS = [
-  { key: "confirmed", label: "Confirmed" },
+  { key: "confirmed", label: "Selling" },
   { key: "payments", label: "Payments checked" },
   { key: "verified", label: "Verified maker" },
 ] as const;

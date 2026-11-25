@@ -161,6 +161,23 @@ def test_a_trainee_signing_in_gets_a_customer_account_on_their_login(client):
 
 
 @pytest.mark.django_db
+def test_the_checked_trainer_name_is_offered_only_once_confirmed(client):
+    sign_in(client)
+    client.post(reverse("account-add-role", args=["trainer"]))
+    trainer = TrainerAccount.objects.get()
+    trainer.full_name = " Emmanuel Acheampong Safo "
+    trainer.save()
+
+    assert client.get(reverse("account")).json()["roles"]["trainer"]["checked_name"] == ""
+
+    trainer.approval_status = TrainerAccount.Approval.CONFIRMED
+    trainer.save()
+
+    roles = client.get(reverse("account")).json()["roles"]
+    assert roles["trainer"]["checked_name"] == "Emmanuel Acheampong Safo"
+
+
+@pytest.mark.django_db
 def test_a_phone_login_never_reuses_a_staff_user(client, django_user_model):
     staff = django_user_model.objects.create_user("staff", password="x", is_staff=True)
     TraineeAccount.objects.create(user=staff, phone=PHONE, phone_verified_at=timezone.now())

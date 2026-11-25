@@ -548,10 +548,10 @@
     <div class="sh-card w4">
       <div class="sh-head">
         <div class="sh-desc">Sellers</div>
-        <div class="sh-title">{{ panel.marketplace.sellers }} <span class="sh-of">confirmed</span></div>
+        <div class="sh-title">{{ panel.marketplace.sellers }} <span class="sh-of">selling</span></div>
         <div class="sh-action">
           <span class="sh-badge {% if panel.marketplace.sellers_waiting %}warn{% else %}good{% endif %}">
-            {{ panel.marketplace.sellers_waiting }} waiting
+            {{ panel.marketplace.sellers_waiting }} not checked yet
           </span>
         </div>
       </div>
@@ -560,7 +560,7 @@
           {{ panel.marketplace.workshops_selling }} workshop{{ panel.marketplace.workshops_selling|pluralize }},
           {{ panel.marketplace.traders }} seller{{ panel.marketplace.traders|pluralize }} only
         </div>
-        <div class="sh-foot-muted">Confirming a seller is the only gate: their products go live by themselves afterwards. Somebody with no workshop behind them has nothing on file but a phone number.</div>
+        <div class="sh-foot-muted">Sellers put things on sale without waiting for staff. Look at what they add, take down anything that should not be there, and decline a seller to hide their whole shop. Buyers can pay a seller on the site only once their ID is checked.</div>
       </div>
     </div>
 
@@ -590,7 +590,9 @@
       </div>
       <div class="sh-foot">
         <div class="sh-foot-strong">
-          <a href="{% url 'admin:marketplace_selleraccount_changelist' %}?approval_status__exact=pending">Confirm sellers</a>
+          <a href="{% url 'admin:marketplace_product_changelist' %}?added=7d">New this week ({{ panel.marketplace.new_7 }})</a>
+          &middot;
+          <a href="{% url 'admin:marketplace_selleraccount_changelist' %}?approval_status__exact=pending">Sellers not checked yet</a>
           &middot;
           <a href="{% url 'admin:marketplace_product_changelist' %}">All products</a>
         </div>
