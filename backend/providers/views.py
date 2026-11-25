@@ -8,13 +8,14 @@ from django.contrib.auth import get_user
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
-from django.db.models import Avg, Count, Max, Min, Prefetch
+from django.db.models import Avg, Count, Exists, Max, Min, OuterRef, Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
 from django_ratelimit.core import is_ratelimited
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.response import Response
@@ -29,7 +30,7 @@ from geography.models import Area, Region
 from .filters import ProviderFilter
 from .models import Provider, ProviderPhoto, ProviderVideo
 from .profile_views import record_view
-from .serializers import ProviderDetailSerializer, ProviderListSerializer
+from .serializers import ProviderDetailSerializer, ProviderListSerializer, ProviderPinSerializer
 
 # Section 04 warns against thin templates with a place name swapped in. A
 # generated page needs real inventory behind it before it is worth indexing.
@@ -37,6 +38,9 @@ MIN_LISTINGS_FOR_GENERATED_PAGE = 3
 
 DEFAULT_RADIUS_KM = 10
 MAX_RADIUS_KM = 100
+
+# The most pins the home map is sent: far more workshops than are listed today.
+MAX_PINS = 2000
 
 
 def _point_from_query(params):
@@ -157,6 +161,27 @@ class ProviderViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action != "list":
             return queryset
         return sort_providers(queryset, self.request.query_params)
+
+    @extend_schema(responses=ProviderPinSerializer(many=True))
+    @action(detail=False, url_path="pins", pagination_class=None)
+    def pins(self, request):
+        """Every listed workshop as a pin, for the home page's map of Ghana.
+
+        Unpaginated, because a map that showed only page one would be a quiet
+        lie about how many workshops there are and where. Capped all the same,
+        so the response stays a size a phone can load.
+        """
+        from marketplace.models import Product
+
+        on_sale = Product.objects.visible().filter(seller__provider=OuterRef("pk"))
+        queryset = (
+            self.filter_queryset(self.get_queryset())
+            .annotate(has_shop=Exists(on_sale))
+            .order_by("-created_at", "pk")[:MAX_PINS]
+        )
+        return Response(
+            ProviderPinSerializer(queryset, many=True, context={"request": request}).data
+        )
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)

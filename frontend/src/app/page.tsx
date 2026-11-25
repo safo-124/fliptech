@@ -50,6 +50,7 @@ import {
   listCourses,
   searchProducts,
   getFeaturedShops,
+  getMapPins,
   searchProviders,
 } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
@@ -96,7 +97,7 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, regions, pictures, workshops, courses, products, stats, upcoming, t, shops, categories] = await Promise.all([
+  const [trades, regions, pictures, workshops, courses, products, stats, upcoming, t, shops, categories, pins] = await Promise.all([
     // getAllTrades, not getTrades: trades are created by staff in the
     // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
@@ -110,6 +111,7 @@ export default async function Home({
     getTranslations("LandingPage"),
     getFeaturedShops().catch(() => null),
     getTradeCategories().catch(() => []),
+    getMapPins().catch(() => null),
   ]);
   const featuredShops = shops?.results ?? [];
   // Categories with something in them. Until there is one, the trades
@@ -144,7 +146,6 @@ export default async function Home({
           href: `/${workshop.area_slug}/${workshop.slug}`,
         }
       : null);
-  const pins = (workshops?.results ?? []).map(({ lat, lng }) => ({ lat, lng }));
   const townCount = placesWithWorkshops.length;
 
   const heroLabels: HeroSearchLabels = {
@@ -211,24 +212,28 @@ export default async function Home({
 
       {/* ---------------------------------------------------------- bento */}
       <section className="app-shell mt-10 grid gap-3 sm:mt-12 md:grid-cols-[1.5fr_1fr] md:grid-rows-2">
-        <Link href="/training" className={`${styles.tile} md:row-span-2 md:min-h-[22rem]`}>
-          <span className={styles.tileIcon}>
-            <GraduationCap aria-hidden="true" className="size-5" />
-          </span>
-          <span className={styles.tileTitle}>{t("pillarTrainingTitle")}</span>
-          <span className={styles.tileBody}>{t("pillarTrainingBody")}</span>
-          <span className={styles.tileLink}>
-            {t("pillarTrainingAction")}
-            <ArrowRight aria-hidden="true" className="size-3.5" />
-          </span>
-          {townCount >= MIN_STAT ? (
-            <span className={`${styles.tileStat} mt-auto pt-6`}>
-              <strong>{townCount}</strong>
-              {t("statTowns", { count: townCount })}
+        {/* The map's regions and pins are links of their own, so the tile is
+            two links side by side rather than one link around everything. */}
+        <div className={`${styles.tile} md:row-span-2 md:min-h-[22rem]`}>
+          <Link href="/training" className={styles.tileMain}>
+            <span className={styles.tileIcon}>
+              <GraduationCap aria-hidden="true" className="size-5" />
             </span>
-          ) : null}
+            <span className={styles.tileTitle}>{t("pillarTrainingTitle")}</span>
+            <span className={styles.tileBody}>{t("pillarTrainingBody")}</span>
+            <span className={styles.tileLink}>
+              {t("pillarTrainingAction")}
+              <ArrowRight aria-hidden="true" className="size-3.5" />
+            </span>
+            {townCount >= MIN_STAT ? (
+              <span className={`${styles.tileStat} mt-auto pt-6`}>
+                <strong>{townCount}</strong>
+                {t("statTowns", { count: townCount })}
+              </span>
+            ) : null}
+          </Link>
           <GhanaMap pins={pins} className={styles.tileMap} />
-        </Link>
+        </div>
         <Link href="/learn" className={styles.tile}>
           <span className={styles.tileIcon}>
             <PlayCircle aria-hidden="true" className="size-5" />

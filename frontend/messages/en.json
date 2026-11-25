@@ -88,7 +88,18 @@
     "howEarnTitle": "Earn",
     "howEarnBody": "Open a shop and sell what you make, or list your own workshop and teach.",
     "findArea": "Search towns and regions",
-    "noMatch": "Nothing matches. Try another spelling."
+    "noMatch": "Nothing matches. Try another spelling.",
+    "mapLabel": "Map of Ghana's 16 regions, with a pin for each workshop",
+    "mapSea": "Gulf of Guinea",
+    "mapLake": "Lake Volta",
+    "mapRegionTip": "{region} · {count, plural, =0 {no workshops yet} one {# workshop} other {# workshops}}",
+    "mapPinLabel": "{name}, {place}{shop, select, yes {, also has a shop} other {}}",
+    "mapGroup": "{count} workshops in {place}",
+    "mapGroupAction": "Zoom in on the map",
+    "mapPinAction": "View workshop",
+    "mapTagTraining": "Training",
+    "mapTagShop": "Shop",
+    "mapCredit": "Map data: amCharts"
   },
   "Marketplace": {
     "askAQuestion": "Ask a question",
