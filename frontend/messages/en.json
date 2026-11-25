@@ -2242,7 +2242,7 @@
     "title": "Add an item",
     "close": "Close",
     "photos": "Photos ({count} of {max})",
-    "takePhoto": "Take a photo",
+    "takePhoto": "Take or choose a photo",
     "addPhoto": "Add photo",
     "photoAlt": "Photo {n}",
     "removePhoto": "Remove photo {n}",
