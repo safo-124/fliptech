@@ -309,6 +309,36 @@ class ProviderListSerializer(serializers.ModelSerializer):
         return public_url(photo.image.url, self.context.get("request"))
 
 
+class ProviderPinSerializer(ProviderListSerializer):
+    """One pin on the home page's map of Ghana: where, who, and what.
+
+    The card's own photo, trade and place, so a pin and a search result never
+    disagree, plus two things only the map shows: whether the workshop also
+    has a shop with something on sale, and when it joined, for "Just joined".
+    """
+
+    region_slug = serializers.CharField(source="area.region.slug", read_only=True)
+    has_shop = serializers.BooleanField(read_only=True)
+    joined = serializers.DateTimeField(source="created_at", read_only=True)
+
+    class Meta(ProviderListSerializer.Meta):
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "area",
+            "area_slug",
+            "region",
+            "region_slug",
+            "primary_photo",
+            "trade",
+            "lat",
+            "lng",
+            "has_shop",
+            "joined",
+        ]
+
+
 class VideoSourceSerializer(serializers.Serializer):
     quality = serializers.IntegerField(help_text="Short side in pixels: 360 or 720.")
     url = serializers.URLField()

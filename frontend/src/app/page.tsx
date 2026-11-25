@@ -24,7 +24,7 @@
  * the site is usable on a cheap phone on a slow network.
  */
 
-import { ArrowRight, GraduationCap, PlayCircle, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ArrowRight, PlayCircle, ShieldCheck, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,10 +32,10 @@ import { permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { CourseTile } from "@/components/CourseTile";
-import { GhanaMap } from "@/components/home/GhanaMap";
 import { HeroSearch, type HeroSearchLabels } from "@/components/home/HeroSearch";
 import { HomeIntakes } from "@/components/home/HomeIntakes";
 import { Rail } from "@/components/home/Rail";
+import { TrainingMapSection } from "@/components/home/TrainingMapSection";
 import { areaOptions } from "@/lib/picker-options";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { TradeIcon } from "@/components/TradeArt";
@@ -50,6 +50,7 @@ import {
   listCourses,
   searchProducts,
   getFeaturedShops,
+  getMapPins,
   searchProviders,
 } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
@@ -96,7 +97,7 @@ export default async function Home({
   const moved = searchRedirectTarget(await searchParams);
   if (moved) permanentRedirect(moved);
 
-  const [trades, regions, pictures, workshops, courses, products, stats, upcoming, t, shops, categories] = await Promise.all([
+  const [trades, regions, pictures, workshops, courses, products, stats, upcoming, t, shops, categories, pins] = await Promise.all([
     // getAllTrades, not getTrades: trades are created by staff in the
     // back office, so the number is theirs to decide.
     getAllTrades().catch(() => []),
@@ -110,6 +111,7 @@ export default async function Home({
     getTranslations("LandingPage"),
     getFeaturedShops().catch(() => null),
     getTradeCategories().catch(() => []),
+    getMapPins().catch(() => null),
   ]);
   const featuredShops = shops?.results ?? [];
   // Categories with something in them. Until there is one, the trades
@@ -144,8 +146,6 @@ export default async function Home({
           href: `/${workshop.area_slug}/${workshop.slug}`,
         }
       : null);
-  const pins = (workshops?.results ?? []).map(({ lat, lng }) => ({ lat, lng }));
-  const townCount = placesWithWorkshops.length;
 
   const heroLabels: HeroSearchLabels = {
     tabsLabel: t("searchTabsLabel"),
@@ -209,26 +209,11 @@ export default async function Home({
         ) : null}
       </section>
 
-      {/* ---------------------------------------------------------- bento */}
-      <section className="app-shell mt-10 grid gap-3 sm:mt-12 md:grid-cols-[1.5fr_1fr] md:grid-rows-2">
-        <Link href="/training" className={`${styles.tile} md:row-span-2 md:min-h-[22rem]`}>
-          <span className={styles.tileIcon}>
-            <GraduationCap aria-hidden="true" className="size-5" />
-          </span>
-          <span className={styles.tileTitle}>{t("pillarTrainingTitle")}</span>
-          <span className={styles.tileBody}>{t("pillarTrainingBody")}</span>
-          <span className={styles.tileLink}>
-            {t("pillarTrainingAction")}
-            <ArrowRight aria-hidden="true" className="size-3.5" />
-          </span>
-          {townCount >= MIN_STAT ? (
-            <span className={`${styles.tileStat} mt-auto pt-6`}>
-              <strong>{townCount}</strong>
-              {t("statTowns", { count: townCount })}
-            </span>
-          ) : null}
-          <GhanaMap pins={pins} className={styles.tileMap} />
-        </Link>
+      {/* ------------------------------------------- find training: the map */}
+      <TrainingMapSection pins={pins} />
+
+      {/* ------------------------------------- the other two parts of the site */}
+      <section className="app-shell mt-3 grid gap-3 md:grid-cols-2">
         <Link href="/learn" className={styles.tile}>
           <span className={styles.tileIcon}>
             <PlayCircle aria-hidden="true" className="size-5" />

@@ -21,6 +21,7 @@ import type {
   Paginated,
   ProductCard,
   ProductDetail,
+  MapPin,
   ProviderCard,
   ProviderDetail,
   Region,
@@ -213,6 +214,15 @@ async function fetchCompleteCollection<T>(path: string): Promise<T[]> {
     throw new ApiError("API returned an incomplete collection", 502);
   }
   return items;
+}
+
+/**
+ * Every listed workshop as a pin for the home page's map, newest first. On
+ * both tags, so a new workshop, or a workshop's first product going on sale,
+ * shows on the map as soon as Django expires them.
+ */
+export function getMapPins() {
+  return fetchJson<MapPin[]>("/api/providers/pins/", { tags: [TRAINING_TAG, MARKETPLACE_TAG] });
 }
 
 /** Every published provider, or an error—never a misleading partial map. */

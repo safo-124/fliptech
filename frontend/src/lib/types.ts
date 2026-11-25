@@ -51,6 +51,25 @@ export type ProviderCard = {
   is_stale: boolean;
 };
 
+/** One workshop on the home page's map of Ghana (GET /api/providers/pins/). */
+export type MapPin = {
+  id: number;
+  name: string;
+  slug: string;
+  area: string;
+  area_slug: string;
+  region: string;
+  region_slug: string;
+  primary_photo: string | null;
+  trade: { name: string; slug: string; colour: string } | null;
+  lat: number;
+  lng: number;
+  /** Also has a shop with something on sale. */
+  has_shop: boolean;
+  /** When the workshop joined, ISO 8601. */
+  joined: string;
+};
+
 export type Intake = {
   id: number;
   start_date: string;
