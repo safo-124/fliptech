@@ -122,15 +122,27 @@ def test_put_on_sale_publishes_a_shop_that_may_sell(client, seller):  # noqa: F8
 @pytest.mark.django_db
 def test_put_on_sale_saves_a_draft_and_says_why_when_the_shop_cannot_sell(client, seller):  # noqa: F811
     SellerAccount.objects.filter(pk=seller.pk).update(
-        approval_status=SellerAccount.Approval.PENDING
+        approval_status=SellerAccount.Approval.DECLINED
     )
     seller.refresh_from_db()
 
     body = add(as_seller(client, seller), name="Braided wig", publish=True).json()
 
     assert body["status"] == Product.Status.DRAFT
-    assert body["not_published"]["code"] == "not_confirmed"
-    assert "being checked" in body["not_published"]["detail"]
+    assert body["not_published"]["code"] == "declined"
+    assert "not approved" in body["not_published"]["detail"]
+
+
+@pytest.mark.django_db
+def test_put_on_sale_works_before_staff_have_looked(client, seller):  # noqa: F811
+    SellerAccount.objects.filter(pk=seller.pk).update(
+        approval_status=SellerAccount.Approval.PENDING
+    )
+    seller.refresh_from_db()
+
+    body = add(as_seller(client, seller), name="Braided wig", publish=True).json()
+
+    assert body["status"] == Product.Status.PUBLISHED
 
 
 @pytest.mark.django_db

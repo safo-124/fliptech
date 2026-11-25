@@ -113,8 +113,8 @@ def alerts_waiting(now=None):
             question | Q(kind=SellerNotice.Kind.NEW_ORDER, order__status=PaymentStatus.PAID),
             sent_at__isnull=True,
             seller__is_active=True,
-            seller__approval_status=SellerAccount.Approval.CONFIRMED,
         )
+        .exclude(seller__approval_status=SellerAccount.Approval.DECLINED)
         .select_related("seller", "seller__area", "enquiry", "enquiry__product", "order")
         .order_by("created_at", "pk")
     )

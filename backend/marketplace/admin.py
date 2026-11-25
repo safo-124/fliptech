@@ -9,12 +9,17 @@ is published, because there is one listing and it changes rarely. A seller has
 twenty products that change weekly, so reviewing each one would be a queue
 that never empties — and a queue that never empties is a queue nobody reads.
 
-So: the **seller** is confirmed once, by hand, the same way a trainer is. A
-confirmed seller then publishes their own products without waiting. Staff keep
-the other end — any product can be taken down in one click, and suspending a
-seller takes their whole shelf with it, because Product.objects.visible()
-asks about the seller as well as the product.
+So: a **seller** puts their own products on sale as soon as the shop has a
+name and a place, with no wait for staff. Staff keep the other end: every
+product shows here as it goes up (newest first, filter "Added"), any one can
+be taken down in one click, and declining or switching off a seller takes
+their whole shelf with it, because Product.objects.visible() asks about the
+seller as well as the product. Confirming a seller only records that someone
+has looked. Money has its own guard: buyers pay a seller on the site only
+once their ID is checked (trust.py).
 """
+
+from datetime import timedelta
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -53,13 +58,12 @@ CONFIRM_PERM = "marketplace.confirm_seller"
 @admin.register(SellerAccount)
 class SellerAccountAdmin(NameCheckMixin, SellerRemovalAdmin, SellerMessagesMixin, admin.ModelAdmin):
     name_check_field = "business_name"
-    """Who may sell, and whether anyone has checked them.
+    """Who sells, and whether anyone has looked at them yet.
 
-    Anyone can sign up to sell, so a sign-up is not trusted until someone with
-    the confirm permission says so. Until then the seller can fill in their
-    shelf and nothing of theirs is public — the same bargain the trainer
-    sign-up makes, for the same reason: nobody should wait on staff to start
-    typing, and nobody should be published because they typed.
+    Anyone can sign up and sell straight away; staff look afterwards.
+    Confirming records that someone has checked the shop. Declining stops
+    them selling and hides every product they have, as does switching the
+    account off.
 
     The phone and the user are read-only. The phone *is* the account, so
     repointing one would hand somebody else's shop to a different number.
@@ -136,9 +140,10 @@ class SellerAccountAdmin(NameCheckMixin, SellerRemovalAdmin, SellerMessagesMixin
                     "approval_decided_by",
                 ),
                 "description": (
-                    "A verified phone proves somebody holds a SIM, not that they make "
-                    "anything. Confirming says a real person sells real goods. Their "
-                    "products go live by themselves afterwards, so this is the gate."
+                    "Sellers put things on sale without waiting for this. Confirming "
+                    "records that someone here has looked at the shop. Declining stops "
+                    "them selling and hides all their products; say why in the note, "
+                    "which they see."
                 ),
             },
         ),
@@ -213,11 +218,11 @@ class SellerAccountAdmin(NameCheckMixin, SellerRemovalAdmin, SellerMessagesMixin
         one form and HTML has no nested forms.
         """
         if obj.approval_status == SellerAccount.Approval.CONFIRMED:
-            return mark_safe('<span class="row-decided">Confirmed</span>')
+            return mark_safe('<span class="row-decided">Checked</span>')
         return format_html(
             '<span class="row-decide">'
             '<button type="submit" class="row-confirm" formaction="{}" formmethod="post">'
-            "Confirm</button>"
+            "Mark checked</button>"
             "</span>"
             '<a class="row-review" href="{}">Review</a>',
             reverse("admin:marketplace_selleraccount_confirm", args=[obj.pk]),
@@ -335,11 +340,11 @@ class SellerAccountAdmin(NameCheckMixin, SellerRemovalAdmin, SellerMessagesMixin
             self.log_change(request, account, f"Seller sign-up {verb}.")
         self.message_user(request, f"{len(changed)} seller sign-up(s) {verb}.")
 
-    @admin.action(description="Confirm selected sign-ups")
+    @admin.action(description="Mark selected as checked by staff")
     def confirm_sellers(self, request, queryset):
         self._decide(request, queryset, status=SellerAccount.Approval.CONFIRMED, verb="confirmed")
 
-    @admin.action(description="Decline selected sign-ups")
+    @admin.action(description="Decline: stop selling and hide all their products")
     def decline_sellers(self, request, queryset):
         self._decide(request, queryset, status=SellerAccount.Approval.DECLINED, verb="declined")
 
@@ -426,15 +431,39 @@ class ProductPhotoInline(admin.TabularInline):
         )
 
 
+class AddedFilter(admin.SimpleListFilter):
+    """When a product was added: what staff look at, since sellers do not wait."""
+
+    title = "added"
+    parameter_name = "added"
+    DAYS = {"today": 1, "7d": 7, "30d": 30}
+
+    def lookups(self, request, model_admin):
+        return (
+            ("today", "In the last day"),
+            ("7d", "In the last 7 days"),
+            ("30d", "In the last 30 days"),
+        )
+
+    def queryset(self, request, queryset):
+        days = self.DAYS.get(self.value())
+        if days is None:
+            return queryset
+        return queryset.filter(created_at__gte=timezone.now() - timedelta(days=days))
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     """Everything on sale, and the one control that matters: take it down.
 
     Products are not pre-approved — see the module docstring. This screen is
-    how staff see what went up and act on anything that should not have.
+    how staff see what went up and act on anything that should not have:
+    newest first, with its picture, and "Added" narrows it to today or the
+    last week.
     """
 
     list_display = (
+        "picture",
         "name",
         "seller",
         "price_label",
@@ -443,7 +472,14 @@ class ProductAdmin(admin.ModelAdmin):
         "status_label",
         "created_at",
     )
-    list_filter = ("status", "availability", "trade", "seller__area__region", "seller")
+    list_filter = (
+        AddedFilter,
+        "status",
+        "availability",
+        "trade",
+        "seller__area__region",
+        "seller",
+    )
     search_fields = (
         "name",
         "description",
@@ -465,7 +501,7 @@ class ProductAdmin(admin.ModelAdmin):
             {
                 "fields": ("status", "staff_note"),
                 "description": (
-                    "A confirmed seller publishes their own products. Use Take down for "
+                    "Sellers publish their own products. Use Take down for "
                     "anything that should not be up, and say why in the note — the seller "
                     "sees it, and so does whoever reviews the decision later."
                 ),
@@ -473,6 +509,20 @@ class ProductAdmin(admin.ModelAdmin):
         ),
         ("Record", {"fields": ("created_at", "updated_at")}),
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("photos")
+
+    @admin.display(description="")
+    def picture(self, obj):
+        photo = next(iter(obj.photos.all()), None)
+        if photo is None:
+            return mark_safe('<span style="color:#6b7280">No photo</span>')
+        return format_html(
+            '<img src="{}" alt="" width="48" height="48" '
+            'style="object-fit:cover;border-radius:6px;display:block">',
+            photo.image.url,
+        )
 
     @admin.display(description="Price", ordering="price")
     def price_label(self, obj):

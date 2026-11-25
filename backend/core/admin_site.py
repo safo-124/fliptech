@@ -244,8 +244,13 @@ class SkillsHubAdminSite(AdminSite):
         )
 
         sellers = SellerAccount.objects.all()
-        confirmed = sellers.filter(approval_status=SellerAccount.Approval.CONFIRMED, is_active=True)
-        waiting = sellers.filter(approval_status=SellerAccount.Approval.PENDING).count()
+        # Sellers sell without waiting for staff (see marketplace/admin.py), so
+        # "selling" is every active seller not declined, and "not checked" is
+        # how many nobody here has looked at yet.
+        confirmed = sellers.filter(is_active=True).exclude(
+            approval_status=SellerAccount.Approval.DECLINED
+        )
+        waiting = confirmed.filter(approval_status=SellerAccount.Approval.PENDING).count()
 
         products = Product.objects.all()
         live = Product.objects.visible().count()
@@ -267,6 +272,7 @@ class SkillsHubAdminSite(AdminSite):
             "hidden_by_seller": published - live,
             "taken_down": products.filter(status=Product.Status.SUSPENDED).count(),
             "new_30": products.filter(created_at__gte=last_30).count(),
+            "new_7": products.filter(created_at__gte=timezone.now() - timedelta(days=7)).count(),
             # What the marketplace earned Fliiptech in 30 days, in cedis.
             "earned": _earned(SellerPayment, Order, PaymentStatus, Sum, last_30),
             "bar": charts.stacked_bar(

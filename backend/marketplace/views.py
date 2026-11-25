@@ -254,10 +254,8 @@ class StartSellingView(APIView):
     prefilled from the workshop, because for a workshop that is what the shop
     is — the same name, the same place.
 
-    Confirmation still applies. A confirmed trainer is not automatically a
-    confirmed seller: staff approved a workshop that teaches, which is not the
-    same question as whether it should sell goods. It does mean the queue has
-    something to read, which a bare phone number does not.
+    Like any seller, the shop can put things on sale straight away; staff see
+    what goes up and take down what should not be there (see SellerAccount).
     """
 
     authentication_classes = [SessionAuthentication]
@@ -468,13 +466,13 @@ def publish_refusal(account, product):
                 _("Add your shop name and where you are before listing anything."),
                 "shop_details",
             )
-        if not account.is_confirmed:
+        if account.is_declined:
             return (
                 _(
-                    "Your seller sign-up is still being checked. You can keep adding "
-                    "products, and they go live once it is approved."
+                    "This shop was not approved, so nothing can go on sale. Get in touch "
+                    "if you think this is a mistake."
                 ),
-                "not_confirmed",
+                "declined",
             )
         return (_("This seller account cannot list products."), "cannot_sell")
     if product.status == Product.Status.SUSPENDED:

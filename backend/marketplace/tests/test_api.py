@@ -239,7 +239,25 @@ def test_publishing_makes_it_visible(client, area, sent):
 
 
 @pytest.mark.django_db
-def test_an_unconfirmed_seller_is_told_why_publishing_is_refused(client, area, sent):
+def test_a_seller_puts_things_on_sale_without_waiting_for_staff(client, area, sent):
+    sign_in(client)
+    account = SellerAccount.objects.get(phone=PHONE)
+    account.business_name = "Ama Crafts"
+    account.area = area
+    account.save(update_fields=["business_name", "area"])
+    assert account.approval_status == SellerAccount.Approval.PENDING
+    created = client.post(
+        reverse("seller-products"), {"name": "Bag"}, content_type="application/json"
+    ).json()
+
+    response = client.post(reverse("seller-product-publish", args=[created["id"]]))
+
+    assert response.status_code == 200
+    assert Product.objects.visible().filter(pk=created["id"]).exists()
+
+
+@pytest.mark.django_db
+def test_a_declined_seller_is_told_why_publishing_is_refused(client, area, sent):
     sign_in(client)
     account = SellerAccount.objects.get(phone=PHONE)
     account.business_name = "Ama Crafts"
@@ -248,11 +266,13 @@ def test_an_unconfirmed_seller_is_told_why_publishing_is_refused(client, area, s
     created = client.post(
         reverse("seller-products"), {"name": "Bag"}, content_type="application/json"
     ).json()
+    account.approval_status = SellerAccount.Approval.DECLINED
+    account.save(update_fields=["approval_status"])
 
     response = client.post(reverse("seller-product-publish", args=[created["id"]]))
 
     assert response.status_code == 403
-    assert "still being checked" in response.json()["detail"]
+    assert "not approved" in response.json()["detail"]
 
 
 @pytest.mark.django_db
@@ -511,13 +531,15 @@ def test_may_sell_and_visible_agree(client, area, sent, django_user_model):
     rule twice. A drift between them is how something stays visible after the
     object says it should not be, so every combination is checked against
     both rather than trusting they were written together."""
+    Approval = SellerAccount.Approval
     cases = [
-        ("confirmed, filled in, active", True, True, True, True),
-        ("not confirmed", False, True, True, False),
-        ("switched off", True, False, True, False),
-        ("no shop name", True, True, False, False),
+        ("confirmed, filled in, active", Approval.CONFIRMED, True, True, True),
+        ("not checked yet: sells without waiting", Approval.PENDING, True, True, True),
+        ("declined", Approval.DECLINED, True, True, False),
+        ("switched off", Approval.CONFIRMED, False, True, False),
+        ("no shop name", Approval.CONFIRMED, True, False, False),
     ]
-    for i, (label, is_confirmed, is_active, filled, expected) in enumerate(cases):
+    for i, (label, approval, is_active, filled, expected) in enumerate(cases):
         user = django_user_model.objects.create_user(f"seller-case-{i}")
         seller = SellerAccount.objects.create(
             user=user,
@@ -526,9 +548,7 @@ def test_may_sell_and_visible_agree(client, area, sent, django_user_model):
             business_name="Ama Crafts" if filled else "",
             area=area,
             is_active=is_active,
-            approval_status=(
-                SellerAccount.Approval.CONFIRMED if is_confirmed else SellerAccount.Approval.PENDING
-            ),
+            approval_status=approval,
         )
         product = Product.objects.create(
             seller=seller, name="Bag", slug="bag", status=Product.Status.PUBLISHED

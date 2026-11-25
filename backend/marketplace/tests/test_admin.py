@@ -6,6 +6,8 @@ security model, and it is checked on the bulk action and on the single-row URL
 separately. Hiding a button is not a permission.
 """
 
+from datetime import timedelta
+
 import pytest
 from django.contrib.gis.geos import Point
 from django.urls import reverse
@@ -189,3 +191,22 @@ def test_the_dashboard_separates_published_from_actually_visible(client, boss, s
 
     assert panel["live"] == 0
     assert panel["hidden_by_seller"] == 1
+
+
+@pytest.mark.django_db
+def test_staff_see_what_sellers_added_this_week(client, boss, seller):
+    """Sellers do not wait for staff, so the product list is where staff look:
+    newest first, with an "Added" filter for the last few days."""
+    new = Product.objects.create(
+        seller=seller, name="New bag", slug="new-bag", status=Product.Status.PUBLISHED
+    )
+    old = Product.objects.create(
+        seller=seller, name="Old bag", slug="old-bag", status=Product.Status.PUBLISHED
+    )
+    Product.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=20))
+
+    response = client.get(reverse("admin:marketplace_product_changelist") + "?added=7d")
+
+    assert response.status_code == 200
+    shown = list(response.context["cl"].result_list)
+    assert new in shown and old not in shown

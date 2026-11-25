@@ -380,8 +380,9 @@ class OwnProductSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.BooleanField())
     def get_visible(self, obj):
         """Whether a buyer can actually see it, which is not the same as
-        'published'. A published product whose seller is not confirmed is
-        invisible, and the dashboard has to be able to say so."""
+        'published'. A published product whose seller cannot sell (switched off,
+        declined, shop unfinished) is invisible, and the dashboard has to be
+        able to say so."""
         return obj.status == Product.Status.PUBLISHED and obj.seller.may_sell
 
     class Meta:

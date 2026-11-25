@@ -51,18 +51,18 @@ def _private_storage():
 class SellerAccount(TimeStampedModel):
     """A passwordless, phone-verified identity that may list products.
 
-    Mirrors TrainerAccount deliberately: the same sign-up is not trusted
-    until a member of staff confirms it, and the same reasoning applies —
-    anyone can claim to make leather bags, and a verified phone proves
-    somebody holds a SIM, not that they make anything.
-
-    The difference is what confirmation gates. A trainer's listing cannot be
-    published until the account is confirmed; a seller's products cannot be
-    either. Both let the person do the work of filling things in first, so
-    nobody waits on staff to start typing.
+    Unlike a trainer, a seller does not wait for staff. Once the shop has a
+    name and a place, they put their own products on sale; staff see
+    everything that goes up (the back office's newest-first product list)
+    and take down anything that should not be there. Confirming a seller is
+    a note that someone has looked; declining one stops them selling and
+    hides their whole shelf. Money is guarded separately: buyers pay a seller
+    on the site only once their ID is checked, and new sellers' payments are
+    held and capped (trust.py).
     """
 
     class Approval(models.TextChoices):
+        # Selling already: staff have not looked yet (see the docstring).
         PENDING = "pending", "Waiting for confirmation"
         CONFIRMED = "confirmed", "Confirmed"
         DECLINED = "declined", "Declined"
@@ -243,15 +243,20 @@ class SellerAccount(TimeStampedModel):
         return self.approval_status == self.Approval.CONFIRMED
 
     @property
+    def is_declined(self):
+        return self.approval_status == self.Approval.DECLINED
+
+    @property
     def may_sell(self):
         """Everything that has to be true before a product of theirs is public.
 
-        Confirmed and switched on, and the shop actually filled in: a buyer
-        needs a name to recognise and a place to collect from, and a product
-        with neither is not a listing. ProductQuerySet.visible() is the same
-        rule in SQL, and a test holds the two together.
+        Switched on, not declined by staff, and the shop actually filled in: a
+        buyer needs a name to recognise and a place to collect from, and a
+        product with neither is not a listing. No wait for staff: see the
+        class docstring. ProductQuerySet.visible() is the same rule in SQL,
+        and a test holds the two together.
         """
-        return bool(self.is_active and self.is_confirmed and self.business_name and self.area_id)
+        return bool(self.is_active and not self.is_declined and self.business_name and self.area_id)
 
     @property
     def is_away(self):
@@ -267,7 +272,8 @@ class SellerAccount(TimeStampedModel):
 
     @property
     def level(self):
-        """The three levels a buyer is shown: confirmed (can list and answer),
+        """The three levels a buyer is shown: confirmed (can list and answer:
+        every seller who may sell, whether or not staff have looked yet),
         payments (ID checked, can be paid), verified (staff visited)."""
         if self.verified_at:
             return "verified"
@@ -297,12 +303,15 @@ class ProductQuerySet(models.QuerySet):
         Python and the query is how something stays visible after the object
         says it should not be.
         """
-        return self.filter(
-            status=Product.Status.PUBLISHED,
-            seller__is_active=True,
-            seller__approval_status=SellerAccount.Approval.CONFIRMED,
-            seller__area__isnull=False,
-        ).exclude(seller__business_name="")
+        return (
+            self.filter(
+                status=Product.Status.PUBLISHED,
+                seller__is_active=True,
+                seller__area__isnull=False,
+            )
+            .exclude(seller__business_name="")
+            .exclude(seller__approval_status=SellerAccount.Approval.DECLINED)
+        )
 
 
 class Product(TimeStampedModel):
@@ -437,7 +446,10 @@ class Product(TimeStampedModel):
         super().clean()
         if self.status == self.Status.PUBLISHED and self.seller_id and not self.seller.may_sell:
             raise ValidationError(
-                {"status": "This seller is not confirmed, so their products cannot be published."}
+                {
+                    "status": "This seller cannot sell right now (switched off, declined, "
+                    "or the shop has no name or place), so their products cannot be published."
+                }
             )
 
 

@@ -135,17 +135,26 @@ def test_a_product_taken_down_by_staff_is_not_visible(seller):
 
 
 @pytest.mark.django_db
-def test_an_unconfirmed_seller_shows_nothing(db, django_user_model, area):
-    """They may fill their shelf while they wait. None of it is public.
-
-    This is the gate the whole moderation model rests on: products are not
-    reviewed one by one, so the seller being confirmed is the only thing
-    standing between a sign-up and a public listing.
-    """
+def test_a_seller_not_checked_yet_sells_straight_away(db, django_user_model, area):
+    """No wait for staff: what they put on sale is public at once, and staff
+    look afterwards (newest first in the back office)."""
     pending = make_seller(
         django_user_model, area, name="Unknown", phone="+233201110004", confirmed=False
     )
     publish(pending)
+
+    assert Product.objects.visible().count() == 1
+
+
+@pytest.mark.django_db
+def test_declining_a_seller_takes_the_whole_shelf_down(db, django_user_model, area):
+    declined = make_seller(
+        django_user_model, area, name="Unknown", phone="+233201110006", confirmed=False
+    )
+    publish(declined)
+    SellerAccount.objects.filter(pk=declined.pk).update(
+        approval_status=SellerAccount.Approval.DECLINED
+    )
 
     assert not Product.objects.visible().exists()
 
@@ -184,14 +193,18 @@ def test_declining_a_seller_hides_their_products(seller):
 
 
 @pytest.mark.django_db
-def test_an_unconfirmed_seller_cannot_publish_through_clean(db, django_user_model, area):
+def test_a_declined_seller_cannot_publish_through_clean(db, django_user_model, area):
     """A row written from the back office or a management command must not be
     able to route around the rule the view enforces."""
-    pending = make_seller(
+    declined = make_seller(
         django_user_model, area, name="Unknown", phone="+233201110005", confirmed=False
     )
+    SellerAccount.objects.filter(pk=declined.pk).update(
+        approval_status=SellerAccount.Approval.DECLINED
+    )
+    declined.refresh_from_db()
     product = Product(
-        seller=pending,
+        seller=declined,
         name="Soap",
         slug="soap",
         status=Product.Status.PUBLISHED,
