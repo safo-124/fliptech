@@ -68,6 +68,14 @@ def release(order):
             # Nothing goes to the seller while a deposit order's balance is
             # still owed: the seller's share includes money not yet paid.
             return order
+        from .trust import payout_name_waiting
+
+        if payout_name_waiting(order.seller):
+            # Stays held: nothing is sent to an account staff have not
+            # matched to this seller. Released once they clear it.
+            order.transfer_note = "Waiting for staff to check the name on the payout account."
+            order.save(update_fields=["transfer_note", "updated_at"])
+            return order
         if not order.seller.paystack_recipient:
             order.payout = Order.Payout.FAILED
             order.transfer_note = "The seller has no payout account for transfers."
@@ -132,7 +140,12 @@ def refund(order):
             "The seller has already been paid for this order. Refund it from the "
             "Paystack dashboard and recover the money from the seller."
         )
-    paystack.refund(reference=order.reference)
+    if order.checkout_id:
+        # Paid with other sellers in one payment: only this seller's part of
+        # it goes back, and the other orders carry on.
+        paystack.refund(reference=order.checkout.reference, amount_pesewas=order.amount_pesewas)
+    else:
+        paystack.refund(reference=order.reference)
     with transaction.atomic():
         order = Order.objects.select_for_update().get(pk=order.pk)
         order.stage = Order.Stage.REFUNDED

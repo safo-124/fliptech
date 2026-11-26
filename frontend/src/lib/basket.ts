@@ -211,3 +211,42 @@ export async function checkoutSeller(sellerId: number, input: CheckoutInput): Pr
 export function groupFor(basket: Basket | null, sellerId: number) {
   return basket?.groups.find((group) => group.seller.id === sellerId) ?? null;
 }
+
+export type CheckoutAllInput = {
+  phone: string;
+  name: string;
+  note?: string;
+  groups: {seller: number; fulfilment: "pickup" | "delivery"}[];
+};
+
+/** One payment for several sellers' parts of the basket: each seller still
+    gets their own order; the buyer approves one MoMo prompt. */
+export async function checkoutAll(input: CheckoutAllInput) {
+  try {
+    return await call<{kind: "pay"; authorization_url: string; reference: string}>("/api/basket/checkout/", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  } catch (error) {
+    const body = (error as {body?: unknown}).body as {basket?: Basket} | null;
+    if (body?.basket) keep(body.basket);
+    throw error;
+  }
+}
+
+export type CheckoutReceipt = {
+  reference: string;
+  status: "pending" | "paid" | "failed";
+  amount: string;
+  paid_at: string | null;
+  buyer_name: string;
+  orders: MarketplaceOrder[];
+};
+
+/** The receipt for one payment; `confirm` asks Paystack how it went first,
+    for a buyer just back from paying. */
+export function checkoutReceipt(reference: string, confirm = false) {
+  return call<CheckoutReceipt>(`/api/checkout/${encodeURIComponent(reference)}/`, {
+    method: confirm ? "POST" : "GET",
+  });
+}

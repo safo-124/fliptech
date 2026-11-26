@@ -4,6 +4,7 @@ Two kinds, told apart by their reference's prefix:
 
   fm-  a seller paying Fliiptech: a boost or a month of the Shop plan.
   fo-  a buyer paying a seller for a product (an Order).
+  fg-  a buyer paying several sellers at once (a CheckoutPayment; checkout.py).
 
 The rule is the paid course's (courses/views.py): nothing is granted on the
 payer's say-so. A payment becomes PAID only when Paystack confirms a
@@ -78,7 +79,7 @@ def confirm_seller_payment(reference, data):
         return payment
 
 
-def confirm_order(reference, data):
+def confirm_order(reference, data, *, tell_buyer=True):
     with transaction.atomic():
         order = (
             Order.objects.select_for_update(of=("self",))
@@ -106,7 +107,10 @@ def confirm_order(reference, data):
 
             take_stock(order)
             seller_messages.queue_order_alert(order)
-            transaction.on_commit(lambda: _tell_buyer(order))
+            if tell_buyer:
+                # One receipt for a payment covering several sellers is
+                # sent by checkout.confirm_checkout instead.
+                transaction.on_commit(lambda: _tell_buyer(order))
             transaction.on_commit(lambda: _tell_seller(order))
         return order
 
@@ -215,4 +219,8 @@ def confirm_reference(reference, data):
         return confirm_order(reference, data)
     if reference.startswith("fb-"):
         return confirm_balance(reference, data)
+    if reference.startswith("fg-"):
+        from .checkout import confirm_checkout
+
+        return confirm_checkout(reference, data)
     return None

@@ -2,34 +2,31 @@
 
 import { CheckCircle2, Loader2, MessageCircle, Phone, ShoppingBag, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { PayoutAccountForm } from "@/components/payout/PayoutAccountForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import { openOrderChat } from "@/lib/account-api";
 import { formatCedis } from "@/lib/format";
 import { API_URL } from "@/lib/trainer-fetch";
 import {
-  SellerApiError,
   getSellerOrders,
   getSellerPayout,
-  getSellerPayoutBanks,
   getEarnings,
   getSellerPayouts,
   replyToProblem,
   type SellerPayouts,
   markOrderHandedOver,
   markOrderReady,
-  saveSellerPayout,
   stopSellingOnline,
   type Earnings,
   type SellerPayout,
 } from "@/lib/seller-api";
-import type { MarketplaceOrder, PayoutBank } from "@/lib/types";
+import type { MarketplaceOrder } from "@/lib/types";
 
 /**
  * Opens the chat with a paid order's buyer, so the seller can write first.
@@ -80,10 +77,7 @@ export function SellerOrdersTab() {
   const t = useTranslations("SellerGrowth");
   const [payout, setPayout] = useState<SellerPayout | null>(null);
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
-  const [banks, setBanks] = useState<PayoutBank[] | null>(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ bank_code: "", account_number: "", account_name: "" });
-  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -110,44 +104,6 @@ export function SellerOrdersTab() {
       active = false;
     };
   }, [t]);
-
-  const needBanks = Boolean(payout?.payments_enabled && editing && banks === null);
-  useEffect(() => {
-    if (!needBanks) return;
-    let active = true;
-    getSellerPayoutBanks()
-      .then((loaded) => {
-        if (active) setBanks(loaded.banks);
-      })
-      .catch((reason) => {
-        if (!active) return;
-        setBanks([]);
-        setProblem(reason instanceof Error ? reason.message : t("loadFailed"));
-      });
-    return () => {
-      active = false;
-    };
-  }, [needBanks, t]);
-
-  async function savePayout(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy("payout");
-    setErrors({});
-    setProblem(null);
-    setMessage(null);
-    try {
-      setPayout(await saveSellerPayout(form));
-      setEditing(false);
-      setMessage(t("payoutSaved"));
-    } catch (reason) {
-      if (reason instanceof SellerApiError && Object.keys(reason.fields).some((key) => key !== "detail")) {
-        setErrors(reason.fields);
-      } else {
-        setProblem(reason instanceof Error ? reason.message : t("somethingWrong"));
-      }
-    }
-    setBusy(null);
-  }
 
   async function act(key: string, action: () => Promise<unknown>, done?: string) {
     setBusy(key);
@@ -232,72 +188,15 @@ export function SellerOrdersTab() {
               </div>
             </div>
           ) : (
-            <form noValidate onSubmit={savePayout} className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="seller-payout-bank">{t("bankLabel")}</Label>
-                <NativeSelect
-                  id="seller-payout-bank"
-                  value={form.bank_code}
-                  onChange={(event) => setForm({ ...form, bank_code: event.target.value })}
-                  aria-invalid={errors.bank_code ? true : undefined}
-                  disabled={banks === null}
-                >
-                  <option value="">{banks === null ? t("loadingBanks") : t("choose")}</option>
-                  {(["mobile_money", "ghipss"] as const).map((type) => {
-                    const group = (banks ?? []).filter((bank) => bank.type === type);
-                    return group.length ? (
-                      <optgroup key={type} label={t(`bankGroup.${type}`)}>
-                        {group.map((bank) => (
-                          <option key={bank.code} value={bank.code}>
-                            {bank.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null;
-                  })}
-                </NativeSelect>
-                {errors.bank_code ? <p className="text-sm text-[var(--color-destructive)]">{errors.bank_code}</p> : null}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="seller-payout-number">{t("numberLabel")}</Label>
-                <Input
-                  id="seller-payout-number"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={form.account_number}
-                  onChange={(event) => setForm({ ...form, account_number: event.target.value })}
-                  placeholder="024 000 0000"
-                  aria-invalid={errors.account_number ? true : undefined}
-                />
-                {errors.account_number ? (
-                  <p className="text-sm text-[var(--color-destructive)]">{errors.account_number}</p>
-                ) : null}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="seller-payout-name">{t("nameLabel")}</Label>
-                <Input
-                  id="seller-payout-name"
-                  autoComplete="name"
-                  value={form.account_name}
-                  onChange={(event) => setForm({ ...form, account_name: event.target.value })}
-                  aria-invalid={errors.account_name ? true : undefined}
-                />
-                {errors.account_name ? (
-                  <p className="text-sm text-[var(--color-destructive)]">{errors.account_name}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2 sm:col-span-3">
-                <Button type="submit" variant="brand" disabled={busy !== null}>
-                  {busy === "payout" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-                  {t("savePayout")}
-                </Button>
-                {payout.payout.ready ? (
-                  <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
-                    {t("cancel")}
-                  </Button>
-                ) : null}
-              </div>
-            </form>
+            <PayoutAccountForm
+              idPrefix="seller-payout"
+              onCancel={payout.payout.ready ? () => setEditing(false) : undefined}
+              onSaved={() => {
+                setEditing(false);
+                setMessage(t("payoutSaved"));
+                void load().catch(() => null);
+              }}
+            />
           )}
         </CardContent>
       </Card>

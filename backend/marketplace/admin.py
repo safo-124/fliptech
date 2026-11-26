@@ -38,6 +38,7 @@ from core.name_check_admin import NameCheckMixin
 from .admin_outbox import SellerMessagesMixin
 from .models import (
     ChatReport,
+    CheckoutPayment,
     DiscountCode,
     Order,
     OrderItem,
@@ -651,6 +652,25 @@ class ProductEnquiryAdmin(admin.ModelAdmin):
 
 # --------------------------------------------------------------------------
 # Money and reviews
+
+
+@admin.register(CheckoutPayment)
+class CheckoutPaymentAdmin(admin.ModelAdmin):
+    """One payment for a basket with several sellers: the charge itself.
+    Each seller's part is an Order; refund or release those, not this."""
+
+    list_display = ("reference", "buyer_name", "buyer_phone", "amount_label", "status", "paid_at")
+    list_filter = ("status",)
+    search_fields = ("reference", "buyer_phone", "buyer_name")
+    ordering = ("-created_at",)
+    readonly_fields = [field.name for field in CheckoutPayment._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="Amount", ordering="amount_pesewas")
+    def amount_label(self, obj):
+        return f"GH₵{obj.amount_pesewas / 100:,.2f}"
 
 
 @admin.register(SellerPayment)

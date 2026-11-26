@@ -70,6 +70,48 @@ class SkillsHubAdminSite(AdminSite):
         context["site_url"] = public_site_url("/", request)
         return context
 
+    def get_urls(self):
+        from django.urls import path
+
+        return [
+            path("money/", self.admin_view(self.money_view), name="money"),
+            *super().get_urls(),
+        ]
+
+    def money_view(self, request):
+        """Everything paid on the site, and what needs a look (core/money_page.py).
+
+        A POST asks Paystack about every payment still waiting after an
+        hour, the check marketplace_daily also runs.
+        """
+        from django.contrib import messages
+        from django.core.exceptions import PermissionDenied
+        from django.http import HttpResponseRedirect
+        from django.template.response import TemplateResponse
+
+        from . import money_page as money
+
+        if not (
+            request.user.has_perm("marketplace.view_order")
+            or request.user.has_perm("courses.view_coursepurchase")
+        ):
+            raise PermissionDenied
+        if request.method == "POST":
+            checked = money.check_stuck()
+            messages.info(request, f"Asked Paystack about {checked} waiting payment(s).")
+            return HttpResponseRedirect(request.get_full_path())
+        try:
+            days = max(1, min(int(request.GET.get("days", 7)), 365))
+        except ValueError:
+            days = 7
+        context = {
+            **self.each_context(request),
+            "title": "Money",
+            "money": money.summary(request.GET.get("area", "all"), days),
+            "day_choices": (1, 7, 30, 90),
+        }
+        return TemplateResponse(request, "admin/money.html", context)
+
     def index(self, request, extra_context=None):
         from core import activity, delivery
 

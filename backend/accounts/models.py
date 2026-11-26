@@ -155,3 +155,65 @@ class DeliveryAddress(models.Model):
 
     def __str__(self):
         return self.label or self.address[:40]
+
+
+class PayoutAccount(TimeStampedModel):
+    """Where one person's money goes: their shop's sales, their course's
+    sales and, later, their training fees. One per login, so a trainer who
+    also sells sets it up once (accounts/payout.py copies it to the shop and
+    the course, whose payment code reads it from there).
+
+    Before it is saved, Paystack is asked for the name on the wallet or
+    account and the person confirms it is theirs ("Is this you?"). That name
+    is compared with the name staff checked on their ID; when the two do not
+    match, or Paystack could not say, staff look before any money is sent
+    (their sales are held until then: marketplace.trust.holds_payment).
+
+    Only the last four digits are kept: the whole number lives at Paystack.
+    """
+
+    class NameCheck(models.TextChoices):
+        MATCHES = "matches", "Matches the name on their ID"
+        DIFFERENT = "different", "Different from the name on their ID"
+        NO_ID = "no_id", "No checked ID name to compare with"
+        UNKNOWN = "unknown", "Paystack could not say whose account it is"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payout_account"
+    )
+    bank_code = models.CharField(max_length=20)
+    bank_name = models.CharField(max_length=120)
+    # "mobile_money" or "ghipss" (a bank), as Paystack lists it.
+    bank_type = models.CharField(max_length=20, blank=True)
+    account_last4 = models.CharField(max_length=4)
+    # The name Paystack gave for the account, which the person confirmed.
+    account_name = models.CharField(max_length=120)
+    # What it was compared with: the name staff checked on their ID.
+    id_name = models.CharField(max_length=200, blank=True)
+    name_check = models.CharField(max_length=10, choices=NameCheck.choices)
+    # Set when staff have looked at a name that did not match or could not
+    # be checked, and are satisfied the account is this person's.
+    staff_cleared_at = models.DateTimeField(null=True, blank=True)
+    staff_cleared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    paystack_subaccount = models.CharField(max_length=40, blank=True)
+    paystack_recipient = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        permissions = [("clear_payout_name", "Can clear a payout name that does not match")]
+
+    def __str__(self):
+        return f"{self.bank_name} ••{self.account_last4} ({self.account_name})"
+
+    @property
+    def needs_staff(self):
+        """Money waits for staff while the name is not known to be theirs."""
+        return (
+            self.name_check in (self.NameCheck.DIFFERENT, self.NameCheck.UNKNOWN)
+            and self.staff_cleared_at is None
+        )

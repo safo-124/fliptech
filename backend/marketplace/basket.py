@@ -539,6 +539,59 @@ class BasketMergeView(_BasketAPIView):
         return Response(basket_payload(basket, request))
 
 
+def ready_lines(request, basket, seller):
+    """One seller's lines in the basket, checked for checkout: still on show,
+    no more than is left, and at the price the buyer saw. Returns (lines,
+    None), or ([], the Response that says what to fix). Shared by one
+    seller's checkout and the one payment for several (checkout.py).
+
+    A price that changed since the line went in stops checkout once (409,
+    code "price_changed"), with the new price saved for the next try.
+    """
+    lines = [
+        line
+        for line in (_lines_of(basket) if basket is not None else [])
+        if line.product.seller_id == seller.pk
+    ]
+    visible = _visible_ids([line.product_id for line in lines])
+    buyable = [line for line in lines if line_available(line, visible)]
+    if not buyable:
+        return [], Response(
+            {"detail": _("Nothing from this seller can be ordered now.")},
+            status=status.HTTP_409_CONFLICT,
+        )
+    for line in buyable:
+        if line.quantity > most_of(line.product):
+            return [], Response(
+                {
+                    "detail": _("Only %(count)s %(name)s left.")
+                    % {"count": most_of(line.product), "name": line.product.name},
+                    "basket": basket_payload(basket, request),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+    changed = [
+        line
+        for line in buyable
+        if line.price_snapshot is not None
+        and line.price_snapshot != unit_price(line.product, line.option)
+    ]
+    if changed:
+        shown = basket_payload(basket, request)
+        for line in changed:
+            line.price_snapshot = unit_price(line.product, line.option)
+            line.save(update_fields=["price_snapshot"])
+        return [], Response(
+            {
+                "detail": _("A price changed since you added it. Check the total and try again."),
+                "code": "price_changed",
+                "basket": shown,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+    return buyable, None
+
+
 @method_decorator(csrf_protect, name="dispatch")
 class BasketCheckoutView(_BasketAPIView):
     """Check out one seller's group of the basket.
@@ -577,49 +630,9 @@ class BasketCheckoutView(_BasketAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         basket, _token = basket_for(request)
-        lines = [
-            line
-            for line in (_lines_of(basket) if basket is not None else [])
-            if line.product.seller_id == seller.pk
-        ]
-        visible = _visible_ids([line.product_id for line in lines])
-        buyable = [line for line in lines if line_available(line, visible)]
-        if not buyable:
-            return Response(
-                {"detail": _("Nothing from this seller can be ordered now.")},
-                status=status.HTTP_409_CONFLICT,
-            )
-        for line in buyable:
-            if line.quantity > most_of(line.product):
-                return Response(
-                    {
-                        "detail": _("Only %(count)s %(name)s left.")
-                        % {"count": most_of(line.product), "name": line.product.name},
-                        "basket": basket_payload(basket, request),
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
-        changed = [
-            line
-            for line in buyable
-            if line.price_snapshot is not None
-            and line.price_snapshot != unit_price(line.product, line.option)
-        ]
-        if changed:
-            shown = basket_payload(basket, request)
-            for line in changed:
-                line.price_snapshot = unit_price(line.product, line.option)
-                line.save(update_fields=["price_snapshot"])
-            return Response(
-                {
-                    "detail": _(
-                        "A price changed since you added it. Check the total and try again."
-                    ),
-                    "code": "price_changed",
-                    "basket": shown,
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+        buyable, refusal = ready_lines(request, basket, seller)
+        if refusal is not None:
+            return refusal
 
         if paystack.enabled() and seller.takes_payments:
             response = _create_order(
