@@ -22,6 +22,8 @@ export type PayoutAccount = {
   /** Their sign-in number and the network it looks like. */
   suggestion: {number: string; network: string; bank_code: string};
   banks: PayoutBank[];
+  /** Why `banks` is empty: Paystack refused or sent nothing. */
+  banks_error?: string;
 };
 
 export type PayoutCheck = {name: string; bank_name: string; account_last4: string};

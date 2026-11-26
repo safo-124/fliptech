@@ -84,7 +84,9 @@ def payout_banks():
         for bank in _call("GET", "/bank", query={"currency": "GHS", "type": kind}) or []:
             if bank.get("active", True) and not bank.get("is_deleted"):
                 banks.append({"code": bank["code"], "name": bank["name"], "type": kind})
-    cache.set("paystack:payout-banks", banks, 24 * 3600)
+    if banks:
+        # An empty answer is not remembered: the next person asks again.
+        cache.set("paystack:payout-banks", banks, 24 * 3600)
     return banks
 
 

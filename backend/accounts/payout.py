@@ -151,12 +151,15 @@ def payload(user):
         }
     phone = _own_phone(user)
     network = guess_network(phone)
-    banks = []
+    banks, banks_error = [], ""
     if paystack.enabled():
         try:
             banks = paystack.payout_banks()
-        except paystack.PaystackError:
-            banks = []
+        except paystack.PaystackError as exc:
+            logger.warning("Could not list payout banks: %s", exc)
+            banks_error = str(exc)
+        if not banks and not banks_error:
+            banks_error = _("Paystack did not send the list of networks and banks.")
     return {
         "payments_enabled": paystack.enabled(),
         "account": account,
@@ -166,6 +169,8 @@ def payload(user):
             "bank_code": bank_for_network(banks, network),
         },
         "banks": banks,
+        # Why the list is empty, so the form says so instead of offering nothing.
+        "banks_error": banks_error,
     }
 
 
