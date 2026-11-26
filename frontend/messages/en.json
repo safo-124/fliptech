@@ -3397,7 +3397,8 @@
     "receiptReference": "Receipt {reference}",
     "heldNote": "Fliiptech keeps your money safe and pays the seller only once you have your order. If something is wrong, report it and we sort it out.",
     "notPayableYet": "This seller can't be paid online yet, so this can't be bought for now.",
-    "notBuyableNow": "This can't be bought online right now. Message the seller to ask when it will be."
+    "notBuyableNow": "This can't be bought online right now. Message the seller to ask when it will be.",
+    "phoneFromAccount": "Your account's number. The seller and Fliiptech use it to reach you about this order."
   },
   "SignInGate": {
     "title": "Sign in or create an account to continue",

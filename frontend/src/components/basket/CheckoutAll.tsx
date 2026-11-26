@@ -139,6 +139,12 @@ export function CheckoutAll() {
     try {
       if (!name.trim()) throw new Error(tm("buyNameNeeded"));
       if (anyDelivery && !note.trim()) throw new Error(tm("buyAddressNeeded"));
+      if (!codeOn && accountPhone) {
+        // Text codes are off: the order goes on the signed-in buyer's own
+        // number, which needs no code.
+        await send(accountPhone);
+        return;
+      }
       const e164 = toGhanaE164(ghanaPhoneSchema.parse(phone));
       if (codeSent) {
         await verifyBuyerCode(e164, code.trim());
@@ -276,7 +282,9 @@ export function CheckoutAll() {
             autoComplete="tel"
             required
             value={phone}
-            className="min-h-12 text-base"
+            // No text codes: only the account's own number can be used.
+            readOnly={!codeOn}
+            className={cn("min-h-12 text-base", !codeOn && "bg-[var(--color-muted)]")}
             onChange={(event) => {
               setPhone(event.target.value);
               setCodeSent(false);
@@ -286,7 +294,7 @@ export function CheckoutAll() {
             aria-describedby="all-phone-hint"
           />
           <p id="all-phone-hint" className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">
-            {ownNumber ? tm("phoneYours") : tm("phoneCodeHint")}
+            {!codeOn ? t("phoneFromAccount") : ownNumber ? tm("phoneYours") : tm("phoneCodeHint")}
           </p>
         </div>
       )}
