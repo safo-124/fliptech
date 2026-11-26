@@ -337,6 +337,9 @@ class CourseBuyView(APIView):
                 reference=purchase.reference,
                 callback_url=callback,
                 subaccount=course.course_offer.paystack_subaccount,
+                # Fliiptech's share, the same for every course whatever the
+                # subaccount was set up with.
+                transaction_charge=course_commission_pesewas(purchase.amount_pesewas),
                 metadata={"provider_id": course.pk, "trainee_id": trainee.pk},
             )
         except paystack.PaystackError as exc:
@@ -444,6 +447,14 @@ class PurchaseVerifyView(APIView):
         return Response({"status": purchase.status, "owned": purchase.status == "paid"})
 
 
+def course_commission_pesewas(amount_pesewas):
+    """Fliiptech's share of a course sale (COURSE_COMMISSION_PERCENT)."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    share = Decimal(amount_pesewas) * Decimal(str(settings.COURSE_COMMISSION_PERCENT)) / 100
+    return int(share.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class PaystackWebhookView(APIView):
     """Paystack telling the server a payment went through.
@@ -467,7 +478,7 @@ class PaystackWebhookView(APIView):
             data = event.get("data") or {}
             reference = str(data.get("reference") or "")
             # The prefix says whose payment it is (marketplace/models.py).
-            if reference.startswith(("fm-", "fo-", "fb-")):
+            if reference.startswith(("fm-", "fo-", "fb-", "fg-")):
                 from marketplace.payments import confirm_reference
 
                 confirm_reference(reference, data)

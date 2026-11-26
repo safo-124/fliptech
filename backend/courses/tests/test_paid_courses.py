@@ -224,6 +224,8 @@ def test_buying_starts_a_paystack_payment_split_to_the_trainer(client, course, t
     [(_, _, payload, _)] = calls
     assert payload["amount"] == 15000 and payload["currency"] == "GHS"
     assert payload["subaccount"] == "ACCT_trainer"
+    # Fliiptech keeps 5% of a course sale, taken in the same payment.
+    assert payload["transaction_charge"] == 750
     assert payload["reference"] == purchase.reference
     assert payload["callback_url"].startswith("https://skills.example/learn/adenta/vis-hair-studio")
     # A trainee who signs in by phone still has an email Paystack accepts.

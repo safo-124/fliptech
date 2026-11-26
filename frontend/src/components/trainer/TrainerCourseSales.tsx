@@ -5,17 +5,17 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PayoutAccountForm } from "@/components/payout/PayoutAccountForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
 import { BRAND } from "@/lib/brand";
-import { getPayoutBanks, getTrainerCourse, savePayout, setCoursePrice } from "@/lib/course-api";
+import { getTrainerCourse, setCoursePrice } from "@/lib/course-api";
 import { formatCedis } from "@/lib/format";
 import { TrainerApiError } from "@/lib/trainer-fetch";
-import type { PayoutBank, TrainerCourse } from "@/lib/types";
+import type { TrainerCourse } from "@/lib/types";
 
 type Errors = Record<string, string | undefined>;
 
@@ -30,15 +30,12 @@ type Errors = Record<string, string | undefined>;
 export function TrainerCourseSales({onSaved}: {onSaved?: () => void} = {}) {
   const t = useTranslations("TrainerCourse");
   const [course, setCourse] = useState<TrainerCourse | null>(null);
-  const [banks, setBanks] = useState<PayoutBank[] | null>(null);
-  const [banksFailed, setBanksFailed] = useState(false);
   const [editingPayout, setEditingPayout] = useState(false);
-  const [payout, setPayout] = useState({ bank_code: "", account_number: "", account_name: "" });
   const [price, setPrice] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [saving, setSaving] = useState<"payout" | "price" | null>(null);
+  const [saving, setSaving] = useState<"price" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -57,51 +54,11 @@ export function TrainerCourseSales({onSaved}: {onSaved?: () => void} = {}) {
     };
   }, [t]);
 
-  // The list of networks and banks only when the form needs it.
-  const needBanks = Boolean(
-    course?.payments_enabled && editingPayout && banks === null && !banksFailed,
-  );
-  useEffect(() => {
-    if (!needBanks) return;
-    let active = true;
-    getPayoutBanks()
-      .then((loaded) => {
-        if (active) setBanks(loaded.banks);
-      })
-      .catch((reason) => {
-        if (!active) return;
-        setBanksFailed(true);
-        setProblem(reason instanceof Error ? reason.message : t("loadFailed"));
-      });
-    return () => {
-      active = false;
-    };
-  }, [needBanks, t]);
-
   function fail(reason: unknown) {
     if (reason instanceof TrainerApiError && Object.keys(reason.fields).some((key) => key !== "detail")) {
       setErrors(reason.fields);
     } else {
       setProblem(reason instanceof Error ? reason.message : t("saveFailed"));
-    }
-  }
-
-  async function submitPayout(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving("payout");
-    setErrors({});
-    setProblem(null);
-    setMessage(null);
-    try {
-      const saved = await savePayout(payout);
-      setCourse(saved);
-      onSaved?.();
-      setEditingPayout(false);
-      setMessage(t("payoutSaved"));
-    } catch (reason) {
-      fail(reason);
-    } finally {
-      setSaving(null);
     }
   }
 
@@ -170,76 +127,18 @@ export function TrainerCourseSales({onSaved}: {onSaved?: () => void} = {}) {
                   </Button>
                 </div>
               ) : (
-                <form noValidate onSubmit={submitPayout} className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="payout-bank">{t("bankLabel")}</Label>
-                    <NativeSelect
-                      id="payout-bank"
-                      value={payout.bank_code}
-                      onChange={(event) => setPayout({ ...payout, bank_code: event.target.value })}
-                      aria-invalid={errors.bank_code ? true : undefined}
-                      disabled={banks === null}
-                    >
-                      <option value="">
-                        {banksFailed ? t("banksUnavailable") : banks === null ? t("loadingBanks") : t("choose")}
-                      </option>
-                      {(["mobile_money", "ghipss"] as const).map((type) => {
-                        const group = (banks ?? []).filter((bank) => bank.type === type);
-                        return group.length ? (
-                          <optgroup key={type} label={t(`bankGroup.${type}`)}>
-                            {group.map((bank) => (
-                              <option key={bank.code} value={bank.code}>
-                                {bank.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ) : null;
-                      })}
-                    </NativeSelect>
-                    {errors.bank_code ? (
-                      <p className="text-sm text-[var(--color-destructive)]">{errors.bank_code}</p>
-                    ) : null}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="payout-number">{t("numberLabel")}</Label>
-                    <Input
-                      id="payout-number"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      value={payout.account_number}
-                      onChange={(event) => setPayout({ ...payout, account_number: event.target.value })}
-                      placeholder="024 000 0000"
-                      aria-invalid={errors.account_number ? true : undefined}
-                    />
-                    {errors.account_number ? (
-                      <p className="text-sm text-[var(--color-destructive)]">{errors.account_number}</p>
-                    ) : null}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="payout-name">{t("nameLabel")}</Label>
-                    <Input
-                      id="payout-name"
-                      autoComplete="name"
-                      value={payout.account_name}
-                      onChange={(event) => setPayout({ ...payout, account_name: event.target.value })}
-                      aria-invalid={errors.account_name ? true : undefined}
-                    />
-                    {errors.account_name ? (
-                      <p className="text-sm text-[var(--color-destructive)]">{errors.account_name}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2 sm:col-span-3">
-                    <Button type="submit" variant="brand" disabled={saving !== null}>
-                      {saving === "payout" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
-                      {t("savePayout")}
-                    </Button>
-                    {course.payout.ready ? (
-                      <Button type="button" variant="ghost" onClick={() => setEditingPayout(false)}>
-                        {t("cancel")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </form>
+                <PayoutAccountForm
+                  idPrefix="course-payout"
+                  onCancel={course.payout.ready ? () => setEditingPayout(false) : undefined}
+                  onSaved={() => {
+                    setEditingPayout(false);
+                    setMessage(t("payoutSaved"));
+                    onSaved?.();
+                    void getTrainerCourse()
+                      .then(setCourse)
+                      .catch(() => null);
+                  }}
+                />
               )}
             </section>
 

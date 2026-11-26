@@ -31,6 +31,15 @@ def completed_orders(seller):
     ).count()
 
 
+def payout_name_waiting(seller):
+    """Whether staff still have to check the name on this seller's payout
+    account (accounts.models.PayoutAccount.needs_staff)."""
+    from accounts.models import PayoutAccount
+
+    payout = PayoutAccount.objects.filter(user_id=seller.user_id).first()
+    return bool(payout and payout.needs_staff)
+
+
 def holds_payment(seller, pay_now_pesewas=0):
     """Whether this order's money is held for buyer protection. Holding
     needs a transfer recipient to pay the seller through afterwards."""
@@ -38,6 +47,10 @@ def holds_payment(seller, pay_now_pesewas=0):
         return True
     if not seller.paystack_recipient:
         return False
+    if payout_name_waiting(seller):
+        # The name on their payout account is not yet known to be theirs:
+        # the money waits in Fliiptech's account until staff have looked.
+        return True
     above = settings.MARKETPLACE_HOLD_ABOVE
     if above and pay_now_pesewas > above * 100:
         return True

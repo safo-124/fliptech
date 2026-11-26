@@ -800,6 +800,43 @@ def plan_running(seller, at=None):
     return SellerPayment.objects.running(at).plans().filter(seller=seller).first()
 
 
+class CheckoutPayment(TimeStampedModel):
+    """One payment for a basket with several sellers in it.
+
+    Each seller still gets their own Order (their dashboard, buyer protection,
+    refunds and problems all stay per seller); this is the one charge that
+    pays for all of them, so the buyer approves one MoMo prompt instead of
+    one per seller. Paystack splits it as it is paid (a dynamic multi-split,
+    courses/paystack.split_for): each seller paid by split gets their share,
+    and Fliiptech's account keeps its commission and the shares of sellers
+    whose money is held until the buyer has the goods.
+
+    Confirmed by the same rule as every payment here (marketplace/payments):
+    only Paystack saying it succeeded, for exactly this amount.
+    """
+
+    reference = models.CharField(max_length=40, unique=True)
+    buyer_phone = PhoneNumberField(db_index=True)
+    buyer_name = models.CharField(max_length=120)
+    # The sum of the orders' first payments, in pesewas.
+    amount_pesewas = models.PositiveIntegerField()
+    currency = models.CharField(max_length=3, default="GHS")
+    status = models.CharField(
+        max_length=10, choices=PaymentStatus.choices, default=PaymentStatus.PENDING, db_index=True
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
+    gateway_response = models.CharField(max_length=200, blank=True)
+    channel = models.CharField(max_length=30, blank=True)
+    # The split sent to Paystack, as sent: what staff check a settlement against.
+    split = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference}: GH₵{self.amount_pesewas / 100:.2f}"
+
+
 class Order(TimeStampedModel):
     """A buyer paying a seller for a product, on the site.
 
@@ -856,6 +893,12 @@ class Order(TimeStampedModel):
 
     reference = models.CharField(max_length=40, unique=True)
     seller = models.ForeignKey(SellerAccount, on_delete=models.PROTECT, related_name="orders")
+    # Paid together with other sellers' orders in one payment, when it was.
+    # The order's own reference is then never sent to Paystack; the
+    # checkout's is (marketplace/checkout.py).
+    checkout = models.ForeignKey(
+        CheckoutPayment, on_delete=models.PROTECT, null=True, blank=True, related_name="orders"
+    )
     product = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="orders"
     )

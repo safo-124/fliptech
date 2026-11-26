@@ -9,6 +9,7 @@ from rest_framework.routers import DefaultRouter
 
 from accounts import passwords
 from accounts.app_views import AppCodeRequestView, AppCodeVerifyView, AppSignOutView
+from accounts.payout import PayoutAccountView, PayoutCheckView
 from accounts.views import AccountPhotoView, AccountView
 from accounts.views import AddressesView as AccountAddressesView
 from accounts.views import AddressView as AccountAddressView
@@ -55,6 +56,7 @@ from marketplace.basket import (
     BasketMergeView,
     BasketView,
 )
+from marketplace.checkout import BasketCheckoutAllView, CheckoutReceiptView
 from marketplace.selling_views import (
     BasketPriceView,
     CopyProductView,
@@ -632,7 +634,11 @@ urlpatterns = [
     path("basket/items/", BasketItemsView.as_view(), name="basket-items"),
     path("basket/items/<int:pk>/", BasketLineView.as_view(), name="basket-line"),
     path("basket/merge/", BasketMergeView.as_view(), name="basket-merge"),
+    path("payout-account/", PayoutAccountView.as_view(), name="payout-account"),
+    path("payout-account/check/", PayoutCheckView.as_view(), name="payout-account-check"),
+    path("basket/checkout/", BasketCheckoutAllView.as_view(), name="basket-checkout-all"),
     path("basket/checkout/<int:seller_id>/", BasketCheckoutView.as_view(), name="basket-checkout"),
+    path("checkout/<str:reference>/", CheckoutReceiptView.as_view(), name="checkout-receipt"),
     path("account/addresses/", AccountAddressesView.as_view(), name="account-addresses"),
     path("account/addresses/<int:pk>/", AccountAddressView.as_view(), name="account-address"),
     # Chats between a person and a shop or a workshop; see marketplace/chat.py.

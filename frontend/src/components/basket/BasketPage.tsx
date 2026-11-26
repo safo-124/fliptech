@@ -1,11 +1,12 @@
 "use client";
 
-import { Handshake, Loader2, ShoppingBasket, Store, Truck } from "lucide-react";
+import { Handshake, Loader2, LockKeyhole, ShoppingBasket, Store, Truck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { BasketLineRow } from "@/components/basket/BasketLineRow";
+import { payableGroups } from "@/components/basket/CheckoutAll";
 import { useBasket } from "@/components/basket/useBasket";
 import { SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Button } from "@/components/ui/button";
@@ -48,10 +49,28 @@ export function BasketPage() {
           {basket.notice}
         </p>
       ) : null}
+      {payableGroups(basket.groups).length >= 2 ? <PayAllAtOnce count={payableGroups(basket.groups).length} /> : null}
       {basket.groups.map((group) => (
         <SellerGroup key={group.seller.id} group={group} />
       ))}
     </div>
+  );
+}
+
+/** Several sellers paid on the site: one payment for all of them. */
+function PayAllAtOnce({ count }: { count: number }) {
+  const t = useTranslations("Basket");
+  return (
+    <section className="rounded-2xl border-2 border-[var(--color-brand)]/40 bg-[var(--color-brand-soft)]/60 p-4">
+      <p className="text-base font-bold">{t("oneTimeTitle")}</p>
+      <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("oneTimeBody", { count })}</p>
+      <Button asChild variant="brand" className="mt-3 min-h-12 w-full text-base">
+        <Link href="/marketplace/checkout">
+          <LockKeyhole aria-hidden="true" />
+          {t("payAllButton")}
+        </Link>
+      </Button>
+    </section>
   );
 }
 

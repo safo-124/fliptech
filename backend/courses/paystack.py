@@ -114,6 +114,7 @@ def initialize(
     subaccount=None,
     metadata=None,
     transaction_charge=None,
+    split=None,
 ):
     """Start a payment. Returns the URL to send the payer to.
 
@@ -121,6 +122,11 @@ def initialize(
     course, a seller's order); without one, it is Fliiptech's own (a boost
     or a Shop plan). transaction_charge is Fliiptech's share in pesewas,
     overriding the subaccount's percentage for this one payment.
+
+    With `split` (a dynamic multi-split: several sellers in one payment),
+    each listed subaccount gets its flat share as it is paid and whatever is
+    left is Fliiptech's: its commission, and the shares of sellers whose
+    money is held for buyer protection. See split_for().
     """
     payload = {
         "email": email,
@@ -131,7 +137,9 @@ def initialize(
         "channels": ["mobile_money", "card"],
         "metadata": metadata or {},
     }
-    if subaccount:
+    if split:
+        payload["split"] = split
+    elif subaccount:
         payload["subaccount"] = subaccount
         # Who pays Paystack's fee: the trainer's or seller's share by default.
         payload["bearer"] = settings.PAYSTACK_FEE_BEARER
@@ -139,6 +147,44 @@ def initialize(
             payload["transaction_charge"] = transaction_charge
     data = _call("POST", "/transaction/initialize", payload)
     return data["authorization_url"]
+
+
+def split_for(shares):
+    """A dynamic split for one payment: {subaccount_code: pesewas}.
+
+    Flat shares, in pesewas, so each seller gets exactly their part whatever
+    the others bought. Who pays Paystack's fee follows PAYSTACK_FEE_BEARER as
+    a single split does: "subaccount" (the sellers, by default) becomes
+    "all-proportional", each account bearing its share of the fee; anything
+    else leaves it with Fliiptech's main account.
+    """
+    bearer = "all-proportional" if settings.PAYSTACK_FEE_BEARER == "subaccount" else "account"
+    return {
+        "type": "flat",
+        "currency": "GHS",
+        "bearer_type": bearer,
+        "subaccounts": [
+            {"subaccount": code, "share": pesewas}
+            for code, pesewas in shares.items()
+            if pesewas > 0
+        ],
+    }
+
+
+def resolve_account(*, account_number, bank_code):
+    """The name Paystack has for an account or mobile money wallet, or "" when
+    it cannot say. Never raises: a person whose name cannot be checked here is
+    checked by staff instead (accounts/payout.py)."""
+    try:
+        data = _call(
+            "GET",
+            "/bank/resolve",
+            query={"account_number": account_number, "bank_code": bank_code},
+        )
+    except PaystackError as exc:
+        logger.info("Paystack could not resolve an account: %s", exc)
+        return ""
+    return str((data or {}).get("account_name") or "").strip()
 
 
 def verify(reference):

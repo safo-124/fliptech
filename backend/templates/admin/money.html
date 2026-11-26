@@ -1,0 +1,113 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% comment %}
+  Money: everything paid on the site, in one place (core/money.py).
+{% endcomment %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .mn-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .mn-tabs, .mn-days { display: flex; flex-wrap: wrap; gap: 6px; }
+    .mn-tabs a, .mn-days a {
+      padding: 6px 12px; border-radius: 8px; border: 1px solid var(--hairline-color, #e5e0d8);
+      text-decoration: none; font-size: 13px; color: var(--body-fg);
+    }
+    .mn-tabs a.on, .mn-days a.on { background: var(--primary, #4b1fa8); border-color: var(--primary, #4b1fa8); color: #fff; }
+    .mn-days { margin-left: auto; }
+    .mn-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .mn-kpi { border: 1px solid var(--hairline-color, #e5e0d8); border-radius: 12px; padding: 12px 14px; background: var(--body-bg); }
+    .mn-kpi .k { font-size: 12.5px; color: var(--body-quiet-color); }
+    .mn-kpi .v { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .mn-kpi .s { font-size: 12px; color: var(--body-quiet-color); margin-top: 2px; }
+    .mn-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+    .mn-table { width: 100%; }
+    .mn-table td.num, .mn-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .mn-tag { display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 2px 9px; }
+    .mn-tag.good { background: #e3f4ea; color: #19733f; }
+    .mn-tag.warn { background: #fdf1d6; color: #8a5a00; }
+    .mn-att { border: 1px solid var(--hairline-color, #e5e0d8); border-radius: 12px; padding: 12px 14px; }
+    .mn-att h2 { margin: 0 0 6px; font-size: 15px; background: none; color: var(--body-fg); padding: 0; }
+    .mn-att div { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--hairline-color, #e5e0d8); font-size: 13.5px; }
+    .mn-att .zero { color: var(--body-quiet-color); }
+    .mn-note { font-size: 12.5px; color: var(--body-quiet-color); margin-top: 10px; }
+    @media (max-width: 900px) { .mn-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mn-cols { grid-template-columns: 1fr; } .mn-days { margin-left: 0; } }
+  </style>
+{% endblock %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a> &rsaquo; {% translate 'Money' %}
+  </div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <div class="mn-head">
+    <nav class="mn-tabs" aria-label="{% translate 'What to show' %}">
+      {% for area in money.areas %}
+        <a href="?area={{ area }}&days={{ money.days }}" class="{% if area == money.area %}on{% endif %}">
+          {% if area == "all" %}{% translate 'Everything' %}{% elif area == "marketplace" %}{% translate 'Marketplace' %}{% elif area == "courses" %}{% translate 'Courses' %}{% else %}{% translate 'Fees to Fliiptech' %}{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+    <nav class="mn-days" aria-label="{% translate 'How far back' %}">
+      {% for days in day_choices %}
+        <a href="?area={{ money.area }}&days={{ days }}" class="{% if days == money.days %}on{% endif %}">
+          {% if days == 1 %}{% translate 'Today' %}{% else %}{% blocktranslate %}{{ days }} days{% endblocktranslate %}{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="mn-kpis">
+    <div class="mn-kpi"><div class="k">{% translate 'Came in' %}</div><div class="v">GH₵{{ money.came_in }}</div><div class="s">{% blocktranslate count counter=money.count %}{{ counter }} payment{% plural %}{{ counter }} payments{% endblocktranslate %}</div></div>
+    <div class="mn-kpi"><div class="k">{% translate 'Fliiptech kept' %}</div><div class="v">GH₵{{ money.kept }}</div><div class="s">{% blocktranslate with m=money.commission c=money.course_commission %}{{ m }}% of goods, {{ c }}% of courses, and fees{% endblocktranslate %}</div></div>
+    <div class="mn-kpi"><div class="k">{% translate 'Held for buyers' %}</div><div class="v">GH₵{{ money.held }}</div><div class="s">{% translate 'Waiting for “I got it”, now' %}</div></div>
+    <div class="mn-kpi"><div class="k">{% translate 'Paid out' %}</div><div class="v">GH₵{{ money.paid_out }}</div><div class="s">{% translate 'To sellers and trainers' %}</div></div>
+    <div class="mn-kpi"><div class="k">{% translate 'Refunded' %}</div><div class="v">GH₵{{ money.refunded }}</div><div class="s">{% translate 'To buyers' %}</div></div>
+  </div>
+
+  <div class="mn-cols">
+    <div class="module">
+      <table class="mn-table">
+        <thead><tr><th>{% translate 'When' %}</th><th>{% translate 'Who paid' %}</th><th>{% translate 'For' %}</th><th class="num">{% translate 'Amount' %}</th><th class="num">{% translate 'Fliiptech' %}</th><th>{% translate 'Now' %}</th></tr></thead>
+        <tbody>
+          {% for row in money.rows %}
+            <tr>
+              <td>{{ row.when|date:"j M, H:i" }}</td>
+              <td>{{ row.who }}</td>
+              <td>{% if row.url %}<a href="{{ row.url }}">{{ row.what }}</a>{% else %}{{ row.what }}{% endif %}</td>
+              <td class="num">GH₵{{ row.amount }}</td>
+              <td class="num">GH₵{{ row.kept }}</td>
+              <td><span class="mn-tag {{ row.tone }}">{{ row.state }}</span></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">{% translate 'Nothing paid in this time.' %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="mn-att">
+        <h2>{% translate 'Needs a look' %}</h2>
+        {% for item in money.attention %}
+          <div class="{% if not item.count %}zero{% endif %}">
+            <span>{{ item.label }}{% if item.count %} ({{ item.count }}){% endif %}</span>
+            {% if item.count %}<a href="{{ item.url }}">{{ item.action }}</a>{% else %}<span>—</span>{% endif %}
+          </div>
+        {% endfor %}
+        <form method="post" style="margin-top:10px">
+          {% csrf_token %}
+          <button type="submit" class="button">{% translate 'Ask Paystack about waiting payments now' %}</button>
+        </form>
+        <p class="mn-note">{% translate 'This also runs once a day by itself. A payment Paystack says was abandoned is marked not paid; one it says succeeded is marked paid, as if its webhook had arrived.' %}</p>
+      </div>
+      {% if money.multi_seller_payments %}
+        <p class="mn-note">{% blocktranslate count counter=money.multi_seller_payments %}{{ counter }} basket paid in one payment for several sellers.{% plural %}{{ counter }} baskets paid in one payment for several sellers.{% endblocktranslate %}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

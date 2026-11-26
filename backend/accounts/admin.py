@@ -1,11 +1,12 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
 from core.name_check_admin import NameCheckMixin
 
-from .models import AppToken, CustomerAccount
+from .models import AppToken, CustomerAccount, PayoutAccount
 from .removal_admin import UserRemovalAdmin
 
 User = get_user_model()
@@ -63,3 +64,79 @@ class AppTokenAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(PayoutAccount)
+class PayoutAccountAdmin(admin.ModelAdmin):
+    """Where people's money goes, and the ones staff must look at first.
+
+    A name that did not match the one on their ID, or one Paystack could not
+    give, keeps the person's shop money held and their course off sale until
+    someone here is satisfied the account is theirs ("Name checked").
+    """
+
+    list_display = (
+        "user",
+        "account_name",
+        "bank_name",
+        "account_last4",
+        "check_label",
+        "updated_at",
+    )
+    list_filter = ("name_check", "bank_type", ("staff_cleared_at", admin.EmptyFieldListFilter))
+    search_fields = ("account_name", "id_name", "user__username", "account_last4")
+    ordering = ("-updated_at",)
+    actions = ("clear_name",)
+    readonly_fields = (
+        "user",
+        "bank_code",
+        "bank_name",
+        "bank_type",
+        "account_last4",
+        "account_name",
+        "id_name",
+        "name_check",
+        "staff_cleared_at",
+        "staff_cleared_by",
+        "paystack_subaccount",
+        "paystack_recipient",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        # Made by the person, with Paystack's name for it; never typed here.
+        return False
+
+    @admin.display(description="Name", ordering="name_check")
+    def check_label(self, obj):
+        if obj.needs_staff:
+            return f"Needs a look: {obj.get_name_check_display()}"
+        if obj.staff_cleared_at:
+            return "Checked by staff"
+        return obj.get_name_check_display()
+
+    @admin.action(description="Name checked: this account is theirs")
+    def clear_name(self, request, queryset):
+        if not request.user.has_perm("accounts.clear_payout_name"):
+            raise PermissionDenied
+        from marketplace import payouts
+
+        from .payout import copy_to_roles
+
+        cleared = 0
+        for payout in queryset.filter(staff_cleared_at__isnull=True):
+            payout.staff_cleared_at = timezone.now()
+            payout.staff_cleared_by = request.user
+            payout.save(update_fields=["staff_cleared_at", "staff_cleared_by", "updated_at"])
+            copy_to_roles(payout)
+            # Held orders that only waited on this go out now if they are due.
+            for order in payouts.due_for_release().filter(seller__user=payout.user):
+                payouts.release(order)
+            cleared += 1
+        self.message_user(
+            request,
+            f"{cleared} payout account(s) checked. Their course can sell and held money is sent "
+            "when due.",
+            level=messages.SUCCESS if cleared else messages.INFO,
+        )

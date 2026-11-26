@@ -610,6 +610,8 @@ COURSE_BOOST_MONTH_PRICE = env.int("COURSE_BOOST_MONTH_PRICE", default=60)
 MARKETPLACE_FREE_PRODUCT_LIMIT = env.int("MARKETPLACE_FREE_PRODUCT_LIMIT", default=5)
 # Fliiptech's share of a product bought on the site, as a percentage.
 MARKETPLACE_COMMISSION_PERCENT = env.float("MARKETPLACE_COMMISSION_PERCENT", default=5)
+# Fliiptech's share of an online course sale, taken in the same payment.
+COURSE_COMMISSION_PERCENT = env.float("COURSE_COMMISSION_PERCENT", default=5)
 # What a maker pays to see who sent a quote request (free on the Shop plan),
 # and how many makers may unlock one, so a buyer is not called by twenty.
 MARKETPLACE_LEAD_PRICE = env.int("MARKETPLACE_LEAD_PRICE", default=5)

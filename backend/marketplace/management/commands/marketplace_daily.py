@@ -49,12 +49,17 @@ class Command(BaseCommand):
 
         training = tell_training_alerts(now)
         pruned = self.prune_pending_photos(now)
+        from core.money_page import check_stuck
+
+        # Payments still "waiting" after an hour: asked about once more, in
+        # case Paystack's word never reached the server.
+        stuck = check_stuck(now)
         self.stdout.write(
             f"{pruned} unused waiting photo(s) deleted, "
             f"{asked} review request(s), {reminded} plan reminder(s) sent, "
             f"{released} held payment(s) released, {followers} follower(s) told of new products, "
             f"{searches} saved search(es) with new matches, {drops} price-drop text(s), "
-            f"{training} training alert(s) texted."
+            f"{training} training alert(s) texted, {stuck} waiting payment(s) checked."
         )
 
     def prune_pending_photos(self, now):

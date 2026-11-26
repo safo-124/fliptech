@@ -796,6 +796,84 @@ def own_item_refusal():
     )
 
 
+def save_order(request, seller, priced, data, *, bundle=None, held=False, checkout=None):
+    """Make one seller's order from a priced basket, waiting for payment.
+
+    Shared by a single seller's checkout (_create_order) and the one payment
+    for a basket with several sellers (checkout.py), so an order means the
+    same whichever way it was paid for.
+    """
+    lines = priced["lines"]
+    first = lines[0]
+    count = sum(line["quantity"] for line in lines)
+    summary = first["product"].name
+    if len(lines) > 1:
+        summary = _("%(name)s and %(more)s more") % {"name": summary, "more": len(lines) - 1}
+    with transaction.atomic():
+        order = Order.objects.create(
+            reference=payment_reference("fo"),
+            seller=seller,
+            product=first["product"],
+            product_name=summary[:200],
+            unit_price=first["unit_price"],
+            quantity=count,
+            amount_pesewas=priced["pay_now"],
+            plan=priced["plan"],
+            balance_pesewas=priced["balance"],
+            balance_commission_pesewas=priced["balance_commission"],
+            delivery_pesewas=priced["delivery"],
+            discount_pesewas=priced["discount"],
+            discount_code=priced["code"],
+            bundle=bundle,
+            course_pesewas=max(0, priced.get("course", 0)),
+            commission_pesewas=priced["commission"],
+            buyer_phone=data["phone"],
+            buyer_name=data["name"].strip(),
+            fulfilment=data["fulfilment"],
+            note=data.get("note", "").strip(),
+            payout=Order.Payout.HELD if held else Order.Payout.SPLIT,
+            checkout=checkout,
+        )
+        OrderItem.objects.bulk_create(
+            OrderItem(
+                order=order,
+                product=line["product"],
+                product_name=line["product"].name,
+                option_label=line["option"].label if line["option"] else "",
+                unit_price=line["unit_price"],
+                quantity=line["quantity"],
+            )
+            for line in lines
+        )
+    # A signed-in buyer with no name yet keeps the one typed here.
+    from accounts.auth import own_customer_account
+
+    customer = own_customer_account(request)
+    if (
+        customer is not None
+        and not customer.display_name
+        and str(customer.phone) == str(order.buyer_phone)
+    ):
+        customer.display_name = order.buyer_name[:120]
+        customer.save(update_fields=["display_name", "updated_at"])
+    if (
+        customer is not None
+        and data["fulfilment"] == Order.Fulfilment.DELIVERY
+        and str(customer.phone) == str(order.buyer_phone)
+        and data.get("note", "").strip()
+    ):
+        from accounts.views import remember_address
+
+        remember_address(customer, data["note"].strip())
+    # This browser may see the order afterwards, whatever happens to the
+    # hour-long trust in the phone number.
+    request.session[SESSION_ORDERS] = [
+        *request.session.get(SESSION_ORDERS, [])[-19:],
+        order.reference,
+    ]
+    return order
+
+
 def _create_order(request, seller, data, bundle=None):
     if buying_own(request, seller):
         return own_item_refusal()
@@ -842,74 +920,8 @@ def _create_order(request, seller, data, bundle=None):
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
 
-    lines = priced["lines"]
-    first = lines[0]
-    count = sum(line["quantity"] for line in lines)
-    summary = first["product"].name
-    if len(lines) > 1:
-        summary = _("%(name)s and %(more)s more") % {"name": summary, "more": len(lines) - 1}
     held = holds_payment(seller, priced["pay_now"])
-    with transaction.atomic():
-        order = Order.objects.create(
-            reference=payment_reference("fo"),
-            seller=seller,
-            product=first["product"],
-            product_name=summary[:200],
-            unit_price=first["unit_price"],
-            quantity=count,
-            amount_pesewas=priced["pay_now"],
-            plan=priced["plan"],
-            balance_pesewas=priced["balance"],
-            balance_commission_pesewas=priced["balance_commission"],
-            delivery_pesewas=priced["delivery"],
-            discount_pesewas=priced["discount"],
-            discount_code=priced["code"],
-            bundle=bundle,
-            course_pesewas=max(0, priced.get("course", 0)),
-            commission_pesewas=priced["commission"],
-            buyer_phone=data["phone"],
-            buyer_name=data["name"].strip(),
-            fulfilment=data["fulfilment"],
-            note=data.get("note", "").strip(),
-            payout=Order.Payout.HELD if held else Order.Payout.SPLIT,
-        )
-        OrderItem.objects.bulk_create(
-            OrderItem(
-                order=order,
-                product=line["product"],
-                product_name=line["product"].name,
-                option_label=line["option"].label if line["option"] else "",
-                unit_price=line["unit_price"],
-                quantity=line["quantity"],
-            )
-            for line in lines
-        )
-    # A signed-in buyer with no name yet keeps the one typed here.
-    from accounts.auth import own_customer_account
-
-    customer = own_customer_account(request)
-    if (
-        customer is not None
-        and not customer.display_name
-        and str(customer.phone) == str(order.buyer_phone)
-    ):
-        customer.display_name = order.buyer_name[:120]
-        customer.save(update_fields=["display_name", "updated_at"])
-    if (
-        customer is not None
-        and data["fulfilment"] == Order.Fulfilment.DELIVERY
-        and str(customer.phone) == str(order.buyer_phone)
-        and data.get("note", "").strip()
-    ):
-        from accounts.views import remember_address
-
-        remember_address(customer, data["note"].strip())
-    # This browser may see the order afterwards, whatever happens to the
-    # hour-long trust in the phone number.
-    request.session[SESSION_ORDERS] = [
-        *request.session.get(SESSION_ORDERS, [])[-19:],
-        order.reference,
-    ]
+    order = save_order(request, seller, priced, data, bundle=bundle, held=held)
     try:
         url = paystack.initialize(
             email=payer_email(None, order.buyer_phone),
@@ -921,7 +933,7 @@ def _create_order(request, seller, data, bundle=None):
             subaccount=None if held else seller.paystack_subaccount,
             # A deposit carries its share of the commission; the balance the rest.
             transaction_charge=None if held else priced["commission_now"],
-            metadata={"seller_id": seller.pk, "items": len(lines)},
+            metadata={"seller_id": seller.pk, "items": len(priced["lines"])},
         )
     except paystack.PaystackError as exc:
         order.status = PaymentStatus.FAILED
@@ -1249,8 +1261,20 @@ class OrderView(APIView):
     @extend_schema(request=None, responses={200: None})
     def post(self, request, reference):
         order = _buyers_order(request, reference)
+        if order.status == PaymentStatus.PENDING and order.checkout_id:
+            # Paid with other sellers' orders in one payment: Paystack knows
+            # that payment, not this order.
+            from .checkout import confirm_checkout
+
+            try:
+                confirm_checkout(
+                    order.checkout.reference, paystack.verify(order.checkout.reference)
+                )
+            except paystack.PaystackError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            order.refresh_from_db()
         # A direct order never went to Paystack: nothing to ask it.
-        if order.status == PaymentStatus.PENDING and order.plan != Order.Plan.DIRECT:
+        elif order.status == PaymentStatus.PENDING and order.plan != Order.Plan.DIRECT:
             try:
                 order = confirm_order(reference, paystack.verify(reference)) or order
             except paystack.PaystackError as exc:

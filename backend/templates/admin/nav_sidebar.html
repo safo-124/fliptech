@@ -82,6 +82,19 @@
         </svg>
         <span class="sb-item-text">{% translate 'Overview' %}</span>
       </a>
+      {% if perms.marketplace.view_order or perms.courses.view_coursepurchase %}
+        {% url 'admin:money' as money_url %}
+        <a class="sb-item sb-dashboard{% if request.path == money_url %} is-active{% endif %}"
+           href="{{ money_url }}"
+           data-nav-search-item data-nav-search-text="{% translate 'Money payments' %}"
+           {% if request.path == money_url %}aria-current="page"{% endif %}>
+          <svg class="sb-item-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+            <circle cx="12" cy="12" r="2.5"></circle>
+          </svg>
+          <span class="sb-item-text">{% translate 'Money' %}</span>
+        </a>
+      {% endif %}
     </div>
 
     {% if back_office %}
