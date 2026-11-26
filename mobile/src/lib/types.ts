@@ -29,6 +29,8 @@ export type CourseCard = {
 export type ProductCard = {
   id: number;
   name: string;
+  /** Can be bought online now: the seller can be paid on the site. */
+  buy_online?: boolean;
   price: string | null;
   was_price: string | null;
   availability: "available" | "made_to_order" | "sold_out";

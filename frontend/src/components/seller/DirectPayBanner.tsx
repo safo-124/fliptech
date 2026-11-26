@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 
 /**
  * For a shop that cannot take payment on the site yet. Online payment is the
- * only way to buy, so its products are hidden from buyers until the seller
- * adds a MoMo number (Orders tab). Shown above Orders and the item list.
+ * only way to buy, so buyers can see its products but not buy them until the
+ * seller adds a MoMo number (Orders tab). Shown above Orders and the item list.
  */
 export function DirectPayBanner({ onAddMomo }: { onAddMomo: () => void }) {
   const t = useTranslations("SellerDashboard");
