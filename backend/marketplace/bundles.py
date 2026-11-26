@@ -25,6 +25,7 @@ from rest_framework.views import APIView
 from core.media import public_url
 
 from .models import Bundle, BundleItem, Order, Product
+from .rules import delivers
 from .views import IsActiveSeller
 from .views import _account as _seller_account
 
@@ -98,7 +99,7 @@ def bundle_priced(bundle, fulfilment=Order.Fulfilment.PICKUP):
     commission = commission_pesewas(goods - goods_discount)
     delivery = (
         int(seller.delivery_fee * 100)
-        if fulfilment == Order.Fulfilment.DELIVERY and seller.delivery_fee is not None
+        if fulfilment == Order.Fulfilment.DELIVERY and delivers(seller)
         else 0
     )
     total = full - discount + delivery
@@ -174,9 +175,7 @@ def bundle_payload(bundle, request):
         "full_price": _cedis(priced["subtotal"]) if priced else None,
         "price": _cedis(priced["subtotal"] - priced["discount"]) if priced else None,
         "saving": _cedis(priced["discount"]) if priced else None,
-        "delivery_fee": f"{bundle.seller.delivery_fee:.2f}"
-        if bundle.seller.delivery_fee is not None
-        else None,
+        "delivery_fee": f"{bundle.seller.delivery_fee:.2f}" if delivers(bundle.seller) else None,
         "buy_online": payable,
         "problem": problem,
     }

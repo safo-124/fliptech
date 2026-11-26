@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAccount, updateAccount } from "@/lib/account-api";
 import { checkoutAll, loadBasket, type BasketGroup } from "@/lib/basket";
-import { formatCedis } from "@/lib/format";
+import { formatCedis, withArea } from "@/lib/format";
 import { requestBuyerCode, verifyBuyerCode, type Fulfilment } from "@/lib/marketplace-api";
 import { ghanaPhoneSchema, toGhanaE164 } from "@/lib/phone";
 import { openSignIn, SESSION_CHANGED } from "@/lib/sign-in";
@@ -166,9 +166,11 @@ export function CheckoutAll() {
         </p>
       ) : null}
 
-      <p className="rounded-xl bg-[var(--color-brand-soft)] px-3 py-2.5 text-sm text-[var(--color-brand-strong)]">
-        {t("oneTimeBody", { count: groups.length })}
-      </p>
+      {groups.length > 1 ? (
+        <p className="rounded-xl bg-[var(--color-brand-soft)] px-3 py-2.5 text-sm text-[var(--color-brand-strong)]">
+          {t("oneTimeBody", { count: groups.length })}
+        </p>
+      ) : null}
 
       {/* ------------------------------------------- each seller's part */}
       <ol className="space-y-3">
@@ -225,9 +227,12 @@ export function CheckoutAll() {
                 </div>
               </fieldset>
             ) : (
-              <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
-                <Store aria-hidden="true" className="size-3.5" />
-                {t("collectOnly")}
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-[var(--color-muted-foreground)]">
+                <Store aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  {t("collectOnly")}
+                  {group.pickup ? `: ${withArea(group.pickup.address, group.pickup.area)}` : group.seller.area ? `: ${group.seller.area}` : ""}
+                </span>
               </p>
             )}
             {totals && totals.plan !== "full" ? (
@@ -345,7 +350,7 @@ export function CheckoutAll() {
       <p className="flex items-start gap-1.5 text-sm text-[var(--color-muted-foreground)]">
         <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-visit)]" />
         <span>
-          {t("oneTimeTrust")}{" "}
+          {t("heldNote")}{" "}
           <Link href="/marketplace/terms#refunds" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
             {tm("refundPolicy")}
           </Link>
@@ -361,12 +366,6 @@ export function CheckoutAll() {
         {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <LockKeyhole aria-hidden="true" />}
         {codeSent ? tm("verifyAndPay", { total }) : t("payAllAction", { total })}
       </Button>
-      <p className="text-center text-xs text-[var(--color-muted-foreground)]">
-        {t("codesOnOwn")}{" "}
-        <Link href="/marketplace/basket" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
-          {t("payOneByOne")}
-        </Link>
-      </p>
     </form>
   );
 }

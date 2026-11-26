@@ -1,8 +1,7 @@
 "use client";
 
-import { Handshake, Loader2, LockKeyhole, ShoppingBasket, Store, Truck } from "lucide-react";
+import { Loader2, LockKeyhole, ShoppingBasket, Store } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { BasketLineRow } from "@/components/basket/BasketLineRow";
@@ -12,10 +11,10 @@ import { SellerBadges } from "@/components/marketplace/SellerBadges";
 import { Button } from "@/components/ui/button";
 import type { BasketGroup } from "@/lib/basket";
 import { formatCedis } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
-/** /marketplace/basket: everything chosen, by seller, as the server groups
-    it. Each seller is paid (or sent the order) on their own. */
+/** /marketplace/basket: everything chosen, by seller, and one button that
+    pays for all of it (/marketplace/checkout). Fliiptech holds the money
+    until the buyer has each seller's part. */
 export function BasketPage() {
   const t = useTranslations("Basket");
   const basket = useBasket();
@@ -42,6 +41,10 @@ export function BasketPage() {
       </div>
     );
   }
+  const payable = payableGroups(basket.groups);
+  const ready = payable.length > 0 && payable.every((group) => group.totals.pickup);
+  const sum = payable.reduce((total, group) => total + Number(group.totals.pickup?.pay_now ?? 0), 0);
+  const amount = formatCedis(sum.toFixed(2));
   return (
     <div className="space-y-5">
       {basket.notice ? (
@@ -49,46 +52,37 @@ export function BasketPage() {
           {basket.notice}
         </p>
       ) : null}
-      {payableGroups(basket.groups).length >= 2 ? <PayAllAtOnce count={payableGroups(basket.groups).length} /> : null}
       {basket.groups.map((group) => (
         <SellerGroup key={group.seller.id} group={group} />
       ))}
+      {payable.length ? (
+        <section className="rounded-2xl border-2 border-[var(--color-brand)]/40 bg-[var(--color-brand-soft)]/60 p-4">
+          <div className="flex items-baseline justify-between gap-3 text-lg font-bold">
+            <span>{t("total")}</span>
+            <span className="tabular-nums">{amount}</span>
+          </div>
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("heldNote")}</p>
+          <Button
+            asChild
+            variant="brand"
+            className={`mt-3 h-auto min-h-12 w-full whitespace-normal py-2.5 text-base ${ready ? "" : "pointer-events-none opacity-50"}`}
+          >
+            <Link href="/marketplace/checkout" aria-disabled={!ready}>
+              <LockKeyhole aria-hidden="true" />
+              {t("payAction", { total: amount })}
+            </Link>
+          </Button>
+        </section>
+      ) : null}
     </div>
-  );
-}
-
-/** Several sellers paid on the site: one payment for all of them. */
-function PayAllAtOnce({ count }: { count: number }) {
-  const t = useTranslations("Basket");
-  return (
-    <section className="rounded-2xl border-2 border-[var(--color-brand)]/40 bg-[var(--color-brand-soft)]/60 p-4">
-      <p className="text-base font-bold">{t("oneTimeTitle")}</p>
-      <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{t("oneTimeBody", { count })}</p>
-      <Button asChild variant="brand" className="mt-3 min-h-12 w-full text-base">
-        <Link href="/marketplace/checkout">
-          <LockKeyhole aria-hidden="true" />
-          {t("payAllButton")}
-        </Link>
-      </Button>
-    </section>
   );
 }
 
 function SellerGroup({ group }: { group: BasketGroup }) {
   const t = useTranslations("Basket");
-  const [way, setWay] = useState<"pickup" | "delivery">("pickup");
-  const handover = group.delivery ? way : "pickup";
-  const totals = group.totals[handover];
+  const totals = group.totals.pickup;
   const buyable = group.lines.some((line) => line.available);
   const seller = group.seller;
-  const choice = (selected: boolean) =>
-    cn(
-      "flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border-2 px-3 text-sm font-semibold",
-      selected
-        ? "border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
-        : "border-[var(--color-border)]",
-    );
-  const amount = totals ? formatCedis(totals.plan === "full" ? totals.total : totals.pay_now) : "";
 
   return (
     <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
@@ -116,74 +110,21 @@ function SellerGroup({ group }: { group: BasketGroup }) {
       </ul>
 
       {buyable ? (
-        <div className="mt-3 space-y-3 border-t border-[var(--color-border)] pt-3">
-          {group.delivery ? (
-            <fieldset>
-              <legend className="sr-only">{t("collect")} / {t("delivery")}</legend>
-              <div className="grid grid-cols-2 gap-2">
-                <label className={choice(handover === "pickup")}>
-                  <input type="radio" className="sr-only" checked={handover === "pickup"} onChange={() => setWay("pickup")} />
-                  <Store aria-hidden="true" className="size-4" />
-                  {t("collect")}
-                </label>
-                <label className={choice(handover === "delivery")}>
-                  <input type="radio" className="sr-only" checked={handover === "delivery"} onChange={() => setWay("delivery")} />
-                  <Truck aria-hidden="true" className="size-4" />
-                  <span>
-                    {t("delivery")}
-                    <span className="block text-xs font-normal">{t("deliveryFee", { fee: formatCedis(group.delivery.fee) })}</span>
-                  </span>
-                </label>
-              </div>
-            </fieldset>
-          ) : null}
-
-          {totals ? (
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between gap-3">
-                <dt>{t("subtotal")}</dt>
-                <dd className="tabular-nums">{formatCedis(totals.subtotal)}</dd>
-              </div>
-              {handover === "delivery" ? (
-                <div className="flex justify-between gap-3">
-                  <dt>{t("delivery")}</dt>
-                  <dd className="tabular-nums">{formatCedis(totals.delivery)}</dd>
-                </div>
-              ) : null}
-              <div className="flex justify-between gap-3 text-base font-bold">
-                <dt>{t("total")}</dt>
-                <dd className="tabular-nums">{formatCedis(totals.total)}</dd>
-              </div>
-            </dl>
+        <div className="mt-3 space-y-2 border-t border-[var(--color-border)] pt-3">
+          {group.takes_payments && totals ? (
+            <div className="flex justify-between gap-3 text-sm font-semibold">
+              <span>{t("subtotal")}</span>
+              <span className="tabular-nums">{formatCedis(totals.pay_now)}</span>
+            </div>
           ) : null}
           {group.problem ? (
             <p role="alert" className="text-sm text-[var(--color-destructive)]">
               {group.problem}
             </p>
           ) : null}
-
           {group.takes_payments ? null : (
-            <p className="flex items-start gap-2 rounded-xl bg-[var(--color-warn-bg)] px-3 py-2.5 text-sm">
-              <Handshake aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-warn)]" />
-              {t("directNote")}
-            </p>
+            <p className="rounded-xl bg-[var(--color-warn-bg)] px-3 py-2.5 text-sm">{t("notPayableYet")}</p>
           )}
-          <Button
-            asChild
-            variant="brand"
-            className={cn(
-              "h-auto min-h-12 w-full whitespace-normal py-2.5 text-center text-base",
-              !totals && "pointer-events-none opacity-50",
-            )}
-          >
-            <Link href={`/marketplace/checkout/${seller.id}?way=${handover}`} aria-disabled={!totals}>
-              {group.takes_payments
-                ? totals?.plan === "deposit" || totals?.plan === "collect"
-                  ? t("payDepositAction", { total: amount })
-                  : t("payAction", { total: amount })
-                : t("sendOrder", { seller: seller.business_name })}
-            </Link>
-          </Button>
         </div>
       ) : null}
     </section>

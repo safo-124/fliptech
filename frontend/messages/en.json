@@ -2356,7 +2356,7 @@
     "backOnSale": "Back on sale."
   },
   "SellerDashboard": {
-    "directOnlyBanner": "Buyers can only order and pay you directly. Send your ID to turn on Buy now with MoMo or card.",
+    "directOnlyBanner": "Buyers can't see your products yet. Add the MoMo number we should send your money to, and they go live.",
     "sendMyId": "Send my ID",
     "tradeLabel": "Category",
     "tradeNone": "Choose a category",
@@ -2580,7 +2580,8 @@
     "payoutsHeldWhy": "Held money is paid when the buyer confirms, or a few days after you hand it over with no problem.",
     "replyInChat": "Reply in the chat",
     "makeDaysLabel": "Days to make (optional)",
-    "makeDaysHelp": "Made to order: about how many days you need. Buyers see \"About N days to make\"."
+    "makeDaysHelp": "Made to order: about how many days you need. Buyers see \"About N days to make\".",
+    "addMomo": "Add my MoMo number"
   },
   "SellerGrowth": {
     "payDirectly": "Pay the maker directly",
@@ -2633,9 +2634,9 @@
     "bannerReplace": "Replace",
     "bannerRemove": "Remove",
     "bannerSaved": "Banner saved.",
-    "payoutTitle": "Take payment on the site",
+    "payoutTitle": "Where should we send your money?",
     "payoutLead": "Add where you want to be paid, and buyers get a \"Buy now\" button on your products. Paystack sends each payment straight to you; Fliiptech keeps {percent}% and Paystack takes its fee from your share.",
-    "payoutLeadProtected": "Add where you want to be paid, and buyers get a \"Buy now\" button on your products. With buyer protection, Fliiptech holds each payment and sends it to you once the buyer has it, or {days} days after you hand it over. Fliiptech keeps {percent}%.",
+    "payoutLeadProtected": "Buyers see your products once this is saved. They pay online; Fliiptech keeps the money safe and sends it to you once the buyer has it, or {days} days after you hand it over. Fliiptech keeps {percent}%.",
     "payoutTo": "Paid to {bank} ending {last4} ({name})",
     "change": "Change",
     "cancel": "Cancel",
@@ -3378,17 +3379,12 @@
     "signInBody": "So the maker knows who the order is from and can reach you: your phone number and a password.",
     "signInButton": "Sign in or create an account",
     "signInReason": "Sign in or create an account to order.",
-    "oneTimeTitle": "Pay for everything at once",
     "oneTimeBody": "One payment for {count, plural, one {# seller} other {all # sellers}}. Each seller still gets their own order and contacts you to hand it over.",
-    "payAllButton": "Pay for everything at once",
     "payAllAction": "Pay {total} for everything with MoMo or card",
     "payNowTotal": "To pay now",
     "nothingToPay": "Nothing in your basket can be paid for here.",
     "collectOnly": "Collect from the seller",
     "directLeftOut": "Not in this payment: {sellers}. They take payment directly; send them your order from the basket.",
-    "oneTimeTrust": "If something does not arrive, report it on that seller's order and we sort it out with them.",
-    "codesOnOwn": "Have a discount code, or want to pay part on collection?",
-    "payOneByOne": "Pay each seller on their own",
     "receiptTitle": "Receipt",
     "receiptChecking": "Checking your payment…",
     "receiptPaid": "Payment received",
@@ -3398,7 +3394,10 @@
     "receiptWaiting": "Waiting for your payment",
     "receiptWaitingBody": "If you approved the MoMo prompt, it can take a minute. Check again shortly.",
     "receiptCheckAgain": "Check again",
-    "receiptReference": "Receipt {reference}"
+    "receiptReference": "Receipt {reference}",
+    "heldNote": "Fliiptech keeps your money safe and pays the seller only once you have your order. If something is wrong, report it and we sort it out.",
+    "notPayableYet": "This seller can't be paid online yet, so this can't be bought for now.",
+    "notBuyableNow": "This can't be bought online right now. Message the seller to ask when it will be."
   },
   "SignInGate": {
     "title": "Sign in or create an account to continue",

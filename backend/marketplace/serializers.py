@@ -25,6 +25,7 @@ from .models import (
     SellerAccount,
     SellerReview,
 )
+from .rules import collect_percent, delivers, deposit_percent, made_to_order_buyable
 
 
 class SellerOTPVerifySerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -152,6 +153,17 @@ class SellerCardSerializer(serializers.ModelSerializer):
             "away_note",
         ]
 
+    def to_representation(self, instance):
+        """Delivery and the extras only while they are switched on
+        (marketplace/rules.py); the seller's own settings are kept."""
+        data = super().to_representation(instance)
+        if not delivers(instance):
+            data["delivery_fee"] = None
+            data["delivery_area"] = ""
+        data["deposit_percent"] = deposit_percent(instance)
+        data["collect_deposit_percent"] = collect_percent(instance)
+        return data
+
 
 class ProductCardSerializer(serializers.ModelSerializer):
     """A product in a list. One photo, not the gallery."""
@@ -204,7 +216,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
 
         seller = obj.seller
         sellable = obj.availability == Product.Availability.AVAILABLE or (
-            obj.availability == Product.Availability.MADE_TO_ORDER and seller.deposit_percent
+            obj.availability == Product.Availability.MADE_TO_ORDER and made_to_order_buyable(seller)
         )
         return bool(
             paystack.enabled()

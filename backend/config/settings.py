@@ -622,8 +622,9 @@ MARKETPLACE_VERIFICATION_PRICE = env.int("MARKETPLACE_VERIFICATION_PRICE", defau
 # and transfer the seller's share once the buyer has the goods, or this many
 # days after the seller hands them over with no problem raised. Needs
 # Paystack Transfers switched on for the account (see DEPLOY.md). Off: the
-# payment is split straight to the seller.
-MARKETPLACE_HOLD_PAYMENTS = env.bool("MARKETPLACE_HOLD_PAYMENTS", default=False)
+# payment is split straight to the seller. On by default: one rule for every
+# seller, "Fliiptech holds your money until the buyer has it".
+MARKETPLACE_HOLD_PAYMENTS = env.bool("MARKETPLACE_HOLD_PAYMENTS", default=True)
 MARKETPLACE_RELEASE_DAYS = env.int("MARKETPLACE_RELEASE_DAYS", default=3)
 # Hold payments for a seller's first this-many paid orders even with buyer
 # protection off: the risk is a new, unproven seller. 0 switches it off. Also
@@ -634,10 +635,24 @@ MARKETPLACE_HOLD_FIRST_ORDERS = env.int("MARKETPLACE_HOLD_FIRST_ORDERS", default
 MARKETPLACE_HOLD_ABOVE = env.int("MARKETPLACE_HOLD_ABOVE", default=1000)
 # A new seller's orders are capped at this many cedis until they have
 # completed MARKETPLACE_NEW_SELLER_ORDERS orders. 0 switches it off.
-MARKETPLACE_NEW_SELLER_LIMIT = env.int("MARKETPLACE_NEW_SELLER_LIMIT", default=500)
+# Off by default: with every payment held until the buyer has the goods, a
+# cap on new sellers only turns buyers away.
+MARKETPLACE_NEW_SELLER_LIMIT = env.int("MARKETPLACE_NEW_SELLER_LIMIT", default=0)
 MARKETPLACE_NEW_SELLER_ORDERS = env.int("MARKETPLACE_NEW_SELLER_ORDERS", default=10)
-# Payments on the site only for sellers whose ID staff have checked.
-MARKETPLACE_REQUIRE_ID = env.bool("MARKETPLACE_REQUIRE_ID", default=True)
+# Payments on the site only for sellers whose ID staff have checked. Off by
+# default: adding a MoMo number (with Paystack's name check) is the one step a
+# seller takes to be paid online.
+MARKETPLACE_REQUIRE_ID = env.bool("MARKETPLACE_REQUIRE_ID", default=False)
+# Online payment is the only way to buy: no "pay the maker directly", and a
+# seller's products are shown only once they can be paid online (a MoMo
+# number saved) and have a price.
+MARKETPLACE_ONLINE_ONLY = env.bool("MARKETPLACE_ONLINE_ONLY", default=True)
+# Deposits for made-to-order, paying part on collection, and discount codes.
+# Off: every order is paid in full online. The sellers' settings are kept.
+MARKETPLACE_EXTRAS = env.bool("MARKETPLACE_EXTRAS", default=False)
+# Delivery by the seller. Off: every order is collected, until Fliiptech's
+# own delivery is ready.
+MARKETPLACE_DELIVERY = env.bool("MARKETPLACE_DELIVERY", default=False)
 # Hours a seller has to answer a reported problem before staff decide.
 MARKETPLACE_DISPUTE_HOURS = env.int("MARKETPLACE_DISPUTE_HOURS", default=48)
 # "Only N left": the seller is texted when stock falls to this.

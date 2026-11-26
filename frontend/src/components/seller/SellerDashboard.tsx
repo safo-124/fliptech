@@ -262,7 +262,7 @@ export function SellerDashboard({areas}: {areas: Area[]}) {
         <div className="min-w-0">
           {(tab === "products" || tab === "orders") && !seller.takes_payments ? (
             <div className="mb-4">
-              <DirectPayBanner onSendId={() => setTab("shop")} />
+              <DirectPayBanner onAddMomo={() => setTab("orders")} />
             </div>
           ) : null}
           {tab === "products" ? (

@@ -1,33 +1,7 @@
-/** Checking out one seller's part of the basket. */
+import { redirect } from "next/navigation";
 
-import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
-
-import { BasketCheckout } from "@/components/basket/BasketCheckout";
-import { ClientMessages } from "@/i18n/ClientMessages";
-import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
-
-export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("Basket");
-  return { title: t("checkoutTitle"), robots: { index: false, follow: false } };
-}
-
-export default async function BasketCheckoutRoute({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ sellerId: string }>;
-  searchParams: Promise<{ way?: string }>;
-}) {
-  const { sellerId } = await params;
-  const { way } = await searchParams;
-  const t = await getTranslations("Basket");
-  return (
-    <div className="app-shell max-w-2xl py-8 pb-14">
-      <h1 className="mb-4 text-2xl font-extrabold tracking-[-0.02em]">{t("checkoutTitle")}</h1>
-      <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
-        <BasketCheckout sellerId={Number(sellerId)} initialWay={way === "delivery" ? "delivery" : "pickup"} />
-      </ClientMessages>
-    </div>
-  );
+/** One seller's own checkout, from before one payment covered the basket:
+    every purchase now goes through /marketplace/checkout. */
+export default function OldSellerCheckout() {
+  redirect("/marketplace/checkout");
 }

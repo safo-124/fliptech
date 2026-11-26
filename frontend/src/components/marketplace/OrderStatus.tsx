@@ -333,7 +333,7 @@ export function OrderStatus({ reference }: { reference: string }) {
           <>
             <p className="text-[var(--color-muted-foreground)]">{t("orderPendingBody")}</p>
             <Button asChild variant="brand" className="min-h-12 w-full">
-              <Link href={`/marketplace/checkout/${order.seller_id}`}>{t("backToCheckout")}</Link>
+              <Link href="/marketplace/checkout">{t("backToCheckout")}</Link>
             </Button>
           </>
         ) : (
@@ -342,7 +342,7 @@ export function OrderStatus({ reference }: { reference: string }) {
             {/* The bag was not emptied: going back finds it as it was. */}
             {failed ? (
               <Button asChild variant="brand" className="min-h-12 w-full">
-                <Link href={`/marketplace/checkout/${order.seller_id}`}>{t("backToCheckout")}</Link>
+                <Link href="/marketplace/checkout">{t("backToCheckout")}</Link>
               </Button>
             ) : null}
           </>

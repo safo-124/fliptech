@@ -303,7 +303,7 @@ class ProductQuerySet(models.QuerySet):
         Python and the query is how something stays visible after the object
         says it should not be.
         """
-        return (
+        shown = (
             self.filter(
                 status=Product.Status.PUBLISHED,
                 seller__is_active=True,
@@ -312,6 +312,13 @@ class ProductQuerySet(models.QuerySet):
             .exclude(seller__business_name="")
             .exclude(seller__approval_status=SellerAccount.Approval.DECLINED)
         )
+        from .rules import online_only, payable_q
+
+        if online_only():
+            # Online payment is the only way to buy: nothing is listed that
+            # cannot be paid for on the site (marketplace/rules.py).
+            shown = shown.filter(payable_q("seller__"), price__isnull=False)
+        return shown
 
 
 class Product(TimeStampedModel):

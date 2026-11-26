@@ -37,6 +37,7 @@ from core.media import public_url
 from courses import paystack
 
 from .models import Basket, BasketLine, Order, Product, SellerAccount
+from .rules import delivers, deposit_percent
 
 TOKEN_HEADER = "HTTP_X_BASKET_TOKEN"
 # The most of one thing in one order, whatever the stock (as at checkout).
@@ -172,13 +173,12 @@ def _line_payload(line, available, takes_payments, request):
     made_to_order = None
     if product.availability == Product.Availability.MADE_TO_ORDER:
         deposit = None
-        if takes_payments and seller.deposit_percent and unit is not None:
-            deposit = _money(
-                (unit * line.quantity * seller.deposit_percent / 100).quantize(Decimal("0.01"))
-            )
+        percent = deposit_percent(seller)
+        if takes_payments and percent and unit is not None:
+            deposit = _money((unit * line.quantity * percent / 100).quantize(Decimal("0.01")))
         made_to_order = {
             "days": product.make_days,
-            "deposit_percent": seller.deposit_percent if takes_payments else None,
+            "deposit_percent": percent if takes_payments else None,
             "deposit": deposit,
         }
     changed = None
@@ -269,7 +269,7 @@ def _group_payload(seller, lines, visible, request):
             for line in buyable
         ]
         ways = [Order.Fulfilment.PICKUP]
-        if seller.delivery_fee is not None:
+        if delivers(seller):
             ways.append(Order.Fulfilment.DELIVERY)
         for way in ways:
             if takes_payments:
@@ -286,7 +286,7 @@ def _group_payload(seller, lines, visible, request):
         "pickup": pickup_point(seller),
         "delivery": (
             {"fee": _money(seller.delivery_fee), "area": seller.delivery_area}
-            if seller.delivery_fee is not None
+            if delivers(seller)
             else None
         ),
         "takes_payments": takes_payments,
