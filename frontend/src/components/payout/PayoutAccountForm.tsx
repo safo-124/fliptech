@@ -41,6 +41,9 @@ export function PayoutAccountForm({
   const t = useTranslations("PayoutAccount");
   const [data, setData] = useState<PayoutAccount | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // With an account saved, the form opens on "Change number". A parent that
+  // already asked "Change?" (it passes onCancel) opens it straight away.
+  const [changing, setChanging] = useState(Boolean(onCancel));
   const [bank, setBank] = useState("");
   const [number, setNumber] = useState("");
   const [checked, setChecked] = useState<PayoutCheck | null>(null);
@@ -92,6 +95,8 @@ export function PayoutAccountForm({
       const saved = await savePayoutAccount({ bank_code: bank, account_number: number, confirmed_name: name });
       setData(saved);
       setChecked(null);
+      setChanging(false);
+      setNumber("");
       onSaved?.(saved);
     } catch (reason) {
       // The name changed between the check and now: show the new one.
@@ -208,9 +213,15 @@ export function PayoutAccountForm({
               {t("waitingForStaff")}
             </p>
           ) : null}
+          {changing ? null : (
+            <Button type="button" variant="outline" className="min-h-11" onClick={() => setChanging(true)}>
+              {t("changeNumber")}
+            </Button>
+          )}
         </div>
       ) : null}
 
+      {saved && !changing ? null : (
       <form noValidate onSubmit={check} className="grid gap-4 sm:grid-cols-2">
         {errors.detail ? (
           <p role="alert" className="text-sm text-[var(--color-destructive)] sm:col-span-2">
@@ -267,13 +278,23 @@ export function PayoutAccountForm({
             {busy === "check" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
             {saved ? t("checkNew") : t("check")}
           </Button>
-          {onCancel ? (
-            <Button type="button" variant="ghost" className="min-h-11" onClick={onCancel}>
+          {onCancel || saved ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11"
+              onClick={() => {
+                setChanging(false);
+                setErrors({});
+                onCancel?.();
+              }}
+            >
               {t("cancel")}
             </Button>
           ) : null}
         </div>
       </form>
+      )}
     </div>
   );
 }
