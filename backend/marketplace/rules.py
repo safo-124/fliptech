@@ -3,7 +3,7 @@
 Three switches in settings keep buying simple while payments are proven:
 
   MARKETPLACE_ONLINE_ONLY  every purchase is paid online; a seller's products
-                           are listed only once they can be paid that way.
+                           are shown, but bought only once they can be paid.
   MARKETPLACE_EXTRAS       deposits for made-to-order, paying part on
                            collection, discount codes. Off: pay in full.
   MARKETPLACE_DELIVERY     delivery by the seller. Off: everything is

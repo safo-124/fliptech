@@ -133,7 +133,7 @@ export function ProductCard({ product, onPress, width }: { product: Product; onP
       <View style={styles.heart}>
         <Heart productId={product.id} size={32} />
       </View>
-      {soldOut || !product.price ? null : (
+      {soldOut || !product.price || product.buy_online === false ? null : (
         // Over the photo's bottom corner: a box the photo's shape, so it sits
         // there at any card width.
         <View pointerEvents="box-none" style={styles.photoBox}>

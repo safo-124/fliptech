@@ -643,9 +643,9 @@ MARKETPLACE_NEW_SELLER_ORDERS = env.int("MARKETPLACE_NEW_SELLER_ORDERS", default
 # default: adding a MoMo number (with Paystack's name check) is the one step a
 # seller takes to be paid online.
 MARKETPLACE_REQUIRE_ID = env.bool("MARKETPLACE_REQUIRE_ID", default=False)
-# Online payment is the only way to buy: no "pay the maker directly", and a
-# seller's products are shown only once they can be paid online (a MoMo
-# number saved) and have a price.
+# Online payment is the only way to buy: no "pay the maker directly". A
+# seller's products are shown either way, but can be bought only once the
+# seller can be paid online (a MoMo number saved).
 MARKETPLACE_ONLINE_ONLY = env.bool("MARKETPLACE_ONLINE_ONLY", default=True)
 # Deposits for made-to-order, paying part on collection, and discount codes.
 # Off: every order is paid in full online. The sellers' settings are kept.

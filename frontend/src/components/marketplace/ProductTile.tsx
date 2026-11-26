@@ -114,7 +114,8 @@ export function ProductTile({ product }: { product: ProductCard }) {
         {/* Outside the link: a button inside an anchor is not allowed. One
             clear word on it, not a symbol to work out. */}
         <div className="mt-auto px-3.5 pb-3.5">
-          {gone || product.price === null ? (
+          {/* Not for sale online (the seller has no MoMo number yet): look, don't buy. */}
+          {gone || product.price === null || !product.buy_online ? (
             <Link
               href={`/marketplace/${product.id}`}
               className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[var(--color-border-strong)] px-4 text-[0.9375rem] font-semibold"

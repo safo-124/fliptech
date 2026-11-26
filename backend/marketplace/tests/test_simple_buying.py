@@ -32,22 +32,27 @@ def payable_shop(shop):  # noqa: F811
     return seller, product
 
 
-def listed(client):
-    return [p["id"] for p in client.get(reverse("product-list")).json()["results"]]
-
-
 @pytest.mark.django_db
-def test_only_sellers_who_can_be_paid_online_are_listed(client, simple, shop):  # noqa: F811
+def test_products_are_shown_but_bought_only_once_the_seller_can_be_paid(
+    client,
+    simple,
+    shop,  # noqa: F811
+    settings,
+):
     seller, product = shop
-    # A split subaccount is not enough while payments are held: no recipient.
-    assert product.pk not in listed(client)
+    settings.PAYSTACK_SECRET_KEY = "sk_test"
+
+    def card():
+        found = client.get(reverse("product-list")).json()["results"]
+        return next(p for p in found if p["id"] == product.pk)
+
+    # Listed without a MoMo number (a split subaccount is not enough while
+    # payments are held), but not for sale.
+    assert card()["buy_online"] is False
 
     seller.paystack_recipient = "RCP_ama"
     seller.save()
-    assert product.pk in listed(client)
-
-    Product.objects.filter(pk=product.pk).update(price=None)
-    assert product.pk not in listed(client)
+    assert card()["buy_online"] is True
 
 
 @pytest.mark.django_db
@@ -99,12 +104,7 @@ def test_buyers_see_no_delivery_deposit_or_collect_option(client, codes, simple,
 def test_no_order_to_pay_the_maker_directly(client, codes, simple, shop):  # noqa: F811
     seller, product = shop
     sign_in(client)
-    # Listed for the test only: a seller who cannot be paid is not listed.
-    seller.paystack_recipient = "RCP_ama"
-    seller.save()
     add(client, product)
-    seller.paystack_recipient = ""
-    seller.save()
 
     response = client.post(
         reverse("basket-checkout", args=[seller.pk]),

@@ -280,8 +280,7 @@ export default function ProductScreen() {
                 <View style={[styles.protect, styles.direct]}>
                   <Handshake size={20} color={colors.warn} />
                   <Text variant="small" style={{ flex: 1 }}>
-                    This maker takes payment directly for now. Fliiptech passes your order to them and you agree
-                    payment and pickup in the chat.
+                    {"This seller hasn't set up payments yet, so this can't be bought for now. You can still ask them a question."}
                   </Text>
                 </View>
               )}
@@ -316,7 +315,7 @@ export default function ProductScreen() {
               <Button
                 label={needsOption && !option ? "Choose one" : "Add to basket"}
                 busy={adding === "add"}
-                disabled={(needsOption && !option) || adding !== null || !data.price}
+                disabled={(needsOption && !option) || adding !== null || !data.price || !data.buy_online}
                 onPress={() => void put("add")}
                 style={{ flex: 1.2, paddingHorizontal: space.sm }}
               />
@@ -325,7 +324,7 @@ export default function ProductScreen() {
                 tone="outline"
                 icon={<Zap size={16} color={colors.brand} />}
                 busy={adding === "order"}
-                disabled={(needsOption && !option) || adding !== null || !data.price}
+                disabled={(needsOption && !option) || adding !== null || !data.price || !data.buy_online}
                 onPress={() => void put("order")}
                 style={{ flex: 1, paddingHorizontal: space.sm }}
               />

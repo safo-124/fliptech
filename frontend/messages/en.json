@@ -2356,7 +2356,7 @@
     "backOnSale": "Back on sale."
   },
   "SellerDashboard": {
-    "directOnlyBanner": "Buyers can't see your products yet. Add the MoMo number we should send your money to, and they go live.",
+    "directOnlyBanner": "Buyers can see your products, but they can't buy them until you add the MoMo number we should send your money to.",
     "sendMyId": "Send my ID",
     "tradeLabel": "Category",
     "tradeNone": "Choose a category",
@@ -2636,7 +2636,7 @@
     "bannerSaved": "Banner saved.",
     "payoutTitle": "Where should we send your money?",
     "payoutLead": "Add where you want to be paid, and buyers get a \"Buy now\" button on your products. Paystack sends each payment straight to you; Fliiptech keeps {percent}% and Paystack takes its fee from your share.",
-    "payoutLeadProtected": "Buyers see your products once this is saved. They pay online; Fliiptech keeps the money safe and sends it to you once the buyer has it, or {days} days after you hand it over. Fliiptech keeps {percent}%.",
+    "payoutLeadProtected": "Buyers can buy your products once this is saved. They pay online; Fliiptech keeps the money safe and sends it to you once the buyer has it, or {days} days after you hand it over. Fliiptech keeps {percent}%.",
     "payoutTo": "Paid to {bank} ending {last4} ({name})",
     "change": "Change",
     "cancel": "Cancel",
@@ -3397,7 +3397,7 @@
     "receiptReference": "Receipt {reference}",
     "heldNote": "Fliiptech keeps your money safe and pays the seller only once you have your order. If something is wrong, report it and we sort it out.",
     "notPayableYet": "This seller can't be paid online yet, so this can't be bought for now.",
-    "notBuyableNow": "This can't be bought online right now. Message the seller to ask when it will be.",
+    "notBuyableNow": "This seller hasn't set up payments yet, so this can't be bought for now. You can still message them.",
     "phoneFromAccount": "Your account's number. The seller and Fliiptech use it to reach you about this order."
   },
   "SignInGate": {
