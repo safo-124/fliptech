@@ -911,6 +911,15 @@ def browse(params):
     if category:
         products = products.filter(trade__category__slug=category)
 
+    # One of the eight pictures at the top of the page (kinds.py).
+    kind = params.get("kind")
+    if kind:
+        from .kinds import kind_q
+
+        match = kind_q(kind)
+        if match is not None:
+            products = products.filter(match)
+
     area = params.get("area")
     if area:
         products = products.filter(seller__area__slug=area)
