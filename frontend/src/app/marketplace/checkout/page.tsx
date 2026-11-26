@@ -9,14 +9,14 @@ import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Basket");
-  return { title: t("oneTimeTitle"), robots: { index: false, follow: false } };
+  return { title: t("checkoutTitle"), robots: { index: false, follow: false } };
 }
 
 export default async function CheckoutAllRoute() {
   const t = await getTranslations("Basket");
   return (
     <div className="app-shell max-w-2xl py-8 pb-14">
-      <h1 className="mb-4 text-2xl font-extrabold tracking-[-0.02em]">{t("oneTimeTitle")}</h1>
+      <h1 className="mb-4 text-2xl font-extrabold tracking-[-0.02em]">{t("checkoutTitle")}</h1>
       <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
         <CheckoutAll />
       </ClientMessages>

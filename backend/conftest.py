@@ -44,3 +44,15 @@ def _marketplace_trust_off(settings):
     settings.MARKETPLACE_HOLD_FIRST_ORDERS = 0
     settings.MARKETPLACE_HOLD_ABOVE = 0
     settings.MARKETPLACE_NEW_SELLER_LIMIT = 0
+
+
+@pytest.fixture(autouse=True)
+def _marketplace_full_options(settings):
+    """Production buys simply (marketplace/rules.py): online only, paid in
+    full, collected, every payment held. Tests written before that assume
+    every option on; marketplace/tests/test_simple_buying.py tests the
+    simple rules."""
+    settings.MARKETPLACE_ONLINE_ONLY = False
+    settings.MARKETPLACE_EXTRAS = True
+    settings.MARKETPLACE_DELIVERY = True
+    settings.MARKETPLACE_HOLD_PAYMENTS = False

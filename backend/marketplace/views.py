@@ -64,6 +64,7 @@ from .models import (
     SellerReview,
     plan_running,
 )
+from .rules import extras_on, payable_q
 from .serializers import (
     OwnEnquirySerializer,
     OwnProductSerializer,
@@ -878,19 +879,12 @@ def _filter_products(products, params):
         # ProductCardSerializer.get_buy_online, in SQL.
         if not paystack.enabled():
             return products.none()
-        payable = (
-            Q(seller__paystack_recipient__gt="")
-            if settings.MARKETPLACE_HOLD_PAYMENTS
-            else Q(seller__paystack_subaccount__gt="")
-        )
-        if settings.MARKETPLACE_REQUIRE_ID:
-            payable &= Q(seller__id_status=SellerAccount.IdStatus.CHECKED)
+        made_to_order = Q(availability=Product.Availability.MADE_TO_ORDER)
+        if extras_on():
+            made_to_order &= Q(seller__deposit_percent__gt=0)
         products = (
-            products.filter(payable, price__isnull=False)
-            .filter(
-                Q(availability=Product.Availability.AVAILABLE)
-                | Q(availability=Product.Availability.MADE_TO_ORDER, seller__deposit_percent__gt=0)
-            )
+            products.filter(payable_q("seller__"), price__isnull=False)
+            .filter(Q(availability=Product.Availability.AVAILABLE) | made_to_order)
             .exclude(seller__away_until__gte=timezone.localdate())
         )
     return products

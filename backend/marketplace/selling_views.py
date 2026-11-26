@@ -65,6 +65,14 @@ from .models import (
 )
 from .payments import confirm_balance, confirm_order, confirm_seller_payment, payer_email
 from .reviews import read_token
+from .rules import (
+    collect_percent,
+    delivers,
+    deposit_percent,
+    extras_on,
+    made_to_order_buyable,
+    online_only,
+)
 from .serializers import (
     BasketSerializer,
     DiscountCodeSerializer,
@@ -551,7 +559,7 @@ def price_basket(seller, data, student_percent=0):
                 product.availability == Product.Availability.AVAILABLE
                 or (
                     product.availability == Product.Availability.MADE_TO_ORDER
-                    and seller.deposit_percent
+                    and made_to_order_buyable(seller)
                 )
             )
         )
@@ -586,6 +594,10 @@ def price_basket(seller, data, student_percent=0):
     discount = 0
     code = ""
     typed = "".join(str(data.get("code") or "").split()).upper()
+    if typed and not extras_on():
+        raise BasketError(_("Discount codes are not in use right now."))
+    if data.get("fulfilment") == Order.Fulfilment.DELIVERY and not delivers(seller):
+        raise BasketError(_("Delivery is not available yet. Collect it from the seller."))
     if typed:
         found = seller.codes.filter(code__iexact=typed).first()
         if found is None or not found.usable():
@@ -605,7 +617,7 @@ def price_basket(seller, data, student_percent=0):
     if student > discount:
         discount, code = student, STUDENT_PRICE
     delivery = 0
-    if data.get("fulfilment") == Order.Fulfilment.DELIVERY and seller.delivery_fee is not None:
+    if data.get("fulfilment") == Order.Fulfilment.DELIVERY and delivers(seller):
         delivery = int(seller.delivery_fee * 100)
     paid_for_goods = subtotal - discount
     # On the goods, not on delivery: that money is the seller's cost.
@@ -616,7 +628,7 @@ def price_basket(seller, data, student_percent=0):
     collect = (
         bool(data.get("pay_at_collection"))
         and data.get("fulfilment") != Order.Fulfilment.DELIVERY
-        and seller.collect_deposit_percent
+        and collect_percent(seller)
         and not made_to_order
     )
     if data.get("pay_at_collection") and not collect:
@@ -654,7 +666,7 @@ def price_basket(seller, data, student_percent=0):
             "balance_commission": 0,
             "student": code == STUDENT_PRICE,
         }
-    if made_to_order:
+    if made_to_order and deposit_percent(seller):
         pay_now = int(
             (Decimal(paid_for_goods) * seller.deposit_percent / 100).quantize(
                 Decimal(1), rounding=ROUND_HALF_UP
@@ -680,7 +692,9 @@ def price_basket(seller, data, student_percent=0):
         "delivery": delivery,
         "total": paid_for_goods + delivery,
         "commission": commission,
-        "plan": Order.Plan.DEPOSIT if made_to_order else Order.Plan.FULL,
+        "plan": Order.Plan.DEPOSIT
+        if made_to_order and deposit_percent(seller)
+        else Order.Plan.FULL,
         "pay_now": pay_now,
         "commission_now": commission_now,
         "balance": balance,
@@ -708,16 +722,16 @@ def _basket_payload(priced, seller):
             for line in priced["lines"]
         ],
         "plan": priced["plan"],
-        "deposit_percent": seller.deposit_percent,
-        "collect_deposit_percent": seller.collect_deposit_percent,
+        "deposit_percent": deposit_percent(seller),
+        "collect_deposit_percent": collect_percent(seller),
         "pay_now": _pesewas(priced["pay_now"]),
         "balance": _pesewas(priced["balance"]),
         "subtotal": _pesewas(priced["subtotal"]),
         "discount": _pesewas(priced["discount"]),
         "code": priced["code"],
         "delivery": _pesewas(priced["delivery"]),
-        "delivery_fee": f"{seller.delivery_fee:.2f}" if seller.delivery_fee is not None else None,
-        "delivery_area": seller.delivery_area,
+        "delivery_fee": f"{seller.delivery_fee:.2f}" if delivers(seller) else None,
+        "delivery_area": seller.delivery_area if delivers(seller) else "",
         "total": _pesewas(priced["total"]),
         "protected": settings.MARKETPLACE_HOLD_PAYMENTS,
         "student": priced["student"],
@@ -1057,6 +1071,14 @@ def create_direct_order(request, seller, items, *, phone, name, fulfilment, note
     texted the order's link. Nothing is charged, and stock is not taken
     until the maker hands it over.
     """
+    if online_only():
+        return Response(
+            {
+                "detail": _("This seller cannot be paid online yet."),
+                "code": "not_payable",
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
     if buying_own(request, seller):
         return own_item_refusal()
     if paystack.enabled() and seller.takes_payments:

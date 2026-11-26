@@ -46,7 +46,7 @@ export function AddToBasket({ product }: { product: ProductDetail }) {
     try {
       const basket = await addToBasket(product.id, option, quantity);
       if (then === "order") {
-        router.push(`/marketplace/checkout/${product.seller.id}`);
+        router.push("/marketplace/checkout");
         return;
       }
       showBasketToast(basket.notice || undefined, basket.added !== 0);
@@ -112,7 +112,7 @@ export function AddToBasket({ product }: { product: ProductDetail }) {
       {direct ? (
         <p className="flex items-start gap-2 rounded-xl bg-[var(--color-warn-bg)] px-3 py-2.5 text-sm">
           <Handshake aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-warn)]" />
-          {t("directNote")}
+          {t("notBuyableNow")}
         </p>
       ) : null}
 
@@ -123,8 +123,9 @@ export function AddToBasket({ product }: { product: ProductDetail }) {
       ) : null}
       {needsChoice ? <p className="text-sm text-[var(--color-muted-foreground)]">{tMarket("chooseOptionFirst")}</p> : null}
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Button
+      {direct ? null : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button
           type="button"
           variant="brand"
           className="min-h-12 w-full text-base"
@@ -143,8 +144,9 @@ export function AddToBasket({ product }: { product: ProductDetail }) {
         >
           {busy === "order" ? <Loader2 aria-hidden="true" className="animate-spin" /> : <Zap aria-hidden="true" />}
           {t("orderNow")}
-        </Button>
-      </div>
+          </Button>
+        </div>
+      )}
       {direct ? null : (
         <p className="text-xs text-[var(--color-muted-foreground)]">
           {tMarket("payMomoCard", { seller: product.seller.business_name })}
