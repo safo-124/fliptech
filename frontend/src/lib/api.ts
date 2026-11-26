@@ -341,6 +341,10 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
 // lives in marketplace-api.ts, next to the CSRF handling every write needs.
 
 export type MarketplaceParams = {
+  /** One of the eight pictures at the top (lib/market-kinds). */
+  kind?: string;
+  /** "How much?" in the More sheet; the page turns it into min and max price. */
+  price_band?: string;
   trade?: string;
   /** A whole group of trades (TradeCategory), by its slug. */
   category?: string;

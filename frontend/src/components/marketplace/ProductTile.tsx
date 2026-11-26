@@ -12,10 +12,10 @@ import { tradeClass } from "@/lib/trades";
 import type { ProductCard } from "@/lib/types";
 
 /**
- * One product in a list.
+ * One product in a list, simple enough to use without reading much.
  *
  * Three things a buyer decides on, in the order they decide them: what it
- * looks like, what it costs, and where it is. Where matters more here than on
+ * looks like, what it costs (first, and biggest), and where it is. Where matters more here than on
  * a training card — the seller arranges delivery themselves at this stage, so
  * distance is the whole cost of a purchase and burying it would waste
  * everybody's time.
@@ -29,7 +29,7 @@ export function ProductTile({ product }: { product: ProductCard }) {
   return (
     <article className="relative h-full">
       <Card
-        className={`group h-full overflow-hidden transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-lg)] ${
+        className={`group flex h-full flex-col overflow-hidden transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--color-brand)]/30 hover:shadow-[var(--shadow-lg)] ${
           gone ? "opacity-70" : ""
         }`}
       >
@@ -74,13 +74,11 @@ export function ProductTile({ product }: { product: ProductCard }) {
             ) : null}
           </div>
 
-          <div className="p-3.5">
-            <h3 className="line-clamp-2 text-sm font-bold leading-snug tracking-[-0.015em]">
-              {product.name}
-            </h3>
-            <p className="mt-1.5 text-base font-extrabold tracking-[-0.02em]">
+          <div className="p-3.5 pb-2">
+            {/* The price first and biggest: it is what a buyer decides on. */}
+            <p className="text-xl font-bold tracking-[-0.02em] text-[var(--color-brand-deep)]">
               {product.price === null ? (
-                <span className="text-sm font-semibold text-[var(--color-muted-foreground)]">
+                <span className="text-base font-semibold text-[var(--color-muted-foreground)]">
                   {t("onRequest")}
                 </span>
               ) : (
@@ -90,48 +88,50 @@ export function ProductTile({ product }: { product: ProductCard }) {
                 </>
               )}
             </p>
-            <p className="mt-2 truncate text-xs text-[var(--color-muted-foreground)]">
-              {product.seller.business_name} &middot; {product.seller.area}
+            <h3 className="mt-0.5 line-clamp-2 text-[0.9375rem] font-medium leading-snug">{product.name}</h3>
+            <p className="mt-1.5 flex items-center gap-1 truncate text-sm text-[var(--color-muted-foreground)]">
+              <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="truncate">
+                {product.distance_km !== null
+                  ? `${product.seller.area} · ${t("distance", { km: product.distance_km })}`
+                  : product.seller.area}
+              </span>
             </p>
             {product.few_left ? (
-              <p className="mt-1 text-xs font-bold text-[var(--color-warn)]">{t("fewLeft", { count: product.few_left })}</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--color-warn)]">{t("fewLeft", { count: product.few_left })}</p>
             ) : null}
-            <div className="mt-1">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
               <SellerBadges seller={product.seller} compact />
+              {product.seller.rating ? (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                  <Star aria-hidden="true" className="size-3 fill-amber-400 text-amber-400" />
+                  {t("rating", product.seller.rating)}
+                </span>
+              ) : null}
             </div>
-            {product.seller.rating || product.distance_km !== null ? (
-              <p className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-[var(--color-muted-foreground)]">
-                {product.seller.rating ? (
-                  <span className="inline-flex items-center gap-1 font-semibold text-[var(--color-foreground)]">
-                    <Star aria-hidden="true" className="size-3 fill-amber-400 text-amber-400" />
-                    {t("rating", product.seller.rating)}
-                  </span>
-                ) : null}
-                {product.distance_km !== null ? (
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin aria-hidden="true" className="size-3" />
-                    {t("distance", { km: product.distance_km })}
-                  </span>
-                ) : null}
-              </p>
-            ) : null}
           </div>
         </Link>
+        {/* Outside the link: a button inside an anchor is not allowed. One
+            clear word on it, not a symbol to work out. */}
+        <div className="mt-auto px-3.5 pb-3.5">
+          {gone || product.price === null ? (
+            <Link
+              href={`/marketplace/${product.id}`}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[var(--color-border-strong)] px-4 text-[0.9375rem] font-semibold"
+            >
+              {t("seeIt")}
+            </Link>
+          ) : (
+            <QuickAdd productId={product.id} label={tBasket("quickAdd", { name: product.name })} text={t("buy")} />
+          )}
+        </div>
       </Card>
-      {/* Outside the link: a button inside an anchor is not allowed, and a
-          tap on the heart must not open the product. */}
+      {/* Outside the link: a tap on the heart must not open the product. */}
       <SaveButton
         productId={product.id}
         labels={{ save: t("saveForLater"), saved: t("savedForLater") }}
         className="absolute right-2 top-2"
       />
-      {gone || product.price === null ? null : (
-        // Over the photo's bottom corner: a box the photo's shape, so the
-        // button sits there at any card width.
-        <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[4/3]">
-          <QuickAdd productId={product.id} label={tBasket("quickAdd", { name: product.name })} className="pointer-events-auto absolute bottom-2 right-2" />
-        </div>
-      )}
     </article>
   );
 }

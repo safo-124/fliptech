@@ -13,8 +13,13 @@ import { useState } from "react";
  */
 export function NearMeButton({
   labels,
+  className,
+  refusedClassName = "text-xs text-white/75",
 }: {
   labels: { action: string; finding: string; refused: string };
+  /** The button's look; the default is the one for a dark band. */
+  className?: string;
+  refusedClassName?: string;
 }) {
   const [state, setState] = useState<"idle" | "finding" | "refused">("idle");
 
@@ -43,7 +48,10 @@ export function NearMeButton({
         type="button"
         onClick={find}
         disabled={state === "finding"}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/30 px-4 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-70"
+        className={
+          className ??
+          "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/30 px-4 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-70"
+        }
       >
         {state === "finding" ? (
           <Loader2 aria-hidden="true" className="size-4 animate-spin" />
@@ -53,7 +61,7 @@ export function NearMeButton({
         {state === "finding" ? labels.finding : labels.action}
       </button>
       {state === "refused" ? (
-        <span role="status" className="text-xs text-white/75">
+        <span role="status" className={refusedClassName}>
           {labels.refused}
         </span>
       ) : null}

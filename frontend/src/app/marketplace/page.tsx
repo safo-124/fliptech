@@ -15,14 +15,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
-import { BrandShards } from "@/components/BrandShards";
+import { KindTiles } from "@/components/marketplace/KindTiles";
 import {
   ActiveFilterChips,
   activeFilterCount,
-  MarketFilters,
   marketHref,
+  MoreSheet,
 } from "@/components/marketplace/MarketFilters";
-import { NearMeButton } from "@/components/marketplace/NearMeButton";
+import { QuickChips } from "@/components/marketplace/QuickChips";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
 import { SaveSearch } from "@/components/marketplace/SaveSearch";
@@ -32,12 +32,12 @@ import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
-import { areaOptions, tradeOptions } from "@/lib/picker-options";
+import { bandPrices } from "@/lib/market-kinds";
+import { areaOptions } from "@/lib/picker-options";
 import { CategoryPill } from "@/components/CategoryPill";
 import {
   buildQuery,
   getAllRegions,
-  getAllTrades,
   getTradeCategory,
   getTrainerShops,
   searchProducts,
@@ -66,12 +66,19 @@ export default async function MarketplacePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const params: MarketplaceParams = Object.fromEntries(
+  const given: MarketplaceParams = Object.fromEntries(
     Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
   );
+  // "How much?" sends a band; the API and every link after this read the
+  // lowest and highest price it stands for.
+  const { price_band: band, ...rest } = given;
+  const params: MarketplaceParams =
+    band !== undefined ? { ...rest, min_price: undefined, max_price: undefined, ...(bandPrices(band) ?? {}) } : given;
 
   const filterCount = activeFilterCount(params);
-  const filtered = Boolean(params.trade || params.category || params.area || params.q || filterCount);
+  const filtered = Boolean(
+    params.trade || params.category || params.area || params.q || params.kind || params.condition || filterCount,
+  );
   // Opened from a category page (?category=): named, with a way to undo it.
   const [chosenCategory, tCategory] = await Promise.all([
     params.category ? getTradeCategory(params.category).catch(() => null) : null,
@@ -79,9 +86,8 @@ export default async function MarketplacePage({
   ]);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const [products, trades, regions, trainerShops, t, payable] = await Promise.all([
+  const [products, regions, trainerShops, t, payable] = await Promise.all([
     searchProducts(params).catch(() => null),
-    getAllTrades().catch(() => []),
     getAllRegions().catch(() => []),
     // The "made by people who teach it" row, on the plain first page only.
     filtered || page > 1 ? null : getTrainerShops().catch(() => null),
@@ -100,138 +106,82 @@ export default async function MarketplacePage({
 
   return (
     <div className="pb-14">
-      <section className="band relative isolate overflow-hidden">
-        <BrandShards className="pointer-events-none absolute -right-8 -top-12 h-[16rem] w-[22rem] opacity-25" />
-        <div className="app-shell relative z-10 py-8 sm:py-12">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--color-peach)]">
-            {t("eyebrow")}
-          </p>
-          <h1 className="mt-2 max-w-[20ch] text-[1.75rem] font-extrabold leading-[1.12] tracking-[-0.035em] text-white sm:text-4xl">
-            {t("title")}
+      {/* A GET form, so searching and every filter work with the JavaScript
+          turned off, like the training search. */}
+      <form action="/marketplace" method="get" className="app-shell pt-6 sm:pt-8">
+        <section className="relative isolate overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[radial-gradient(120%_140%_at_0%_0%,var(--color-brand-soft),var(--color-background)_60%)] p-5 sm:p-8">
+          <p className="text-sm font-medium text-[var(--color-muted-foreground)]">{t("heroEyebrow")}</p>
+          <h1 className="mt-1.5 text-[1.75rem] font-bold leading-tight tracking-[-0.025em] text-[var(--color-brand-deep)] sm:text-4xl">
+            {t("heroTitle")}
           </h1>
-          <p className="mt-3 max-w-[56ch] text-sm leading-relaxed text-white/75 sm:text-base">
-            {t("intro")}
-          </p>
-
-          {/* A GET form. Filtering is the core function of this page and it
-              works with the JavaScript turned off. */}
-          <form action="/marketplace" method="get" className="mt-6 max-w-3xl">
-            <div className="rounded-2xl bg-[var(--color-card)] p-2.5 shadow-[var(--shadow-lg)] sm:flex sm:items-center sm:gap-2 sm:p-3">
-              <div className="flex flex-1 items-center gap-2.5 rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent sm:px-2">
-                <Search aria-hidden="true" className="size-4 shrink-0 text-[var(--color-muted-foreground)]" />
-                <label htmlFor="market-q" className="sr-only">
-                  {t("searchLabel")}
-                </label>
-                <input
-                  id="market-q"
-                  name="q"
-                  type="search"
-                  defaultValue={params.q ?? ""}
-                  placeholder={t("searchPlaceholder")}
-                  className="h-11 w-full min-w-0 border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)]"
-                />
-              </div>
-
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-0 sm:flex sm:items-center">
-                <div className="rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent">
-                  <label htmlFor="market-trade" className="sr-only">
-                    {t("tradeLabel")}
-                  </label>
-                  <Picker
-                    id="market-trade"
-                    name="trade"
-                    label={t("tradeLabel")}
-                    defaultValue={params.trade ?? ""}
-                    searchPlaceholder={t("findTrade")}
-                    emptyLabel={t("noMatch")}
-                    options={[{ value: "", label: t("anyTrade") }, ...tradeOptions(trades)]}
-                    className="w-full"
-                    triggerClassName="h-11 text-sm text-[var(--color-foreground)] outline-none"
-                    selectClassName="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
-                  />
-                </div>
-                <div className="rounded-xl bg-[var(--color-muted)] px-3 sm:bg-transparent sm:border-l sm:border-[var(--color-border)]">
-                  <label htmlFor="market-area" className="sr-only">
-                    {t("areaLabel")}
-                  </label>
-                  <Picker
-                    id="market-area"
-                    name="area"
-                    label={t("areaLabel")}
-                    defaultValue={params.area ?? ""}
-                    searchPlaceholder={t("findArea")}
-                    emptyLabel={t("noMatch")}
-                    options={[{ value: "", label: t("anyArea") }, ...areaOptions(regions)]}
-                    className="w-full"
-                    triggerClassName="h-11 text-sm text-[var(--color-foreground)] outline-none"
-                    selectClassName="h-11 w-full border-0 bg-transparent text-sm text-[var(--color-foreground)] outline-none"
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" variant="brand" className="mt-2 w-full sm:mt-0 sm:w-auto">
-                {t("searchAction")}
-              </Button>
-            </div>
-            {/* Kept through a new search, so "near me" survives a change of trade. */}
-            {params.near ? <input type="hidden" name="near" value={params.near} /> : null}
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <label htmlFor="market-sort" className="text-sm font-semibold text-white/80">
-                {t("sortLabel")}
-              </label>
-              <Picker
-                id="market-sort"
-                name="sort"
-                label={t("sortLabel")}
-                defaultValue={params.sort ?? ""}
-                submitOnChange
-                options={[
-                  { value: "", label: t("sortBest") },
-                  { value: "price", label: t("sortPriceLow") },
-                  { value: "-price", label: t("sortPriceHigh") },
-                  { value: "newest", label: t("sortNewest") },
-                  { value: "rating", label: t("sortRating") },
-                  ...(params.near ? [{ value: "nearest", label: t("sortNearest") }] : []),
-                ]}
-                triggerClassName="h-11 rounded-full bg-[var(--color-card)] px-4 text-sm text-[var(--color-foreground)] outline-none"
-                selectClassName="h-11 rounded-full border-0 bg-[var(--color-card)] px-4 text-sm text-[var(--color-foreground)] outline-none"
-              />
-              <NearMeButton
-                labels={{
-                  action: t("nearMe"),
-                  finding: t("findingYou"),
-                  refused: t("nearMeRefused"),
-                }}
-              />
-            </div>
-            <MarketFilters params={params} payOnlineAvailable={payable} />
-          </form>
-
-          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            <Link href="/marketplace/quote" className="font-semibold text-white underline underline-offset-4">
-              {t("quoteCta")}
-            </Link>
-            <Link href="/marketplace/saved" className="font-semibold text-white underline underline-offset-4">
+          <div className="mt-5 flex max-w-2xl items-center gap-2 rounded-2xl border-[1.5px] border-[var(--color-border-strong)] bg-[var(--color-card)] p-1.5 pl-4 focus-within:border-[var(--color-brand)]">
+            <Search aria-hidden="true" className="size-5 shrink-0 text-[var(--color-muted-foreground)]" />
+            <label htmlFor="market-q" className="sr-only">
+              {t("searchLabel")}
+            </label>
+            <input
+              id="market-q"
+              name="q"
+              type="search"
+              defaultValue={params.q ?? ""}
+              placeholder={t("searchPlaceholder")}
+              className="h-12 w-full min-w-0 border-0 bg-transparent text-base text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)] sm:text-lg"
+            />
+            <Button type="submit" variant="brand" size="lg" className="shrink-0 rounded-xl" aria-label={t("searchAction")}>
+              <Search aria-hidden="true" className="sm:hidden" />
+              <span className="hidden sm:inline">{t("searchAction")}</span>
+            </Button>
+          </div>
+          {/* Kept through a new search: the picture, "near me" and new or used
+              are set by the buttons below, not by fields in this form. */}
+          {params.kind ? <input type="hidden" name="kind" value={params.kind} /> : null}
+          {params.near ? <input type="hidden" name="near" value={params.near} /> : null}
+          {params.condition ? <input type="hidden" name="condition" value={params.condition} /> : null}
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+            <Link href="/marketplace/saved" className="font-semibold text-[var(--color-brand)] underline-offset-4 hover:underline">
               {t("savedLink")}
             </Link>
-            <Link href="/marketplace?condition=used" className="font-semibold text-white underline underline-offset-4">
-              {t("secondHandLink")}
+            <Link href="/marketplace/quote" className="font-semibold text-[var(--color-brand)] underline-offset-4 hover:underline">
+              {t("quoteCta")}
+            </Link>
+            <Link href="/sell" className="font-semibold text-[var(--color-brand)] underline-offset-4 hover:underline">
+              {t("sellYours")}
             </Link>
           </p>
-          <p className="mt-2 text-sm text-white/70">
-            {t("makeSomething")}{" "}
-            <Link href="/sell" className="font-semibold text-white underline underline-offset-4">
-              {t("sellHere")}
-            </Link>
-          </p>
-        </div>
-      </section>
+        </section>
 
-      <section className="app-shell mt-8">
+        <KindTiles params={params} />
+
+        <QuickChips
+          params={params}
+          more={
+            <MoreSheet
+              params={params}
+              payOnlineAvailable={payable}
+              where={
+                <Picker
+                  id="market-area"
+                  name="area"
+                  label={t("areaLabel")}
+                  defaultValue={params.area ?? ""}
+                  searchPlaceholder={t("findArea")}
+                  emptyLabel={t("noMatch")}
+                  options={[{ value: "", label: t("anyArea") }, ...areaOptions(regions)]}
+                  className="w-full"
+                  triggerClassName="h-11 w-full text-[0.9375rem] text-[var(--color-foreground)] outline-none"
+                  selectClassName="h-11 w-full border-0 bg-transparent text-[0.9375rem] text-[var(--color-foreground)] outline-none"
+                />
+              }
+            />
+          }
+        />
+      </form>
+
+      <section className="app-shell mt-6">
         <TrainerShops shops={trainerShops?.results ?? []} />
         <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
           <ActiveFilterChips params={params} />
-          {filtered ? (
+          {filtered && results.length ? (
             <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
               <SaveSearch params={params} label={params.q || t("title")} />
             </ClientMessages>
@@ -243,21 +193,26 @@ export default async function MarketplacePage({
           </Card>
         ) : results.length === 0 ? (
           <Card className="p-8 text-center sm:p-12">
-            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">
-              <PackageSearch aria-hidden="true" className="size-6" />
+            <span className="mx-auto grid size-20 place-items-center rounded-full bg-[var(--color-brand-soft)] text-[var(--color-brand)]">
+              <PackageSearch aria-hidden="true" className="size-9" />
             </span>
-            <h2 className="mt-4 text-lg font-bold tracking-[-0.02em]">
-              {filtered ? t("noneMatch") : t("noneYet")}
+            <h2 className="mt-4 text-xl font-bold tracking-[-0.02em] text-[var(--color-brand-deep)]">
+              {filtered ? t("emptyTitle") : t("noneYet")}
             </h2>
-            <p className="mx-auto mt-2 max-w-[48ch] text-sm leading-relaxed text-[var(--color-muted-foreground)]">
-              {filtered ? t("noneMatchBody") : t("noneYetBody")}
+            <p className="mx-auto mt-2 max-w-[44ch] text-base leading-relaxed text-[var(--color-muted-foreground)]">
+              {filtered ? t("emptyBody") : t("noneYetBody")}
             </p>
             {filtered ? (
-              <Button asChild variant="outline" className="mt-5">
-                <Link href="/marketplace">{t("clearFilters")}</Link>
-              </Button>
+              <div className="mx-auto mt-6 flex max-w-sm flex-col gap-2.5">
+                <Button asChild variant="brand" size="lg">
+                  <Link href="/marketplace">{t("seeEverything")}</Link>
+                </Button>
+                <ClientMessages namespaces={MARKETPLACE_CLIENT_NAMESPACES}>
+                  <SaveSearch params={params} label={params.q || t("title")} />
+                </ClientMessages>
+              </div>
             ) : (
-              <Button asChild variant="brand" className="mt-5">
+              <Button asChild variant="brand" size="lg" className="mt-6">
                 <Link href="/sell">
                   <Store aria-hidden="true" />
                   {t("sellHere")}
@@ -267,8 +222,9 @@ export default async function MarketplacePage({
           </Card>
         ) : (
           <>
-            <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">
-              {t("count", { count: products.count })}
+            <p className="mb-4 text-base text-[var(--color-muted-foreground)]">
+              <strong className="font-semibold text-[var(--color-foreground)]">{t("countThings", { count: products.count })}</strong>
+              {params.near ? ` ${t("nearYou")}` : ""}
             </p>
             {chosenCategory ? (
               <div className="-mt-2 mb-4">

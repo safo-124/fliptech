@@ -3,13 +3,13 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import type { MarketplaceParams } from "@/lib/api";
+import { bandFor, isMarketKind, PRICE_BANDS } from "@/lib/market-kinds";
 
 /**
  * The marketplace's filters, as plain form fields inside the page's GET
- * form, so they work with JavaScript off like the rest of the search.
- *
- * Folded away in a <details> until opened; it opens by itself when a filter
- * is on, so a buyer can see and change what is narrowing the list.
+ * form, so they work with JavaScript off like the rest of the search: the
+ * "More" sheet, the chips that show what is on, and links that change one
+ * thing at a time.
  */
 
 /** Switches that are on with "1", in the order shown. */
@@ -35,172 +35,152 @@ export function activeFilterCount(params: MarketplaceParams) {
   return FILTER_KEYS.filter((key) => params[key]).length;
 }
 
-export function MarketFilters({
+/** One choice in the More sheet: a big tap-target that looks like a button
+    and is a real radio or checkbox underneath, so the form still works with
+    JavaScript off. */
+function Choice({
+  type,
+  name,
+  value,
+  checked,
+  children,
+}: {
+  type: "radio" | "checkbox";
+  name: string;
+  value: string;
+  checked: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-4 text-[0.9375rem] font-medium transition-colors has-[:checked]:border-[var(--color-brand)] has-[:checked]:bg-[var(--color-brand)] has-[:checked]:text-white has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--color-brand)]/40">
+      <input type={type} name={name} value={value} defaultChecked={checked} className="sr-only" />
+      {children}
+    </label>
+  );
+}
+
+function Question({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="mt-5 first:mt-0">
+      <legend className="text-base font-semibold text-[var(--color-brand-deep)]">{title}</legend>
+      <div className="mt-2.5 flex flex-wrap gap-2">{children}</div>
+    </fieldset>
+  );
+}
+
+/**
+ * "More": everything besides the quick buttons, as one sheet of big choices.
+ * A <details> inside the page's GET form, so it opens and submits with
+ * JavaScript off. A bottom sheet on a phone (the dimmed page behind closes
+ * it), a panel under the buttons on a wider screen.
+ */
+export function MoreSheet({
   params,
   payOnlineAvailable = true,
+  where,
 }: {
   params: MarketplaceParams;
   /** Some product can be paid on the site: only then is the switch shown. */
   payOnlineAvailable?: boolean;
+  /** The "Where?" place picker, made by the page. */
+  where: React.ReactNode;
 }) {
   const t = useTranslations("Marketplace");
-  const count = activeFilterCount(params);
+  // What is on inside this sheet: new or used is a quick button outside it.
+  const count = activeFilterCount({ ...params, condition: undefined });
   const soldBy = params.sold_by ?? "";
+  const band = bandFor(params.min_price, params.max_price);
+  const sort = params.sort ?? "";
 
   return (
-    <details
-      open={count > 0}
-      className="group mt-3 rounded-2xl bg-[var(--color-card)] text-[var(--color-foreground)] shadow-[var(--shadow-lg)]"
-    >
-      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-sm font-bold [&::-webkit-details-marker]:hidden">
+    <details className="group">
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-4 text-[0.9375rem] font-medium before:pointer-events-none group-open:border-[var(--color-brand)] group-open:before:pointer-events-auto group-open:before:fixed group-open:before:inset-0 group-open:before:z-[1090] group-open:before:bg-black/35 group-open:before:content-[''] sm:group-open:before:bg-transparent [&::-webkit-details-marker]:hidden">
         <SlidersHorizontal aria-hidden="true" className="size-4 text-[var(--color-brand)]" />
-        {t("filtersTitle")}
+        {t("moreChoices")}
         {count ? (
-          <span className="rounded-full bg-[var(--color-brand)] px-2 py-0.5 text-[11px] font-extrabold text-white">
-            {t("filtersActive", { count })}
-          </span>
+          <span className="rounded-full bg-[var(--color-brand)] px-2 py-0.5 text-xs font-semibold text-white">{count}</span>
         ) : null}
-        <span aria-hidden="true" className="ml-auto text-[var(--color-muted-foreground)] transition group-open:rotate-180">
-          ▾
-        </span>
       </summary>
 
-      <div className="grid gap-5 border-t border-[var(--color-border)] px-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
-        <fieldset>
-          <legend className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            {t("soldByLabel")}
-          </legend>
-          <div className="mt-2 flex flex-col gap-1.5">
-            {(
-              [
-                ["", "soldByAnyone"],
-                ["trainers", "soldByTrainers"],
-                ["makers", "soldByMakers"],
-              ] as const
-            ).map(([value, label]) => (
-              <label key={label} className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
-                <input
-                  type="radio"
-                  name="sold_by"
-                  value={value}
-                  defaultChecked={soldBy === value}
-                  className="size-4 accent-[var(--color-brand)]"
-                />
-                {t(label)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+      <div className="fixed inset-x-0 bottom-0 z-[1100] max-h-[85dvh] overflow-y-auto rounded-t-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 pb-8 text-[var(--color-foreground)] shadow-[var(--shadow-lg)] sm:absolute sm:inset-x-0 sm:bottom-auto sm:top-full sm:mt-2 sm:max-h-none sm:rounded-2xl sm:pb-5">
+        <div aria-hidden="true" className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[var(--color-border-strong)] sm:hidden" />
+        <p className="text-lg font-bold text-[var(--color-brand-deep)]">{t("moreTitle")}</p>
 
-        <fieldset>
-          <legend className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            {t("conditionLabel")}
-          </legend>
-          <div className="mt-2 flex flex-col gap-1.5">
-            {(
-              [
-                ["", "conditionAny"],
-                ["new", "conditionNew"],
-                ["used", "conditionUsedOnly"],
-              ] as const
-            ).map(([value, label]) => (
-              <label key={label} className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
-                <input
-                  type="radio"
-                  name="condition"
-                  value={value}
-                  defaultChecked={(params.condition ?? "") === value}
-                  className="size-4 accent-[var(--color-brand)]"
-                />
-                {t(label)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <div className="mt-4 grid gap-x-8 lg:grid-cols-2">
+          <div>
+            <Question title={t("whoMadeIt")}>
+              <Choice type="radio" name="sold_by" value="" checked={soldBy === ""}>
+                {t("soldByAnyone")}
+              </Choice>
+              <Choice type="radio" name="sold_by" value="trainers" checked={soldBy === "trainers"}>
+                {t("whoWorkshop")}
+              </Choice>
+              <Choice type="radio" name="sold_by" value="makers" checked={soldBy === "makers"}>
+                {t("whoMaker")}
+              </Choice>
+            </Question>
 
-        <fieldset>
-          <legend className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            {t("priceLabel")}
-          </legend>
-          <div className="mt-2 flex items-center gap-2">
-            <label className="sr-only" htmlFor="market-min">
-              {t("minPrice")}
-            </label>
-            <input
-              id="market-min"
-              name="min_price"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step="any"
-              defaultValue={params.min_price ?? ""}
-              placeholder={t("minPrice")}
-              className="h-11 w-full min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] px-3 text-sm outline-none focus:border-[var(--color-brand)]"
-            />
-            <span aria-hidden="true" className="text-[var(--color-muted-foreground)]">
-              –
-            </span>
-            <label className="sr-only" htmlFor="market-max">
-              {t("maxPrice")}
-            </label>
-            <input
-              id="market-max"
-              name="max_price"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step="any"
-              defaultValue={params.max_price ?? ""}
-              placeholder={t("maxPrice")}
-              className="h-11 w-full min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] px-3 text-sm outline-none focus:border-[var(--color-brand)]"
-            />
-          </div>
-        </fieldset>
+            <Question title={t("howMuch")}>
+              <Choice type="radio" name="price_band" value="" checked={band === "" && !params.min_price && !params.max_price}>
+                {t("anyPrice")}
+              </Choice>
+              {PRICE_BANDS.map((option) => (
+                <Choice key={option.value} type="radio" name="price_band" value={option.value} checked={band === option.value}>
+                  {t(`band.${option.value}`)}
+                </Choice>
+              ))}
+            </Question>
 
-        <fieldset>
-          <legend className="text-xs font-extrabold uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            {t("showOnly")}
-          </legend>
-          <div className="mt-2 flex flex-col gap-1.5">
-            {SWITCHES.filter(([key]) => key !== "pay_online" || payOnlineAvailable || params.pay_online).map(([key, label]) => (
-              <label key={key} className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
-                <input
-                  type="checkbox"
-                  name={key}
-                  value="1"
-                  defaultChecked={Boolean(params[key])}
-                  className="size-4 accent-[var(--color-brand)]"
-                />
-                {t(label)}
-              </label>
-            ))}
-            <label className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
-              <input
-                type="checkbox"
-                name="min_rating"
-                value="4"
-                defaultChecked={Boolean(params.min_rating)}
-                className="size-4 accent-[var(--color-brand)]"
-              />
-              {t("filterRating")}
-            </label>
-            <label className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm">
-              <input
-                type="checkbox"
-                name="availability"
-                value="available"
-                defaultChecked={params.availability === "available"}
-                className="size-4 accent-[var(--color-brand)]"
-              />
-              {t("filterInStock")}
-            </label>
+            <fieldset className="mt-5">
+              <legend className="text-base font-semibold text-[var(--color-brand-deep)]">{t("whereQuestion")}</legend>
+              <div className="mt-2.5 max-w-sm rounded-xl border border-[var(--color-border)] px-3">{where}</div>
+            </fieldset>
           </div>
-        </fieldset>
 
-        <div className="sm:col-span-2 lg:col-span-4">
+          <div>
+            <Question title={t("showOnly")}>
+              {SWITCHES.filter(([key]) => key !== "pay_online" || payOnlineAvailable || params.pay_online).map(([key, label]) => (
+                <Choice key={key} type="checkbox" name={key} value="1" checked={Boolean(params[key])}>
+                  {t(label)}
+                </Choice>
+              ))}
+              <Choice type="checkbox" name="min_rating" value="4" checked={Boolean(params.min_rating)}>
+                {t("filterRating")}
+              </Choice>
+              <Choice type="checkbox" name="availability" value="available" checked={params.availability === "available"}>
+                {t("filterInStock")}
+              </Choice>
+            </Question>
+
+            <Question title={t("showFirst")}>
+              {(
+                [
+                  ["", "sortBest"],
+                  ["price", "chipCheapest"],
+                  ["-price", "sortPriceHigh"],
+                  ["newest", "sortNewest"],
+                  ["rating", "sortRating"],
+                  ...(params.near ? ([["nearest", "sortNearest"]] as const) : []),
+                ] as const
+              ).map(([value, label]) => (
+                <Choice key={label} type="radio" name="sort" value={value} checked={sort === value}>
+                  {t(label)}
+                </Choice>
+              ))}
+            </Question>
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-2.5">
+          <Link
+            href={marketHref({ q: params.q, kind: params.kind, near: params.near }, {})}
+            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl border border-[var(--color-border-strong)] px-4 font-semibold"
+          >
+            {t("moreClear")}
+          </Link>
           <button
             type="submit"
-            className="h-11 w-full rounded-full bg-[var(--color-brand)] px-6 text-sm font-bold text-white sm:w-auto"
+            className="inline-flex min-h-12 flex-[2] items-center justify-center rounded-xl bg-[var(--color-brand)] px-6 font-semibold text-white"
           >
             {t("applyFilters")}
           </button>
@@ -224,6 +204,7 @@ export function marketHref(params: MarketplaceParams, change: Partial<Record<key
 export function ActiveFilterChips({ params }: { params: MarketplaceParams }) {
   const t = useTranslations("Marketplace");
   const chips: { label: string; change: Partial<Record<keyof MarketplaceParams, undefined>> }[] = [];
+  if (isMarketKind(params.kind)) chips.push({ label: t(`kind.${params.kind}`), change: { kind: undefined } });
   if (params.sold_by === "trainers") chips.push({ label: t("soldByTrainers"), change: { sold_by: undefined } });
   if (params.sold_by === "makers") chips.push({ label: t("soldByMakers"), change: { sold_by: undefined } });
   if (params.min_price && params.max_price) {
