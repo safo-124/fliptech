@@ -3460,6 +3460,8 @@
     "save": "Save",
     "back": "Back",
     "savedTo": "Money goes to {bank} ending {last4} ({name}).",
-    "waitingForStaff": "This name is different from the one on your ID, so our team checks it first. Your money is kept safe until then, usually within a day."
+    "waitingForStaff": "This name is different from the one on your ID, so our team checks it first. Your money is kept safe until then, usually within a day.",
+    "banksMissing": "We couldn't load the list of MoMo networks and banks. Try again in a minute; if it keeps happening, tell Fliiptech.",
+    "tryAgain": "Try again"
   }
 }

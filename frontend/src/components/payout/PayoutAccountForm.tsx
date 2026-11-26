@@ -114,6 +114,18 @@ export function PayoutAccountForm({
   if (!data.payments_enabled) return <p className="text-sm text-[var(--color-muted-foreground)]">{t("paymentsOff")}</p>;
 
   const banks = data.banks;
+  if (!banks.length) {
+    // Nothing to choose from: say why, rather than offer an empty list.
+    return (
+      <div role="alert" className="space-y-3 rounded-xl bg-[var(--color-warn-bg)] p-3 text-sm">
+        <p className="font-semibold text-[var(--color-warn)]">{t("banksMissing")}</p>
+        {data.banks_error ? <p className="text-[var(--color-muted-foreground)]">{data.banks_error}</p> : null}
+        <Button type="button" variant="outline" className="min-h-11" onClick={() => window.location.reload()}>
+          {t("tryAgain")}
+        </Button>
+      </div>
+    );
+  }
   const guessed = !data.account && data.suggestion.bank_code && bank === data.suggestion.bank_code;
 
   // ------------------------------------------------- "Is this you?"
