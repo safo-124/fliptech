@@ -216,3 +216,22 @@ def test_a_matching_name_needs_nobody(client, world, paystack_fake):  # noqa: F8
     assert payout.name_check == "matches" and not payout.needs_staff
     assert payout.staff_cleared_at is None
     assert timezone.now()
+
+
+def test_banks_failing_does_not_hide_momo(settings, monkeypatch):
+    """Paystack listing banks can fail on its own: MoMo is still offered."""
+    from django.core.cache import cache
+
+    from courses import paystack
+
+    settings.PAYSTACK_SECRET_KEY = "sk_test"
+    cache.delete("paystack:payout-banks")
+
+    def call(method, path, payload=None, *, query=None):
+        if query["type"] == "ghipss":
+            raise paystack.PaystackError("Banks are down")
+        return [{"code": "MTN", "name": "MTN", "active": True}]
+
+    monkeypatch.setattr(paystack, "_call", call)
+
+    assert paystack.payout_banks() == [{"code": "MTN", "name": "MTN", "type": "mobile_money"}]

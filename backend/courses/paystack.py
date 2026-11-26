@@ -79,11 +79,21 @@ def payout_banks():
     cached = cache.get("paystack:payout-banks")
     if cached is not None:
         return cached
-    banks = []
+    banks, failure = [], None
     for kind in ("mobile_money", "ghipss"):
-        for bank in _call("GET", "/bank", query={"currency": "GHS", "type": kind}) or []:
+        # Each list on its own: banks failing must not hide MoMo, which is
+        # what most people are paid with.
+        try:
+            listed = _call("GET", "/bank", query={"currency": "GHS", "type": kind}) or []
+        except PaystackError as exc:
+            logger.warning("Paystack would not list %s payout banks: %s", kind, exc)
+            failure = exc
+            continue
+        for bank in listed:
             if bank.get("active", True) and not bank.get("is_deleted"):
                 banks.append({"code": bank["code"], "name": bank["name"], "type": kind})
+    if not banks and failure is not None:
+        raise failure
     if banks:
         # An empty answer is not remembered: the next person asks again.
         cache.set("paystack:payout-banks", banks, 24 * 3600)
