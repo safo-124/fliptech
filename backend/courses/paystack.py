@@ -34,6 +34,12 @@ def enabled():
     return bool(settings.PAYSTACK_SECRET_KEY)
 
 
+def _secret_key():
+    """The key as pasted into the env file, without stray spaces or quotes
+    around it, which would make every call fail."""
+    return settings.PAYSTACK_SECRET_KEY.strip().strip("\"'").strip()
+
+
 def _call(method, path, payload=None, *, query=None):
     if not enabled():
         raise PaystackError("Payments are not switched on yet.")
@@ -46,9 +52,12 @@ def _call(method, path, payload=None, *, query=None):
         data=body,
         method=method,
         headers={
-            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+            "Authorization": f"Bearer {_secret_key()}",
             "Content-Type": "application/json",
             "Accept": "application/json",
+            # Without a name of its own, Python's client is turned away by
+            # the firewall in front of Paystack (a 403 page, not JSON).
+            "User-Agent": "Fliiptech/1.0 (+https://fliiptech.com)",
         },
     )
     try:
@@ -61,7 +70,7 @@ def _call(method, path, payload=None, *, query=None):
         except ValueError:
             message = None
         logger.warning("Paystack %s %s refused: %s %s", method, path, exc.code, message)
-        raise PaystackError(message or "Paystack refused the request.") from exc
+        raise PaystackError(message or f"Paystack refused the request ({exc.code}).") from exc
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         logger.warning("Paystack %s %s failed: %s", method, path, exc)
         raise PaystackError("Could not reach Paystack. Try again in a minute.") from exc

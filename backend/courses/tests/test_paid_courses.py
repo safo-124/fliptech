@@ -442,3 +442,25 @@ def test_making_a_course_free_again_unlocks_it(owner, course, client):
     client.logout()
 
     assert not any(lesson["locked"] for lesson in course_lessons(client, provider)["lessons"])
+
+
+def test_paystack_calls_name_the_client_and_tidy_the_key(settings, monkeypatch):
+    """The firewall in front of Paystack turns away Python's unnamed client;
+    a key pasted with quotes or a trailing space still works."""
+    import io
+    import json as _json
+
+    from courses import paystack as module
+
+    settings.PAYSTACK_SECRET_KEY = ' "sk_test_abc" '
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["headers"] = dict(request.header_items())
+        return io.BytesIO(_json.dumps({"status": True, "data": []}).encode())
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+    module._call("GET", "/bank")
+
+    assert seen["headers"]["Authorization"] == "Bearer sk_test_abc"
+    assert seen["headers"]["User-agent"].startswith("Fliiptech/")
