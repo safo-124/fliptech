@@ -313,7 +313,16 @@ export type SellerGrowth = {
   free_product_limit: number;
   published: number;
   plan: {running: boolean; ends_at: string | null; free_boost_available: boolean};
-  boosts: {product: number | null; product_name: string; kind: BoostKind; ends_at: string}[];
+  /** Running boosts and those that ended in the last 30 days, with the views each brought. */
+  boosts: {
+    product: number | null;
+    product_name: string;
+    kind: BoostKind;
+    starts_at?: string;
+    ends_at: string;
+    running?: boolean;
+    views?: number;
+  }[];
   banner: string | null;
   verification: {verified_at: string | null; requested: boolean};
 };

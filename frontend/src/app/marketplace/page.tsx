@@ -26,7 +26,8 @@ import { QuickChips } from "@/components/marketplace/QuickChips";
 import { ProductTile } from "@/components/marketplace/ProductTile";
 import { RecentlyViewed } from "@/components/marketplace/RecentlyViewed";
 import { SaveSearch } from "@/components/marketplace/SaveSearch";
-import { TrainerShops } from "@/components/marketplace/TrainerShops";
+import { MarketViewSwitch } from "@/components/marketplace/MarketViewSwitch";
+import { ShopsRow } from "@/components/marketplace/ShopsRow";
 import { ClientMessages } from "@/i18n/ClientMessages";
 import { MARKETPLACE_CLIENT_NAMESPACES } from "@/i18n/namespaces";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,8 @@ import { CategoryPill } from "@/components/CategoryPill";
 import {
   buildQuery,
   getAllRegions,
+  getShops,
   getTradeCategory,
-  getTrainerShops,
   searchProducts,
   type MarketplaceParams,
 } from "@/lib/api";
@@ -86,11 +87,11 @@ export default async function MarketplacePage({
   ]);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const [products, regions, trainerShops, t, payable] = await Promise.all([
+  const [products, regions, shops, t, payable] = await Promise.all([
     searchProducts(params).catch(() => null),
     getAllRegions().catch(() => []),
-    // The "made by people who teach it" row, on the plain first page only.
-    filtered || page > 1 ? null : getTrainerShops().catch(() => null),
+    // The Shops row (trainers' shops first), on the plain first page only.
+    filtered || page > 1 ? null : getShops(12).catch(() => null),
     getTranslations("Marketplace"),
     // "Pay on Fliiptech" is only offered as a filter when something can be
     // paid that way; otherwise it would always lead to an empty page.
@@ -178,7 +179,8 @@ export default async function MarketplacePage({
       </form>
 
       <section className="app-shell mt-6">
-        <TrainerShops shops={trainerShops?.results ?? []} />
+        <MarketViewSwitch current="items" />
+        <ShopsRow shops={shops?.results ?? []} />
         <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
           <ActiveFilterChips params={params} />
           {filtered && results.length ? (

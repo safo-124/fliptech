@@ -23,7 +23,15 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 export default function HomeScreen() {
   const courses = useQuery({ queryKey: ["courses", "home"], queryFn: () => api.courses() });
   const workshops = useQuery({ queryKey: ["providers", "home"], queryFn: () => api.providers() });
-  const products = useQuery({ queryKey: ["products", "home"], queryFn: () => api.products() });
+  // Newest products, with up to two sponsored ones (boosted, picked at random,
+  // labelled "Sponsored" on the card) first: backend marketplace/promotion.py.
+  const products = useQuery({ queryKey: ["products", "home"], queryFn: () => api.products({ sort: "newest" }) });
+  const sponsored = useQuery({ queryKey: ["products", "sponsored"], queryFn: api.sponsoredProducts });
+  const sponsoredIds = new Set((sponsored.data?.results ?? []).map((product) => product.id));
+  const homeProducts = [
+    ...(sponsored.data?.results ?? []),
+    ...(products.data?.results ?? []).filter((product) => !sponsoredIds.has(product.id)),
+  ];
   const intakes = useQuery({ queryKey: ["intakes", "upcoming"], queryFn: () => api.upcomingIntakes(6) });
   const refreshing = courses.isRefetching || workshops.isRefetching || products.isRefetching;
 
@@ -152,7 +160,7 @@ export default function HomeScreen() {
           <ErrorState message={products.error.message} onRetry={() => void products.refetch()} />
         ) : products.data.results.length ? (
           <Shelf>
-            {products.data.results.slice(0, 10).map((product) => (
+            {homeProducts.slice(0, 10).map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

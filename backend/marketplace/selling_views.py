@@ -18,6 +18,7 @@ commission taken as the main account's share.
 """
 
 import logging
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
@@ -152,12 +153,20 @@ class SellerStatsView(APIView):
 def _growth_payload(seller, request):
     plan = plan_running(seller)
     free_boost = plan is not None and not SellerPayment.objects.filter(plan_credit_of=plan).exists()
+    from .promotion import boost_views
+
+    # Running boosts, and those that ended in the last 30 days, so a seller
+    # sees what a boost brought once it is over too.
     boosts = (
-        SellerPayment.objects.running()
-        .boosts()
-        .filter(seller=seller)
+        SellerPayment.objects.boosts()
+        .filter(
+            seller=seller,
+            status=PaymentStatus.PAID,
+            starts_at__isnull=False,
+            ends_at__gt=timezone.now() - timedelta(days=30),
+        )
         .select_related("product")
-        .order_by("ends_at")
+        .order_by("-ends_at")
     )
     later_plan = (
         SellerPayment.objects.plans()
@@ -181,7 +190,11 @@ def _growth_payload(seller, request):
                 "product": boost.product_id,
                 "product_name": boost.product.name if boost.product else "",
                 "kind": boost.kind,
+                "starts_at": boost.starts_at.isoformat(),
                 "ends_at": boost.ends_at.isoformat(),
+                "running": boost.starts_at <= timezone.now() < boost.ends_at,
+                # Looks at the product while it was boosted.
+                "views": boost_views(boost),
             }
             for boost in boosts
         ],
@@ -261,6 +274,12 @@ class SellerBoostView(APIView):
                 {"product": [_("Choose one of your products that is on show.")]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # A photo, and something buyers can get (marketplace/promotion.py).
+        from .promotion import boost_problem
+
+        problem = boost_problem(product)
+        if problem:
+            return Response({"product": [problem]}, status=status.HTTP_400_BAD_REQUEST)
 
         if request.data.get("use_plan_credit"):
             with transaction.atomic():

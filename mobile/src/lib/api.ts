@@ -23,6 +23,7 @@ import type {
   ProductDetail,
   ProviderCard,
   TrainerShop,
+  ShopListItem,
   TradeCategory,
   Region,
   UpcomingIntake,
@@ -127,6 +128,10 @@ export const api = {
   products: (params: Record<string, string | undefined> = {}) =>
     getJson<Paginated<ProductCard>>("/api/products/", params),
   trainerShops: () => getJson<{ results: TrainerShop[] }>("/api/sellers/trainers/"),
+  /** Every shop with something on show, trainers' first. */
+  shops: () => getJson<{ results: ShopListItem[] }>("/api/sellers/"),
+  /** Up to two boosted products for Home, picked at random, shown "Sponsored". */
+  sponsoredProducts: () => getJson<{ results: ProductCard[] }>("/api/products/sponsored/"),
   providers: (
     params: {
       q?: string;

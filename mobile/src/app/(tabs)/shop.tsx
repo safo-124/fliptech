@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { GraduationCap, SlidersHorizontal, X } from "lucide-react-native";
+import { GraduationCap, LayoutGrid, SlidersHorizontal, Store, X } from "lucide-react-native";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/Cards";
 import { CategoryRow } from "@/components/CategoryRow";
 import { Button } from "@/components/Form";
 import { Chip, FilterSheet } from "@/components/market/FilterSheet";
+import { ShopList } from "@/components/market/ShopList";
 import { SaveSearchButton } from "@/components/market/SaveSearchButton";
 import { TrainerShops } from "@/components/market/TrainerShops";
 import { PageHeader } from "@/components/PageHeader";
@@ -37,10 +38,48 @@ export default function ShopScreen() {
   const plain = !activeCount(filters) && !filters.q;
   const trainers = useQuery({ queryKey: ["trainer-shops"], queryFn: api.trainerShops, enabled: plain });
 
+  // Items (every product) or Shops (every shop, trainers' first).
+  const [view, setView] = useState<"items" | "shops">("items");
+  const shops = useQuery({ queryKey: ["shops"], queryFn: api.shops, enabled: view === "shops" });
+
   const items = products.data?.pages.flatMap((page) => page.results) ?? [];
   const count = products.data?.pages[0]?.count ?? 0;
   const rows = Array.from({ length: Math.ceil(items.length / 2) }, (_, n) => items.slice(n * 2, n * 2 + 2));
   const on = activeCount(filters);
+
+  const switcher = (
+    <View style={styles.switch}>
+      <Chip label="Items" on={view === "items"} onPress={() => setView("items")} icon={<LayoutGrid size={15} color={view === "items" ? "#ffffff" : colors.brand} />} />
+      <Chip label="Shops" on={view === "shops"} onPress={() => setView("shops")} icon={<Store size={15} color={view === "shops" ? "#ffffff" : colors.brand} />} />
+    </View>
+  );
+
+  if (view === "shops") {
+    return (
+      <Screen refreshing={shops.isRefetching} onRefresh={() => void shops.refetch()}>
+        <PageHeader
+          eyebrow="MARKETPLACE"
+          title="Tools and goods"
+          placeholder="Search the marketplace"
+          onSearch={(q) => {
+            setView("items");
+            toggle({ q });
+          }}
+          action={<BasketButton />}
+        />
+        {switcher}
+        <View style={styles.list}>
+          {shops.isPending ? (
+            <Skeleton style={{ height: 150, marginHorizontal: space.lg }} />
+          ) : shops.isError ? (
+            <ErrorState message={shops.error.message} onRetry={() => void shops.refetch()} />
+          ) : (
+            <ShopList shops={shops.data.results} />
+          )}
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen
@@ -57,6 +96,7 @@ export default function ShopScreen() {
         onSearch={(q) => toggle({ q })}
         action={<BasketButton />}
       />
+      {switcher}
       <CategoryRow list="shop" selected={filters.category} onSelect={(category) => toggle({ category })} />
 
       <ScrollView
@@ -162,6 +202,7 @@ export default function ShopScreen() {
 const styles = StyleSheet.create({
   chips: { paddingHorizontal: space.lg, gap: space.sm },
   list: { marginTop: space.xl, gap: space.md },
+  switch: { flexDirection: "row", gap: space.sm, paddingHorizontal: space.lg, marginTop: space.md },
   row: { flexDirection: "row", gap: space.md, paddingHorizontal: space.lg },
   cell: { flex: 1, height: 240 },
 });

@@ -983,14 +983,16 @@ def browse(params):
         )
     if sort == "nearest" and near is not None:
         return products.order_by("gone", F("distance").asc(nulls_last=True), "-created_at")
-    # The default: boosted products first, then Shop plan shops, then the
-    # rest, newest first within each. A buyer who chose a sort gets that
-    # sort, boosts or not; "Sponsored" still marks them.
+    # The default: Shop plan shops first, then the rest, newest first within
+    # each. Boosted products are not simply put first: the list gives them
+    # sponsored spots, at most one in every eight (ProductListView,
+    # marketplace/promotion.py). A buyer who chose a sort gets that sort,
+    # boosts or not; "Sponsored" still marks them.
     if query:
         # A search ranks by how well each product matches; boosts and
         # the plan still break ties.
-        return products.order_by("gone", "-rank", "-boosted", "-on_plan", "-created_at")
-    return products.order_by("gone", "-boosted", "-on_plan", "-created_at")
+        return products.order_by("gone", "-rank", "-on_plan", "-created_at")
+    return products.order_by("gone", "-on_plan", "-created_at")
 
 
 class ProductListView(ListAPIView):
@@ -1005,14 +1007,72 @@ class ProductListView(ListAPIView):
         return browse(self.request.query_params)
 
     def list(self, request, *args, **kwargs):
-        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        response = self.get_paginated_response(_with_ratings(ProductCardSerializer, page, request))
         params = request.query_params
+        # The default order gives boosted products sponsored spots, at most
+        # one in every eight (marketplace/promotion.py). Not for a sort the
+        # buyer chose, a saved list, or one shop's products.
+        if not (params.get("sort") or params.get("ids") or params.get("seller")):
+            response = self._slotted(request)
+        else:
+            page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+            response = self.get_paginated_response(
+                _with_ratings(ProductCardSerializer, page, request)
+            )
         if params.get("q") and params.get("page") in (None, "", "1"):
             from search.log import record
 
             record(params.get("q"), "market", response.data.get("count", 0), request)
         return response
+
+    def _slotted(self, request):
+        from rest_framework.utils.urls import remove_query_param, replace_query_param
+
+        from .promotion import slotted_page
+
+        page_size = self.paginator.get_page_size(request) or settings.REST_FRAMEWORK["PAGE_SIZE"]
+        try:
+            page = max(1, int(request.query_params.get("page") or 1))
+        except ValueError:
+            page = 1
+        items, count = slotted_page(self.get_queryset(), page, page_size)
+        url = request.build_absolute_uri()
+        last = max(1, -(-count // page_size))
+        return Response(
+            {
+                "count": count,
+                "next": replace_query_param(url, "page", page + 1) if page < last else None,
+                "previous": (
+                    None
+                    if page == 1
+                    else (
+                        remove_query_param(url, "page")
+                        if page == 2
+                        else replace_query_param(url, "page", page - 1)
+                    )
+                ),
+                "results": _with_ratings(ProductCardSerializer, items, request),
+            }
+        )
+
+
+class SponsoredProductsView(APIView):
+    """Sponsored products for the home page: up to two (?limit=, at most
+    four), picked at random from every product with a boost running, so
+    each paying seller gets seen. Always shown labelled "Sponsored"."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from .promotion import HOME_SLOTS, sponsored
+
+        try:
+            limit = max(1, min(4, int(request.query_params.get("limit") or HOME_SLOTS)))
+        except ValueError:
+            limit = HOME_SLOTS
+        products = sponsored(_public_products(), limit)
+        return Response({"results": _with_ratings(ProductCardSerializer, products, request)})
 
 
 class ProductDetailView(RetrieveAPIView):
@@ -1137,6 +1197,59 @@ class TrainerShopsView(APIView):
         for card in cards:
             card["photo"] = covers.get(card["id"])
             card["product_count"] = counts[card["id"]]
+        return Response({"results": cards})
+
+
+class ShopsView(APIView):
+    """Every shop with something on show, for the marketplace's Shops view:
+    shops with a training workshop behind them first (their strongest
+    promise, "made by somebody who teaches it"), then the most items. Each
+    card has up to four of its product photos, its count and whether a
+    trainer runs it. ?limit= keeps it short for a row (at most 60)."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    PHOTOS = 4
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from django.db.models import BooleanField, Case, Count, Value, When
+
+        try:
+            limit = max(1, min(60, int(request.query_params.get("limit") or 60)))
+        except ValueError:
+            limit = 60
+        visible = Product.objects.visible()
+        sellers = list(
+            SellerAccount.objects.filter(products__in=visible)
+            .annotate(
+                product_count=Count("products", filter=Q(products__in=visible), distinct=True),
+                is_trainer=Case(
+                    When(provider__isnull=False, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                ),
+            )
+            .select_related("area", "area__region", "provider", "provider__area")
+            .order_by("-is_trainer", "-product_count", "business_name")[:limit]
+        )
+        photos = {seller.pk: [] for seller in sellers}
+        for product in (
+            _public_products().filter(seller__in=sellers).order_by("-boosted", "-created_at")
+        ):
+            first = next(iter(product.photos.all()), None)
+            shelf = photos[product.seller_id]
+            if first and first.image and len(shelf) < self.PHOTOS:
+                shelf.append(public_url(first.image.url, request))
+        extra = {seller.pk: seller for seller in sellers}
+        cards = SellerCardSerializer(sellers, many=True, context={"request": request}).data
+        for card in cards:
+            seller = extra[card["id"]]
+            card["photos"] = photos[seller.pk]
+            card["photo"] = photos[seller.pk][0] if photos[seller.pk] else None
+            card["product_count"] = seller.product_count
+            card["is_trainer"] = seller.is_trainer
         return Response({"results": cards})
 
 

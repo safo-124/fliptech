@@ -155,7 +155,15 @@ export function SellerGrowthTab() {
     );
   }
 
-  const boostedUntil = new Map(growth.boosts.map((boost) => [boost.product, boost.ends_at]));
+  // Running boosts by product, and the last ended one's views for the rest
+  // (the server sends boosts from the last 30 days, each with its views).
+  const running = new Map(
+    growth.boosts.filter((boost) => boost.running !== false).map((boost) => [boost.product, boost]),
+  );
+  const lastBoost = new Map(
+    growth.boosts.filter((boost) => boost.running === false).map((boost) => [boost.product, boost]),
+  );
+  const boostedUntil = new Map([...running].map(([product, boost]) => [product, boost.ends_at]));
   const onShow = stats.products.filter((product) => product.status === "published");
 
   return (
@@ -262,7 +270,14 @@ export function SellerGrowthTab() {
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold">{product.name}</p>
                           <p className="text-xs text-[var(--color-muted-foreground)]">
-                            {until ? t("boostedUntil", { date: day(until) }) : t("viewsThisWeek", { count: product.views_7d })}
+                            {until
+                              ? t("boostedViews", {
+                                  date: day(until),
+                                  count: running.get(product.id)?.views ?? 0,
+                                })
+                              : lastBoost.has(product.id)
+                                ? t("lastBoostViews", { count: lastBoost.get(product.id)?.views ?? 0 })
+                                : t("viewsThisWeek", { count: product.views_7d })}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">

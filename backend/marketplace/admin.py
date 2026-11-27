@@ -694,6 +694,19 @@ class SellerPaymentAdmin(admin.ModelAdmin):
     list_filter = ("status", "kind")
     search_fields = ("reference", "seller__business_name", "seller__phone")
     readonly_fields = [field.name for field in SellerPayment._meta.fields]
+    actions = ["stop_boosts"]
+
+    @admin.action(description="Stop boost now (it breaks the rules)")
+    def stop_boosts(self, request, queryset):
+        """Take a boosted product out of its sponsored spots at once. Any
+        refund is made in the Paystack dashboard."""
+        now = timezone.now()
+        stopped = (
+            queryset.filter(kind__in=SellerPayment.BOOST_KINDS, ends_at__gt=now)
+            .exclude(starts_at__isnull=True)
+            .update(ends_at=now)
+        )
+        self.message_user(request, f"Stopped {stopped} boost(s). Refund, if any, in Paystack.")
 
     def has_add_permission(self, request):
         return False

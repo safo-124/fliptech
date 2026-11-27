@@ -111,6 +111,14 @@ export function ProductTile({ product }: { product: ProductCard }) {
             </div>
           </div>
         </Link>
+        {/* The shop, to see everything else it sells. Outside the product
+            link: a link inside a link is not allowed. */}
+        <Link
+          href={`/marketplace/seller/${product.seller.id}`}
+          className="block truncate px-3.5 pb-2 text-xs font-semibold text-[var(--color-brand)] hover:underline"
+        >
+          {t("byShop", { shop: product.seller.business_name })}
+        </Link>
         {/* Outside the link: a button inside an anchor is not allowed. One
             clear word on it, not a symbol to work out. */}
         <div className="mt-auto px-3.5 pb-3.5">

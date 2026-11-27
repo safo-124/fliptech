@@ -45,6 +45,7 @@ import {
   getAllTrades,
   getHomePictures,
   getSiteStats,
+  getSponsoredProducts,
   getTradeCategories,
   getUpcomingIntakes,
   listCourses,
@@ -105,7 +106,9 @@ export default async function Home({
     getHomePictures().catch((): HomePictures => ({})),
     searchProviders({}).catch(() => null),
     listCourses().catch(() => null),
-    searchProducts({}).catch(() => null),
+    // Newest, not the marketplace's default order: the sponsored places are
+    // filled from getSponsoredProducts below, at most two of four.
+    searchProducts({ sort: "newest" }).catch(() => null),
     getSiteStats().catch(() => null),
     getUpcomingIntakes(3).catch(() => []),
     getTranslations("LandingPage"),
@@ -131,7 +134,14 @@ export default async function Home({
     .map(({trade}) => trade);
 
   const featuredCourses = courses?.results.slice(0, FEATURED) ?? [];
-  const featuredProducts = products?.results.slice(0, FEATURED) ?? [];
+  // Up to two sponsored products first (boosted, picked at random, labelled
+  // "Sponsored" on the card), then the newest, none twice.
+  const sponsoredProducts = (await getSponsoredProducts().catch(() => null))?.results ?? [];
+  const sponsoredIds = new Set(sponsoredProducts.map((product) => product.id));
+  const featuredProducts = [
+    ...sponsoredProducts,
+    ...(products?.results ?? []).filter((product) => !sponsoredIds.has(product.id)),
+  ].slice(0, FEATURED);
 
   // Stand-ins, from what is genuinely on the site. A workshop's photograph is
   // captioned with the workshop, so it never reads as the face of the site.

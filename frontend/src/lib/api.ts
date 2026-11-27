@@ -28,6 +28,7 @@ import type {
   SellerShop,
   Bundle,
   FeaturedShop,
+  ShopCard,
   TrainerShop,
   Trade,
   TradeCategory,
@@ -420,6 +421,18 @@ export function getBundle(id: string) {
 /** Training workshops that also sell, most products first. */
 export function getTrainerShops() {
   return fetchJson<{results: TrainerShop[]}>("/api/sellers/trainers/", {tags: [MARKETPLACE_TAG]});
+}
+
+/** Every shop with something on show, trainers' first (marketplace Shops view). */
+export function getShops(limit?: number) {
+  return fetchJson<{results: ShopCard[]}>(`/api/sellers/${buildQuery({limit: limit ? String(limit) : undefined})}`, {
+    tags: [MARKETPLACE_TAG],
+  });
+}
+
+/** Up to two boosted products for the home page, picked at random each time. */
+export function getSponsoredProducts() {
+  return fetchJson<{results: ProductCard[]}>("/api/products/sponsored/", {revalidate: 60, tags: [MARKETPLACE_TAG]});
 }
 
 export function getFeaturedShops() {

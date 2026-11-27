@@ -30,6 +30,7 @@ from marketplace.models import (
     PaymentStatus,
     Product,
     ProductEnquiry,
+    ProductPhoto,
     SellerAccount,
     SellerNotice,
     SellerPayment,
@@ -108,6 +109,14 @@ def make_seller(django_user_model, area, *, name, phone, subaccount=""):
         approval_status=SellerAccount.Approval.CONFIRMED,
         paystack_subaccount=subaccount,
     )
+
+
+def with_photo(product):
+    """A boost needs a photo (marketplace/promotion.py, boost_problem)."""
+    ProductPhoto.objects.create(
+        product=product, image=f"products/p{product.pk}.jpg", exif_stripped=True
+    )
+    return product
 
 
 def make_product(seller, name, price="100.00", **extra):
@@ -265,7 +274,7 @@ def running_boost(seller, product, days=7):
 @pytest.mark.django_db
 def test_a_boosted_product_comes_first_and_says_sponsored(client, shop):
     ama, kofi = shop
-    old = make_product(kofi, "Old Stool")
+    old = with_photo(make_product(kofi, "Old Stool"))
     make_product(ama, "New Bag")
     running_boost(kofi, old)
 
@@ -291,7 +300,7 @@ def test_an_ended_boost_no_longer_counts(client, shop):
 @pytest.mark.django_db
 def test_buying_a_boost_pays_fliiptech_and_starts_only_when_paystack_confirms(client, shop, calls):
     ama, _ = shop
-    bag = make_product(ama, "Bag")
+    bag = with_photo(make_product(ama, "Bag"))
 
     response = as_seller(client, ama).post(
         reverse("seller-boost"),
@@ -319,7 +328,7 @@ def test_buying_a_boost_pays_fliiptech_and_starts_only_when_paystack_confirms(cl
 @pytest.mark.django_db
 def test_a_boost_confirmed_by_webhook_runs_for_a_week(client, shop, calls):
     ama, _ = shop
-    bag = make_product(ama, "Bag")
+    bag = with_photo(make_product(ama, "Bag"))
     as_seller(client, ama).post(
         reverse("seller-boost"),
         {"product": bag.pk, "kind": "boost_week"},
@@ -422,7 +431,7 @@ def test_without_payments_there_is_no_limit(client, shop, settings):
 @pytest.mark.django_db
 def test_the_plan_gives_one_free_boost_a_month(client, shop, calls):
     ama, _ = shop
-    bag = make_product(ama, "Bag")
+    bag = with_photo(make_product(ama, "Bag"))
     running_plan(ama)
     as_seller(client, ama)
     url = reverse("seller-boost")

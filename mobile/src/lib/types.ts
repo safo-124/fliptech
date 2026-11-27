@@ -317,6 +317,18 @@ export type TrainerShop = {
   workshop: { name: string; slug: string; area_slug: string };
 };
 
+/** A shop in the Shop tab's Shops view (GET /api/sellers/): trainers' first. */
+export type ShopListItem = {
+  id: number;
+  business_name: string;
+  area: string;
+  photo: string | null;
+  photos: string[];
+  product_count: number;
+  is_trainer: boolean;
+  rating: { average: number; count: number } | null;
+};
+
 /** A shop page. See backend SellerDetailView. */
 export type ShopDetail = {
   seller: {

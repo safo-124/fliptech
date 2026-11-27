@@ -948,6 +948,9 @@ export type FeaturedShop = SellerCard & {photo: string | null};
 /** A shop that is also a training workshop, with how much it has on show. */
 export type TrainerShop = FeaturedShop & {product_count: number};
 
+/** A shop in the marketplace's Shops view: up to four of its product photos. */
+export type ShopCard = TrainerShop & {photos: string[]; is_trainer: boolean};
+
 export type ProductOption = {id: number; label: string; price: string | null; available: boolean};
 
 export type ProductDetail = ProductCard & {

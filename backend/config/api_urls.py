@@ -115,6 +115,8 @@ from marketplace.views import (
     SellerOTPVerifyView,
     SellerProfileView,
     SellerSessionView,
+    ShopsView,
+    SponsoredProductsView,
     StartSellingView,
     TrainerShopsView,
 )
@@ -522,6 +524,8 @@ urlpatterns = [
     ),
     # What a buyer browses. Reads Product.objects.visible() and nothing else.
     path("products/", ProductListView.as_view(), name="product-list"),
+    # Up to two boosted products for the home page (marketplace/promotion.py).
+    path("products/sponsored/", SponsoredProductsView.as_view(), name="products-sponsored"),
     path("products/<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
     path(
         "products/<int:pk>/enquiries/",
@@ -529,6 +533,8 @@ urlpatterns = [
         name="product-enquiry-create",
     ),
     path("sellers/trainers/", TrainerShopsView.as_view(), name="sellers-trainers"),
+    # Every shop with something on show: the marketplace's Shops view.
+    path("sellers/", ShopsView.as_view(), name="sellers"),
     path("sellers/<int:pk>/", SellerDetailView.as_view(), name="seller-detail"),
     # The marketplace's measured and paid parts; see marketplace/selling_views.py.
     path("products/<int:pk>/viewed/", ProductViewedView.as_view(), name="product-viewed"),
