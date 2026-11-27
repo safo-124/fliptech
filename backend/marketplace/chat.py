@@ -9,8 +9,10 @@ the inbox.
 Each side is told about a new message (in the app, or by text when the app is
 not in use: appsupport/notify.py) at most once every TEXT_EVERY per thread,
 with a link to read it, so a quick back and forth is not a stream of texts.
-Phone numbers are never shown to the other side; either side may share their
-own (share-number). Either side may block the other (block): nothing more
+Phone numbers are never shown to the other side. In a workshop chat either
+side may share their own (share-number); in a shop chat neither may, so a
+sale stays here, where Buy now holds the buyer's money until the goods
+arrive (can_share_number, NumbersPrivate). Either side may block the other (block): nothing more
 can be sent in that chat, from either side, until whoever blocked unblocks;
 a report stays the way to tell staff. A workshop's reply marks the trainee's
 enquiry replied, which is what makes the response rate a measurement rather
@@ -73,6 +75,92 @@ class ChatBlocked(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "You cannot contact them here."
     default_code = "chat_blocked"
+
+
+class NumbersPrivate(APIException):
+    """A shop chat: neither the buyer nor the shop may share a number, so the
+    sale stays on the site, where Buy now protects the buyer's money."""
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Numbers stay private in shop chats. Keep talking here, and pay with Buy now "
+        "so your money is held until the goods arrive."
+    )
+    default_code = "numbers_private"
+
+
+def _may_share_number(conversation):
+    """Only in a workshop chat: a trainee and a trainer often need a call."""
+    return conversation.seller_id is None
+
+
+class ContactBlocked(APIException):
+    """A shop-chat message with contact details typed into it: a phone
+    number, a WhatsApp or social link, an email (marketplace/contact_guard.py).
+    Not sent; the sender keeps their words to edit."""
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Contact details stay private in shop chats. Take out the phone number, link or "
+        "email and send again. Pay with Buy now, so your money is held until the goods arrive."
+    )
+    default_code = "contact_details"
+
+
+# A number typed over two or three messages is still a number.
+CONTACT_WINDOW = timedelta(minutes=10)
+# The try that puts the chat in front of staff, counted per side per day.
+CONTACT_FLAG_AFTER = 3
+
+
+def _count_contact_try(conversation, side):
+    from django.core.cache import cache
+
+    key = f"chat-contact:{conversation.pk}:{side}:{timezone.localdate():%Y%m%d}"
+    try:
+        cache.add(key, 0, timeout=60 * 60 * 24)
+        return cache.incr(key)
+    except Exception:  # noqa: BLE001 - counting is a nicety; the refusal stands
+        return 0
+
+
+def _guard_contact(conversation, side, body):
+    """Refuse a shop-chat message that carries contact details, read with the
+    sender's last two messages of the past few minutes so a number split
+    over several messages is caught too. The third try in a day puts the
+    chat in staff's report queue. Workshop chats are left alone. With no
+    conversation yet (a first message), only the words themselves."""
+    from .contact_guard import contact_in
+
+    if conversation is not None and conversation.seller_id is None:
+        return
+    text = body
+    if conversation is not None and conversation.pk:
+        earlier = list(
+            conversation.messages.filter(
+                sender=side,
+                kind=Message.Kind.TEXT,
+                created_at__gte=timezone.now() - CONTACT_WINDOW,
+            )
+            .order_by("-created_at")
+            .values_list("body", flat=True)[:2]
+        )
+        text = " ".join([*reversed(earlier), body])
+    # The message on its own too: joined to earlier digits, a whole number
+    # can run on into something longer than a phone number.
+    if contact_in(body) is None and contact_in(text) is None:
+        return
+    if conversation is not None and conversation.pk:
+        tries = _count_contact_try(conversation, side)
+        if tries == CONTACT_FLAG_AFTER:
+            ChatReport.objects.create(
+                conversation=conversation,
+                by=side,
+                reason=ChatReport.Reason.OTHER,
+                details=_("Automatic: tried to send contact details %(tries)d times today.")
+                % {"tries": tries},
+            )
+    raise ContactBlocked()
 
 
 def _site(path):
@@ -191,6 +279,8 @@ def _summary(conversation, side, request):
         # only told it cannot write (can_write), not why.
         "blocked_by_you": mine is not None,
         "can_write": conversation.buyer_id is not None and mine is None and theirs is None,
+        # Off in a shop chat, for both sides (NumbersPrivate).
+        "can_share_number": _may_share_number(conversation),
         "business": business,
         "last": _message(last, request) if last else None,
         "unread": _unread(conversation, side),
@@ -229,6 +319,9 @@ def _post(conversation, side, body, product, request, *, kind=Message.Kind.TEXT,
     tell the other side. A business's message also marks what it answers."""
     if conversation.buyer_id is None:
         raise ChatClosed(_("This person closed their account, so they cannot be reached here."))
+    # Before the transaction below, so a report it files is kept.
+    if kind == Message.Kind.TEXT:
+        _guard_contact(conversation, side, body)
     now = timezone.now()
     with transaction.atomic():
         conversation = (
@@ -410,6 +503,8 @@ def open_enquiry_chat(enquiry, account):
 
 def open_product_chat(product, account, body):
     """The shop chat a question about a product starts or continues."""
+    # Checked before the chat exists, so a refused first message leaves none.
+    _guard_contact(None, PERSON, body)
     conversation, _created = Conversation.objects.get_or_create(
         seller=product.seller, buyer=account
     )
@@ -418,7 +513,10 @@ def open_product_chat(product, account, body):
 
 
 def _share_number(conversation, side, phone):
-    """The sender's own number, as a message the other side can call."""
+    """The sender's own number, as a message the other side can call. Not in
+    a shop chat, from either side."""
+    if not _may_share_number(conversation):
+        raise NumbersPrivate()
     _post(conversation, side, str(phone), None, None, kind=Message.Kind.PHONE)
 
 
@@ -512,6 +610,8 @@ class BuyerChatsView(APIView):
             product = (
                 Product.objects.visible().filter(pk=request.data["product"], seller=seller).first()
             )
+        # Before the chat exists, so a refused first message leaves none.
+        _guard_contact(None, PERSON, body)
         conversation, _created = Conversation.objects.get_or_create(seller=seller, buyer=account)
         _post(conversation, PERSON, body, product, request)
         return Response(

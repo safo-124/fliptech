@@ -308,7 +308,14 @@ export function ChatThread({
         </div>
       ) : null}
 
-      {share && thread && canWrite ? (
+      {/* A shop chat keeps both numbers private (backend NumbersPrivate):
+          no button, and a word on why. */}
+      {thread && canWrite && thread.can_share_number === false ? (
+        <p className="border-t border-[var(--color-border)] px-4 py-2 text-xs text-[var(--color-muted-foreground)]">
+          {t("numbersPrivate")}
+        </p>
+      ) : null}
+      {share && thread && canWrite && thread.can_share_number !== false ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] px-4 py-2">
           <p className="text-xs text-[var(--color-muted-foreground)]">{t("privacy")}</p>
           <button

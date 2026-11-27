@@ -11,7 +11,7 @@ from django.utils import timezone
 from accounts.models import CustomerAccount
 from geography.models import Area, Region
 from marketplace import chat
-from marketplace.models import Conversation, Product, SellerAccount
+from marketplace.models import ChatReport, Conversation, Product, SellerAccount
 
 JSON = "application/json"
 
@@ -108,6 +108,71 @@ def test_a_buyer_and_a_shop_chat_without_sharing_numbers(shop, buyer, texts):
     assert texts[-1][0] == "+233201112222"
     assert f"/account/chats/{thread['id']}" in texts[-1][1]
     assert them.get(reverse("account-chats")).json()["results"][0]["unread"] == 1
+
+
+@pytest.mark.django_db
+def test_neither_side_shares_a_number_in_a_shop_chat(shop, buyer, texts):
+    """A sale stays on the site, where Buy now holds the money (NumbersPrivate)."""
+    them = signed_in(buyer.user)
+    thread = them.post(
+        reverse("account-chats"), {"seller": shop.pk, "body": "Hello"}, content_type=JSON
+    ).json()
+    assert thread["can_share_number"] is False
+
+    mine = them.post(reverse("account-chat-share", args=[thread["id"]]))
+    theirs = signed_in(shop.user).post(reverse("inbox-share", args=[thread["id"]]))
+    for refused in (mine, theirs):
+        assert refused.status_code == 409
+        assert "Numbers stay private" in refused.json()["detail"]
+    chat_ = Conversation.objects.get(pk=thread["id"])
+    assert chat_.messages.filter(kind="phone").count() == 0
+    assert (
+        signed_in(shop.user).get(reverse("inbox")).json()["results"][0]["can_share_number"] is False
+    )
+
+
+@pytest.mark.django_db
+def test_contact_details_typed_into_a_shop_chat_are_not_sent(shop, buyer, texts):
+    """marketplace/contact_guard.py, applied by chat._guard_contact."""
+    them = signed_in(buyer.user)
+    # A first message with a number starts no chat at all.
+    refused = them.post(
+        reverse("account-chats"),
+        {"seller": shop.pk, "body": "Call me on 024 123 4567"},
+        content_type=JSON,
+    )
+    assert refused.status_code == 409
+    assert "Contact details stay private" in refused.json()["detail"]
+    assert not Conversation.objects.exists()
+
+    thread = them.post(
+        reverse("account-chats"), {"seller": shop.pk, "body": "Hello"}, content_type=JSON
+    ).json()
+    mine = reverse("account-chat", args=[thread["id"]])
+    theirs = reverse("inbox-chat", args=[thread["id"]])
+    seller = signed_in(shop.user)
+    # A number split over two messages is still a number.
+    assert them.post(mine, {"body": "my number 024 123"}, content_type=JSON).status_code == 201
+    assert them.post(mine, {"body": "4567"}, content_type=JSON).status_code == 409
+    # The shop cannot send a WhatsApp link either; prices and sizes go through.
+    assert seller.post(theirs, {"body": "wa.me/233241234567"}, content_type=JSON).status_code == 409
+    priced = seller.post(theirs, {"body": "GH₵250, sizes 38, 40, 42"}, content_type=JSON)
+    assert priced.status_code == 201
+    chat_ = Conversation.objects.get(pk=thread["id"])
+    assert [m.body for m in chat_.messages.order_by("pk")] == [
+        "Hello",
+        "my number 024 123",
+        "GH₵250, sizes 38, 40, 42",
+    ]
+
+    # The third try in a day puts the chat in front of staff, once.
+    assert not ChatReport.objects.exists()
+    them.post(mine, {"body": "ama at gmail dot com"}, content_type=JSON)
+    them.post(mine, {"body": "0241234567"}, content_type=JSON)
+    report = ChatReport.objects.get()
+    assert (report.by, report.reason, report.conversation_id) == ("buyer", "other", chat_.pk)
+    them.post(mine, {"body": "0241234567"}, content_type=JSON)
+    assert ChatReport.objects.count() == 1
 
 
 @pytest.mark.django_db

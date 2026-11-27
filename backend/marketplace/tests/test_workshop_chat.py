@@ -193,6 +193,24 @@ def test_the_messages_button_counts_unread_and_waiting_per_role(
 
 
 @pytest.mark.django_db
+def test_a_number_may_be_typed_in_a_workshop_chat(area, django_user_model, texts):
+    """Only shop chats keep contact details out (chat._guard_contact)."""
+    provider, _course = workshop(area)
+    trainer_of(provider, django_user_model)
+    person = CustomerAccount.objects.create(
+        user=django_user_model.objects.create_user("person-esi"),
+        phone="+233201113333",
+        phone_verified_at=timezone.now(),
+    )
+    sent = signed_in(person.user).post(
+        reverse("account-chats"),
+        {"workshop": provider.pk, "body": "Call me on 024 123 4567"},
+        content_type=JSON,
+    )
+    assert sent.status_code == 201
+
+
+@pytest.mark.django_db
 def test_only_the_workshops_own_trainer_and_its_person_read_a_chat(area, django_user_model, texts):
     provider, _course = workshop(area)
     trainer_of(provider, django_user_model)
@@ -231,7 +249,11 @@ def test_each_side_shares_only_its_own_number(area, django_user_model, texts):
     )
     conversation = Conversation.objects.create(provider=provider, buyer=person)
 
-    signed_in(person.user).post(reverse("account-chat-share", args=[conversation.pk]))
+    # Still allowed in a workshop chat; only shop chats keep numbers private.
+    shared_by_person = signed_in(person.user).post(
+        reverse("account-chat-share", args=[conversation.pk])
+    )
+    assert shared_by_person.json()["can_share_number"] is True
     signed_in(trainer.user).post(reverse("inbox-share", args=[conversation.pk]))
 
     shared = list(conversation.messages.filter(kind=Message.Kind.PHONE).order_by("pk"))

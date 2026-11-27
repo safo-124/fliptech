@@ -395,6 +395,8 @@ export type ChatSummary = {
   blocked_by_you?: boolean;
   /** False when either side blocked the other, or the person closed their account. */
   can_write?: boolean;
+  /** False in a shop chat: neither side may share a number there. */
+  can_share_number?: boolean;
 };
 
 export type ChatThread = ChatSummary & { messages: ChatMessage[] };

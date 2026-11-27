@@ -56,6 +56,7 @@ export default function ChatScreen() {
       blockedByYou={thread.data?.blocked_by_you ?? false}
       canWrite={thread.data?.can_write ?? true}
       closed={thread.data?.closed ?? false}
+      numbersPrivate={thread.data?.can_share_number === false}
     />
   );
 }

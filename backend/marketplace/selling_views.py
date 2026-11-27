@@ -1195,7 +1195,11 @@ def _direct_order_words(order, items):
     )
     how = _("collect it") if order.fulfilment == Order.Fulfilment.PICKUP else _("have it delivered")
     words = _("Order: %(things)s. I would like to %(how)s.") % {"things": things, "how": how}
-    if order.note:
+    # A note with a number or a link in it stays on the order, out of the
+    # chat, where contact details are not sent (marketplace/contact_guard.py).
+    from .contact_guard import contact_in
+
+    if order.note and contact_in(order.note) is None:
         words += " " + order.note
     return words
 

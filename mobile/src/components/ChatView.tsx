@@ -63,6 +63,7 @@ export function ChatView({
   blockedByYou = false,
   canWrite = true,
   closed = false,
+  numbersPrivate = false,
 }: {
   title: string;
   messages: ChatMessage[];
@@ -87,6 +88,8 @@ export function ChatView({
   canWrite?: boolean;
   /** The person closed their account. */
   closed?: boolean;
+  /** A shop chat: neither side may share a number (backend NumbersPrivate). */
+  numbersPrivate?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [body, setBody] = useState(initial);
@@ -293,7 +296,14 @@ export function ChatView({
           ) : null}
         </View>
       ) : null}
-      {onShare && !loading && canWrite ? (
+      {numbersPrivate && !loading && canWrite ? (
+        <View style={styles.shareBar}>
+          <Text variant="small" style={{ flex: 1 }}>
+            Numbers stay private in shop chats. Pay with Buy now, so your money is held until the goods arrive.
+          </Text>
+        </View>
+      ) : null}
+      {onShare && !numbersPrivate && !loading && canWrite ? (
         <View style={styles.shareBar}>
           <Text variant="small" style={{ flex: 1 }}>
             Your number is hidden. Share it only if you want them to call you.
