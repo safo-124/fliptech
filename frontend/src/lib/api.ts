@@ -28,6 +28,7 @@ import type {
   SellerShop,
   Bundle,
   FeaturedShop,
+  HeroShop,
   ShopCard,
   TrainerShop,
   Trade,
@@ -433,6 +434,12 @@ export function getShops(limit?: number) {
 /** Up to two boosted products for the home page, picked at random each time. */
 export function getSponsoredProducts() {
   return fetchJson<{results: ProductCard[]}>("/api/products/sponsored/", {revalidate: 60, tags: [MARKETPLACE_TAG]});
+}
+
+/** Up to five shops for the home page's slideshow, taking turns each hour,
+ * trainers' shops first (backend marketplace/views.py, HeroShopsView). */
+export function getHeroShops() {
+  return fetchJson<{results: HeroShop[]}>("/api/sellers/hero/", {revalidate: 300, tags: [MARKETPLACE_TAG]});
 }
 
 export function getFeaturedShops() {

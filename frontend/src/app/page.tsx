@@ -24,7 +24,7 @@
  * the site is usable on a cheap phone on a slow network.
  */
 
-import { ArrowRight, GraduationCap, PlayCircle, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ArrowRight, GraduationCap, PlayCircle, ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -34,6 +34,7 @@ import { getTranslations } from "next-intl/server";
 import { CourseTile } from "@/components/CourseTile";
 import { GhanaMap } from "@/components/home/GhanaMap";
 import { HeroSearch, type HeroSearchLabels } from "@/components/home/HeroSearch";
+import { HeroSlideshow, type HeroSlide } from "@/components/home/HeroSlideshow";
 import { HomeIntakes } from "@/components/home/HomeIntakes";
 import { Rail } from "@/components/home/Rail";
 import { areaOptions } from "@/lib/picker-options";
@@ -43,6 +44,7 @@ import { ProductTile } from "@/components/marketplace/ProductTile";
 import {
   getAllRegions,
   getAllTrades,
+  getHeroShops,
   getHomePictures,
   getSiteStats,
   getSponsoredCourses,
@@ -84,7 +86,15 @@ export async function generateMetadata(): Promise<Metadata> {
 const FEATURED = 10;
 
 /** A picture for one of the page's places: staff's choice, or a stand-in. */
-type Picture = { url: string; alt: string; credit?: string; caption?: string; href?: string };
+type Picture = {
+  url: string;
+  alt: string;
+  credit?: string;
+  caption?: string;
+  href?: string;
+  badge?: string;
+  action?: string;
+};
 
 function chosen(picture: HomePicture | undefined): Picture | null {
   return picture ? { url: picture.url, alt: picture.alt, credit: picture.credit } : null;
@@ -138,9 +148,10 @@ export default async function Home({
   // Courses the same way: up to two sponsored first, picked at random, then
   // the list's own order without its sponsored spots (backend
   // courses/promotion.py), so a row never holds more than two paid places.
-  const [sponsoredCourses, sponsoredProducts] = await Promise.all([
+  const [sponsoredCourses, sponsoredProducts, heroShops] = await Promise.all([
     getSponsoredCourses().catch(() => null),
     getSponsoredProducts().catch(() => null),
+    getHeroShops().catch(() => null),
   ]);
   const featuredCourses = sponsoredFirst(sponsoredCourses?.results ?? [], courses?.results ?? [], FEATURED);
   // Up to two sponsored products first (boosted, picked at random, labelled
@@ -160,6 +171,30 @@ export default async function Home({
           href: `/${workshop.area_slug}/${workshop.slug}`,
         }
       : null);
+  // The slideshow: staff's picture first, if they chose one, then shops
+  // taking turns (backend HeroShopsView), five pictures at most. With no
+  // shop to show, the one picture above, as before.
+  const shopPictures: Picture[] = (heroShops?.results ?? [])
+    .filter((shop) => shop.photo)
+    .map((shop) => ({
+      url: shop.photo as string,
+      alt: "",
+      caption: t("heroCaption", { name: shop.business_name, area: shop.area }),
+      href: `/marketplace/seller/${shop.id}`,
+      badge: shop.is_trainer ? t("heroTrainer") : undefined,
+      action: t("heroVisitShop"),
+    }));
+  const staffPicture = chosen(pictures.hero);
+  const slidePictures = shopPictures.length
+    ? [...(staffPicture ? [staffPicture] : []), ...shopPictures].slice(0, 5)
+    : hero
+      ? [hero]
+      : [];
+  const heroSlides: HeroSlide[] = slidePictures.map((picture, position) => ({
+    ...picture,
+    label: t("heroSlide", { n: position + 1, total: slidePictures.length }),
+    show: t("heroShow", { n: position + 1, total: slidePictures.length }),
+  }));
   const townCount = placesWithWorkshops.length;
 
   const heroLabels: HeroSearchLabels = {
@@ -183,7 +218,7 @@ export default async function Home({
     <div className="pb-4">
       {/* ------------------------------------------------------------ hero */}
       <section className={styles.hero}>
-        <div className={`app-shell grid items-center gap-10 py-10 sm:py-14 lg:gap-14 lg:py-16 ${hero ? "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]" : ""}`}>
+        <div className={`app-shell grid items-center gap-10 py-10 sm:py-14 lg:gap-14 lg:py-16 ${heroSlides.length ? "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0">
             <p className="text-[13px] font-medium text-[var(--color-muted-foreground)]">{t("eyebrow")}</p>
             <h1 className="mt-3 max-w-[17ch] text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] text-[var(--color-brand-deep)] sm:text-5xl lg:text-[3.25rem]">
@@ -209,9 +244,14 @@ export default async function Home({
             ) : null}
           </div>
 
-          {hero ? (
-            <HeroPicture
-              picture={hero}
+          {heroSlides.length ? (
+            <HeroSlideshow
+              slides={heroSlides}
+              labels={{
+                region: t("heroShopsLabel", { brand: BRAND }),
+                pause: t("heroPause"),
+                play: t("heroPlay"),
+              }}
               visited={stats && stats.visited > 0 ? t("visitedCard", { count: stats.visited, brand: BRAND }) : null}
             />
           ) : null}
@@ -469,47 +509,6 @@ function TrustStrip({
         ))}
       </ul>
     </div>
-  );
-}
-
-/**
- * The picture beside the search. Its credit or caption sits on it whenever
- * there is one, because a Creative Commons photograph requires it; a
- * workshop's photograph standing in says whose it is and links there.
- */
-function HeroPicture({ picture, visited }: { picture: Picture; visited: string | null }) {
-  return (
-    <figure className="relative">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[var(--color-muted)]">
-        <Image
-          src={picture.url}
-          alt={picture.alt}
-          fill
-          priority
-          sizes="(min-width: 1024px) 45vw, 100vw"
-          className="object-cover"
-        />
-        {picture.credit || picture.caption ? (
-          <figcaption className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs text-white backdrop-blur-sm">
-            {picture.href ? (
-              <Link href={picture.href} className="hover:underline">
-                {picture.caption}
-              </Link>
-            ) : (
-              (picture.caption ?? picture.credit)
-            )}
-          </figcaption>
-        ) : null}
-      </div>
-      {visited ? (
-        <span className="absolute -bottom-4 right-4 flex items-center gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3.5 py-2.5 text-[13px] font-medium shadow-[var(--shadow-lg)] sm:-left-6 sm:right-auto">
-          <span className="grid size-7 place-items-center rounded-lg bg-[var(--color-visit-bg)] text-[var(--color-visit)]">
-            <ShieldCheck aria-hidden="true" className="size-4" />
-          </span>
-          {visited}
-        </span>
-      ) : null}
-    </figure>
   );
 }
 

@@ -91,6 +91,41 @@ def test_the_shops_view_lists_every_shop_with_its_photos(client, area, django_us
 
 
 @pytest.mark.django_db
+def test_the_home_slideshow_takes_shops_with_three_items_and_a_photo_trainers_first(
+    client, area, django_user_model
+):
+    from providers.models import Provider
+
+    kofi = shop(django_user_model, area, "Kofi Tools", "+233201110802")
+    for n in range(3):
+        item(kofi, f"Spanner {n}")
+    ama = shop(django_user_model, area, "Ama Beads", "+233201110801")
+    for n in range(3):
+        item(ama, f"Bead {n}")
+    ama.provider = Provider.objects.create(
+        name="Ama Beads Workshop",
+        slug="ama-beads",
+        area=area,
+        location=area.centroid,
+        status=Provider.Status.PUBLISHED,
+    )
+    ama.save()
+    small = shop(django_user_model, area, "Two Things", "+233201110803")
+    item(small, "Cup 0")
+    item(small, "Cup 1")
+    bare = shop(django_user_model, area, "No Pictures", "+233201110804")
+    for n in range(3):
+        item(bare, f"Plain {n}", photo=False)
+
+    rows = client.get(reverse("sellers-hero")).json()["results"]
+
+    assert [row["business_name"] for row in rows] == ["Ama Beads", "Kofi Tools"]
+    assert rows[0]["is_trainer"] is True and rows[0]["photo"].endswith(".jpg")
+    assert (rows[1]["is_trainer"], rows[1]["product_count"]) == (False, 3)
+    assert len(client.get(reverse("sellers-hero"), {"limit": 1}).json()["results"]) == 1
+
+
+@pytest.mark.django_db
 def test_the_home_page_gets_at_most_two_sponsored_products(client, area, django_user_model):
     seller = shop(django_user_model, area, "Kofi Tools", "+233201110802")
     for n in range(3):

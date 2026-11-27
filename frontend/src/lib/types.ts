@@ -956,6 +956,9 @@ export type TrainerShop = FeaturedShop & {product_count: number};
 /** A shop in the marketplace's Shops view: up to four of its product photos. */
 export type ShopCard = TrainerShop & {photos: string[]; is_trainer: boolean};
 
+/** A shop in the home page's slideshow: one photo, three items or more. */
+export type HeroShop = TrainerShop & {is_trainer: boolean};
+
 export type ProductOption = {id: number; label: string; price: string | null; available: boolean};
 
 export type ProductDetail = ProductCard & {

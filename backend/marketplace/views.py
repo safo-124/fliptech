@@ -1253,6 +1253,77 @@ class ShopsView(APIView):
         return Response({"results": cards})
 
 
+class HeroShopsView(APIView):
+    """Shops for the home page's slideshow: up to five (?limit=, at most five)
+    with at least HERO_MIN_ITEMS items on show and a photo, shops with a
+    training workshop behind them first. Which ones turns every hour, so each
+    shop gets its turn, and within the hour every visitor sees the same ones.
+    Each comes with one photo: its newest product's first (a boosted one's,
+    if any)."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    HERO_MIN_ITEMS = 3
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        import random
+
+        from django.db.models import Count
+
+        from .promotion import _hour_seed
+
+        try:
+            limit = max(1, min(5, int(request.query_params.get("limit") or 5)))
+        except ValueError:
+            limit = 5
+        visible = Product.objects.visible()
+        rows = list(
+            SellerAccount.objects.filter(products__in=visible)
+            .annotate(
+                product_count=Count("products", filter=Q(products__in=visible), distinct=True),
+                pictured=Exists(
+                    ProductPhoto.objects.filter(
+                        product__seller=OuterRef("pk"), product__in=visible
+                    ).exclude(image="")
+                ),
+            )
+            .filter(product_count__gte=self.HERO_MIN_ITEMS, pictured=True)
+            .values_list("pk", "provider_id", "product_count")
+        )
+        counts = {pk: count for pk, _provider, count in rows}
+        trainers = sorted(pk for pk, provider, _count in rows if provider is not None)
+        others = sorted(pk for pk, provider, _count in rows if provider is None)
+        turn = random.Random(_hour_seed())
+        turn.shuffle(trainers)
+        turn.shuffle(others)
+        chosen = (trainers + others)[:limit]
+
+        sellers = {
+            seller.pk: seller
+            for seller in SellerAccount.objects.filter(pk__in=chosen).select_related(
+                "area", "area__region", "provider", "provider__area"
+            )
+        }
+        photo = {}
+        for product in (
+            _public_products().filter(seller__in=chosen).order_by("-boosted", "-created_at")
+        ):
+            if product.seller_id in photo:
+                continue
+            first = next((p for p in product.photos.all() if p.image), None)
+            if first:
+                photo[product.seller_id] = public_url(first.image.url, request)
+        ordered = [sellers[pk] for pk in chosen if pk in sellers and pk in photo]
+        cards = SellerCardSerializer(ordered, many=True, context={"request": request}).data
+        for card, seller in zip(cards, ordered, strict=True):
+            card["photo"] = photo[seller.pk]
+            card["product_count"] = counts[seller.pk]
+            card["is_trainer"] = seller.provider_id is not None
+        return Response({"results": cards})
+
+
 class SellerDetailView(APIView):
     """A seller's shop front: who they are, and everything of theirs on sale."""
 

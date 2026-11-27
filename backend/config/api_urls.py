@@ -98,6 +98,7 @@ from marketplace.selling_views import (
 )
 from marketplace.views import (
     CourseToolsView,
+    HeroShopsView,
     OwnEnquiriesView,
     OwnProductsView,
     OwnProductView,
@@ -537,6 +538,8 @@ urlpatterns = [
     path("sellers/trainers/", TrainerShopsView.as_view(), name="sellers-trainers"),
     # Every shop with something on show: the marketplace's Shops view.
     path("sellers/", ShopsView.as_view(), name="sellers"),
+    # Up to five shops, taking turns, for the home page's slideshow.
+    path("sellers/hero/", HeroShopsView.as_view(), name="sellers-hero"),
     path("sellers/<int:pk>/", SellerDetailView.as_view(), name="seller-detail"),
     # The marketplace's measured and paid parts; see marketplace/selling_views.py.
     path("products/<int:pk>/viewed/", ProductViewedView.as_view(), name="product-viewed"),

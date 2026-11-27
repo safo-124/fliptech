@@ -1,0 +1,41 @@
+/* The home page's slideshow (HeroSlideshow.tsx): pictures cross-fade, and
+   the one on show drifts in slowly towards a point of its own. */
+
+.slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+}
+
+.active {
+  z-index: 1;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.photo {
+  transform: scale(1);
+  transform-origin: var(--origin, 50% 50%);
+  /* Back to the start only once it has faded out, so nothing jumps. */
+  transition: transform 0s linear 700ms;
+}
+
+/* Longer than a slide is shown (5 s), so it never stops before the change. */
+.moving .photo {
+  transform: scale(1.08);
+  transition: transform 6s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide {
+    transition: none;
+  }
+
+  .photo,
+  .moving .photo {
+    transform: none;
+    transition: none;
+  }
+}
