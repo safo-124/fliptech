@@ -89,9 +89,15 @@ class CourseOffer(TimeStampedModel):
     )
     sale_ends_at = models.DateTimeField(null=True, blank=True)
 
-    # Shown first on /learn and on the home page until then: bought by the
-    # workshop (CourseBoost), or set by staff.
-    featured_until = models.DateTimeField(null=True, blank=True)
+    # Staff's own pick, labelled "Featured" and shown first on /learn until
+    # then. A workshop paying for a spot is a CourseBoost instead, labelled
+    # "Sponsored" (courses/promotion.py); boosts no longer touch this.
+    featured_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Staff's own pick: labelled Featured and shown first on /learn until then. "
+        "Paid boosts are separate (Course boosts) and labelled Sponsored.",
+    )
 
     class Meta:
         verbose_name = "course"
@@ -225,7 +231,8 @@ class CoursePromoCode(TimeStampedModel):
 
 
 class CourseBoost(TimeStampedModel):
-    """A workshop paying Fliiptech to show its course first for a while.
+    """A workshop paying Fliiptech for sponsored spots for its course, for a
+    week or a month (courses/promotion.py).
 
     The same rule as every payment here: it starts only once Paystack
     confirms a successful charge of exactly the amount asked. Reference
@@ -248,6 +255,9 @@ class CourseBoost(TimeStampedModel):
         max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True
     )
     paid_at = models.DateTimeField(null=True, blank=True)
+    # When its sponsored spots run: from payment, or from the end of a boost
+    # already running, so paying early loses nothing.
+    starts_at = models.DateTimeField(null=True, blank=True)
     ends_at = models.DateTimeField(null=True, blank=True)
     gateway_response = models.CharField(max_length=200, blank=True)
     channel = models.CharField(max_length=30, blank=True)

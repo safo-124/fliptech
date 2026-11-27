@@ -23,7 +23,12 @@ export type CourseCard = {
   summary?: string;
   rating?: number | null;
   reviews?: number;
+  /** Staff's own pick. */
   featured?: boolean;
+  /** A paid boost is running: labelled "Sponsored" (backend courses/promotion.py). */
+  sponsored?: boolean;
+  /** The first lesson, free to anybody signed in, for "Watch free lesson". */
+  free_lesson?: { id: number; seconds: number | null } | null;
 };
 
 export type ProductCard = {

@@ -656,11 +656,18 @@ def test_a_featured_course_comes_first_and_free_ones_can_be_put_first(client, co
 
 
 @pytest.mark.django_db
-def test_paying_to_feature_a_course_adds_days_once_paystack_confirms(
+def test_paying_to_sponsor_a_course_starts_once_paystack_confirms(
     trainer_client, client, course, calls, settings
 ):
     provider, _ = course
     calls.answers["/transaction/initialize"] = {"authorization_url": "https://pay.example"}
+    # No summary yet: nothing to read before pressing play (courses/promotion.py).
+    refused = trainer_client.post(
+        reverse("studio-boost"), {"days": 7}, content_type="application/json"
+    )
+    assert refused.status_code == 409 and "summary" in refused.json()["detail"]
+    CourseOffer.objects.create(provider=provider, summary="Braids from the first parting.")
+
     started = trainer_client.post(
         reverse("studio-boost"), {"days": 7}, content_type="application/json"
     )
@@ -705,9 +712,13 @@ def test_paying_to_feature_a_course_adds_days_once_paystack_confirms(
         content_type="application/json",
         HTTP_X_PAYSTACK_SIGNATURE=sign,
     )
-    offer = CourseOffer.objects.get(provider=provider)
-    assert offer.is_featured
-    assert offer.featured_until > timezone.now() + timedelta(days=29)
+    paid = CourseBoost.objects.get(reference=reference)
+    assert paid.status == CourseBoost.Status.PAID
+    assert paid.ends_at - paid.starts_at == timedelta(days=30)
+    # Paying makes it "Sponsored", never staff's "Featured".
+    assert CourseOffer.objects.get(provider=provider).featured_until is None
+    row = client.get(reverse("course-list")).json()["results"][0]
+    assert row["sponsored"] is True and row["featured"] is False
 
 
 # --------------------------------------------------------------------------

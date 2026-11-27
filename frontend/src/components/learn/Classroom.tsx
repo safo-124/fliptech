@@ -118,6 +118,13 @@ export function Classroom({ data }: { data: CourseDetail }) {
       if (at >= 0) {
         setIndex(at);
         setChosen(true);
+        // "Watch free lesson" on a sponsored card (CourseTile) asks for it to
+        // start playing. Once: a reload or a shared link just opens it.
+        if (url.searchParams.get("play") === "1") {
+          setAutoStart(true);
+          url.searchParams.delete("play");
+          window.history.replaceState(null, "", url.toString());
+        }
         return;
       }
       // Carry on: the first lesson not finished, after any started.

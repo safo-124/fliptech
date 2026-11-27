@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 
 from .models import (
     Certificate,
@@ -137,12 +138,33 @@ class CoursePromoCodeAdmin(admin.ModelAdmin):
 
 @admin.register(CourseBoost)
 class CourseBoostAdmin(admin.ModelAdmin):
-    """Workshops paying to be featured. Read-only: Paystack decides."""
+    """Workshops paying for sponsored spots (courses/promotion.py).
+    Read-only: Paystack decides. One action, to stop a boost at once."""
 
-    list_display = ("reference", "provider", "days", "amount_pesewas", "status", "ends_at")
+    list_display = (
+        "reference",
+        "provider",
+        "days",
+        "amount_pesewas",
+        "status",
+        "starts_at",
+        "ends_at",
+    )
     list_filter = ("status",)
     search_fields = ("reference", "provider__name")
     readonly_fields = [field.name for field in CourseBoost._meta.fields]
+    actions = ["stop_boosts"]
+
+    @admin.action(description="Stop boost now (it breaks the rules)")
+    def stop_boosts(self, request, queryset):
+        """Take a sponsored course out of its spots at once, and cancel a
+        boost still waiting to start. Any refund is made in the Paystack
+        dashboard."""
+        now = timezone.now()
+        paid = queryset.filter(status=CourseBoost.Status.PAID)
+        stopped = paid.filter(starts_at__gt=now).update(starts_at=now, ends_at=now)
+        stopped += paid.filter(starts_at__lte=now, ends_at__gt=now).update(ends_at=now)
+        self.message_user(request, f"Stopped {stopped} boost(s). Refund, if any, in Paystack.")
 
     def has_add_permission(self, request):
         return False

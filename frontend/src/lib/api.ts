@@ -469,6 +469,12 @@ export function listCourses(params: CourseQuery = {}) {
   return fetchJson<Paginated<CourseCard>>(`/api/courses/${buildQuery(params)}`, {tags: [LEARN_TAG]});
 }
 
+/** Up to two sponsored courses for the home page, picked at random among
+ * every course with a boost running (backend courses/promotion.py). */
+export function getSponsoredCourses() {
+  return fetchJson<{results: CourseCard[]}>("/api/courses/sponsored/", {revalidate: 60, tags: [LEARN_TAG]});
+}
+
 export function getCourse(area: string, slug: string) {
   return fetchJson<CourseDetail>(`/api/courses/${area}/${slug}/`, {tags: [LEARN_TAG]});
 }

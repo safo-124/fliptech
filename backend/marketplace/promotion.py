@@ -38,9 +38,13 @@ def _showable(products):
     )
 
 
-def sponsored(products, limit=HOME_SLOTS):
-    """Up to `limit` sponsored products, picked at random from those boosted."""
-    pool = list(_showable(products).values_list("pk", flat=True))
+def sponsored(products, limit=HOME_SLOTS, showable=None):
+    """Up to `limit` sponsored products, picked at random from those boosted.
+
+    `showable` narrows a queryset to the items worth a sponsored spot; the
+    products' rule by default. Courses pass their own (courses/promotion.py).
+    """
+    pool = list((showable or _showable)(products).values_list("pk", flat=True))
     chosen = random.sample(pool, min(limit, len(pool)))
     found = {product.pk: product for product in products.filter(pk__in=chosen)}
     return [found[pk] for pk in chosen if pk in found]
@@ -50,15 +54,16 @@ def _hour_seed():
     return timezone.localtime().strftime("%Y%m%d%H")
 
 
-def slotted_page(products, page, page_size):
+def slotted_page(products, page, page_size, showable=None):
     """One page of the marketplace list with sponsored items in their spots.
 
     Returns (items, count). Spots are the first item and every SLOT_EVERY
     after it on the first page; the boosted items chosen for them are left
     out of the rest of the list, on every page, so nothing shows twice.
+    `showable` as for `sponsored`: the course list uses this too.
     """
     spots = list(range(0, page_size, SLOT_EVERY))
-    pool = list(_showable(products).values_list("pk", flat=True))
+    pool = list((showable or _showable)(products).values_list("pk", flat=True))
     random.Random(_hour_seed()).shuffle(pool)
     chosen_ids = pool[: len(spots)]
     rest = products.exclude(pk__in=chosen_ids)

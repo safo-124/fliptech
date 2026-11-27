@@ -734,12 +734,20 @@ function Promote() {
   }
 
   if (!boost) return null;
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
   return (
     <Panel icon={Megaphone} title={t("boostTitle")} lead={t("boostLead")}>
-      {boost.featured_until ? (
+      {boost.sponsored_until ? (
         <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[var(--color-sand)] to-[var(--color-peach)] px-3 py-1 text-xs font-extrabold text-[var(--color-brand-deep)]">
           <Sparkles aria-hidden="true" className="size-3.5" />
-          {t("featuredUntil", { date: new Date(boost.featured_until).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) })}
+          {t("sponsoredUntil", { date: day(boost.sponsored_until) })}
+        </p>
+      ) : null}
+      {/* What stands in the way, said before anybody pays (backend
+          courses/promotion.py, boost_problem). */}
+      {boost.problem ? (
+        <p role="note" className="mb-3 rounded-xl bg-[var(--color-muted)] px-3 py-2 text-sm text-[var(--color-foreground)]">
+          {boost.problem}
         </p>
       ) : null}
       {boost.payments_enabled ? (
@@ -749,7 +757,7 @@ function Promote() {
               key={option.days}
               type="button"
               onClick={() => void buy(option.days)}
-              disabled={busy !== null}
+              disabled={busy !== null || Boolean(boost.problem)}
               className="group rounded-2xl border border-[var(--color-border)] p-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--color-brand)]/40 hover:shadow-[var(--shadow-card)] disabled:opacity-60"
             >
               <span className="block text-sm font-semibold text-[var(--color-muted-foreground)]">
@@ -758,7 +766,7 @@ function Promote() {
               <span className="mt-1 block text-2xl font-extrabold text-[var(--color-brand-deep)]">{formatCedis(option.price)}</span>
               <span className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-[var(--color-brand)]">
                 {busy === option.days ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <Sparkles aria-hidden="true" className="size-4" />}
-                {t("featureIt")}
+                {t("sponsorIt")}
               </span>
             </button>
           ))}
@@ -766,6 +774,31 @@ function Promote() {
       ) : (
         <p className="text-sm text-[var(--color-muted-foreground)]">{t("boostOff")}</p>
       )}
+      {/* What each boost of the last 30 days brought, so the next one is an
+          informed choice. */}
+      {boost.boosts.length ? (
+        <div className="mt-5">
+          <h3 className="text-sm font-bold text-[var(--color-brand-deep)]">{t("boostResultsTitle")}</h3>
+          <ul className="mt-2 space-y-2">
+            {boost.boosts.map((row) => (
+              <li key={row.starts_at} className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm">
+                <p className="font-semibold">
+                  {row.running
+                    ? t("boostRunning", { date: day(row.ends_at) })
+                    : row.waiting
+                      ? t("boostWaiting", { date: day(row.starts_at) })
+                      : t("boostRan", { start: day(row.starts_at), end: day(row.ends_at) })}
+                </p>
+                {row.waiting ? null : (
+                  <p className="text-[var(--color-muted-foreground)]">
+                    {t("boostBrought", { plays: row.plays, started: row.started, sales: row.sales, sold: formatCedis(row.sold) })}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {note ? <p role="status" className={`mt-3 text-sm font-semibold ${note.ok ? "text-[var(--color-visit)]" : "text-[var(--color-destructive)]"}`}>{note.text}</p> : null}
     </Panel>
   );

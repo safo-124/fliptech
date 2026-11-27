@@ -57,6 +57,7 @@ def _courses():
     lesson once per course.
     """
     from courses.models import CourseReview, LessonPlayDay
+    from courses.promotion import is_sponsored
 
     now = timezone.now()
     reviews = CourseReview.objects.filter(provider=OuterRef("pk"), is_hidden=False).values(
@@ -72,6 +73,9 @@ def _courses():
     )
     return (
         Provider.objects.published()
+        # A boost running now: "Sponsored", in its spots only
+        # (courses/promotion.py). "Featured" below is staff's own pick.
+        .annotate(sponsored=is_sponsored())
         .annotate(
             lesson_count=Count("videos", filter=APPROVED),
             total_seconds=Sum("videos__duration_seconds", filter=APPROVED),
@@ -84,7 +88,7 @@ def _courses():
             ),
             recent_plays=Coalesce(Subquery(recent_plays), Value(0), output_field=IntegerField()),
             featured=Case(
-                When(course_offer__featured_until__gt=now, then=Value(True)),
+                When(course_offer__featured_until__gt=now, sponsored=False, then=Value(True)),
                 default=Value(False),
                 output_field=BooleanField(),
             ),
@@ -148,7 +152,11 @@ class CourseCardSerializer(serializers.ModelSerializer):
     summary = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     reviews = serializers.IntegerField(source="rating_count", read_only=True, default=0)
+    # Staff's own pick.
     featured = serializers.BooleanField(read_only=True, default=False)
+    # A boost running: labelled "Sponsored", with a button to the free lesson.
+    sponsored = serializers.BooleanField(read_only=True, default=False)
+    free_lesson = serializers.SerializerMethodField()
     # The course's own name (courses.learner.course_title); "name" stays the
     # workshop's, for "by <workshop>".
     title = serializers.SerializerMethodField()
@@ -173,6 +181,8 @@ class CourseCardSerializer(serializers.ModelSerializer):
             "rating",
             "reviews",
             "featured",
+            "sponsored",
+            "free_lesson",
         ]
 
     def _offer(self, obj):
@@ -231,6 +241,19 @@ class CourseCardSerializer(serializers.ModelSerializer):
         first = next(iter(obj.shown_videos), None)
         return _poster(first, self.context.get("request")) if first else None
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_free_lesson(self, obj):
+        """The lesson anybody signed in may watch: the first in course order.
+
+        In a paid course the preview is the first upload and a YouTube lesson
+        is never locked (courses/access.py), so the first lesson is free either
+        way. {id, seconds}, or null.
+        """
+        first = next(iter(getattr(obj, "shown_videos", None) or []), None)
+        if first is None:
+            return None
+        return {"id": first.pk, "seconds": first.duration_seconds}
+
 
 class CourseListView(ListAPIView):
     """Every course, optionally for one trade (?trade=<slug>) or one category
@@ -256,13 +279,70 @@ class CourseListView(ListAPIView):
         return browse_courses(self.request.query_params)
 
     def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
         params = request.query_params
+        # The default order gives sponsored courses their spots, at most one
+        # in every eight (courses/promotion.py). Not for a sort the learner
+        # chose, nor for staff's picks (?featured=1, the /learn spotlight).
+        if params.get("sort") or params.get("featured"):
+            response = super().list(request, *args, **kwargs)
+        else:
+            response = self._slotted(request)
         if params.get("q") and params.get("page") in (None, "", "1"):
             from search.log import record
 
             record(params.get("q"), "learn", response.data.get("count", 0), request)
         return response
+
+    def _slotted(self, request):
+        from django.conf import settings
+        from rest_framework.utils.urls import remove_query_param, replace_query_param
+
+        from courses.promotion import slotted_page
+
+        page_size = self.paginator.get_page_size(request) or settings.REST_FRAMEWORK["PAGE_SIZE"]
+        try:
+            page = max(1, int(request.query_params.get("page") or 1))
+        except ValueError:
+            page = 1
+        items, count = slotted_page(self.get_queryset(), page, page_size)
+        url = request.build_absolute_uri()
+        last = max(1, -(-count // page_size))
+        if page == 1:
+            previous = None
+        elif page == 2:
+            previous = remove_query_param(url, "page")
+        else:
+            previous = replace_query_param(url, "page", page - 1)
+        return Response(
+            {
+                "count": count,
+                "next": replace_query_param(url, "page", page + 1) if page < last else None,
+                "previous": previous,
+                "results": self.get_serializer(items, many=True).data,
+            }
+        )
+
+
+class CourseSponsoredView(APIView):
+    """Sponsored courses for the home page: up to two (?limit=, at most
+    four), picked at random from every course with a boost running, so each
+    paying trainer gets seen. Always shown labelled "Sponsored"."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from courses.promotion import HOME_SLOTS, sponsored
+
+        try:
+            limit = max(1, min(4, int(request.query_params.get("limit") or HOME_SLOTS)))
+        except ValueError:
+            limit = HOME_SLOTS
+        courses = sponsored(_courses(), limit)
+        return Response(
+            {"results": CourseCardSerializer(courses, many=True, context={"request": request}).data}
+        )
 
 
 def browse_courses(params):

@@ -10,6 +10,7 @@ import { Section, Shelf } from "@/components/Section";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { Text } from "@/components/Text";
 import { api } from "@/lib/api";
+import { sponsoredFirst } from "@/lib/sponsored";
 import type { UpcomingIntake } from "@/lib/types";
 import { colors, fonts, radius, space } from "@/theme/tokens";
 
@@ -21,17 +22,16 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
  * and products, and how it works.
  */
 export default function HomeScreen() {
+  // Courses and products each with up to two sponsored ones first (boosted,
+  // picked at random, labelled "Sponsored" on the card), then the rest with no
+  // other paid places: backend courses/promotion.py, marketplace/promotion.py.
   const courses = useQuery({ queryKey: ["courses", "home"], queryFn: () => api.courses() });
+  const sponsoredCourses = useQuery({ queryKey: ["courses", "sponsored"], queryFn: api.sponsoredCourses });
+  const homeCourses = sponsoredFirst(sponsoredCourses.data?.results ?? [], courses.data?.results ?? [], 10);
   const workshops = useQuery({ queryKey: ["providers", "home"], queryFn: () => api.providers() });
-  // Newest products, with up to two sponsored ones (boosted, picked at random,
-  // labelled "Sponsored" on the card) first: backend marketplace/promotion.py.
   const products = useQuery({ queryKey: ["products", "home"], queryFn: () => api.products({ sort: "newest" }) });
   const sponsored = useQuery({ queryKey: ["products", "sponsored"], queryFn: api.sponsoredProducts });
-  const sponsoredIds = new Set((sponsored.data?.results ?? []).map((product) => product.id));
-  const homeProducts = [
-    ...(sponsored.data?.results ?? []),
-    ...(products.data?.results ?? []).filter((product) => !sponsoredIds.has(product.id)),
-  ];
+  const homeProducts = sponsoredFirst(sponsored.data?.results ?? [], products.data?.results ?? [], 10);
   const intakes = useQuery({ queryKey: ["intakes", "upcoming"], queryFn: () => api.upcomingIntakes(6) });
   const refreshing = courses.isRefetching || workshops.isRefetching || products.isRefetching;
 
@@ -41,8 +41,10 @@ export default function HomeScreen() {
       refreshing={refreshing}
       onRefresh={() => {
         void courses.refetch();
+        void sponsoredCourses.refetch();
         void workshops.refetch();
         void products.refetch();
+        void sponsored.refetch();
         void intakes.refetch();
       }}
     >
@@ -113,9 +115,9 @@ export default function HomeScreen() {
           </Shelf>
         ) : courses.isError ? (
           <ErrorState message={courses.error.message} onRetry={() => void courses.refetch()} />
-        ) : courses.data.results.length ? (
+        ) : homeCourses.length ? (
           <Shelf>
-            {courses.data.results.slice(0, 10).map((course) => (
+            {homeCourses.map((course) => (
               <CourseCard
                 key={course.id}
                 course={course}

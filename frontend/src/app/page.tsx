@@ -45,6 +45,7 @@ import {
   getAllTrades,
   getHomePictures,
   getSiteStats,
+  getSponsoredCourses,
   getSponsoredProducts,
   getTradeCategories,
   getUpcomingIntakes,
@@ -56,6 +57,7 @@ import {
 } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { searchRedirectTarget } from "@/lib/search-redirect";
+import { sponsoredFirst } from "@/lib/sponsored";
 import { tradeClass } from "@/lib/trades";
 import type { HomePicture, HomePictures, SiteStats } from "@/lib/types";
 import styles from "./page.module.css";
@@ -133,15 +135,17 @@ export default async function Home({
     .slice(0, 6)
     .map(({trade}) => trade);
 
-  const featuredCourses = courses?.results.slice(0, FEATURED) ?? [];
+  // Courses the same way: up to two sponsored first, picked at random, then
+  // the list's own order without its sponsored spots (backend
+  // courses/promotion.py), so a row never holds more than two paid places.
+  const [sponsoredCourses, sponsoredProducts] = await Promise.all([
+    getSponsoredCourses().catch(() => null),
+    getSponsoredProducts().catch(() => null),
+  ]);
+  const featuredCourses = sponsoredFirst(sponsoredCourses?.results ?? [], courses?.results ?? [], FEATURED);
   // Up to two sponsored products first (boosted, picked at random, labelled
   // "Sponsored" on the card), then the newest, none twice.
-  const sponsoredProducts = (await getSponsoredProducts().catch(() => null))?.results ?? [];
-  const sponsoredIds = new Set(sponsoredProducts.map((product) => product.id));
-  const featuredProducts = [
-    ...sponsoredProducts,
-    ...(products?.results ?? []).filter((product) => !sponsoredIds.has(product.id)),
-  ].slice(0, FEATURED);
+  const featuredProducts = sponsoredFirst(sponsoredProducts?.results ?? [], products?.results ?? [], FEATURED);
 
   // Stand-ins, from what is genuinely on the site. A workshop's photograph is
   // captioned with the workshop, so it never reads as the face of the site.

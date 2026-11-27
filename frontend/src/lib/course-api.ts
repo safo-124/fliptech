@@ -261,11 +261,29 @@ export function replyToReview(id: number, reply: string) {
   });
 }
 
+/** A boost of the last 30 days and what it brought while it ran. */
+export type StudioBoostResult = {
+  days: number;
+  starts_at: string;
+  ends_at: string;
+  running: boolean;
+  /** Bought while another runs: starts when that one ends. */
+  waiting: boolean;
+  plays: number;
+  started: number;
+  sales: number;
+  sold: string;
+};
+
 export function getStudioBoost() {
   return trainerFetch<{
     options: {days: number; price: string}[];
     payments_enabled: boolean;
-    featured_until: string | null;
+    /** The last day of every boost bought, running or waiting to start. */
+    sponsored_until: string | null;
+    /** Why the course can't be sponsored yet, in the trainer's words. */
+    problem: string | null;
+    boosts: StudioBoostResult[];
   }>("/api/trainer/course/boost/");
 }
 

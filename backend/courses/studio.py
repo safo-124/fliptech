@@ -648,7 +648,7 @@ class StudioReplyView(TrainerView):
 
 
 # --------------------------------------------------------------------------
-# Featured
+# Sponsored
 
 
 def boost_options():
@@ -659,15 +659,43 @@ def boost_options():
 
 
 class StudioBoostView(TrainerView):
+    """Sponsoring the course: the prices, whether it may be sponsored yet and
+    why not, and what each boost of the last 30 days brought
+    (courses/promotion.py)."""
+
     @extend_schema(responses={200: None})
     def get(self, request):
+        from .promotion import boost_problem, boost_results
+
         provider = self.provider(request)
-        offer = CourseOffer.objects.filter(provider=provider).first()
+        now = timezone.now()
+        boosts = CourseBoost.objects.filter(
+            provider=provider,
+            status=CourseBoost.Status.PAID,
+            starts_at__isnull=False,
+            ends_at__gt=now - timedelta(days=30),
+        ).order_by("-ends_at")
+        boosts = list(boosts)
         return Response(
             {
                 "options": boost_options(),
                 "payments_enabled": paystack.enabled(),
-                "featured_until": offer.featured_until if offer and offer.is_featured else None,
+                # The last day of every boost bought, running or queued.
+                "sponsored_until": max(
+                    (boost.ends_at for boost in boosts if boost.ends_at > now), default=None
+                ),
+                "problem": boost_problem(provider),
+                "boosts": [
+                    {
+                        "days": boost.days,
+                        "starts_at": boost.starts_at,
+                        "ends_at": boost.ends_at,
+                        "running": boost.starts_at <= now < boost.ends_at,
+                        "waiting": boost.starts_at > now,
+                        **boost_results(boost),
+                    }
+                    for boost in boosts
+                ],
             }
         )
 
@@ -681,11 +709,12 @@ class StudioBoostView(TrainerView):
         option = next((o for o in boost_options() if o["days"] == days), None)
         if option is None:
             return _bad("days", _("Choose a week or a month."))
-        if not provider.videos.shown().exists():
-            return Response(
-                {"detail": _("Your course needs an approved lesson before it can be featured.")},
-                status=status.HTTP_409_CONFLICT,
-            )
+        # Lessons enough, a summary, nothing reported (courses/promotion.py).
+        from .promotion import boost_problem
+
+        problem = boost_problem(provider)
+        if problem:
+            return Response({"detail": problem}, status=status.HTTP_409_CONFLICT)
         if is_ratelimited(request, group="course-boost", key="user", rate="10/h", increment=True):
             return Response(
                 {"detail": _("Too many attempts. Try again later.")},
@@ -738,8 +767,8 @@ class StudioBoostVerifyView(TrainerView):
 
 
 def confirm_boost(reference, data):
-    """Paid only for a successful charge of exactly the amount asked. Adds
-    the days after any featuring already running, so paying early loses
+    """Paid only for a successful charge of exactly the amount asked. Starts
+    after any boost already running or waiting, so paying early loses
     nothing."""
     data = data or {}
     with transaction.atomic():
@@ -754,18 +783,24 @@ def confirm_boost(reference, data):
         boost.channel = str(data.get("channel") or "")[:30]
         state = data.get("status")
         if state == "success" and exact:
-            offer, _created = CourseOffer.objects.select_for_update().get_or_create(
-                provider=boost.provider
-            )
+            # Its own window, after any boost already running or waiting.
+            # "Featured" (CourseOffer.featured_until) is staff's alone now.
+            # The offer's row is locked so two payments landing together for
+            # one workshop queue up rather than overlap.
+            CourseOffer.objects.select_for_update().get_or_create(provider=boost.provider)
             now = timezone.now()
-            start = (
-                offer.featured_until if offer.featured_until and offer.featured_until > now else now
+            latest = (
+                CourseBoost.objects.filter(
+                    provider=boost.provider, status=CourseBoost.Status.PAID, ends_at__gt=now
+                )
+                .order_by("-ends_at")
+                .values_list("ends_at", flat=True)
+                .first()
             )
-            offer.featured_until = start + timedelta(days=boost.days)
-            offer.save(update_fields=["featured_until", "updated_at"])
             boost.status = CourseBoost.Status.PAID
             boost.paid_at = now
-            boost.ends_at = offer.featured_until
+            boost.starts_at = latest or now
+            boost.ends_at = boost.starts_at + timedelta(days=boost.days)
         elif state == "success":
             logger.error("Course boost %s does not match what was asked; not granting", reference)
             boost.status = CourseBoost.Status.FAILED

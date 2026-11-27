@@ -122,7 +122,7 @@ from marketplace.views import (
 )
 from providers.complaint_views import ComplaintCreateView
 from providers.dashboard import ProviderDashboardView, ProviderEnquiryListView
-from providers.learning import CourseDetailView, CourseListView
+from providers.learning import CourseDetailView, CourseListView, CourseSponsoredView
 from providers.trainer_dashboard_views import (
     TrainerEnquiryRepliedView,
     TrainerOwnDashboardView,
@@ -326,6 +326,8 @@ urlpatterns = [
     path("site/stats/", SiteStatsView.as_view(), name="site-stats"),
     # Online learning: each workshop's approved videos, browsed as a course.
     path("courses/", CourseListView.as_view(), name="course-list"),
+    # Up to two sponsored courses for the home page (courses/promotion.py).
+    path("courses/sponsored/", CourseSponsoredView.as_view(), name="courses-sponsored"),
     # Paid courses. See courses/views.py.
     path(
         "courses/<slug:area_slug>/<slug:slug>/access/",

@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
-import { Clock3, GraduationCap, MapPin, Sparkles, Star } from "lucide-react-native";
+import { router } from "expo-router";
+import { Clock3, GraduationCap, MapPin, Play, Sparkles, Star } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { cedis, courseLength } from "@/lib/format";
@@ -34,6 +35,7 @@ export function CourseCard({
   // A paid course shows no price on an iPhone, where the app does not sell
   // courses (lib/store-rules.ts). Free is free everywhere.
   const price = !course.price ? "Free" : SELLS_COURSES ? cedis(course.price) : null;
+  const free = course.sponsored ? course.free_lesson : null;
   return (
     <Pressable
       onPress={onPress}
@@ -43,7 +45,13 @@ export function CourseCard({
     >
       <View style={styles.media}>
         <Image source={photoUrl(course.poster)} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-        {course.featured ? (
+        {/* "Sponsored" is a paid boost, "Featured" staff's own pick
+            (backend courses/promotion.py). */}
+        {course.sponsored ? (
+          <View style={styles.featured}>
+            <Text style={styles.featuredText}>Sponsored</Text>
+          </View>
+        ) : course.featured ? (
           <View style={styles.featured}>
             <Sparkles size={12} color={colors.brandDeep} />
             <Text style={styles.featuredText}>Featured</Text>
@@ -75,6 +83,22 @@ export function CourseCard({
             <Text style={styles.price}>{price}</Text>
             {SELLS_COURSES && course.full_price ? <Text style={styles.was}>{cedis(course.full_price)}</Text> : null}
           </View>
+        ) : null}
+        {/* A sponsored course leads with its free first lesson: the quickest
+            way from a look to a learner, and free lessons play on an iPhone
+            too, where a paid course shows no price. */}
+        {free ? (
+          <Pressable
+            onPress={() => router.push(`/course/${course.area_slug}/${course.slug}?lesson=${free.id}`)}
+            style={({ pressed }) => [styles.freeLesson, pressed ? styles.pressed : null]}
+            accessibilityRole="button"
+            accessibilityLabel={`Watch the free first lesson of ${course.name}`}
+          >
+            <Play size={14} color="#ffffff" fill="#ffffff" />
+            <Text style={styles.freeLessonText}>
+              {free.seconds ? `Watch free lesson · ${Math.max(1, Math.round(free.seconds / 60))} min` : "Watch free lesson"}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
     </Pressable>
@@ -229,6 +253,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sand,
   },
   featuredText: { fontFamily: fonts.extrabold, fontSize: 11, color: colors.brandDeep },
+  freeLesson: {
+    marginTop: space.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    backgroundColor: colors.brand,
+  },
+  freeLessonText: { fontFamily: fonts.bold, fontSize: 13, color: "#ffffff" },
   length: {
     position: "absolute",
     left: 8,

@@ -132,6 +132,8 @@ export const api = {
   shops: () => getJson<{ results: ShopListItem[] }>("/api/sellers/"),
   /** Up to two boosted products for Home, picked at random, shown "Sponsored". */
   sponsoredProducts: () => getJson<{ results: ProductCard[] }>("/api/products/sponsored/"),
+  /** Up to two sponsored courses for home, picked at random (backend courses/promotion.py). */
+  sponsoredCourses: () => getJson<{ results: CourseCard[] }>("/api/courses/sponsored/"),
   providers: (
     params: {
       q?: string;
