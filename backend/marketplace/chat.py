@@ -687,6 +687,68 @@ class InboxView(APIView):
         return Response(_thread(_inbox_chat(request, conversation.pk), BUSINESS, request))
 
 
+def _waiting_counts(conversations, side):
+    """For the messages button: how many messages this side has not read,
+    and how many chats wait on this side (the other side wrote last)."""
+    from django.db.models import F, OuterRef, Subquery
+
+    other = BUSINESS if side == PERSON else PERSON
+    read_at = "buyer_read_at" if side == PERSON else "seller_read_at"
+    unread = (
+        Message.objects.filter(conversation__in=conversations, sender=other)
+        .filter(
+            Q(**{f"conversation__{read_at}__isnull": True})
+            | Q(created_at__gt=F(f"conversation__{read_at}"))
+        )
+        .count()
+    )
+    last_sender = Message.objects.filter(conversation=OuterRef("pk")).order_by("-created_at", "-pk")
+    waiting = (
+        Conversation.objects.filter(pk__in=conversations.values("pk"), buyer__isnull=False)
+        .annotate(last_sender=Subquery(last_sender.values("sender")[:1]))
+        .filter(last_sender=other)
+        .count()
+    )
+    return {"unread": unread, "waiting": waiting}
+
+
+class UnreadView(APIView):
+    """The floating messages button: which of the three roles this login
+    has, and for each how many messages are unread and how many chats wait
+    on it. Buying (a person's chats with shops and workshops) once there is a
+    chat; selling (the shop's inbox) and teaching (the workshop's) for an
+    active seller and trainer. Anybody may ask: signed out, or with nothing
+    to show, the answer is no roles and the button stays away."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = []
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        from accounts.auth import own_customer_account
+
+        user = request.user
+        if not (user and user.is_authenticated) or user.is_staff:
+            return Response({"signed_in": bool(user and user.is_authenticated), "roles": []})
+        roles = []
+        account = own_customer_account(request)
+        if account is not None:
+            mine = Conversation.objects.filter(buyer=account)
+            if mine.exists():
+                roles.append({"role": "buying", **_waiting_counts(mine, PERSON)})
+        if _active_seller(user) is not None:
+            shop = Conversation.objects.filter(seller__user=user)
+            roles.append({"role": "selling", **_waiting_counts(shop, BUSINESS)})
+        if _active_trainer(user) is not None:
+            workshop = Conversation.objects.filter(
+                pk__in=Conversation.objects.filter(
+                    provider__trainer_memberships__trainer__user=user
+                ).values("pk")
+            )
+            roles.append({"role": "teaching", **_waiting_counts(workshop, BUSINESS)})
+        return Response({"signed_in": True, "roles": roles})
+
+
 @method_decorator(csrf_protect, name="dispatch")
 class InboxChatView(APIView):
     authentication_classes = [SessionAuthentication]

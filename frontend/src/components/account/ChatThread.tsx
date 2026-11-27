@@ -37,6 +37,7 @@ export function ChatThread({
   report,
   block,
   header,
+  fill = false,
 }: {
   side: "buyer" | "seller";
   load: () => Promise<Thread>;
@@ -46,6 +47,8 @@ export function ChatThread({
   /** Block the other side (true) or unblock them (false). */
   block?: (on: boolean) => Promise<Thread>;
   header?: React.ReactNode;
+  /** Fill the floating messages panel rather than stand as a page's card. */
+  fill?: boolean;
 }) {
   const t = useTranslations("Chat");
   const [thread, setThread] = useState<Thread | null>(null);
@@ -125,12 +128,20 @@ export function ChatThread({
   const canWrite = thread ? (thread.can_write ?? !thread.closed) : false;
   const blockedByYou = thread?.blocked_by_you ?? false;
 
+  // Inside the floating messages panel: its height, its frame, and a heading
+  // under the page's own.
+  const Heading = fill ? "h2" : "h1";
+
   return (
-    <div className="flex min-h-[60vh] flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]">
+    <div
+      className={`flex flex-col bg-[var(--color-card)] ${
+        fill ? "h-full min-h-0" : "min-h-[60vh] rounded-2xl border border-[var(--color-border)]"
+      }`}
+    >
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
         {header}
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold">{thread?.with.name ?? "…"}</h1>
+          <Heading className={`truncate font-bold ${fill ? "text-base" : "text-lg"}`}>{thread?.with.name ?? "…"}</Heading>
           {thread ? (
             <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
               {thread.kind === "workshop" ? (

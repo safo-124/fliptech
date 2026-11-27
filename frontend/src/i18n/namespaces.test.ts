@@ -8,7 +8,7 @@ import {join} from "node:path";
 
 import {describe, expect, it} from "vitest";
 
-import {LEARN_CLIENT_NAMESPACES, SELLER_CLIENT_NAMESPACES} from "./namespaces";
+import {LEARN_CLIENT_NAMESPACES, MESSAGES_CLIENT_NAMESPACES, SELLER_CLIENT_NAMESPACES} from "./namespaces";
 
 const ROOT = join(__dirname, "..");
 
@@ -34,6 +34,7 @@ describe("each client subtree ships the messages its components read", () => {
   it.each([
     ["components/learn", LEARN_CLIENT_NAMESPACES],
     ["components/seller", SELLER_CLIENT_NAMESPACES],
+    ["components/messages", MESSAGES_CLIENT_NAMESPACES],
   ] as const)("%s", (dir, shipped) => {
     const missing = [...clientNamespaces(dir)].filter((name) => !(shipped as readonly string[]).includes(name));
     expect(missing).toEqual([]);

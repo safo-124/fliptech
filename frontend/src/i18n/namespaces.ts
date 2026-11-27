@@ -116,6 +116,13 @@ export const TRAINER_CLIENT_NAMESPACES = [
 /** The words of a chat (components/account/ChatThread.tsx) and the business inbox. */
 export const INBOX_CLIENT_NAMESPACES = ["Chat"] as const satisfies readonly ClientNamespace[];
 
+/** The floating messages button, on every page (components/messages), with a
+ * chat opening inside it (Chat). */
+export const MESSAGES_CLIENT_NAMESPACES = [
+  "FloatingMessages",
+  "Chat",
+] as const satisfies readonly ClientNamespace[];
+
 export const ACCOUNT_CLIENT_NAMESPACES = [
   "Account",
   "AccountPassword",

@@ -1203,6 +1203,30 @@
     "idNameKeep": "Keep “{name}”",
     "idNameLater": "Not now"
   },
+  "FloatingMessages": {
+    "open": "{count, plural, =0 {Messages} one {Messages, # unread} other {Messages, # unread}}",
+    "title": "Messages",
+    "close": "Close messages",
+    "tabsLabel": "Messages as",
+    "tab": {
+      "buying": "Buying",
+      "selling": "Selling",
+      "teaching": "Teaching"
+    },
+    "unread": "unread",
+    "loading": "Loading messages",
+    "empty": {
+      "buying": "No chats yet. Message a shop or a workshop from its page.",
+      "selling": "No messages from buyers yet.",
+      "teaching": "No messages from trainees yet."
+    },
+    "you": "You: {text}",
+    "sharedNumber": "Shared a phone number",
+    "waiting": "{count, plural, one {# waiting for your reply} other {# waiting for your reply}}",
+    "allBuying": "All your messages",
+    "allInbox": "Open your inbox",
+    "back": "Back to your messages"
+  },
   "Chat": {
     "closedAccount": "This person closed their account. The chat is kept here for your records, but they cannot be reached through it.",
     "courseGone": "This course is no longer listed",

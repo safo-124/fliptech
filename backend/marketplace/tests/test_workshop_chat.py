@@ -157,6 +157,42 @@ def test_a_signed_in_person_can_message_a_workshop_directly(area, django_user_mo
 
 
 @pytest.mark.django_db
+def test_the_messages_button_counts_unread_and_waiting_per_role(
+    client, area, django_user_model, texts
+):
+    provider, _course = workshop(area)
+    trainer = trainer_of(provider, django_user_model)
+    person = CustomerAccount.objects.create(
+        user=django_user_model.objects.create_user("person-esi"),
+        phone="+233201113333",
+        phone_verified_at=timezone.now(),
+    )
+    # Signed out: no roles, so no button.
+    assert client.get(reverse("chats-unread")).json() == {"signed_in": False, "roles": []}
+    # Signed in with no chat yet: still nothing to show a buyer.
+    person_client = signed_in(person.user)
+    assert person_client.get(reverse("chats-unread")).json()["roles"] == []
+
+    chat_id = person_client.post(
+        reverse("account-chats"), {"workshop": provider.pk, "body": "Hello"}, content_type=JSON
+    ).json()["id"]
+    trainer_client = signed_in(trainer.user)
+    roles = trainer_client.get(reverse("chats-unread")).json()["roles"]
+    assert roles == [{"role": "teaching", "unread": 1, "waiting": 1}]
+    assert person_client.get(reverse("chats-unread")).json()["roles"] == [
+        {"role": "buying", "unread": 0, "waiting": 0}
+    ]
+
+    trainer_client.post(reverse("inbox-chat", args=[chat_id]), {"body": "Yes"}, content_type=JSON)
+    assert trainer_client.get(reverse("chats-unread")).json()["roles"] == [
+        {"role": "teaching", "unread": 0, "waiting": 0}
+    ]
+    assert person_client.get(reverse("chats-unread")).json()["roles"] == [
+        {"role": "buying", "unread": 1, "waiting": 1}
+    ]
+
+
+@pytest.mark.django_db
 def test_only_the_workshops_own_trainer_and_its_person_read_a_chat(area, django_user_model, texts):
     provider, _course = workshop(area)
     trainer_of(provider, django_user_model)

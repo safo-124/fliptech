@@ -670,6 +670,8 @@ urlpatterns = [
         chat.BuyerChatBlockView.as_view(),
         name="account-chat-block",
     ),
+    # The floating messages button: unread and waiting chats per role.
+    path("chats/unread/", chat.UnreadView.as_view(), name="chats-unread"),
     path("inbox/", chat.InboxView.as_view(), name="inbox"),
     path("inbox/<int:pk>/", chat.InboxChatView.as_view(), name="inbox-chat"),
     path("inbox/<int:pk>/share-number/", chat.InboxShareView.as_view(), name="inbox-share"),

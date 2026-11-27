@@ -287,6 +287,16 @@ export function reportChat(id: number, reason: ChatReportReason, details: string
   });
 }
 
+/** One role's count for the floating messages button: messages not yet read,
+ * and chats waiting on this login (the other side wrote last). */
+export type ChatRole = {role: "buying" | "selling" | "teaching"; unread: number; waiting: number};
+
+/** Which roles this login has in chat, each with its counts; none when signed
+ * out or with nothing to show. See backend marketplace/chat.py, UnreadView. */
+export function getChatCounts() {
+  return sessionFetch<{signed_in: boolean; roles: ChatRole[]}>("/api/chats/unread/");
+}
+
 /** The business inbox: every chat for the shop and the workshop this login holds. */
 export function getInbox() {
   return sessionFetch<{results: ChatSummary[]}>("/api/inbox/");

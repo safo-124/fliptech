@@ -7,7 +7,8 @@ import {SiteHeader} from "@/components/SiteHeader";
 import {MobileTabBar} from "@/components/nav/MobileTabBar";
 import {SignInSheet} from "@/components/auth/SignInSheet";
 import {ClientMessages} from "@/i18n/ClientMessages";
-import {SIGN_IN_CLIENT_NAMESPACES} from "@/i18n/namespaces";
+import {MESSAGES_CLIENT_NAMESPACES, SIGN_IN_CLIENT_NAMESPACES} from "@/i18n/namespaces";
+import {FloatingMessages} from "@/components/messages/FloatingMessages";
 import {BRAND, BRAND_COLOURS} from "@/lib/brand";
 import {iconUrl} from "@/lib/brand-mark";
 
@@ -103,6 +104,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             basketItems: tHeader("tabBasketItems", {count: "{count}"}),
           }}
         />
+        {/* The Fliiptech-mark messages button, for anybody with a chat. */}
+        <ClientMessages namespaces={MESSAGES_CLIENT_NAMESPACES}>
+          <FloatingMessages />
+        </ClientMessages>
         <PrivatePageGuard />
         {/* Answers openSignIn() from any page: see lib/sign-in.ts. */}
         <ClientMessages namespaces={SIGN_IN_CLIENT_NAMESPACES}>

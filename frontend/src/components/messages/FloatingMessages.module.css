@@ -1,0 +1,24 @@
+/* The floating messages button (FloatingMessages.tsx): its count pops once
+   when it changes, so a new message is noticed without a sound. */
+
+.pop {
+  animation: pop 600ms ease-out 1;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  45% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}
