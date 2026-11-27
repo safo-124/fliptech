@@ -341,6 +341,47 @@ class TradeAreaSummarySerializer(serializers.Serializer):
     minimum_for_indexing = serializers.IntegerField()
 
 
+class IndexableTrainingPagesView(APIView):
+    """Every /<place>/<trade>-training page with enough workshops to be listed
+    in the sitemap, in one answer.
+
+    The same rule as TradeAreaSummaryView (MIN_LISTINGS_FOR_GENERATED_PAGE
+    workshops with a listed course; regions only once launched), worked out in
+    two grouped queries. The sitemap used to ask the summary for every trade in
+    every place, one request each, and took over a minute: long enough for a
+    search engine to give up on it.
+    """
+
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        listed = Programme.objects.filter(listed_course_q())
+        regions = (
+            listed.filter(provider__area__region__is_launched=True)
+            .values("trade__slug", "provider__area__region__slug")
+            .annotate(workshops=Count("provider", distinct=True))
+            .filter(workshops__gte=MIN_LISTINGS_FOR_GENERATED_PAGE)
+            .order_by("trade__slug", "provider__area__region__slug")
+        )
+        areas = (
+            listed.values("trade__slug", "provider__area__slug")
+            .annotate(workshops=Count("provider", distinct=True))
+            .filter(workshops__gte=MIN_LISTINGS_FOR_GENERATED_PAGE)
+            .order_by("trade__slug", "provider__area__slug")
+        )
+        pages = [
+            {
+                "trade": row["trade__slug"],
+                "place": row["provider__area__region__slug"],
+                "scope": "region",
+            }
+            for row in regions
+        ] + [
+            {"trade": row["trade__slug"], "place": row["provider__area__slug"], "scope": "area"}
+            for row in areas
+        ]
+        return Response({"results": pages})
+
+
 class TradeAreaSummaryView(APIView):
     """Numbers for a generated area page: how many workshops, and what they cost.
 

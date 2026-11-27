@@ -19,6 +19,7 @@ import {
   getAllRegions,
   getAllTrades,
   getAreaSummary,
+  getIndexableTrainingPages,
   getTradeCategories,
   searchAllProducts,
   searchAllProviders,
@@ -81,17 +82,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Section 04 specifies two scopes: a trade in a region
   // (/greater-accra/welding-training) and a trade in a town (/tema/...).
-  // Both share the /<place>/<trade>-training shape, so both are checked here.
-  const indexablePages = await collectIndexableGeneratedPages(
-    generatedPageCandidates(trades, regions, areas),
-    (candidate) =>
-      getAreaSummary({
-        trade: candidate.trade,
-        ...(candidate.scope === "region"
-          ? { region: candidate.place }
-          : { area: candidate.place }),
-      }),
-  );
+  // Both share the /<place>/<trade>-training shape. One request lists every
+  // page worth indexing; asking for each trade in each place took over a
+  // minute, long enough for a search engine to give up on the sitemap. The
+  // old way stays only for an API that does not have the list yet.
+  const indexablePages = await getIndexableTrainingPages()
+    .then((answer) => answer.results)
+    .catch(() =>
+      collectIndexableGeneratedPages(generatedPageCandidates(trades, regions, areas), (candidate) =>
+        getAreaSummary({
+          trade: candidate.trade,
+          ...(candidate.scope === "region" ? { region: candidate.place } : { area: candidate.place }),
+        }),
+      ),
+    );
 
   for (const page of indexablePages) {
     entries.push({
@@ -122,6 +126,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${site}/marketplace/${product.id}`,
       changeFrequency: "weekly",
       priority: 0.6,
+      // So a product whose price or stock changed is looked at again.
+      lastModified: product.updated_at ? new Date(product.updated_at) : undefined,
     });
     shops.add(product.seller.id);
   }

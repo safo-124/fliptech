@@ -298,6 +298,15 @@ export function getAreaSummary(params: { trade: string; area?: string; region?: 
   return fetchJson<AreaSummary>(`/api/pages/summary/${buildQuery(params)}`);
 }
 
+/** Every trade-and-place training page with enough workshops to list in the
+ * sitemap, in one answer (backend providers/views.py, IndexableTrainingPagesView). */
+export function getIndexableTrainingPages() {
+  return fetchJson<{ results: { trade: string; place: string; scope: "region" | "area" }[] }>(
+    "/api/pages/indexable/",
+    { revalidate: 3600 },
+  );
+}
+
 /** The dashboard is per-owner and must never be cached or shared. */
 export function getDashboard(token: string) {
   return fetchJson<DashboardData>(`/api/dashboard/${token}/`, { revalidate: 0 });

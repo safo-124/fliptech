@@ -157,6 +157,7 @@ from providers.trainer_views import (
 )
 from providers.video_reports import VideoReportView
 from providers.views import (
+    IndexableTrainingPagesView,
     ProfileViewedView,
     ProviderBySlugView,
     ProviderViewSet,
@@ -307,6 +308,8 @@ urlpatterns = [
     # Public page data. Registered before the router so the two-segment provider
     # address does not collide with the router's detail route.
     path("pages/summary/", TradeAreaSummaryView.as_view(), name="trade-area-summary"),
+    # The sitemap's trade-and-place pages, all at once.
+    path("pages/indexable/", IndexableTrainingPagesView.as_view(), name="indexable-training-pages"),
     # The search page's departures board: the next courses to start.
     path("intakes/upcoming/", UpcomingIntakesView.as_view(), name="upcoming-intakes"),
     # The profile page reporting that it was opened, for the dashboard's

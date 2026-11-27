@@ -46,6 +46,8 @@ export async function generateMetadata({
   return {
     title: shop.seller.business_name,
     description: shop.seller.about.slice(0, 200) || undefined,
+    // The one address to list, whichever host served the page.
+    alternates: { canonical: `/marketplace/seller/${shop.seller.id}` },
   };
 }
 

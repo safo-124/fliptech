@@ -838,6 +838,8 @@ export type ProductCard = {
   /** Whether "Buy now" is offered: the seller can be paid on the site. */
   buy_online: boolean;
   created_at: string;
+  /** Last changed (price, stock, words): the sitemap's date for it. */
+  updated_at?: string;
 };
 
 /** A buyer's review, as anyone sees it: a first name at most. */

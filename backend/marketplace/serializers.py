@@ -257,6 +257,9 @@ class ProductCardSerializer(serializers.ModelSerializer):
             "distance_km",
             "buy_online",
             "created_at",
+            # The sitemap's last-changed date, so search engines come back
+            # to a product whose price or stock changed.
+            "updated_at",
         ]
 
 

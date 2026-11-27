@@ -30,6 +30,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ApiError, getProduct, getSellerShop } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { formatFee } from "@/lib/format";
+import { metaDescription, productJsonLd, scriptJson } from "@/lib/product-seo";
 import { tradeClass } from "@/lib/trades";
 
 export const revalidate = 300;
@@ -53,11 +54,30 @@ export async function generateMetadata({
   const product = await load((await params).id);
   if (!product) return { title: "Not found" };
   const image = product.photos[0]?.image ?? product.photo;
+  const [t, tFormat] = await Promise.all([getTranslations("Marketplace"), getTranslations("Format")]);
+  // What a search result shows: the name, the price, who makes it and where,
+  // so "woven basket Tema" finds it and the price is there before the click.
+  const where = { name: product.name, shop: product.seller.business_name, area: product.seller.area || "Ghana" };
+  const price = product.price === null ? null : formatFee(product.price, tFormat);
+  const title = price ? t("metaTitle", { ...where, price }) : t("metaTitleNoPrice", where);
+  const description = metaDescription(
+    product.description,
+    price ? t("metaDescription", { ...where, price }) : t("metaDescriptionNoPrice", where),
+  );
+  const path = `/marketplace/${product.id}`;
   return {
-    title: `${product.name} — ${product.seller.business_name}`,
-    description: product.description.slice(0, 200) || undefined,
+    title,
+    description,
+    // The one address to list, whichever host served the page (the old
+    // nip.io name still answers for app builds).
+    alternates: { canonical: path },
     // The picture WhatsApp and Facebook show when the link is shared.
-    openGraph: image ? { images: [{ url: image, alt: product.name }] } : undefined,
+    openGraph: {
+      title,
+      description,
+      url: path,
+      ...(image ? { images: [{ url: image, alt: product.name }] } : {}),
+    },
   };
 }
 
@@ -96,6 +116,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="app-shell py-6 pb-14">
+      {/* The product as search engines read it: price, stock, photos
+          (lib/product-seo.ts). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: scriptJson(productJsonLd(product, `${SITE_URL}/marketplace/${product.id}`)) }}
+      />
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-4">
         <Link href="/marketplace">
           <ArrowLeft aria-hidden="true" />

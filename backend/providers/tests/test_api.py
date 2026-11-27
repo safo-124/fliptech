@@ -236,6 +236,28 @@ def test_summary_flags_a_thin_page_as_not_worth_indexing(client, world):
 
 
 @pytest.mark.django_db
+def test_the_sitemap_gets_every_indexable_page_in_one_answer(client, world):
+    """The same rule as the summary, for every trade and place at once."""
+    pages = client.get(reverse("indexable-training-pages")).json()["results"]
+
+    assert {"trade": "welding", "place": "greater-accra", "scope": "region"} in pages
+    # Two welding workshops in the town of Accra, one tailoring: too thin.
+    assert {"trade": "welding", "place": "accra", "scope": "area"} not in pages
+    assert not any(page["trade"] == "tailoring" for page in pages)
+    for page in pages:
+        summary = client.get(
+            "/api/pages/summary/", {"trade": page["trade"], page["scope"]: page["place"]}
+        ).json()
+        assert summary["has_enough_inventory_to_index"] is True
+
+    region = world["accra"].region
+    region.is_launched = False
+    region.save(update_fields=["is_launched"])
+    after = client.get(reverse("indexable-training-pages")).json()["results"]
+    assert not any(page["scope"] == "region" for page in after)
+
+
+@pytest.mark.django_db
 def test_unlaunched_region_has_no_summary_but_area_and_search_stay_public(client, world):
     region = world["accra"].region
     region.is_launched = False

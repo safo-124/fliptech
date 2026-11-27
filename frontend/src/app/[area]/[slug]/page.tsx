@@ -37,6 +37,7 @@ import { ApiError, getProvider, searchProviders } from "@/lib/api";
 import { BRAND } from "@/lib/brand";
 import { formatFeeRange, titleCase } from "@/lib/format";
 import { loadGeneratedTradePage } from "@/lib/generated-page";
+import { scriptJson } from "@/lib/product-seo";
 
 const TRADE_PAGE_SUFFIX = "-training";
 
@@ -124,7 +125,8 @@ export default async function AreaSlugPage({ params }: { params: Promise<Params>
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        // Escaped: the workshop's own words are in it (lib/product-seo.ts).
+        dangerouslySetInnerHTML={{ __html: scriptJson(jsonLd) }}
       />
       <ProfileViewBeacon providerId={provider.id} />
       <div className="relative overflow-hidden pb-8 sm:pb-12">
