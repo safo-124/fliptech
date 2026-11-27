@@ -17,6 +17,7 @@ from django.contrib.gis.geos import Point
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from catalog.models import Trade
 from courses import paystack
@@ -544,6 +545,29 @@ def test_without_confirmation_it_is_released_days_after_handover(client, world, 
     Order.objects.filter(pk=order.pk).update(delivered_at=timezone.now() - timedelta(days=4))
     call_command("marketplace_daily", stdout=StringIO(), stderr=StringIO())
     assert len(transfers(calls)) == 1
+
+
+@pytest.mark.django_db
+def test_the_order_page_says_until_when_a_problem_can_be_reported(
+    client, world, calls, texts, held, settings
+):
+    """The 3-day returns window (fliiptech.com/returns) is the hold itself."""
+    order = paid_held_order(client, world, calls)
+    page = reverse("order-detail", args=[order.reference])
+    assert client.get(page).json()["report_by"] is None  # Not handed over yet.
+
+    # The seller on a browser of their own: the buyer's stays the buyer's.
+    from django.test import Client
+
+    as_seller(Client(), world["ama"]).patch(
+        reverse("seller-order", args=[order.reference]), {"stage": "delivered"}, content_type=JSON
+    )
+    order.refresh_from_db()
+    shown = parse_datetime(client.get(page).json()["report_by"])
+    assert shown == order.delivered_at + timedelta(days=settings.MARKETPLACE_RELEASE_DAYS)
+
+    client.post(reverse("order-received", args=[order.reference]))
+    assert client.get(page).json()["report_by"] is None  # Confirmed: the seller is paid.
 
 
 @pytest.mark.django_db

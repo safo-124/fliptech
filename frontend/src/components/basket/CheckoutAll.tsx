@@ -359,7 +359,7 @@ export function CheckoutAll() {
         <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--color-visit)]" />
         <span>
           {t("heldNote")}{" "}
-          <Link href="/marketplace/terms#refunds" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
+          <Link href="/returns" className="font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline">
             {tm("refundPolicy")}
           </Link>
         </span>

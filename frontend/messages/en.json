@@ -205,10 +205,6 @@
     "nearMeRefused": "We couldn't get your location. Choose an area instead.",
     "shareOnWhatsApp": "Share on WhatsApp",
     "shareText": "{name}, {price}, made by {seller}: {url}",
-    "metaTitle": "{name}, {price} · {shop}, {area}",
-    "metaTitleNoPrice": "{name} · {shop}, {area}",
-    "metaDescription": "{name} for {price} from {shop} in {area}, Ghana. Ask the maker in a chat, pay with mobile money or a card, and collect it or have it delivered.",
-    "metaDescriptionNoPrice": "{name} from {shop} in {area}, Ghana. Ask the maker for a price in a chat, pay with mobile money or a card, and collect it or have it delivered.",
     "paymentNoticeOnline": "Buy now takes mobile money or card through Paystack and pays the maker directly. If something goes wrong with an order, contact {brandShort} with your order number. To ask a question first, use the form above.",
     "buyTitle": "Buy now",
     "quantityLabel": "How many",
@@ -510,7 +506,18 @@
     "countThings": "{count, plural, =1 {1 thing} other {# things}}",
     "nearYou": "near you",
     "buy": "Buy",
-    "seeIt": "See it"
+    "seeIt": "See it",
+    "returnsLine": "3-day buyer protection: report a problem within 3 days of collecting it.",
+    "returnsLineFaultyOnly": "3-day buyer protection. Returns only if it's faulty or not as described: it's {kind}.",
+    "returnsKindMade": "made to order",
+    "returnsKindUsed": "second-hand",
+    "returnsLink": "Returns",
+    "reportBy": "Something wrong? Report it by {date}. After that, the seller is paid.",
+    "gotItConfirm": "Have you checked it? Tapping \"I've got it\" pays the seller now.",
+    "productMetaTitle": "{name}, {price} · {shop}, {area}",
+    "productMetaTitleNoPrice": "{name} · {shop}, {area}",
+    "productMetaDescription": "{name} for {price} from {shop} in {area}, Ghana. Ask the maker in a chat, pay with mobile money or a card, and collect it or have it delivered.",
+    "productMetaDescriptionNoPrice": "{name} from {shop} in {area}, Ghana. Ask the maker for a price in a chat, pay with mobile money or a card, and collect it or have it delivered."
   },
   "Layout": {
     "titleDefault": "{brand} Skills Hub — find practical skills training in Ghana",
@@ -601,7 +608,8 @@
     "trainerSignIn": "Trainer sign-in",
     "about": "About",
     "copyright": "© {year} {brand} Skills Hub. All rights reserved.",
-    "marketTerms": "Marketplace terms"
+    "marketTerms": "Marketplace terms",
+    "returns": "Returns and refunds"
   },
   "AccountSections": {
     "label": "Your account",
@@ -1302,11 +1310,11 @@
     },
     "problems": {
       "title": "When something goes wrong",
-      "body": "If it never arrives, is damaged or is not what was described, use \"Something's wrong\" on your order page, or contact us with your order number, within 7 days of the handover. When buyer protection is on, the seller is not paid until you confirm you have it or 3 days pass after handover without a problem reported."
+      "body": "If it never arrives, is damaged or is not what was described, use \"Something's wrong\" on your order page within 3 days of the handover, while we still hold your money. When buyer protection is on, the seller is not paid until you confirm you have it or 3 days pass after handover without a problem reported. The details are on our returns page, fliiptech.com/returns."
     },
     "refunds": {
       "title": "Refunds",
-      "body": "If we agree with you that something went wrong, we refund you through Paystack to the way you paid. Refunds can take several working days to reach you. We do not refund a change of mind once a made-to-order item has been started."
+      "body": "If we agree with you that something went wrong, we refund you through Paystack to the way you paid. Refunds can take several working days to reach you. A change of mind is not covered, and made-to-order items cannot be returned once work has started unless they are faulty or not as agreed. See fliiptech.com/returns."
     },
     "sellers": {
       "title": "For sellers",
@@ -3520,5 +3528,41 @@
     "banksMissing": "We couldn't load the list of MoMo networks and banks. Try again in a minute; if it keeps happening, tell Fliiptech.",
     "tryAgain": "Try again",
     "changeNumber": "Change number"
+  },
+  "Returns": {
+    "title": "Returns and refunds",
+    "updated": "November 2026",
+    "metaDescription": "How returns and refunds work on {brand}: your money is held until you have your item, and you have 3 days after collecting it to report a problem.",
+    "summary": "Your money waits until you have your item. Report a problem within 3 days of collecting it and, if it's faulty or not as described, you get your money back.",
+    "held": {
+      "title": "Your money waits until you have your item",
+      "body": "When you pay with Buy now, {brand} holds the money. The seller is paid only when you tap \"I've got it\" on your order page, or 3 days after they hand the item over if you report nothing. Check your item before you tap \"I've got it\": that tells us all is well, and the seller is paid straight away."
+    },
+    "window": {
+      "title": "Report a problem within 3 days",
+      "body": "Within 3 days of collecting your item (your order page shows the date), report it if:\n• it never reached you;\n• it is not what was described: the wrong item, size, colour or material;\n• it arrived damaged or does not work;\n• parts are missing, or it is fake.\nIf we agree, you get a full refund, including any delivery fee."
+    },
+    "how": {
+      "title": "How it works",
+      "body": "1. Tap \"Something's wrong\" on your order page and say what happened. Photos help.\n2. The seller has 48 hours to agree to a refund, offer a replacement, or explain.\n3. If you cannot agree, {brand} staff look at both sides and decide.\n4. If the item needs to come back, return it where you collected it, in the same condition and with all its parts. For a delivered item, the seller arranges collection at their own cost.\nA partial refund is fine when you both agree, for example for a small fault you are happy to keep."
+    },
+    "exceptions": {
+      "title": "Not returnable unless faulty or not as described",
+      "body": "• Made-to-order and custom items, once the work has started.\n• Opened personal-care items, such as soaps, creams and hair products.\n• Food.\n• Second-hand items sold as seen."
+    },
+    "changeOfMind": {
+      "title": "Change of mind",
+      "body": "A change of mind is not covered. Many sellers here are small makers, so look at the photos and description closely, ask the seller in a chat before you buy, and check the item when you collect it."
+    },
+    "refunds": {
+      "title": "Refunds",
+      "body": "Refunds go back to the mobile money number or card you paid with, through Paystack. They usually arrive within a few working days of the decision; your network or bank may take longer. There is no restocking fee."
+    },
+    "afterRelease": {
+      "title": "After the seller has been paid",
+      "body": "Once you tap \"I've got it\", or the 3 days pass, the seller is paid. If you then find a fault you could not have seen at handover, contact us within 7 days of collecting the item. We will ask the seller to put it right, but we cannot promise a refund once they have been paid."
+    },
+    "more": "The full marketplace terms:",
+    "termsLink": "Marketplace terms"
   }
 }

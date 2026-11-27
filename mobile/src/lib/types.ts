@@ -298,6 +298,9 @@ export type Order = {
   status: "pending" | "paid" | "failed" | "refunded";
   stage: string;
   protected: boolean;
+  /** Report a problem before this, while the money is held after the
+   * handover (fliiptech.com/returns). Null otherwise. */
+  report_by?: string | null;
   seller_name: string;
   seller_phone: string | null;
   /** For "Message the seller". */

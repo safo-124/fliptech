@@ -259,12 +259,33 @@ export function OrderStatus({ reference }: { reference: string }) {
               </p>
             ) : order.stage !== "refunded" && order.balance_status !== "waiting" && order.balance_status !== "due" ? (
               <div className="space-y-2">
+                {/* The returns window is the hold (fliiptech.com/returns). */}
+                {order.report_by ? (
+                  <p className="text-sm font-semibold">
+                    {t("reportBy", {
+                      date: new Date(order.report_by).toLocaleString("en-GB", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        timeZone: "Africa/Accra",
+                      }),
+                    })}{" "}
+                    <Link href="/returns" className="font-normal text-[var(--color-brand)] underline-offset-2 hover:underline">
+                      {t("returnsLink")}
+                    </Link>
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     disabled={busy}
-                    onClick={() => act(() => confirmReceived(order.reference))}
+                    onClick={() => {
+                      // It pays the seller at once: a moment to look first.
+                      if (window.confirm(t("gotItConfirm"))) void act(() => confirmReceived(order.reference));
+                    }}
                   >
                     {busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : <CheckCircle2 aria-hidden="true" />}
                     {t("gotIt")}

@@ -51,6 +51,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Low priority, but it should be findable: a privacy policy nobody can
     // locate is not published in any useful sense.
     { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.3 },
+    // Google Merchant Center links products to it.
+    { url: `${site}/returns`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   const [trades, areas, regions, providers, products] = await Promise.all([

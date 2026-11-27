@@ -21,6 +21,40 @@ import {LOCALES, type AppLocale} from "./config";
 
 const MESSAGES_DIR = join(__dirname, "..", "..", "messages");
 
+/**
+ * Keys written twice in one object of en.json. JSON keeps only the last, so a
+ * second "metaTitle" silently replaces the first, and the page using the first
+ * shows the other's words. Read from the pretty-printed text, by indentation.
+ */
+function duplicateKeys(text: string): string[] {
+  const seen: Set<string>[] = [];
+  const found: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const depth = (line.length - line.trimStart().length) / 2;
+    if (line.trim().startsWith("{")) {
+      seen.length = depth + 1;
+      continue;
+    }
+    const key = line.match(/^\s*"((?:[^"\\]|\\.)*)":/)?.[1];
+    if (key === undefined) continue;
+    seen.length = depth + 1;
+    seen[depth] ??= new Set();
+    if (seen[depth].has(key)) found.push(key);
+    seen[depth].add(key);
+  }
+  return found;
+}
+
+describe("en.json", () => {
+  it("writes no key twice in the same place", () => {
+    expect(duplicateKeys(readFileSync(join(MESSAGES_DIR, "en.json"), "utf8"))).toEqual([]);
+  });
+
+  it("would catch a key written twice", () => {
+    expect(duplicateKeys('{\n  "A": {\n    "x": "1",\n    "x": "2"\n  },\n  "B": {\n    "x": "3"\n  }\n}')).toEqual(["x"]);
+  });
+});
+
 const english = leaves(en as Tree);
 
 function parseAll(locale: AppLocale, messages: Tree) {

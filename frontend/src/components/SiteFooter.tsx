@@ -52,6 +52,7 @@ export async function SiteFooter() {
       links: [
         ["/privacy", t("privacy")],
         ["/marketplace/terms", t("marketTerms")],
+        ["/returns", t("returns")],
       ],
     },
   ];

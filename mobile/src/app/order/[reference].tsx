@@ -148,7 +148,7 @@ export default function OrderScreen() {
             <View style={[styles.note, { backgroundColor: colors.visitBg }]}>
               <ShieldCheck size={18} color={colors.visit} />
               <Text variant="small" style={{ flex: 1, color: colors.visit }}>
-                Protected: the seller is paid when you confirm you have it, or a few days after handover with no problem.
+                Protected: the seller is paid when you confirm you have it, or 3 days after handover if you report no problem.
               </Text>
             </View>
           ) : null}
@@ -173,12 +173,27 @@ export default function OrderScreen() {
             </View>
           ) : data.status === "paid" && data.stage !== "received" && data.stage !== "refunded" ? (
             <View style={{ gap: space.sm }}>
+              {/* The returns window is the hold (fliiptech.com/returns). */}
+              {data.report_by ? (
+                <Text variant="label">
+                  Something wrong? Report it by{" "}
+                  {new Date(data.report_by).toLocaleString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: "Africa/Accra",
+                  })}
+                  . After that, the seller is paid.
+                </Text>
+              ) : null}
               <Button
                 label="I've got it"
                 busy={received.isPending}
                 icon={<CheckCircle2 size={18} color="#ffffff" />}
                 onPress={() =>
-                  Alert.alert("Got it?", "Only confirm once you have it and it is as described.", [
+                  Alert.alert("Have you checked it?", "Confirm only once you have it and it is as described. This pays the seller now.", [
                     { text: "Not yet", style: "cancel" },
                     { text: "Yes, I have it", onPress: () => received.mutate() },
                   ])

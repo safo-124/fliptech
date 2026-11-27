@@ -900,6 +900,9 @@ export type MarketplaceOrder = {
   payout: "split" | "held" | "sending" | "released" | "failed" | "refunded";
   /** Buyer protection: the seller is paid once the buyer has it. */
   protected: boolean;
+  /** The returns window: report a problem before this, while the money is
+   * held after the handover (fliiptech.com/returns). Null otherwise. */
+  report_by?: string | null;
   problem: string;
   problem_at?: string | null;
   /** The seller's side of a reported problem. */

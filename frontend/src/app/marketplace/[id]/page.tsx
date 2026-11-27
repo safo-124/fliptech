@@ -59,10 +59,10 @@ export async function generateMetadata({
   // so "woven basket Tema" finds it and the price is there before the click.
   const where = { name: product.name, shop: product.seller.business_name, area: product.seller.area || "Ghana" };
   const price = product.price === null ? null : formatFee(product.price, tFormat);
-  const title = price ? t("metaTitle", { ...where, price }) : t("metaTitleNoPrice", where);
+  const title = price ? t("productMetaTitle", { ...where, price }) : t("productMetaTitleNoPrice", where);
   const description = metaDescription(
     product.description,
-    price ? t("metaDescription", { ...where, price }) : t("metaDescriptionNoPrice", where),
+    price ? t("productMetaDescription", { ...where, price }) : t("productMetaDescriptionNoPrice", where),
   );
   const path = `/marketplace/${product.id}`;
   return {
@@ -353,6 +353,21 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {t("termsLink")}
             </Link>
           </p>
+          {/* The returns promise where the buying decision is made
+              (fliiptech.com/returns). Made-to-order and second-hand items
+              come back only when faulty or not as described. */}
+          {product.buy_online ? (
+            <p className="px-1 text-xs leading-relaxed text-[var(--color-muted-foreground)]">
+              {product.availability === "made_to_order" || product.condition === "used"
+                ? t("returnsLineFaultyOnly", {
+                    kind: product.availability === "made_to_order" ? t("returnsKindMade") : t("returnsKindUsed"),
+                  })
+                : t("returnsLine")}{" "}
+              <Link href="/returns" className="underline underline-offset-2">
+                {t("returnsLink")}
+              </Link>
+            </p>
+          ) : null}
         </aside>
       </div>
 

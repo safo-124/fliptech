@@ -696,6 +696,23 @@ class OrderSerializer(serializers.ModelSerializer):
         """Buyer protection: the seller is paid once the buyer has it."""
         return obj.payout != Order.Payout.SPLIT
 
+    report_by = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_report_by(self, obj):
+        """The returns window (fliiptech.com/returns): while the money is still
+        held after the handover, until it goes to the seller. Null before the
+        handover, once the buyer has confirmed, or with nothing held."""
+        if obj.payout != Order.Payout.HELD or obj.stage != Order.Stage.DELIVERED:
+            return None
+        if obj.delivered_at is None:
+            return None
+        from datetime import timedelta
+
+        from django.conf import settings
+
+        return obj.delivered_at + timedelta(days=settings.MARKETPLACE_RELEASE_DAYS)
+
     amount = serializers.SerializerMethodField()
     commission = serializers.SerializerMethodField()
     buyer_phone = serializers.CharField(read_only=True)
@@ -764,6 +781,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "stage",
             "payout",
             "protected",
+            "report_by",
             "problem",
             "problem_at",
             "problem_reply",
