@@ -1,6 +1,8 @@
 import { API_URL } from "./config";
 import { token } from "./session";
+import type { ChatRole } from "./messages";
 import type {
+  HeroShop,
   SiteSearch,
   BasketPrice,
   Bundle,
@@ -134,6 +136,11 @@ export const api = {
   sponsoredProducts: () => getJson<{ results: ProductCard[] }>("/api/products/sponsored/"),
   /** Up to two sponsored courses for home, picked at random (backend courses/promotion.py). */
   sponsoredCourses: () => getJson<{ results: CourseCard[] }>("/api/courses/sponsored/"),
+  /** Up to five shops for Home's slideshow, taking turns (backend HeroShopsView). */
+  heroShops: () => getJson<{ results: HeroShop[] }>("/api/sellers/hero/"),
+  /** Which roles this login has in chat (buying, selling, teaching), each
+   * with unread and waiting counts (backend marketplace/chat.py, UnreadView). */
+  chatCounts: () => getJson<{ signed_in: boolean; roles: ChatRole[] }>("/api/chats/unread/"),
   providers: (
     params: {
       q?: string;

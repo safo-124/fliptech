@@ -1,6 +1,8 @@
 import { Tabs } from "expo-router/tabs";
 
 import { FloatingTabBar, useTabBarVisibility } from "@/components/FloatingTabBar";
+import { totalUnread } from "@/lib/messages";
+import { useChatCounts } from "@/lib/use-chat-counts";
 
 /**
  * The five tabs, in the order the bar shows them: Home, Explore (training
@@ -8,6 +10,8 @@ import { FloatingTabBar, useTabBarVisibility } from "@/components/FloatingTabBar
  */
 export default function TabsLayout() {
   const visibility = useTabBarVisibility();
+  // Unread messages ride on Me, where Messages lives (app/messages.tsx).
+  const unread = totalUnread(useChatCounts());
   return (
     <Tabs
       tabBar={(props) => <FloatingTabBar {...props} />}
@@ -23,7 +27,14 @@ export default function TabsLayout() {
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />
       <Tabs.Screen name="learn" options={{ title: "Learn" }} />
       <Tabs.Screen name="shop" options={{ title: "Shop" }} />
-      <Tabs.Screen name="me" options={{ title: "Me" }} />
+      <Tabs.Screen
+        name="me"
+        options={{
+          title: "Me",
+          tabBarBadge: unread > 0 ? (unread > 99 ? "99+" : unread) : undefined,
+          tabBarAccessibilityLabel: unread > 0 ? `Me, ${unread} unread ${unread === 1 ? "message" : "messages"}` : undefined,
+        }}
+      />
     </Tabs>
   );
 }

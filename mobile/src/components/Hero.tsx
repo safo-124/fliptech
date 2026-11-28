@@ -1,4 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
+import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,12 +18,15 @@ export function Hero({
   title,
   body,
   onMap,
+  action,
 }: {
   eyebrow: string;
   title: string;
   body: string;
   /** Shows the map button in the top-right corner. */
   onMap?: () => void;
+  /** Another round button beside the map's, such as Messages. */
+  action?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -30,7 +34,10 @@ export function Hero({
       <LinearGradient colors={[colors.brandSoft, colors.background]} style={styles.wash} pointerEvents="none" />
       <View style={styles.top}>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
-        {onMap ? <MapButton onPress={onMap} /> : null}
+        <View style={styles.actions}>
+          {action}
+          {onMap ? <MapButton onPress={onMap} /> : null}
+        </View>
       </View>
       <Text style={styles.title} accessibilityRole="header">
         {title}
@@ -44,6 +51,7 @@ const styles = StyleSheet.create({
   wrap: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   wash: { position: "absolute", left: 0, right: 0, top: 0, height: 280 },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
+  actions: { flexDirection: "row", alignItems: "center", gap: space.sm },
   eyebrow: { fontFamily: fonts.medium, fontSize: 13, color: colors.mutedForeground },
   title: {
     marginTop: space.md,

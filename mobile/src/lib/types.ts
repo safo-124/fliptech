@@ -337,6 +337,17 @@ export type ShopListItem = {
   rating: { average: number; count: number } | null;
 };
 
+/** A shop in Home's slideshow (GET /api/sellers/hero/): one photo, three
+ * items or more, trainers' shops first, taking turns each hour. */
+export type HeroShop = {
+  id: number;
+  business_name: string;
+  area: string;
+  photo: string;
+  product_count: number;
+  is_trainer: boolean;
+};
+
 /** A shop page. See backend SellerDetailView. */
 export type ShopDetail = {
   seller: {

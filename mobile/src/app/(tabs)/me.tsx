@@ -39,7 +39,9 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     rows: [
       { icon: BookOpen, label: "My courses", to: "/my-courses", signedIn: true },
       { icon: Package, label: "My orders", to: "/orders", signedIn: true },
-      { icon: MessageSquare, label: "Messages", to: "/chats", signedIn: true },
+      // Every chat, with a tab for each role (buying, selling, teaching).
+      // (Typed as a route by hand until the next `expo start` lists the new screen.)
+      { icon: MessageSquare, label: "Messages", to: "/messages" as Href, signedIn: true },
       { icon: BellRing, label: "Saved searches", to: "/saved-searches", signedIn: true },
       { icon: Heart, label: "Saved", to: "/saved" },
       { icon: Bell, label: "Notifications", to: "/notices", signedIn: true },

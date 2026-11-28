@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { ChevronRight, GraduationCap, PlayCircle, Search, ShoppingBag } from "lucide-react-native";
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { CourseCard, ProductCard, WorkshopRow } from "@/components/Cards";
 import { Hero } from "@/components/Hero";
+import { ShopSlideshow } from "@/components/market/ShopSlideshow";
+import { WatchingMark } from "@/components/WatchingMark";
+import { totalUnread } from "@/lib/messages";
+import { useChatCounts } from "@/lib/use-chat-counts";
 import { Screen } from "@/components/Screen";
 import { Section, Shelf } from "@/components/Section";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
@@ -34,8 +39,19 @@ export default function HomeScreen() {
   const homeProducts = sponsoredFirst(sponsored.data?.results ?? [], products.data?.results ?? [], 10);
   const intakes = useQuery({ queryKey: ["intakes", "upcoming"], queryFn: () => api.upcomingIntakes(6) });
   const refreshing = courses.isRefetching || workshops.isRefetching || products.isRefetching;
+  // Messages: the logo with eyes, for anybody signed in with a chat. The
+  // eyes glance at taps on this screen (components/WatchingMark.tsx).
+  const roles = useChatCounts();
+  const unread = totalUnread(roles);
+  const [tap, setTap] = useState<{ x: number; y: number; at: number } | null>(null);
 
   return (
+    <View
+      style={{ flex: 1 }}
+      onTouchStart={
+        roles.length ? (event) => setTap({ x: event.nativeEvent.pageX, y: event.nativeEvent.pageY, at: Date.now() }) : undefined
+      }
+    >
     <Screen
       edgeToEdgeTop
       refreshing={refreshing}
@@ -53,6 +69,7 @@ export default function HomeScreen() {
         title="Turn your skills into opportunities."
         body="Hands-on training in real workshops, lessons from the people who teach them, and tools from the makers."
         onMap={() => router.push("/map")}
+        action={roles.length ? <MessagesButton unread={unread} tap={tap} /> : undefined}
       />
 
       {/* Search everything, as you type, on its own screen. */}
@@ -67,6 +84,9 @@ export default function HomeScreen() {
           Search training, courses, tools
         </Text>
       </Pressable>
+
+      {/* Shops taking turns, as on the website's front page. */}
+      <ShopSlideshow />
 
       {/* The three parts of the app: one large tile, two beside each other. */}
       <View style={styles.tiles}>
@@ -196,6 +216,27 @@ export default function HomeScreen() {
         </View>
       </Section>
     </Screen>
+    </View>
+  );
+}
+
+/** The round Messages button at the top of Home: the logo with eyes, and
+ * the unread count. Opens every chat, a tab for each role (app/messages.tsx). */
+function MessagesButton({ unread, tap }: { unread: number; tap: { x: number; y: number; at: number } | null }) {
+  return (
+    <Pressable
+      onPress={() => router.push("/messages" as Href)}
+      accessibilityRole="button"
+      accessibilityLabel={unread ? `Messages, ${unread} unread` : "Messages"}
+      style={({ pressed }) => [styles.messages, pressed ? { opacity: 0.85 } : null]}
+    >
+      <WatchingMark size={32} count={unread} tap={tap} />
+      {unread ? (
+        <View style={styles.messagesCount}>
+          <Text style={styles.messagesCountText}>{unread > 99 ? "99+" : String(unread)}</Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -272,6 +313,31 @@ function IntakeCard({ intake }: { intake: UpcomingIntake }) {
 }
 
 const styles = StyleSheet.create({
+  messages: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  messagesCount: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brandPink,
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
+  messagesCountText: { fontFamily: fonts.bold, fontSize: 10, color: "#ffffff" },
   search: {
     marginHorizontal: space.lg,
     marginTop: space.lg,

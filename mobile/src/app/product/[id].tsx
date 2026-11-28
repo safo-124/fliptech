@@ -271,10 +271,31 @@ export default function ProductScreen() {
               {own ? null : data.buy_online ? (
                 <View style={styles.protect}>
                   <ShieldCheck size={20} color={colors.visit} />
-                  <Text variant="small" style={{ flex: 1 }}>
-                    Pay through Fliiptech with MoMo or card. If it does not arrive, or is not as described, tell us
-                    and we sort it out.
-                  </Text>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text variant="small">
+                      Pay through Fliiptech with MoMo or card. If it does not arrive, or is not as described, tell us
+                      and we sort it out.
+                    </Text>
+                    {/* The returns promise (fliiptech.com/returns): 3 days,
+                        the time the money is held after collection.
+                        Made-to-order and second-hand items come back only
+                        when faulty or not as described. */}
+                    <Text variant="small" style={{ color: colors.foreground }}>
+                      {data.availability === "made_to_order" || data.condition === "used"
+                        ? `3-day buyer protection. Returns only if it's faulty or not as described: it's ${
+                            data.availability === "made_to_order" ? "made to order" : "second-hand"
+                          }.`
+                        : "3-day buyer protection: report a problem within 3 days of collecting it."}{" "}
+                      <Text
+                        variant="small"
+                        style={styles.returnsLink}
+                        onPress={() => router.push({ pathname: "/web", params: { path: "/returns" } })}
+                        accessibilityRole="link"
+                      >
+                        Returns
+                      </Text>
+                    </Text>
+                  </View>
                 </View>
               ) : soldOut ? null : (
                 <View style={[styles.protect, styles.direct]}>
@@ -411,6 +432,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.visitBg,
   },
   direct: { backgroundColor: colors.warnBg },
+  returnsLink: { color: colors.brand, fontFamily: fonts.bold, textDecorationLine: "underline" },
   deposit: {
     marginTop: space.md,
     padding: space.md,
