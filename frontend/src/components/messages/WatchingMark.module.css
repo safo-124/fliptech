@@ -1,0 +1,33 @@
+/* The eyes on the messages button (WatchingMark.tsx): a blink every few
+   seconds, and pupils that glide to where they look. */
+
+.lid {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 4.6s infinite;
+}
+
+.pupil {
+  transition: transform 140ms ease-out;
+}
+
+@keyframes blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lid {
+    animation: none;
+  }
+
+  .pupil {
+    transition: none;
+  }
+}

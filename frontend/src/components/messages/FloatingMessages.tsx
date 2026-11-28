@@ -28,7 +28,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatThread } from "@/components/account/ChatThread";
-import { BrandMark } from "@/components/BrandMark";
+import { WatchingMark } from "@/components/messages/WatchingMark";
 import {
   blockChat,
   blockInboxChat,
@@ -354,7 +354,9 @@ export function FloatingMessages() {
         aria-label={t("open", { count: total })}
         className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-[950] grid size-14 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] shadow-[var(--shadow-lg)] transition-transform hover:-translate-y-0.5 lg:bottom-6 lg:right-6"
       >
-        <BrandMark className="size-9" />
+        {/* The mark with eyes that follow the pointer, glance at a new
+            message and look up into the open panel (WatchingMark.tsx). */}
+        <WatchingMark className="size-10" looking={open ? "panel" : null} count={total} />
         {total ? (
           <span
             key={total}
